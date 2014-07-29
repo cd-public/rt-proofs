@@ -19,32 +19,24 @@ Record well_defined_job (j: job) : Prop :=
 Definition processor := nat.
 Definition time := nat.
 
-Generate OrderedType job.
-
-Require Tactics.
-Inductive lt_job: relation job :=
-  | lt_arrival a1 a2 c1 c2 d1 d2 (alt: a1 < a2):
-    lt_job {| arrival := a1; cost := c1; 
-
 Record schedule_state : Type :=
   {
-    cpu_set: set processor;
-    task_map: processor  -> option job;
-    ready_queue : set job
+    cpu_count: nat;
+    task_map: Map [processor, job];
+    ready_queue : list job
   }.
 
-(*Definition injective {X: Type} {Y: Type} (f: X -> Y) := forall (x y : X), f x = f y -> x = y.*)
-
-Definition active_jobs (s: schedule_state) : set job := empty_set job.
-
 Record valid_schedule_state (s: schedule_state) : Prop :=
-  { mutual_exclusion: forall (cpu1 cpu2 : processor), task_map s cpu1 = task_map s cpu2
-                                                                                  /\ task_map s cpu1 <> None
-                                                                                  -> cpu1 = cpu2
-    (*idle_tasks: set_inter (active_jobs s) ready_queue = empty_set job*)
-    (*idle_tasks: forall j: job, forall cpu: processor, In cpu (cpu_set s)
-                                                                           /\ In j (ready_queue s)
-                                                                          -> task_map s cpu <> Some j*)
+  {
+  number_cpus:
+    forall cpu job, MapsTo cpu job (task_map s) -> cpu < cpu_count s;
+
+  mutual_exclusion:
+    forall cpu1 cpu2 job, MapsTo cpu1 job (task_map s) ->
+                          MapsTo cpu2 job (task_map s) ->
+                          cpu1 = cpu2;
+  running_inter_idle_is_empty:
+    forall cpu job, MapsTo cpu job (task_map s) /\ List.In job (ready_queue s) -> False
   }.
 
 
