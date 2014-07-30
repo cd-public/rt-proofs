@@ -1,11 +1,12 @@
 Require Import Coq.Lists.List.
 Require Import Sets.
 Require Import Maps.
+Require Import Coq.Arith.EqNat.
 
 Set Printing Projections.
 
 (* A job represents an execution requirement *)
-Inductive job : Type :=
+Record job : Type :=
   { job_id: nat; (* identifier *)
     job_number: nat; (* sequence number *)
     job_arrival: nat;
@@ -64,9 +65,10 @@ Definition time := nat.
 
 Record schedule_state : Type :=
   {
+    instant: time;
     cpu_count: nat;
     task_map: Map [processor, job];
-    ready_queue : list job
+    active_jobs : list job
   }.
 
 Record valid_schedule_state (s: schedule_state) : Prop :=
@@ -78,23 +80,88 @@ Record valid_schedule_state (s: schedule_state) : Prop :=
     forall cpu1 cpu2 job, MapsTo cpu1 job (task_map s) ->
                           MapsTo cpu2 job (task_map s) ->
                           cpu1 = cpu2;
-  running_inter_idle_is_empty:
-    forall cpu job, MapsTo cpu job (task_map s) /\ List.In job (ready_queue s) -> False
+  task_map_is_valid:
+    forall cpu job, MapsTo cpu job (task_map s) -> List.In job (active_jobs s)
   }.
 
 Definition sched_algorithm := schedule_state -> schedule_state.
 
-(* Generic schedule type*)
-Inductive schedule (alg: sched_algorithm) : taskset -> schedule_state -> Type :=
+Definition event := prod time (schedule_state -> schedule_state).
+
+Definition compute_event (s: schedule_state) (ev: event) : schedule_state :=
+  match beq_nat (instant s) (fst ev) with
+  | true => (snd ev) s
+  | false => s
+  end.
+
+Definition process_events (s: schedule_state) (events: list event) : schedule_state :=
+  fold_left compute_event events s.
+
+Print beq_nat.
+Definition clear_events (s: schedule_state) (events: list event) : list event :=
+  List.filter (fun ev => negb (beq_nat (instant s) (fst ev))) events.
+(*TODO add examples to check correctness *)
+
+Definition ev_job_arrival (j: job) (state: schedule_state) : schedule_state :=
+  {|
+    instant := instant state;
+    cpu_count := cpu_count state;
+    task_map := task_map state;
+    active_jobs := cons j (active_jobs state)
+  |}.
+
+Definition ev_taskset_init  : list event :=
+
+Inductive schedule (alg: sched_algorithm) : taskset -> schedule_state -> list event -> Type :=
+  (* sched_init(alg, ts) gives the initial state *)
   | sched_init : forall (ts: taskset) (state: schedule_state),
-                           valid_taskset ts -> schedule alg ts state
-  | sched_next : forall (ts: taskset) (state: schedule_state),
-                           schedule alg ts state -> (schedule alg ts (alg state)).
+                           valid_taskset ts -> schedule alg ts state nil
+  (* sched_next(alg, ts, state) moves to the next state *)
+  | sched_next : forall (ts: taskset) (state: schedule_state) (events: list event),
+                           schedule alg ts state events
+                           -> schedule alg ts (alg (process_events state events)) (clear_events state events).
+
+Theorem schedule_always_valid :
+  forall (alg: sched_algorithm) (ts: taskset) (state: schedule_state) (events: list event),
+           schedule alg ts state events -> valid_schedule_state state.
+  Proof.
+    intros alg ts state events H.
+    induction H.   
+
+Definition cpu_idle (cpu: processor) (s: schedule_state) : Prop :=
+  forall j, ~MapsTo cpu j (task_map s).
+
+Definition job_backlogged (j: job) (s: schedule_state) : Prop :=
+  List.In j (active_jobs s) /\ forall cpu, ~MapsTo cpu j (task_map s).
+
+Definition break_ties (j1 j2: job) : Prop :=
+  job_id j1 < job_id j2 \/ job_number j1 < job_number j2.
+
+Definition prio_order := job -> job -> Prop. (* job_a < job_b *)
+
+Definition prio_EDF (j1 j2: job) : Prop :=
+  job_deadline j1 < job_deadline j2 \/ break_ties j1 j2.
+
+Definition enforce_priority (higher_prio: prio_order) (s: schedule_state) : Prop :=
+  forall cpu, cpu_idle cpu s
+              \/ exists j, MapsTo cpu j (task_map s)
+                           -> (forall b, job_backlogged b s -> higher_prio j b). 
+
+(* TODO add unique priorities *)
+(* TODO add some predicates to indicate CPU allowance -> add affinities in the future *)
+
+Definition work_conserving (s: schedule_state) : Prop :=
+  forall cpu, cpu_idle cpu s -> forall j, ~job_backlogged j s.
+
+Definition sched_EDF (s: schedule_state) : Prop :=
+  work_conserving s /\ enforce_priority prio_EDF s.
 
 Definition EDF (s: schedule_state) : schedule_state :=
+  let 
+
   {| cpu_count := cpu_count s;
-     task_map :=;
-     ready_queue :=;
+     task_map := ;
+     active_jobs := active_jobs s;
   |}.
 
 Print (sched_init ts).
