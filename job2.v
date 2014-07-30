@@ -1,7 +1,7 @@
 Require Import Coq.Lists.List.
 (*Require Import Sets.
-Require Import Maps.*)
-Require Import Coq.Vectors.Vector.
+Require Import Maps.
+Require Import Coq.Vectors.Vector.*)
 Require Import Coq.Arith.EqNat.
 
 Set Printing Projections.
@@ -72,17 +72,22 @@ Record schedule_state : Type :=
     active_jobs : list job
   }.
 
+Print nth.
+
+Definition scheduled (j: job) (cpu: processor) (s: schedule_state) : Prop :=
+  nth cpu (task_map s) None = Some j.
+
 Record valid_schedule_state (s: schedule_state) : Prop :=
   {
   number_cpus:
-    forall cpu job, MapsTo cpu job (task_map s) -> cpu < cpu_count s;
+    length (task_map s) = cpu_count s;
 
   mutual_exclusion:
-    forall cpu1 cpu2 job, MapsTo cpu1 job (task_map s) ->
-                          MapsTo cpu2 job (task_map s) ->
-                          cpu1 = cpu2;
+    forall j cpu1 cpu2, scheduled j cpu1 s ->
+                        scheduled j cpu2 s ->
+                        cpu1 = cpu2;
   task_map_is_valid:
-    forall cpu job, MapsTo cpu job (task_map s) -> List.In job (active_jobs s)
+    forall j cpu, scheduled j cpu s -> List.In j (active_jobs s)
   }.
 
 Definition sched_algorithm := schedule_state -> schedule_state.
@@ -98,7 +103,6 @@ Definition compute_event (s: schedule_state) (ev: event) : schedule_state :=
 Definition process_events (s: schedule_state) (events: list event) : schedule_state :=
   fold_left compute_event events s.
 
-Print beq_nat.
 Definition clear_events (s: schedule_state) (events: list event) : list event :=
   List.filter (fun ev => negb (beq_nat (instant s) (fst ev))) events.
 (*TODO add examples to check correctness *)
@@ -116,13 +120,17 @@ Definition ev_job_arrival (j: job) (state: schedule_state) : schedule_state :=
 Definition ev_taskset_init (ts: taskset) : list event :=
   List.map (fun (x: sporadic_task) => pair (st_offset x) (ev_job_arrival (first_job x))) ts.
 
-Print empty.
+Fixpoint list_none (n:nat) : list (option job) :=
+  match n with
+  | O => nil
+  | S n => None :: (list_none n)
+  end.
 
 Definition empty_schedule (num_cpus: nat) : schedule_state :=
   {|
     instant := 0;
     cpu_count := num_cpus;
-    task_map := [];
+    task_map := list_none num_cpus;
     active_jobs := nil
   |}.
 
@@ -135,7 +143,7 @@ Inductive schedule (num_cpus: nat) (alg: sched_algorithm) :
         let events0 := (ev_taskset_init ts) in
         let state' := (process_events state0 events0) in
         let events' := (clear_events state0 events0) in
-               valid_taskset ts -> schedule num_cpus alg ts state' events'
+              num_cpus > 0 -> valid_taskset ts -> schedule num_cpus alg ts state' events'
   (* sched_next(alg, ts, state) moves to the next state *)
   | sched_next :
       forall (ts: taskset) (state: schedule_state) (events: list event),
@@ -153,6 +161,30 @@ Inductive schedule (num_cpus: nat) (alg: sched_algorithm) :
                            schedule alg ts state events
                            -> schedule alg ts (alg (process_events state events)) (clear_events state events).*)
 
+Lemma length_list_none : forall (n: nat), length (list_none n) = n.
+Proof.
+  intros n. induction n as [| n'].
+    trivial.
+    simpl. rewrite IHn'. trivial.
+  Qed.
+
+Lemma initial_schedule_valid : forall (num_cpus: nat),
+                                 num_cpus > 0 -> valid_schedule_state (empty_schedule num_cpus).
+Proof.
+  intros num_cpus H.
+  constructor. simpl.
+  induction num_cpus.
+    trivial. simpl. apply f_equal. apply IHnum_cpus.
+    apply f_equal. constructor. unfold list_none.
+    intro H. inversion H.
+    intro H. constructor. simpl. rewrite H.
+    induction num_cpus. intro H. inversion H.
+  constructor. simpl.
+  induction num_cpus.
+    trivial.
+  induction num_cpus.
+    trivial. destruct num_cpus. simpl.
+
 Theorem schedule_always_valid :
   forall (num_cpus: nat) (alg: sched_algorithm) (ts: taskset) (state: schedule_state) (events: list event),
            schedule num_cpus alg ts state events -> valid_schedule_state state.
@@ -161,7 +193,9 @@ Theorem schedule_always_valid :
     induction H.
       subst state0. subst events0. clear alg. clear state. clear v.
       induction ts.
-      simpl in state'. compute in state'.
+      simpl in state'. compute in state'. constructor. simpl. compute.
+      induction task_map.
+      simpl.
       assert (ev_taskset_init nil) compute in v. compute in state'. simpl state'.
     s. in state'. subst.
     constructor. 
