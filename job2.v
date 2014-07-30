@@ -48,15 +48,6 @@ Definition first_job (t: sporadic_task) : job :=
      job_deadline := st_deadline t
   |}.
 
-(*Definition next_job (j: job) : job :=
-  exists j': job,
-  {| id := id j;
-     number := number j + 1;
-     arrival := arrival j + ;
-     cost := cost j;
-     deadline := deadline j
-  |}.*)
-
 Definition taskset := list sporadic_task.
 
 Definition valid_taskset (ts: taskset) : Prop := True. (* TODO fix *)
@@ -71,8 +62,6 @@ Record schedule_state : Type :=
     task_map: list (option job); (*task_map: Map [processor, job];*)
     active_jobs : list job
   }.
-
-Print nth.
 
 Definition scheduled (j: job) (cpu: processor) (s: schedule_state) : Prop :=
   nth cpu (task_map s) None = Some j.
@@ -115,10 +104,47 @@ Definition ev_job_arrival (j: job) (state: schedule_state) : schedule_state :=
     active_jobs := cons j (active_jobs state)
   |}.
 
+Definition preserves_validity (f: schedule_state -> schedule_state) : Prop :=
+  forall (s: schedule_state), valid_schedule_state s -> valid_schedule_state (f s).
+
+Inductive good_event_list : list event -> Prop :=
+  | good_event_list_nil: good_event_list nil
+  | good_event_list_cons: forall (ev: event) (t: list event), good_event_list t ->
+                                                                                       preserves_validity (snd ev) ->
+                                                                                       good_event_list (cons ev t).
+
+Lemma process_events_safe : forall (s: schedule_state) (events: list event),
+  valid_schedule_state s /\ good_event_list events -> valid_schedule_state (process_events s events).
+Proof.
+  intros.
+  generalize dependent s.
+  induction events as [| ev].
+    intros. inversion H. simpl. apply H0.
+    intros. inversion H. apply IHevents. split.
+      unfold compute_event.  destruct (beq_nat s.(instant) (fst ev)).
+        inversion H1. unfold preserves_validity in H5. apply H5. apply H0.
+        apply H0.
+      inversion H1. apply H4.
+Qed.
+
 (* ev_task_init converts a list of sporadic_task into a list of initial events in the form:
    <(task0_offset, task0_job0), (task1_offset, task1_job0), (task2_offset, task2_job0), ...>*)
 Definition ev_taskset_init (ts: taskset) : list event :=
   List.map (fun (x: sporadic_task) => pair (st_offset x) (ev_job_arrival (first_job x))) ts.
+
+Lemma ev_taskset_init_good : forall (ts: taskset), good_event_list (ev_taskset_init ts).
+Proof.
+  intros. induction ts.
+    simpl. apply good_event_list_nil.
+    simpl. apply good_event_list_cons. apply IHts.
+    simpl. unfold preserves_validity.
+    intros. inversion H. constructor; simpl. apply number_cpus0.
+    intros. apply mutual_exclusion0 with (j:=j).
+    inversion H0. unfold scheduled. apply H3.
+    inversion H1. unfold scheduled. apply H3.
+    intros. inversion H0. apply or_intror. simpl. apply task_map_is_valid0 with (cpu:= cpu).
+    unfold scheduled. apply H2.
+Qed.
 
 Fixpoint list_none (n:nat) : list (option job) :=
   match n with
@@ -141,25 +167,21 @@ Inductive schedule (num_cpus: nat) (alg: sched_algorithm) :
       forall (ts: taskset) (state: schedule_state),
         let state0 := (empty_schedule num_cpus) in
         let events0 := (ev_taskset_init ts) in
-        let state' := (process_events state0 events0) in
+        let state' := alg (process_events state0 events0) in
         let events' := (clear_events state0 events0) in
-              num_cpus > 0 -> valid_taskset ts -> schedule num_cpus alg ts state' events'
+              (*num_cpus > 0 ->*)
+              valid_taskset ts ->
+              preserves_validity alg ->
+              schedule num_cpus alg ts state' events'
   (* sched_next(alg, ts, state) moves to the next state *)
   | sched_next :
       forall (ts: taskset) (state: schedule_state) (events: list event),
-        let state' := (process_events state events) in
+        let state' := alg (process_events state events) in
         let events' := (clear_events state events) in
-          schedule num_cpus alg ts state events
-            -> schedule num_cpus alg ts state' events'.
-
-(*Inductive schedule (alg: sched_algorithm) : taskset -> schedule_state -> list event -> Type :=
-  (* sched_init(alg, ts) gives the initial state *)
-  | sched_init : forall (ts: taskset) (state: schedule_state),
-                           valid_taskset ts -> schedule alg ts state nil
-  (* sched_next(alg, ts, state) moves to the next state *)
-  | sched_next : forall (ts: taskset) (state: schedule_state) (events: list event),
-                           schedule alg ts state events
-                           -> schedule alg ts (alg (process_events state events)) (clear_events state events).*)
+          good_event_list events ->
+          preserves_validity alg ->
+          schedule num_cpus alg ts state events ->
+          schedule num_cpus alg ts state' events'.
 
 Lemma length_list_none : forall (n: nat), length (list_none n) = n.
 Proof.
@@ -168,43 +190,42 @@ Proof.
     simpl. rewrite IHn'. trivial.
   Qed.
 
-Lemma initial_schedule_valid : forall (num_cpus: nat),
-                                 num_cpus > 0 -> valid_schedule_state (empty_schedule num_cpus).
+Lemma nth_list_none: forall n cpu,
+  nth cpu (list_none n) None = None.
 Proof.
-  intros num_cpus H.
-  constructor. simpl.
-  induction num_cpus.
-    trivial. simpl. apply f_equal. apply IHnum_cpus.
-    apply f_equal. constructor. unfold list_none.
-    intro H. inversion H.
-    intro H. constructor. simpl. rewrite H.
-    induction num_cpus. intro H. inversion H.
-  constructor. simpl.
-  induction num_cpus.
-    trivial.
-  induction num_cpus.
-    trivial. destruct num_cpus. simpl.
+  induction n; intros; simpl; destruct cpu; auto.
+Qed.
+
+Lemma initial_schedule_valid : forall (num_cpus: nat),
+                                 valid_schedule_state (empty_schedule num_cpus).
+Proof.
+  intros; constructor; simpl;  eauto using length_list_none;
+  intros; inversion H as [X]; rewrite nth_list_none in X; inversion X.
+Qed.
 
 Theorem schedule_always_valid :
   forall (num_cpus: nat) (alg: sched_algorithm) (ts: taskset) (state: schedule_state) (events: list event),
            schedule num_cpus alg ts state events -> valid_schedule_state state.
   Proof.
-    intros num_cpus alg ts state events H.
+    intros.
     induction H.
-      subst state0. subst events0. clear alg. clear state. clear v.
-      induction ts.
-      simpl in state'. compute in state'. constructor. simpl. compute.
-      induction task_map.
-      simpl.
-      assert (ev_taskset_init nil) compute in v. compute in state'. simpl state'.
-    s. in state'. subst.
-    constructor. 
+      subst state0. subst events0. clear state. clear v.
+      
+      assert (valid_schedule_state state' = valid_schedule_state (alg (process_events (empty_schedule num_cpus) (ev_taskset_init ts)))).
+      apply f_equal. apply f_equal. reflexivity. rewrite H.
+      unfold preserves_validity in p. apply p.
+      apply process_events_safe. split.
+      apply initial_schedule_valid. apply ev_taskset_init_good.
+      assert (valid_schedule_state state' = valid_schedule_state (alg (process_events state events))).
+      apply f_equal. apply f_equal. reflexivity. rewrite H0.
+      unfold preserves_validity in p. apply p.
+      apply process_events_safe. split. apply IHschedule. apply g. Qed.
 
 Definition cpu_idle (cpu: processor) (s: schedule_state) : Prop :=
-  forall j, ~MapsTo cpu j (task_map s).
+  forall j, ~scheduled j cpu s.
 
 Definition job_backlogged (j: job) (s: schedule_state) : Prop :=
-  List.In j (active_jobs s) /\ forall cpu, ~MapsTo cpu j (task_map s).
+  List.In j (active_jobs s) /\ forall cpu, ~scheduled j cpu s.
 
 Definition break_ties (j1 j2: job) : Prop :=
   job_id j1 < job_id j2 \/ job_number j1 < job_number j2.
@@ -214,10 +235,9 @@ Definition prio_order := job -> job -> Prop. (* job_a < job_b *)
 Definition prio_EDF (j1 j2: job) : Prop :=
   job_deadline j1 < job_deadline j2 \/ break_ties j1 j2.
 
-Definition enforce_priority (higher_prio: prio_order) (s: schedule_state) : Prop :=
-  forall cpu, cpu_idle cpu s
-              \/ exists j, MapsTo cpu j (task_map s)
-                           -> (forall b, job_backlogged b s -> higher_prio j b). 
+Definition enforce_priority (higher_prio: prio_order) (s: schedule_state) : Prop := forall cpu,
+  cpu_idle cpu s
+  \/ (exists j, scheduled j cpu s -> (forall b, job_backlogged b s -> higher_prio j b)). 
 
 (* TODO add unique priorities *)
 (* TODO add some predicates to indicate CPU allowance -> add affinities in the future *)
@@ -227,6 +247,34 @@ Definition work_conserving (s: schedule_state) : Prop :=
 
 Definition sched_EDF (s: schedule_state) : Prop :=
   work_conserving s /\ enforce_priority prio_EDF s.
+
+Inductive schedule2 (num_cpus: nat) (alg: sched_algorithm) :
+                taskset -> schedule_state -> list event -> Type :=
+  (* sched_init(alg, ts) gives the initial state *)
+  | sched2_init :
+      forall (ts: taskset) (state: schedule_state),
+        let state0 := (empty_schedule num_cpus) in
+        let events0 := (ev_taskset_init ts) in
+        let state' := alg (process_events state0 events0) in
+        let events' := (clear_events state0 events0) in
+              (*num_cpus > 0 ->*)
+              valid_taskset ts ->
+              preserves_validity alg ->
+              schedule2 num_cpus alg ts state' events'
+  (* sched_next(alg, ts, state) moves to the next state *)
+  | sched2_next :
+      forall (ts: taskset) (state: schedule_state) (events: list event),
+        let processed := process_events state events in
+        let events' := (clear_events state events) in
+          good_event_list events ->
+          (*preserves_validity alg ->*)
+          schedule2 num_cpus alg ts state events ->
+          exists state': schedule_state,
+            (instant state' = instant state + 1
+             /\ cpu_count state' = cpu_count state
+             /\ task_map state' = task_map processed
+             /\ active_jobs state' = active_jobs processed
+             /\ schedule2 num_cpus alg ts state' events').
 
 Definition EDF (s: schedule_state) : schedule_state :=
   let 
