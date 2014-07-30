@@ -110,23 +110,55 @@ Definition ev_job_arrival (j: job) (state: schedule_state) : schedule_state :=
     active_jobs := cons j (active_jobs state)
   |}.
 
-Definition ev_taskset_init  : list event :=
+(* ev_task_init converts a list of sporadic_task into a list of initial events in the form:
+   <(task0_offset, task0_job0), (task1_offset, task1_job0), (task2_offset, task2_job0), ...>*)
+Definition ev_taskset_init (ts: taskset) : list event :=
+  List.map (fun (x: sporadic_task) => pair (st_offset x) (ev_job_arrival (first_job x))) ts.
 
-Inductive schedule (alg: sched_algorithm) : taskset -> schedule_state -> list event -> Type :=
+Print empty.
+
+Definition empty_schedule (num_cpus: nat) : schedule_state :=
+  {|
+    instant := 0;
+    cpu_count := num_cpus;
+    task_map := [];
+    active_jobs := nil
+  |}.
+
+Inductive schedule (num_cpus: nat) (alg: sched_algorithm) :
+                taskset -> schedule_state -> list event -> Type :=
+  (* sched_init(alg, ts) gives the initial state *)
+  | sched_init :
+      forall (ts: taskset) (state: schedule_state),
+        let state0 := (empty_schedule 1) in
+        let events0 := (ev_taskset_init ts) in
+        let state' := (process_events state0 events0) in
+        let events' := (clear_events state0 events0) in
+               valid_taskset ts -> schedule num_cpus alg ts state' events'
+  (* sched_next(alg, ts, state) moves to the next state *)
+  | sched_next :
+      forall (ts: taskset) (state: schedule_state) (events: list event),
+        let state' := (process_events state events) in
+        let events' := (clear_events state events) in
+          schedule num_cpus alg ts state events
+            -> schedule num_cpus alg ts state' events'.
+
+(*Inductive schedule (alg: sched_algorithm) : taskset -> schedule_state -> list event -> Type :=
   (* sched_init(alg, ts) gives the initial state *)
   | sched_init : forall (ts: taskset) (state: schedule_state),
                            valid_taskset ts -> schedule alg ts state nil
   (* sched_next(alg, ts, state) moves to the next state *)
   | sched_next : forall (ts: taskset) (state: schedule_state) (events: list event),
                            schedule alg ts state events
-                           -> schedule alg ts (alg (process_events state events)) (clear_events state events).
+                           -> schedule alg ts (alg (process_events state events)) (clear_events state events).*)
 
 Theorem schedule_always_valid :
-  forall (alg: sched_algorithm) (ts: taskset) (state: schedule_state) (events: list event),
-           schedule alg ts state events -> valid_schedule_state state.
+  forall (num_cpus: nat) (alg: sched_algorithm) (ts: taskset) (state: schedule_state) (events: list event),
+           schedule num_cpus alg ts state events -> valid_schedule_state state.
   Proof.
-    intros alg ts state events H.
-    induction H.   
+    intros num_cpus alg ts state events H.
+    induction H.
+    constructor. 
 
 Definition cpu_idle (cpu: processor) (s: schedule_state) : Prop :=
   forall j, ~MapsTo cpu j (task_map s).
