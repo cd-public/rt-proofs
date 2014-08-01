@@ -248,8 +248,10 @@ Definition work_conserving (s: schedule_state) : Prop :=
 Definition sched_EDF (s: schedule_state) : Prop :=
   work_conserving s /\ enforce_priority prio_EDF s.
 
+Print ex.
+
 Inductive schedule2 (num_cpus: nat) (alg: sched_algorithm) :
-                taskset -> schedule_state -> list event -> Type :=
+                taskset -> schedule_state -> list event -> Prop :=
   (* sched_init(alg, ts) gives the initial state *)
   | sched2_init :
       forall (ts: taskset) (state: schedule_state),
@@ -263,18 +265,17 @@ Inductive schedule2 (num_cpus: nat) (alg: sched_algorithm) :
               schedule2 num_cpus alg ts state' events'
   (* sched_next(alg, ts, state) moves to the next state *)
   | sched2_next :
-      forall (ts: taskset) (state: schedule_state) (events: list event),
+      forall (ts: taskset) (state: schedule_state) (state': schedule_state) (events: list event),
         let processed := process_events state events in
         let events' := (clear_events state events) in
           good_event_list events ->
           (*preserves_validity alg ->*)
           schedule2 num_cpus alg ts state events ->
-          exists state': schedule_state,
-            (instant state' = instant state + 1
-             /\ cpu_count state' = cpu_count state
-             /\ task_map state' = task_map processed
-             /\ active_jobs state' = active_jobs processed
-             /\ schedule2 num_cpus alg ts state' events').
+          instant state' = instant state + 1 ->
+          cpu_count state' = cpu_count state ->
+          task_map state' = task_map processed ->
+          active_jobs state' = active_jobs processed ->
+          schedule2 num_cpus alg ts state' events'.
 
 Definition EDF (s: schedule_state) : schedule_state :=
   let 
