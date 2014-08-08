@@ -10,6 +10,7 @@ Definition valid_taskset (ts: taskset) : Prop := List.Forall well_defined_task t
 
 Record schedule_state : Type :=
   {
+    instant: nat;
     cpu_count: nat;
     task_map: list (option job);
     active_jobs : list job
@@ -40,16 +41,10 @@ Fixpoint list_none (n:nat) : list (option job) :=
   end.
 
 Definition empty_schedule (num_cpus: nat) (state: schedule_state) : Prop :=
+    instant state = 0 /\
     cpu_count state = num_cpus /\
     task_map state = list_none num_cpus /\
     active_jobs state = nil.
-
-Definition add_job (j: job) (s: schedule_state) : schedule_state :=
-  {|
-    cpu_count := cpu_count s;
-    task_map := task_map s;
-    active_jobs := cons j (active_jobs s) 
-  |}.
 
 Definition arrives_at (t: time) (task: sporadic_task) : Prop :=
   exists job_num, st_arrival task job_num = t.
@@ -65,16 +60,7 @@ Definition create_job_at (t: time) (task: sporadic_task) : job :=
      job_deadline := st_deadline task
   |}.
 
-Section Schedule.
-
-Variable num_cpus: nat.
-Variable alg: sched_algorithm.
-Variable ts: taskset.
-
-(*Definition preserves_validity (alg: sched_algorithm) : Prop :=
-  exists state, valid_schedule_state state /\ alg state.*)
-
-Definition add_arriving_tasks (t: time) (state: schedule_state) : Prop :=
+Definition add_arriving_tasks (ts: taskset) (t: time) (state: schedule_state) : Prop :=
   forall (task: sporadic_task),
     List.In task ts -> arrives_at t task -> List.In (create_job_at t task) (active_jobs state).
 
@@ -102,25 +88,36 @@ Definition advance_execution (state: schedule_state) (state': schedule_state) : 
     pending j state ->
     exec_time j state' = 1 + exec_time j state.
 
-Inductive schedule : time -> schedule_state -> Prop :=
+Section Schedule.
+
+Variable num_cpus: nat.
+Variable alg: sched_algorithm.
+Variable ts: taskset.
+
+(*Definition preserves_validity (alg: sched_algorithm) : Prop :=
+  exists state, valid_schedule_state state /\ alg state.*)
+
+Inductive schedule : schedule_state -> Prop :=
   (* sched_init(num_cpus, alg, ts, state) determines an initial state *)
   | sched_init : forall (state: schedule_state),
         valid_taskset ts ->
+        instant state = 0 ->
         empty_schedule num_cpus state ->
-        add_arriving_tasks 0 state ->
+        add_arriving_tasks ts 0 state ->
         initialize_execution state ->
         alg state ->
-        schedule 0 state
+        schedule state
   (* sched_next(num_cpus, alg, ts, state, state') relates two consecutive states *)
-  | sched_next : forall (t: time) (state: schedule_state) (state': schedule_state),
+  | sched_next : forall (state: schedule_state) (state': schedule_state),
         (*preserves_validity alg ->*)
-        schedule t state ->
-        add_arriving_tasks (t+1) state' ->
+        schedule state ->
+        instant state' = S (instant state) ->
+        add_arriving_tasks ts (S (instant state)) state' ->
         advance_execution state state' ->
         keep_pending_tasks state state' ->
         remove_completed_tasks state state' ->
         alg state' ->
-        schedule (t+1) state'.
+        schedule state'.
 
 Lemma length_list_none : forall (n: nat), length (list_none n) = n.
 Proof.
@@ -138,19 +135,21 @@ Qed.
 Lemma empty_schedule_valid : forall (state: schedule_state) (num_cpus: nat),
                                  empty_schedule num_cpus state -> valid_schedule_state state.
 Proof.
-  intros. inversion H as [H0 H1]. inversion H1 as [H2 H3].
-  constructor. rewrite H0. rewrite H2. apply length_list_none.
+  intros. inversion H as [H0 [H1 [H2 H3]]].
+  constructor. rewrite H1. rewrite H2. apply length_list_none.
   unfold scheduled. intros j cpu1 cpu2. rewrite H2. rewrite 2 nth_list_none. intros. inversion H4.
   intros. inversion H4. rewrite H2 in H6. rewrite nth_list_none in H6. inversion H6.
 Qed.
 
 Theorem schedule_always_valid :
-  forall (t: time) (state: schedule_state) (sched: schedule t state),
+  forall (t: time) (state: schedule_state) (sched: schedule state),
     valid_schedule_state state.
 Proof.
-  intros. induction sched. apply empty_schedule_valid in H0. apply H0.
+  intros. induction sched. apply empty_schedule_valid in H1. apply H1.
   admit. (* TODO fix *)
 Qed.
+
+End Schedule.
 
 Definition cpu_idle (cpu: processor) (s: schedule_state) : Prop :=
   forall j, ~scheduled j cpu s.
@@ -163,9 +162,6 @@ Definition break_ties (j1 j2: job) : Prop :=
 
 Definition prio_order := job -> job -> Prop. (* job_a < job_b *)
 
-Definition prio_EDF (j1 j2: job) : Prop :=
-  job_deadline j1 < job_deadline j2 \/ break_ties j1 j2.
-
 Definition enforce_priority (higher_prio: prio_order) (s: schedule_state) : Prop := forall cpu,
   cpu_idle cpu s
   \/ (exists j, scheduled j cpu s -> (forall b, job_backlogged b s -> higher_prio j b)). 
@@ -176,37 +172,92 @@ Definition enforce_priority (higher_prio: prio_order) (s: schedule_state) : Prop
 Definition work_conserving (s: schedule_state) : Prop :=
   forall cpu, cpu_idle cpu s -> forall j, ~job_backlogged j s.
 
+Definition prio_EDF (j1 j2: job) : Prop :=
+  job_deadline j1 < job_deadline j2 \/ break_ties j1 j2.
+
 Definition sched_EDF (s: schedule_state) : Prop :=
   work_conserving s /\ enforce_priority prio_EDF s.
 
-Inductive schedule2 : time -> schedule_state -> Prop :=
-  (* sched_init(num_cpus, alg, ts, state) determines an initial state *)
-  | sched_init2 : forall (state: schedule_state),
-        valid_taskset ts /\
-        empty_schedule num_cpus state /\
-        add_arriving_tasks 0 state /\
-        initialize_execution state /\
-        alg state ->
-        schedule2 0 state
-  (* sched_next(num_cpus, alg, ts, state, state') relates two consecutive states *)
-  | sched_next2: forall (t: time) (state: schedule_state) (state': schedule_state),
-        (*preserves_validity alg ->*)
-        schedule t state /\
-        add_arriving_tasks (t+1) state' /\
-        advance_execution state state' /\
-        keep_pending_tasks state state' /\
-        remove_completed_tasks state state' /\
-        alg state' ->
-        schedule2 (t+1) state'.
+Definition prio_RM (j1 j2: job) : Prop :=
+  st_period (job_id j1) < st_period (job_id j2) \/ break_ties j1 j2.
 
-  | sched_next : forall (t : time) (state state' : schedule_state),
-                 schedule t state ->
-                 add_arriving_tasks (t + 1) state' ->
-                 advance_execution state state' ->
-                 keep_pending_tasks state state' ->
-                 remove_completed_tasks state state' -> alg state' -> schedule (t + 1) state'
+Definition sched_RM (s: schedule_state) : Prop :=
+  work_conserving s /\ enforce_priority prio_RM s.
 
-Definition apply_next (n: nat) (t: time) (state: schedule_state) (sched: schedule t state) : time -> schedule_state -> Prop :=
+
+(*Inductive reaches (state: schedule_state) (state': schedule_state) :  Prop := True.
+  | reaches_found: state = state' -> reaches state state' TODO FIX
+  | reaches_not_found: state <> state' -> reaches state match sched' with
+  end.*)
+
+(*Definition job_in_schedule (j: job) (init_state: schedule_state) : Prop :=
+  forall (state': schedule_state), reaches init_state state' /\ List.In j (active_jobs state').*)
+
+Definition response_time (j: job) (r: time) : Prop :=
+  exists state, completed j state /\ (instant state - job_arrival j) = r.
+
+(* Wrong! this should be function of a schedule of a taskset *)
+Definition response_time_bound (task: sporadic_task) (R: nat) :=
+  forall (j: job) (r: time), job_of_task j task -> response_time j r -> R >= r.
+
+Section RMPaper.
+
+Definition num_cpus := 1.
+Definition alg := sched_RM.
+Variable ts: taskset.
+
+Definition critical_instant (task: sporadic_task) (state: schedule_state) :=
+  List.In task ts /\
+  schedule num_cpus alg ts state /\
+  exists (j : job), job_of_task j task /\ List.In j (active_jobs state) /\
+    (forall (r: time), response_time j r -> response_time_bound (job_id j) r).
+
+Lemma arriving_job_is_active :
+  forall (j: job) (task: sporadic_task) (state: schedule_state) (t: time),
+    List.In task ts ->
+    schedule num_cpus alg ts state ->
+    job_of_task j task ->
+    t = instant state ->
+    arrives_at t task ->
+    j = create_job_at t task ->
+    In j (active_jobs state).
+Proof.
+  intros. inversion H0. unfold add_arriving_tasks in H8.
+  rewrite H4. subst t. rewrite <- H6 in H8. apply H8. apply H. apply H3.
+  subst t. unfold add_arriving_tasks in H7. rewrite <- H6 in H7.  rewrite H4. apply H7. apply H. apply H3.
+Qed.
+
+Theorem critical_instant_uniproc_RM :
+  forall (j: job) (task: sporadic_task) (state: schedule_state) (t: time),
+    List.In task ts ->
+    schedule num_cpus alg ts state ->
+    job_of_task j task ->
+    t = instant state ->
+    arrives_at t task ->
+    j = create_job_at t task ->
+    (forall (task': sporadic_task) (j': job), List.In task' ts -> job_of_task j' task' -> arrives_at t task') ->
+    critical_instant task state.
+Proof.
+  intros j task state t H0 H1 H2 H3 H4 H5 H6. unfold critical_instant. split. apply H0. split. apply H1.
+  exists j. split. apply H2. split. apply (arriving_job_is_active j task state t); trivial.
+  intros r H7.
+  (* Hard part. Need to prove that the response-time of this job is also a bound
+   * for the response time of the task. *)
+  admit.
+Qed.
+
+Definition hp (l: list sporadic_task) (task: sporadic_task) (ts: taskset) : Prop :=
+  forall (hptask: sporadic_task), List.In hptask l <-> 
+
+Inductive job_in_schedule (j: job) (init_state: schedule_state) (sched: schedule init_state) : Prop :=
+  match sched with
+  | sched_init =>
+  | sched_next => job_in_schedule
+  end.
+
+Theorem bla : sched_next = relation.
+
+Definition apply_next (n: nat) (state: schedule_state) (sched: schedule t state) : time -> schedule_state -> Prop :=
   match sched with
   | sched_init state' _ _ _ _ _ => sched_next state _ _ _ _ _ _ state'
   end.

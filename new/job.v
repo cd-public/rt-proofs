@@ -39,3 +39,5 @@ Record well_defined_job (j: job) : Prop :=
     job_cost_le_deadline: job_cost j <= job_deadline j;
     job_deadline_positive: job_deadline j > 0
   }.
+
+Definition job_of_task (j: job) (task: sporadic_task) : Prop := job_id j = task.
