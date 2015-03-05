@@ -8,10 +8,10 @@ Record task : Type :=
   }.
 
 (* Restrictions on task parameters *)
-Record valid_task (j: task) : Prop :=
-  { job_cost_positive: job_cost j > 0;
-    job_cost_le_deadline: job_cost j <= job_deadline j;
-    job_deadline_positive: job_deadline j > 0
+Record valid_task (tsk: task) : Prop :=
+  { job_cost_positive: job_cost tsk > 0;
+    job_cost_le_deadline: job_cost tsk <= job_deadline tsk;
+    job_deadline_positive: job_deadline tsk > 0
   }.
 
 (* A periodic task has an interarrival time *)
