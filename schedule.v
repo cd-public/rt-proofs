@@ -2,65 +2,53 @@ Add LoadPath "/home/felipec/dev/coq/rt-scheduling-spec".
 Require Import job.
 Require Import Coq.Lists.ListSet.
 Require Import Coq.Lists.List.
+Require Import helper.
 
 Definition time := nat.
 
-Axiom schedule : Set.
-(*Axiom scheduled : task -> schedule -> nat -> Prop.*)
-Axiom exec : task -> schedule -> nat -> nat.
+Definition schedule := task -> time -> Prop.
+Axiom exec : schedule -> task -> time -> nat.
 
-Definition cpu_platform := Set.
-Axiom platform_of : schedule -> cpu_platform.
+Axiom no_sched_no_exec : forall (s: schedule) (tsk: task) (t: time),
+                             exec s tsk t > 0 <-> s tsk t.
 
-Record ident_mp (platform: cpu_platform) (num_cpus: nat) : Prop :=
-  { ident_mp_maximum_exec: forall (tsk: task) (s: schedule) (t: time),
-           platform_of s = platform -> exec tsk s t <= 1;
-    ident_mp_mapping: forall (s: schedule) (t: time),
-           platform_of s = platform ->
-               (exists !(l: list task),
-                   length l < num_cpus /\
-                   forall (tsk: task),
-                       List.In tsk l <-> exec tsk s t = 1)
+Record ident_mp (num_cpus: nat) (s: schedule) : Prop :=
+  { ident_mp_cpus_nonzero: num_cpus > 0;
+    ident_mp_exec: forall (tsk: task) (t: time), s tsk t <-> exec s tsk t = 1;
+    ident_mp_mapping: forall (t: time),
+                          (exists !(l: list (option task)),
+                              length l = num_cpus /\
+                              (forall (tsk: task),
+                                  List.In (Some tsk) l <-> s tsk t))
   }.
 
-Record unif_mp (platform: cpu_platform) (total_speed: nat) (max_speed: nat) : Prop :=
-  { unif_mp_maximum_speed: forall (tsk: task) (s: schedule) (t: time),
-          platform_of s = platform -> exec tsk s t <= max_speed;
-    unif_mp_cumulative_speed:
-          let exec2 (s: schedule) (t: time) (tsk:task) : nat := exec tsk s t in
-              forall (s: schedule) (t: time),
-                  platform_of s = platform ->
-                      (exists ! (l: list task),
-                          (forall (tsk: task), List.In tsk l <-> exec tsk s t > 0)
-                          /\ (fold_left plus (map (exec2 s t) l) 0) <= total_speed)
-  }.
+Definition affinity := task -> schedule -> list nat.
 
-Axiom cpu_list : cpu_platform -> list nat.
-Axiom affinity : task -> cpu_platform -> list nat.
-
-Record apa_ident_mp (platform: cpu_platform) (num_cpus: nat) : Prop :=
-  { apa_ident_is_ident: ident_mp platform num_cpus;
+Record apa_ident_mp (num_cpus: nat) (s: schedule) (alpha: affinity) : Prop :=
+  { apa_ident_is_ident: ident_mp num_cpus s;
     restricted_affinities:
-        forall (s: schedule) (t: time),
-            platform_of s = platform ->
-            (forall (l: list task) (tsk: task) (cpu: nat),
-                exec tsk s t = 1 ->
+        forall (t: time),
+            (forall (l: list (option task)) (tsk: task) (cpu: nat),
+                s tsk t ->
                 cpu < num_cpus ->
-                (nth cpu l tsk = tsk) ->
-                List.In cpu (affinity tsk platform))
+                (nth cpu l (Some tsk) = Some tsk) ->
+                List.In cpu (alpha tsk s))
   }.
 
-Fixpoint service (tsk: task) (s: schedule) (t: time) : nat:=
+Fixpoint service (s: schedule) (tsk: task) (t: time) : nat:=
   match t with
-  | 0 => exec tsk s 0
-  | S n => service tsk s n + exec tsk s (S n)
+  | 0 => exec s tsk 0
+  | S t => service s tsk t + exec s tsk (S t)
   end.
 
 Lemma exists_global_apa_platform :
-    forall (platform: cpu_platform) (num_cpus: nat) (s: schedule),
-        ident_mp platform num_cpus ->
-        platform_of s = platform ->
-        exists (platform': cpu_platform) (s': schedule),
-            apa_ident_mp platform' num_cpus
-            /\ platform_of s' = platform'.
-            (*/\ (forall t: time, service tsk s t = service tsk s' t).*)
+    forall (num_cpus: nat) (s: schedule),
+        ident_mp num_cpus s ->
+        exists (s': schedule) (alpha: affinity),
+            apa_ident_mp num_cpus s alpha
+            /\ (forall (tsk: task) (t: time), service s tsk t = service s' tsk t).
+Proof. intros. exists s. exists (fun (tsk : task) (s: schedule) => (seq 0 num_cpus)).
+       split. split. apply H.
+       intros. apply nat_seq_nth_In. apply H1.
+       trivial.
+Qed.
