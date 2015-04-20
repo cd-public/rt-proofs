@@ -17,10 +17,12 @@ Record ts_arrival_seq (ts: taskset) (arr: arrival_seq) : Prop :=
             -> t < t' + task_period tsk 
   }.
 
-Definition arrived (j: job) (t: time) (arr: arrival_seq) : Prop :=
+Definition arrived (j: job) (arr: arrival_seq) (t: time) : Prop :=
     exists (t_0: time), t_0 <= t /\ arr j t_0.
 
 Definition schedule := job -> time -> nat.
+
+Definition higher_priority := job -> job -> schedule -> time -> Prop.
 
 Fixpoint service (sched: schedule) (j: job) (t: time) : nat:=
   match t with
@@ -30,6 +32,13 @@ Fixpoint service (sched: schedule) (j: job) (t: time) : nat:=
 
 Definition completed (j: job) (sched: schedule) (t: time) : Prop :=
     service sched j t = job_cost j.
+
+Definition backlogged (j: job) (sched: schedule) (t: time) : Prop :=
+    sched j t = 0 /\ ~ completed j sched t.
+
+Axiom task_must_arrive_to_exec :
+    forall (j: job) (sched: schedule) (arr: arrival_seq) (t: time),
+        sched j t > 0 -> arrived j arr t.
 
 Axiom completed_task_does_not_exec :
     forall (j: job) (sched: schedule) (t_comp: time),
@@ -42,3 +51,6 @@ Definition job_response_time (j: job) (sched: schedule) (arr: arrival_seq) (t: t
 Definition task_response_time (tsk: sporadic_task) (t: time) :=
     forall (j: job) (sched: schedule) (arr: arrival_seq) (t: time),
         job_of j tsk /\ greatest_nat t (job_response_time j sched arr).
+
+Definition critical_instant (tsk: sporadic_task) (sched: schedule) (arr: arrival_seq) (t: time) :=
+    exists (j: job), job_response_time j sched arr t = task_response_time tsk t.
