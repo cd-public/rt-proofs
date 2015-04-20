@@ -1,6 +1,5 @@
 Add LoadPath "/home/felipec/dev/coq/rt-scheduling-spec".
 Require Import job.
-Require Import Coq.Lists.ListSet.
 Require Import Coq.Lists.List.
 Require Import helper.
 
@@ -18,30 +17,10 @@ Record ts_arrival_seq (ts: taskset) (arr: arrival_seq) : Prop :=
             -> t < t' + task_period tsk 
   }.
 
+Definition arrived (j: job) (t: time) (arr: arrival_seq) : Prop :=
+    exists (t_0: time), t_0 <= t /\ arr j t_0.
+
 Definition schedule := job -> time -> nat.
-
-Record ident_mp (num_cpus: nat) (sched: schedule) : Prop :=
-  { ident_mp_cpus_nonzero: num_cpus > 0;
-    ident_mp_mapping: forall (t: time),
-                          (exists !(l: list (option job)),
-                              length l = num_cpus /\
-                              (forall (j: job),
-                                  List.In (Some j) l <-> sched j t = 1));
-    ident_mp_sched_unit: forall (j: job) (t: time), sched j t <= 1
-  }.
-
-Definition affinity := job -> schedule -> list nat.
-
-Record apa_ident_mp (num_cpus: nat) (sched: schedule) (alpha: affinity) : Prop :=
-  { apa_ident_is_ident: ident_mp num_cpus sched;
-    restricted_affinities:
-        forall (t: time),
-            (forall (l: list (option job)) (j: job) (cpu: nat),
-                sched j t = 1 ->
-                cpu < num_cpus ->
-                (nth cpu l (Some j) = Some j) ->
-                List.In cpu (alpha j sched))
-  }.
 
 Fixpoint service (sched: schedule) (j: job) (t: time) : nat:=
   match t with
@@ -49,19 +28,17 @@ Fixpoint service (sched: schedule) (j: job) (t: time) : nat:=
   | S t => service sched j t + sched j (S t)
   end.
 
-Axiom task_completed :
-    forall (j: job) (sched: schedule) (t_comp: time),
-        service sched j t_comp = job_cost j ->
-            forall (t: time), t >= t_comp -> sched j t = 0.        
+Definition completed (j: job) (sched: schedule) (t: time) : Prop :=
+    service sched j t = job_cost j.
 
-Lemma exists_apa_platform_that_is_global :
-    forall (num_cpus: nat) (s: schedule),
-        ident_mp num_cpus s ->
-        exists (s': schedule) (alpha: affinity),
-            apa_ident_mp num_cpus s alpha
-            /\ (forall (j: job) (t: time), service s j t = service s' j t).
-Proof. intros. exists s. exists (fun (j : job) (s: schedule) => (seq 0 num_cpus)).
-       split. split. apply H.
-       intros. apply nat_seq_nth_In. apply H1.
-       trivial.
-Qed.
+Axiom completed_task_does_not_exec :
+    forall (j: job) (sched: schedule) (t_comp: time),
+        completed j sched t_comp ->
+            forall (t: time), t >= t_comp -> sched j t = 0.
+
+Definition job_response_time (j: job) (sched: schedule) (arr: arrival_seq) (t: time) :=
+    least_nat t (completed j sched).
+
+Definition task_response_time (tsk: sporadic_task) (t: time) :=
+    forall (j: job) (sched: schedule) (arr: arrival_seq) (t: time),
+        job_of j tsk /\ greatest_nat t (job_response_time j sched arr).

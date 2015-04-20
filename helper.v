@@ -14,3 +14,9 @@ Proof. intros.
        rewrite H in H3.
        trivial.
 Qed.
+
+Definition least_nat (n: nat) (P: nat -> Prop) : Prop :=
+    P n /\ forall (n': nat), P n' -> n <= n'.
+
+Definition greatest_nat (n: nat) (P: nat -> Prop) : Prop :=
+    P n /\ forall (n': nat), P n' -> n' <= n.
