@@ -1,40 +1,33 @@
 Set Printing Projections.
 
+Require Import Coq.Lists.List.
+
 (* A task represents an execution requirement *)
-Record task : Type :=
-  { job_arrival: nat -> Prop;
+Record job : Type :=
+  { job_id: nat;
     job_cost: nat;
     job_deadline: nat
   }.
 
-(* Restrictions on task parameters *)
-Record valid_task (tsk: task) : Prop :=
-  { job_cost_positive: job_cost tsk > 0;
-    job_cost_le_deadline: job_cost tsk <= job_deadline tsk;
-    job_deadline_positive: job_deadline tsk > 0
+(* Restrictions on job parameters *)
+Record valid_job (j: job) : Prop :=
+  { job_cost_positive: job_cost j > 0;
+    job_cost_le_deadline: job_cost j <= job_deadline j;
+    job_deadline_positive: job_deadline j > 0
   }.
 
 (* A sporadic task has an interarrival time *)
 Record sporadic_task : Type :=
-  { sporadic_task_is_task :> task;
-    task_period : nat
+  { task_cost: nat;
+    task_period : nat;
+    task_deadline: nat
   }.
 
-(* Restrictions on sporadic task parameters *)
-Record valid_sporadic_task (tsk: sporadic_task) : Prop :=
-  { sporadic_task_valid: valid_task tsk;
-    job_interarrival:
-        forall t1 t2, (t1 <> t2
-                      /\ job_arrival tsk t1
-                      /\ job_arrival tsk t2)
-                      -> t1 <= t2 + task_period tsk
-  }.
+Definition taskset := list sporadic_task.
 
-Definition job_interarrival_fixed (tsk: sporadic_task) := forall t1 t2,
-                      (t1 <> t2
-                      /\ job_arrival tsk t1
-                      /\ job_arrival tsk t2)
-                      -> t1 <= t2 + task_period tsk.
+Axiom job_of : job -> sporadic_task -> Prop.
 
-Definition periodic_task := {tsk: sporadic_task | valid_sporadic_task tsk
-                                                  /\ job_interarrival_fixed tsk }.
+Definition task_parameters (j: job) (tsk: sporadic_task) : Prop :=
+    job_of j tsk ->
+        (job_cost j <= task_cost tsk /\
+         job_deadline j = task_deadline tsk).
