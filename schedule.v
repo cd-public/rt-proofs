@@ -5,12 +5,13 @@ Require Import Coq.Lists.List.
 Require Import helper.
 
 Definition time := nat.
+Definition taskset := list task.
 
-Definition schedule := task -> time -> Prop.
-Axiom exec : schedule -> task -> time -> nat.
+Definition schedule := taskset -> task -> time -> Prop.
+Axiom exec : taskset -> task -> time -> nat.
 
-Axiom no_sched_no_exec : forall (s: schedule) (tsk: task) (t: time),
-                             exec s tsk t > 0 <-> s tsk t.
+Axiom no_sched_no_exec : forall (s: schedule) (ts: taskset) (tsk: {tsk: task | }) (t: time),
+                             exec ts tsk t > 0 <-> s tsk t.
 
 Record ident_mp (num_cpus: nat) (s: schedule) : Prop :=
   { ident_mp_cpus_nonzero: num_cpus > 0;
