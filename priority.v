@@ -2,25 +2,22 @@ Add LoadPath "/home/felipec/dev/coq/rt-scheduling-spec".
 Require Import job.
 Require Import schedule.
 
-
-
-Axiom task_id : task -> nat.
-
-Definition prio_order := task -> task -> Prop.
-
-Definition break_ties (tsk1: task) (tsk2: task) : Prop :=
-    task_id tsk1 < task_id tsk2.
-
-Definition hp (prio_higher: prio_order) (tsk1: task) (tsk2: task) : Prop :=
-    prio_higher tsk1 tsk2 \/ break_ties tsk1 tsk2.
+Definition fp_order := sporadic_task -> sporadic_task -> Prop.
 
 Definition RM (tsk1: sporadic_task) (tsk2: sporadic_task) : Prop :=
     task_period tsk1 < task_period tsk2.
 
-Definition enforce_prio_ident_mp (s: schedule) : Prop :=
-    forall (num_cpus: nat) (t: time) (l: list (option task)) (backlogged_task: task),
-        ident_mp num_cpus s ->
-        length l = num_cpus ->
-        (forall (tsk: task), List.In (Some tsk) l <-> s tsk t)) ->
-        forall (backlogged_task: task), ~ s tsk t <->
-List.In
+Definition DM (tsk1: sporadic_task) (tsk2: sporadic_task) : Prop :=
+    task_deadline tsk1 < task_deadline tsk2.
+
+Axiom task_id : sporadic_task -> nat.
+Definition fp_higherprio (order: fp_order) (tsk1: sporadic_task) (tsk2: sporadic_task) : Prop :=
+    order tsk1 tsk2 \/ task_id tsk1 < task_id tsk2.
+
+Definition fixed_priority (hp: higher_priority) (order: fp_order) : Prop :=
+    forall (jhigh: job) (jlow: job)
+           (tskhigh: sporadic_task) (tsklow: sporadic_task)
+           (sched: schedule) (t: time),
+               (job_of jhigh tskhigh /\ job_of jlow tsklow /\ fp_higherprio order tskhigh tsklow)
+               <-> hp jhigh jlow sched t.
+
