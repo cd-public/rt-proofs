@@ -22,8 +22,6 @@ Definition arrived (j: job) (arr: arrival_seq) (t: time) : Prop :=
 
 Definition schedule := job -> time -> nat.
 
-Definition higher_priority := job -> job -> schedule -> time -> Prop.
-
 Fixpoint service (sched: schedule) (j: job) (t: time) : nat:=
   match t with
   | 0 => sched j 0
@@ -54,3 +52,6 @@ Definition task_response_time (tsk: sporadic_task) (t: time) :=
 
 Definition critical_instant (tsk: sporadic_task) (sched: schedule) (arr: arrival_seq) (t: time) :=
     exists (j: job), job_response_time j sched arr t = task_response_time tsk t.
+
+Definition schedule_of (sched: schedule) (ts: taskset) : Prop :=
+    forall (j: job) (t: time), sched j t > 0 -> (exists tsk, In tsk ts /\ job_of j tsk).

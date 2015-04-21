@@ -2,6 +2,7 @@ Add LoadPath "/home/felipec/dev/coq/rt-scheduling-spec".
 Require Import Coq.Lists.List.
 Require Import job.
 Require Import schedule.
+Require Import priority.
 Require Import helper.
 Require Import identmp.
 
@@ -22,7 +23,7 @@ Record apa_ident_mp (num_cpus: nat) (sched: schedule) (alpha: affinity) (hp: hig
         forall (t: time) (j: job) (cpu: nat),
                 sched j t = 1 ->
                 cpu < num_cpus ->
-                (nth cpu (cpumap sched t) (Some j) = Some j) ->
+                (nth cpu (cpumap sched t) (None) = Some j) ->
                 List.In cpu (alpha j);
 
     (* (Weak) APA scheduling invariant *)
@@ -33,7 +34,8 @@ Record apa_ident_mp (num_cpus: nat) (sched: schedule) (alpha: affinity) (hp: hig
                 cpu < num_cpus /\
                 List.In cpu (alpha jlow) ->
                     (exists (jhigh: job),
-                        (nth cpu (cpumap sched t) (Some jhigh) = Some jhigh)))
+                        hp jhigh jlow sched t
+                        /\ (nth cpu (cpumap sched t) (None) = Some jhigh)))
   }.
 
 Lemma exists_apa_platform_that_is_global :
@@ -56,3 +58,13 @@ Proof. intros. inversion H. exists s. exists (fun (j : job) => (seq 0 num_cpus))
        assert (H5 := H3 cpu). assert (H6 := nat_seq_nth_In num_cpus cpu H4).
        assert (H7 := H5 (conj H4 H6)). trivial. trivial.
 Qed.
+
+Lemma APA_service_invariant :
+    forall (num_cpus: nat) (sched: schedule) (j: job) (t: time) (hp: higher_priority)
+           (alpha: affinity) (alpha': affinity),
+               apa_ident_mp num_cpus sched alpha hp
+               -> exists (sched': schedule),
+                      (apa_ident_mp num_cpus sched' alpha' hp
+                       /\ service sched j t >= service sched' j t).
+Proof.
+    Admitted.

@@ -15,8 +15,30 @@ Proof. intros.
        trivial.
 Qed.
 
+Lemma In_singleton_list :
+    forall (A: Type) (x: A) l n, In (Some x) l -> n < 1 -> length l = 1 -> nth n l None = Some x.
+Proof.
+    intros.
+    destruct n; [|inversion H0; inversion H3].
+    destruct l; [inversion H1|].
+    destruct l; [|inversion H1].
+    destruct H; [|contradiction].
+    auto.
+Qed.
+
+Lemma element_in_list : forall (A: Type) (x: A) (l: list (option A)) (n: nat),
+                            nth n l None = Some x -> In (Some x) l.
+Proof.
+    intros. assert (H1 := nth_in_or_default).
+    specialize (H1 (option A) n l None).
+    inversion H1. rewrite <- H. apply H0.
+    rewrite H in H0. inversion H0.
+Qed.
+
 Definition least_nat (n: nat) (P: nat -> Prop) : Prop :=
     P n /\ forall (n': nat), P n' -> n <= n'.
 
 Definition greatest_nat (n: nat) (P: nat -> Prop) : Prop :=
     P n /\ forall (n': nat), P n' -> n' <= n.
+
+Axiom excluded_middle : forall P: Prop, P \/ ~P.

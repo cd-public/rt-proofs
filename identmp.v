@@ -2,6 +2,7 @@ Add LoadPath "/home/felipec/dev/coq/rt-scheduling-spec".
 Require Import Coq.Lists.List.
 Require Import job.
 Require Import schedule.
+Require Import priority.
 
 Axiom cpumap : schedule -> time -> list (option job).
 
@@ -22,5 +23,6 @@ Record ident_mp (num_cpus: nat) (sched: schedule) (hp: higher_priority) : Prop :
                 (forall (cpu: nat),
                 cpu < num_cpus ->
                     (exists (jhigh: job),
-                        (nth cpu (cpumap sched t) (Some jhigh) = Some jhigh)))
+                        hp jhigh jlow sched t
+                        /\ (nth cpu (cpumap sched t) None = Some jhigh)))
   }.
