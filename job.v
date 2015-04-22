@@ -33,6 +33,8 @@ Axiom task_parameters :
             /\ job_deadline j = task_deadline tsk).
 
 (* Models for task deadlines *)
-Definition implicit_deadlines (tsk: sporadic_task) : Prop := task_deadline tsk = task_period tsk.
-Definition restricted_deadlines (tsk: sporadic_task) : Prop := task_deadline tsk <= task_period tsk.
-Definition arbitrary_deadlines (tsk: sporadic_task) : Prop := True.
+Definition implicit_deadline_model (ts: taskset) : Prop :=
+    forall (tsk: sporadic_task), In tsk ts -> task_deadline tsk = task_period tsk.
+Definition restricted_deadline_model (ts: taskset) : Prop :=
+    forall (tsk: sporadic_task), In tsk ts -> task_deadline tsk <= task_period tsk.
+Definition arbitrary_deadline_model (ts: taskset) : Prop := True.

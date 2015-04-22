@@ -13,8 +13,10 @@ Variable sched: schedule.
 Variable hp: higher_priority.
 Axiom RM_priority : fixed_priority hp RM. (* Rate-monotonic priority *)
 Axiom uniprocessor : ident_mp 1 sched hp. (* Uniprocessor system *)
-Axiom jobs_from_taskset: schedule_of_taskset sched ts. (* All jobs induced by the task set *)
+Axiom jobs_from_taskset: schedule_of_taskset sched ts. (* All jobs come from task set *)
 Axiom arr_seq_from_ts: ts_arrival_seq ts (arr_seq_of sched). (* Arrival sequence from task set *)
+Axiom periodic_tasks: periodic_task_model ts (arr_seq_of sched).
+Axiom implicit_deadlines: implicit_deadline_model ts.
 
 (* Simpler scheduling invariant for uniprocessor (eliminates cpu mapping) *)
 Lemma uni_simpler_invariant :

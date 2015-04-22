@@ -10,15 +10,23 @@ Definition time := nat.
 Definition arrival_seq := job -> time -> Prop.
 
 (* Whether a particular arrival sequence is induced by a task set *)
-Record ts_arrival_seq (ts: taskset) (arr: arrival_seq) : Prop :=
-  { job_of_task_arrives: forall (j: job) (tsk: sporadic_task) (t: time),
-        arr j t /\ job_of j tsk <-> List.In tsk ts;
-    inter_arrival_times:
-        forall (j1: job) (j2: job) (tsk: sporadic_task) (t: time) (t': time),
+Definition ts_arrival_seq (ts: taskset) (arr: arrival_seq) : Prop :=
+    forall (j: job) (t: time),
+        arr j t -> (exists tsk: sporadic_task, job_of j tsk /\ List.In tsk ts).
+
+(* Sporadic arrival times *)
+Definition periodic_task_model (ts: taskset) (arr: arrival_seq) : Prop :=
+    forall (j1: job) (j2: job) (tsk: sporadic_task) (t: time) (t': time),
             (arr j1 t /\ arr j2 t' /\ t < t'
             /\ job_of j1 tsk /\ job_of j2 tsk)
-            -> t < t' + task_period tsk 
-  }.
+            -> t' = t + task_period tsk.
+
+(* Periodic arrival times *)
+Definition sporadic_task_model (ts: taskset) (arr: arrival_seq) : Prop :=
+    forall (j1: job) (j2: job) (tsk: sporadic_task) (t: time) (t': time),
+            (arr j1 t /\ arr j2 t' /\ t < t'
+            /\ job_of j1 tsk /\ job_of j2 tsk)
+            -> t' >= t + task_period tsk.
 
 (* Whether a job arrives at time t *)
 Definition arrived (arr: arrival_seq) (j: job)  (t: time) : Prop :=
