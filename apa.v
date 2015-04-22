@@ -37,7 +37,7 @@ Record apa_ident_mp (num_cpus: nat) (sched: schedule)
     (* (Weak) APA scheduling invariant *)
     apa_ident_mp_invariant:
         forall (jlow: job) (t: time),
-            backlogged jlow sched t <->
+            backlogged sched jlow t <->
                 (forall (cpu: nat),
                 cpu < num_cpus /\
                 List.In cpu (alpha jlow) ->

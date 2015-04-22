@@ -20,19 +20,19 @@ Record valid_priority (hp: higher_priority) : Prop :=
 Definition fp_order := sporadic_task -> sporadic_task -> Prop.
 
 (* Rate-Monotonic and Deadline-Monotonic priority order *)
-Definition RM (tsk1: sporadic_task) (tsk2: sporadic_task) : Prop :=
+Definition RM (tsk1 tsk2: sporadic_task) : Prop :=
     task_period tsk1 < task_period tsk2.
-Definition DM (tsk1: sporadic_task) (tsk2: sporadic_task) : Prop :=
+Definition DM (tsk1 tsk2: sporadic_task) : Prop :=
     task_deadline tsk1 < task_deadline tsk2.
 
 (* Template for comparing task priority (with tie-break rule) *)
-Definition fp_higherprio (order: fp_order) (tsk1: sporadic_task) (tsk2: sporadic_task) : Prop :=
+Definition fp_higherprio (order: fp_order) (tsk1 tsk2: sporadic_task) : Prop :=
     order tsk1 tsk2 \/ task_id tsk1 < task_id tsk2.
 
 (* Whether job priority is fixed priority *)
 Definition fixed_priority (hp: higher_priority) (order: fp_order) : Prop :=
     forall (jhigh: job) (jlow: job)
-           (tskhigh: sporadic_task) (tsklow: sporadic_task)
+           (tskhigh tsklow: sporadic_task)
            (sched: schedule) (t: time),
                (job_of jhigh tskhigh /\ job_of jlow tsklow /\ fp_higherprio order tskhigh tsklow)
                <-> hp jhigh jlow sched t.
@@ -62,3 +62,5 @@ Proof.
 Definition job_level_fixed_priority (hp: higher_priority) :=
     forall (sched: schedule) (j1: job) (j2: job) (t: time) (t': time),
         hp j1 j2 sched t -> hp j1 j2 sched t'.
+
+Definition EDF (j1 j2: job) : Prop := job_deadline j1 < job_deadline j2.

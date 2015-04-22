@@ -21,51 +21,53 @@ Record ts_arrival_seq (ts: taskset) (arr: arrival_seq) : Prop :=
   }.
 
 (* Whether a job arrives at time t *)
-Definition arrived (j: job) (arr: arrival_seq) (t: time) : Prop :=
+Definition arrived (arr: arrival_seq) (j: job)  (t: time) : Prop :=
     exists (t_0: time), t_0 <= t /\ arr j t_0.
 
-(* Set of all possible job schedules *)
 Definition schedule := job -> time -> nat.
+
+(* Returns the arrival sequence of a particular schedule *)
+Axiom arr_seq_of : schedule -> arrival_seq.
 
 (* Service received by a job in a schedule, up to time t (inclusive) *)
 Fixpoint service (sched: schedule) (j: job) (t: time) : nat:=
   match t with
-  | 0 => sched j 0
-  | S t => service sched j t + sched j (S t)
+      | 0 => sched j 0
+      | S t => service sched j t + sched j (S t)
   end.
 
 (* Whether a job has completed at time t *)
-Definition completed (j: job) (sched: schedule) (t: time) : Prop :=
+Definition completed (sched: schedule) (j: job) (t: time) : Prop :=
     service sched j t = job_cost j.
 
 (* Whether a job is pending and not scheduled at time t *)
-Definition backlogged (j: job) (sched: schedule) (t: time) : Prop :=
-    sched j t = 0 /\ ~ completed j sched t.
+Definition backlogged (sched: schedule) (j: job) (t: time) : Prop :=
+    sched j t = 0 /\ ~ completed sched j t.
 
 (* A job can only be scheduled if it arrived *)
 Axiom task_must_arrive_to_exec :
-    forall (j: job) (sched: schedule) (arr: arrival_seq) (t: time),
-        sched j t > 0 -> arrived j arr t.
+    forall (j: job) (sched: schedule) (t: time),
+        sched j t > 0 -> arrived (arr_seq_of sched) j t.
 
 (* A job cannot execute anymore after it completed *)
 Axiom completed_task_does_not_exec :
-    forall (j: job) (sched: schedule) (t_comp: time),
-        completed j sched t_comp ->
+    forall (sched: schedule) (j: job) (t_comp: time),
+        completed sched j t_comp ->
             forall (t: time), t >= t_comp -> sched j t = 0.
 
 (* Absolute time of completion for a job in a particular schedule *)
-Definition job_response_time (j: job) (sched: schedule) (arr: arrival_seq) (t: time) :=
-    least_nat t (completed j sched).
+Definition job_response_time (sched: schedule) (j: job) (t: time) :=
+    least_nat t (completed sched j).
 
 (* Worst-case response time of any job of a task, in any schedule *)
 Definition task_response_time (tsk: sporadic_task) (t: time) :=
-    forall (j: job) (sched: schedule) (arr: arrival_seq) (t: time),
-        job_of j tsk /\ greatest_nat t (job_response_time j sched arr).
+    forall (j: job) (sched: schedule) (t: time),
+        job_of j tsk /\ greatest_nat t (job_response_time sched j).
 
 (* Arrival time that generates the worst-case response time *)
-Definition critical_instant (tsk: sporadic_task) (sched: schedule) (arr: arrival_seq) (t: time) :=
-    exists (j: job), job_response_time j sched arr t = task_response_time tsk t.
+Definition critical_instant (tsk: sporadic_task) (sched: schedule) (t: time) :=
+    exists (j: job), job_response_time sched j t = task_response_time tsk t.
 
 (* Whether a schedule only contains jobs of a task set *)
-Definition schedule_of (sched: schedule) (ts: taskset) : Prop :=
+Definition schedule_of_taskset (sched: schedule) (ts: taskset) : Prop :=
     forall (j: job) (t: time), sched j t > 0 -> (exists tsk, In tsk ts /\ job_of j tsk).

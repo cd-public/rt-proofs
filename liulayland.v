@@ -11,16 +11,15 @@ Section LiuLayland.
 Variable ts: taskset.
 Variable sched: schedule.
 Variable hp: higher_priority.
-Variable arr: arrival_seq.
 Axiom RM_priority : fixed_priority hp RM. (* Rate-monotonic priority *)
 Axiom uniprocessor : ident_mp 1 sched hp. (* Uniprocessor system *)
-Axiom jobs_from_taskset: schedule_of sched ts. (* All jobs induced by the task set *)
-Axiom arrival_seq_from_taskset: ts_arrival_seq ts arr. (* Arrival sequence induced by task set *)
+Axiom jobs_from_taskset: schedule_of_taskset sched ts. (* All jobs induced by the task set *)
+Axiom arr_seq_from_ts: ts_arrival_seq ts (arr_seq_of sched). (* Arrival sequence from task set *)
 
 (* Simpler scheduling invariant for uniprocessor (eliminates cpu mapping) *)
 Lemma uni_simpler_invariant :
       forall (jlow : job) (t : time),
-          backlogged jlow sched t
+          backlogged sched jlow t
               <-> exists jhigh : job, hp jhigh jlow sched t /\ sched jhigh t = 1.
 Proof.
   intros.

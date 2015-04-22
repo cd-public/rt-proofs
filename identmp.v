@@ -23,7 +23,7 @@ Record ident_mp (num_cpus: nat) (sched: schedule) (hp: higher_priority) : Prop :
     (* Global scheduling invariant *)
     ident_mp_invariant:
         forall (jlow: job) (t: time),
-            backlogged jlow sched t <->
+            backlogged sched jlow t <->
                 (forall (cpu: nat),
                 cpu < num_cpus ->
                     (exists (jhigh: job),
