@@ -1,16 +1,22 @@
 Add LoadPath "/home/felipec/dev/coq/rt-scheduling-spec".
 Require Import Coq.Lists.List.
+Require Export ListSet.
+Require Export Arith.
+Require Import Coq.Arith.Peano_dec.
 Require Import job.
 Require Import schedule.
 Require Import priority.
 Require Import helper.
 Require Import identmp.
 
-(* Set of all possible mappings from jobs to processors *)
-Definition affinity := job -> list nat.
+(* Set of all possible affinities (mappings from jobs to processors) *)
+Definition affinity := job -> set nat.
+
+Axiom affinity_non_empty : forall (alpha: affinity) (j: job), ~alpha j = empty_set nat.
 
 (* Whether a schedule is produced by an APA identical multiprocessor *)
-Record apa_ident_mp (num_cpus: nat) (sched: schedule) (alpha: affinity) (hp: higher_priority) : Prop :=
+Record apa_ident_mp (num_cpus: nat) (sched: schedule)
+                    (alpha: affinity) (hp: higher_priority) : Prop :=
   {
     (* An identical multiprocessor has a fixed number of cpus *)
     apa_ident_mp_cpus_nonzero: num_cpus > 0;
@@ -66,13 +72,36 @@ Proof. intros. inversion H. exists sched. exists (fun (j : job) => (seq 0 num_cp
        assert (H7 := H5 (conj H4 H6)). trivial. trivial.
 Qed.
 
-(* Service invariant from APA paper -- incomplete *)
+(* Definitions for APA affinity restoration *)
+
+(* Per-task affinities *)
+Definition task_affinity (alpha: affinity) :=
+   forall (tsk: sporadic_task) (j1 j2: job),
+       job_of j1 tsk /\ job_of j2 tsk -> alpha j1 = alpha j2.
+
+Definition inter : set nat -> set nat -> set nat := set_inter eq_nat_dec.
+
+Definition restrict (tsk_i: sporadic_task) (ts: taskset)
+                    (alpha: affinity) (alpha': affinity) : Prop :=
+    task_affinity alpha
+    /\ task_affinity alpha'
+    /\ (forall (tsk: sporadic_task) (j: job) (j_i: job),
+         In tsk ts /\ In tsk_i ts
+         /\ job_of j tsk /\ job_of j_i tsk_i
+         -> alpha' j = inter (alpha j) (alpha j_i)).
+
+(* Service invariant from APA paper *)
 Lemma APA_service_invariant :
-    forall (num_cpus: nat) (sched: schedule) (j: job) (t: time) (hp: higher_priority)
-           (alpha: affinity) (alpha': affinity),
+    forall (num_cpus: nat) (sched: schedule) (hp: higher_priority)
+           (ts: taskset) (alpha: affinity) (alpha': affinity) (tsk_i: sporadic_task)
+           (j: job) (t: time),
                apa_ident_mp num_cpus sched alpha hp
+               /\ In tsk_i ts
+               /\ task_affinity alpha /\ task_affinity alpha'
+               /\ restrict tsk_i ts alpha alpha'
                -> exists (sched': schedule),
                       (apa_ident_mp num_cpus sched' alpha' hp
                        /\ service sched j t >= service sched' j t).
 Proof.
+    intros.
     Admitted.
