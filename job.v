@@ -1,10 +1,8 @@
-Set Printing Projections.
-
 Require Import Coq.Lists.List.
 
 (* A task represents a single execution unit *)
 Record job : Type :=
-  { job_id: nat;
+  { job_id: nat; (* allows multiple jobs with same parameters *)
     job_cost: nat;
     job_deadline: nat
   }.
@@ -18,7 +16,8 @@ Record valid_job (j: job) : Prop :=
 
 (* Sporadic Task Model *)
 Record sporadic_task : Type :=
-  { task_cost: nat;
+  { task_id: nat; (* allows multiple tasks with same parameters *)
+    task_cost: nat;
     task_period : nat;
     task_deadline: nat
   }.

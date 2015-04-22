@@ -1,4 +1,5 @@
 Require Import Coq.Lists.List.
+Require Import Coq.Arith.Lt.
 
 Lemma nat_seq_nth_In : forall len n, n < len -> In n (seq 0 len).
 Proof. intros.
@@ -34,6 +35,12 @@ Proof.
     inversion H1. rewrite <- H. apply H0.
     rewrite H in H0. inversion H0.
 Qed.
+
+Lemma element_in_list_no_overflow :
+    forall (A: Type) (x: A) (l: list (option A)) (n: nat),
+        nth n l None = Some x -> n < length l.
+Proof.
+    Admitted.
 
 Definition least_nat (n: nat) (P: nat -> Prop) : Prop :=
     P n /\ forall (n': nat), P n' -> n <= n'.
