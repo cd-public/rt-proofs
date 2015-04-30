@@ -5,20 +5,22 @@ Require Import schedule.
 Require Import priority.
 
 (* Mapping from processors to tasks at time t *)
-Axiom cpumap : schedule -> time -> list (option job).
+Definition processor_list := schedule -> time -> list (option job).
 
 (* Whether a schedule is produced by an identical multiprocessor *)
-Record ident_mp (num_cpus: nat) (sched: schedule) (hp: higher_priority) : Prop :=
+Record ident_mp (num_cpus: nat) (sched: schedule)
+                (hp: higher_priority) (cpumap: processor_list) : Prop :=
   { (* An identical multiprocessor has a fixed number of cpus *)
     ident_mp_cpus_nonzero: num_cpus > 0;
     ident_mp_num_cpus: forall (t: time), length (cpumap sched t) = num_cpus;
 
     (* Job is scheduled iff it is mapped to a processor*)
     ident_mp_mapping: forall (j: job) (t: time),
-                          List.In (Some j) (cpumap sched t) <-> sched j t = 1;
+                          List.In (Some j) (cpumap sched t)
+                              <-> scheduled sched j t;
 
-    (* A scheduled job only receives 1 unit of service *)
-    ident_mp_sched_unit: forall (j: job) (t: time), sched j t <= 1;
+    (* A job receives at most 1 unit of service *)
+    ident_mp_sched_unit: forall (j: job) (t: time), service_at sched j t <= 1;
 
     (* Global scheduling invariant *)
     ident_mp_invariant:

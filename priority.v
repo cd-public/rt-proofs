@@ -1,5 +1,6 @@
 Add LoadPath "/home/felipec/dev/coq/rt-scheduling-spec".
 Require Import Coq.Arith.Lt.
+Require Import task.
 Require Import job.
 Require Import helper.
 Require Import schedule.
@@ -34,8 +35,9 @@ Definition fixed_priority (hp: higher_priority) (order: fp_order) : Prop :=
     forall (jhigh: job) (jlow: job)
            (tskhigh tsklow: sporadic_task)
            (sched: schedule) (t: time),
-               (job_of jhigh tskhigh /\ job_of jlow tsklow /\ fp_higherprio order tskhigh tsklow)
-               <-> hp jhigh jlow sched t.
+               (job_of jhigh = Some tskhigh /\ job_of jlow = Some tsklow
+               /\ fp_higherprio order tskhigh tsklow)
+                   <-> hp jhigh jlow sched t.
 
 (* Proof that RM policy is a partial order for jobs *)
 Lemma RM_priority_valid :
@@ -45,7 +47,7 @@ Proof.
     unfold fixed_priority in H.
     split. intros.
     specialize (H j j).
-    assert (H0 := excluded_middle (exists tsk, job_of j tsk)).
+    assert (H0 := excluded_middle (exists tsk, job_of j = Some tsk)).
     inversion H0. inversion H1 as [tsk].
     specialize H with tsk tsk sched t.
     inversion H.
@@ -64,3 +66,9 @@ Definition job_level_fixed_priority (hp: higher_priority) :=
         hp j1 j2 sched t -> hp j1 j2 sched t'.
 
 Definition EDF (j1 j2: job) : Prop := job_deadline j1 < job_deadline j2.
+
+(* Whether a priority order is schedule-independent *)
+Definition schedule_independent (hp: higher_priority) : Prop :=
+    forall (sched1 sched2: schedule),
+        arr_seq sched1 = arr_seq sched2 ->
+            forall (j1 j2: job) (t: time), hp j1 j2 sched1 t = hp j1 j2 sched2 t.
