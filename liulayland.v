@@ -12,6 +12,7 @@ Section LiuLayland.
 Variable ts: taskset.
 Variable sched: schedule.
 Variable hp: higher_priority.
+Variable task_hp (tsk1: sporadic_task) (tsk2: sporadic_task): fp_higher_priority RM.
 Variable cpumap: processor_list.
 
 Hypothesis RM_priority : fixed_priority hp RM. (* Rate-monotonic priority *)
@@ -20,6 +21,8 @@ Hypothesis jobs_from_taskset: schedule_of_taskset sched ts. (* All jobs come fro
 Hypothesis arr_seq_from_ts: ts_arrival_sequence ts (arr_seq sched). (* Arrival sequence from task set *)
 Hypothesis periodic_tasks: periodic_task_model ts (arr_seq sched).
 Hypothesis implicit_deadlines: implicit_deadline_model ts.
+
+Definition hp_task (tsk1 tsk2: sporadic_task) := fp_higherprio RM tsk1 tsk2.
 
 (* Simpler scheduling invariant for uniprocessor (eliminates cpu mapping) *)
 Lemma uni_simpler_invariant :
@@ -54,5 +57,11 @@ Proof.
   specialize (H6 H3).
   apply In_singleton_list with (x := jhigh); trivial.
 Qed.
+
+Lemma bla : forall (t: time) (tsk_i),
+                (forall (hp_tsk: sporadic_task),
+                In tsk ts ->
+                exists (j: job), (arr_seq sched) j t)
+                    -> critical_instant tsk sched t.
 
 End LiuLayland.

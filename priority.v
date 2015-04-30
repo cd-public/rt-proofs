@@ -4,21 +4,18 @@ Require Import task.
 Require Import job.
 Require Import helper.
 Require Import schedule.
+Require Import Coq.Classes.RelationClasses.
 
-(* Generic priority order for jobs in a schedule at some time t *)
-Definition higher_priority := job -> job -> schedule -> time -> Prop.
+Record higher_priority : Type :=
+  {
+    _hp:> schedule -> time -> job -> job ->Prop;
 
-(* Job priority must be a partial order: irreflexive, antisymetric, transitive. *)
-Record valid_priority (hp: higher_priority) : Prop :=
-  { hp_irreflexive: forall (j: job) (sched: schedule) (t: time), ~ hp j j sched t;
+    hp_irreflexive: forall (j: job) (sched: schedule) (t: time), ~ _hp sched t j j;
     hp_antisymmetric: forall (j1 j2: job) (sched: schedule) (t: time),
-                         hp j1 j2 sched t /\ hp j2 j1 sched t -> j1 = j2;
+                         _hp sched t j1 j2 /\ _hp sched t j2 j1 -> j1 = j2;
     hp_transitive: forall (j1 j2 j3: job) (sched: schedule) (t: time),
-                       hp j1 j2 sched t /\ hp j2 j3 sched t -> hp j1 j3 sched t 
+                       _hp sched t j1 j2 /\ _hp sched t j2 j3 -> _hp sched t j1 j3
   }.
-
-(* Generic fixed priority order for two tasks *)
-Definition fp_order := sporadic_task -> sporadic_task -> Prop.
 
 (* Rate-Monotonic and Deadline-Monotonic priority order *)
 Definition RM (tsk1 tsk2: sporadic_task) : Prop :=
@@ -27,20 +24,23 @@ Definition DM (tsk1 tsk2: sporadic_task) : Prop :=
     task_deadline tsk1 < task_deadline tsk2.
 
 (* Template for comparing task priority (with tie-break rule) *)
-Definition fp_higherprio (order: fp_order) (tsk1 tsk2: sporadic_task) : Prop :=
-    order tsk1 tsk2 \/ task_id tsk1 < task_id tsk2.
+Definition fp_higher_priority (fp_order: sporadic_task -> sporadic_task -> Prop)
+                              (tsk1 tsk2: sporadic_task) :=
+     fp_order tsk1 tsk2 \/ task_id tsk1 < task_id tsk2.
 
 (* Whether job priority is fixed priority *)
-Definition fixed_priority (hp: higher_priority) (order: fp_order) : Prop :=
+Definition fixed_priority (hp: higher_priority)
+                          (task_hp: sporadic_task -> sporadic_task -> Prop) : Prop :=
     forall (jhigh: job) (jlow: job)
-           (tskhigh tsklow: sporadic_task)
+           (tsk_high tsk_low: sporadic_task)
            (sched: schedule) (t: time),
-               (job_of jhigh = Some tskhigh /\ job_of jlow = Some tsklow
-               /\ fp_higherprio order tskhigh tsklow)
-                   <-> hp jhigh jlow sched t.
+               (job_of jhigh = Some tsk_high
+               /\ job_of jlow = Some tsk_low
+               /\ task_hp tsk_high tsk_low)
+                   <-> hp sched t jhigh jlow.
 
 (* Proof that RM policy is a partial order for jobs *)
-Lemma RM_priority_valid :
+(*Lemma RM_priority_valid :
     forall (hp: higher_priority), fixed_priority hp RM -> valid_priority hp.
 Proof.
     intros.
@@ -58,12 +58,12 @@ Proof.
     assert (H9 := lt_irrefl (task_period tsk)). eauto.
     assert (H9 := lt_irrefl (task_id tsk)). eauto.
     apply H6.
-    Admitted. (*TODO finish this proof*)
+    Admitted. (*TODO finish this proof*)*)
 
 (* Job-level fixed priority *)
 Definition job_level_fixed_priority (hp: higher_priority) :=
     forall (sched: schedule) (j1: job) (j2: job) (t: time) (t': time),
-        hp j1 j2 sched t -> hp j1 j2 sched t'.
+        hp sched t j1 j2 -> hp sched t' j1 j2.
 
 Definition EDF (j1 j2: job) : Prop := job_deadline j1 < job_deadline j2.
 
@@ -71,4 +71,4 @@ Definition EDF (j1 j2: job) : Prop := job_deadline j1 < job_deadline j2.
 Definition schedule_independent (hp: higher_priority) : Prop :=
     forall (sched1 sched2: schedule),
         arr_seq sched1 = arr_seq sched2 ->
-            forall (j1 j2: job) (t: time), hp j1 j2 sched1 t = hp j1 j2 sched2 t.
+            forall (j1 j2: job) (t: time), hp sched1 t j1 j2 = hp sched2 t j1 j2.

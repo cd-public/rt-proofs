@@ -29,6 +29,6 @@ Record ident_mp (num_cpus: nat) (sched: schedule)
                 (forall (cpu: nat),
                 cpu < num_cpus ->
                     (exists (jhigh: job),
-                        hp jhigh jlow sched t
+                        hp sched t jhigh jlow
                         /\ (nth cpu (cpumap sched t) None = Some jhigh)))
   }.

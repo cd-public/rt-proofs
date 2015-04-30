@@ -46,7 +46,7 @@ Record apa_ident_mp (num_cpus: nat) (sched: schedule) (hp: higher_priority)
                 cpu < num_cpus ->
                 List.In cpu (alpha jlow) ->
                     (exists (jhigh: job),
-                        hp jhigh jlow sched t
+                        hp sched t jhigh jlow
                         /\ (nth cpu (cpumap sched t) (None) = Some jhigh)))
   }.
 
@@ -84,57 +84,9 @@ Proof. intros num_cpus sched hp cpumap sched_is_identmp sched_ind.
          assert (bla : forall cpu0 : nat, 
                       cpu0 < num_cpus ->
                       exists jhigh : job,
-                        hp jhigh j sched' 0 /\
+                        hp sched' 0 jhigh j /\
                         exists cpu', cpu' < num_cpus /\ nth cpu' (cpumap sched' 0) None = Some jhigh).
-         admit.
-         apply (bla cpu cpu_less).
-
-         assert (bla := invariant_sched_j_suf cpu cpu_less).
-         inversion bla as [jhigh [H1 H2]].
-         assert (H00 : ~backlogged sched' jhigh 0).
-         rewrite invariant_sched'.
-         unfold not. intros.
-
-         inversion_clear invariant_sched' as [_ invariant_sched'_nec].
-         apply invariant_sched'_nec.
-
-         intros.
-         specialize (invariant_sched_suf cpu H).
-
-
-
-
-         induction cpu.
-             intros.
-             specialize (invariant_sched_suf 0 H).
-             inversion invariant_sched_suf as [jhigh [H1 H2]].
-             destruct (excluded_middle (backlogged sched' jhigh 0)).
-         apply contrapositive in invariant_sched'_nec; trivial.
-         apply invariant_sched'_nec.
-         intros cpu cpu_less in_cpu.
-         
-
-inversion invariant_sched' as [_ invariant_sched'_nec].
-         
-         
-         apply contrapositive in invariant_sched'_nec; trivial.
-         
-         apply not_all_ex_not in invariant_sched'_nec.
-         inversion invariant_sched'_nec as [cpu invariant_neg].
-         apply imply_to_and in invariant_neg.
-         inversion invariant_neg as [cpu_less invariant_neg2].
-         apply imply_to_and in invariant_neg2.
-         inversion invariant_neg2 as [in_cpu no_jobs_hp].
-         assert (H : ~ (forall cpu : nat,
-                    cpu < num_cpus ->
-                    In cpu (seq 0 num_cpus) ->
-                    exists jhigh : job,
-                      hp jhigh j sched' 0 /\
-                      nth cpu (cpumap' sched' 0) None = Some jhigh)).
-         unfold not. intros.
-         specialize (H cpu cpu_less in_cpu).
-         apply no_jobs_hp. apply H.
-
+         Admitted.
 
 (* Definitions for APA affinity restoration *)
 
