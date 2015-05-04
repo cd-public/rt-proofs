@@ -51,5 +51,4 @@ Definition greatest_nat (n: nat) (P: nat -> Prop) : Prop :=
 Axiom excluded_middle : forall P: Prop, P \/ ~P.
 
 Theorem contrapositive : forall P Q : Prop, (P -> Q) -> (~Q -> ~P).
-Proof.
-    tauto. Qed.
+Proof. tauto. Qed.

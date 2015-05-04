@@ -59,9 +59,10 @@ Lemma exists_apa_platform_that_is_global :
         exists (alpha: affinity),
             forall (sched': schedule) (cpumap': processor_list),
                 apa_ident_mp num_cpus sched' hp cpumap' alpha ->
-                arr_seq sched = arr_seq sched' ->
+                arrives_at sched = arrives_at sched' ->
                     (forall (j: job) (t: time), service sched j t = service sched' j t).
-Proof. intros num_cpus sched hp cpumap sched_is_identmp sched_ind.
+Proof.
+       intros num_cpus sched hp cpumap sched_is_identmp sched_ind.
        inversion_clear sched_is_identmp as [num_cpus_positive _ _ _ invariant_sched].
        exists (fun (j : job) => (seq 0 num_cpus)).
        intros sched' cpumap' sched'_is_apa same_arr j t.

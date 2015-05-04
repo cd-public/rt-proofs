@@ -9,37 +9,20 @@ Require Import helper.
 Definition time := nat.
 
 (* Set of all possible job arrival sequences *)
-Definition arrival_sequence := job -> time -> Prop.
-
-(* Whether a particular arrival sequence is induced by a task set *)
-Definition ts_arrival_sequence (ts: taskset) (arr: arrival_sequence) : Prop :=
-    forall (j: job) (t: time),
-        arr j t -> (exists tsk: sporadic_task, job_of j = Some tsk /\ List.In tsk ts).
-
-(* Sporadic arrival times *)
-Definition periodic_task_model (ts: taskset) (arr: arrival_sequence) : Prop :=
-    forall (j1: job) (j2: job) (tsk: sporadic_task) (t: time) (t': time),
-            (arr j1 t /\ arr j2 t' /\ t < t'
-            /\ job_of j1 = Some tsk /\ job_of j2 = Some tsk)
-            -> t' = t + task_period tsk.
-
-(* Periodic arrival times *)
-Definition sporadic_task_model (ts: taskset) (arr: arrival_sequence) : Prop :=
-    forall (j1: job) (j2: job) (tsk: sporadic_task) (t: time) (t': time),
-            (arr j1 t /\ arr j2 t' /\ t < t'
-            /\ job_of j1 = Some tsk /\ job_of j2 = Some tsk)
-            -> t' >= t + task_period tsk.
-
-(* Whether a job arrives at time t *)
-Definition arrived (arr: arrival_sequence) (j: job)  (t: time) : Prop :=
-    exists (t_0: time), t_0 <= t /\ arr j t_0.
+Record arrival_sequence : Type :=
+  {
+    arr :> job -> time -> Prop;
+    no_multiple_arrivals: forall (j: job) (t1: time) (t2: time),
+                              arr j t1 -> arr j t2 -> t1 = t2
+  }.
+(*Definition arrival_sequence := job -> time -> Prop.*)
 
 Record schedule_data : Type :=
   {
     (* service provided to a job at time t *)
     service_at: job -> time -> nat; 
     (* arrival sequence of the schedule *)
-    arr_seq: arrival_sequence
+    arrives_at: arrival_sequence
   }.
 
 (* Service received by a job in a schedule, up to time t (inclusive) *)
@@ -48,6 +31,10 @@ Fixpoint service (sched: schedule_data) (j: job) (t: time) : nat:=
       | 0 => service_at sched j 0
       | S t => service sched j t + service_at sched j (S t)
   end.
+
+(* Whether a job arrived at time t *)
+Definition arrived (sched: schedule_data) (j: job)  (t: time) : Prop :=
+    exists (t_0: time), t_0 <= t /\ (arrives_at sched) j t_0.
 
 (* Whether a job is scheduled at time t *)
 Definition scheduled (sched: schedule_data) (j: job) (t: time) : Prop :=
@@ -70,7 +57,7 @@ Record schedule : Type :=
     (* 1) A job can only be scheduled if it arrived *)
     task_must_arrive_to_exec :
         forall (j: job) (t: time),
-            scheduled sd j t -> arrived (arr_seq sd) j t;
+            scheduled sd j t -> arrived sd j t;
 
     (* 2) A job cannot execute anymore after it completed *)
     completed_task_does_not_exec :
@@ -78,6 +65,27 @@ Record schedule : Type :=
             completed sd j t_comp ->
                 forall (t: time), t >= t_comp -> ~ scheduled sd j t
   }.
+
+(* Whether the arrival sequence of a schedule is induced by a task set *)
+Definition ts_arrival_sequence (ts: taskset) (sched: schedule) : Prop :=
+    forall (j: job) (t: time),
+        (arrives_at sched) j t -> (exists tsk: sporadic_task, job_of j = Some tsk /\ In tsk ts).
+
+(* Sporadic arrival times *)
+Definition periodic_task_model (ts: taskset) (sched: schedule) : Prop :=
+    ts_arrival_sequence ts sched ->
+    forall (j1: job) (j2: job) (tsk: sporadic_task) (t: time) (t': time),
+            (arrives_at sched) j1 t /\ (arrives_at sched) j2 t' /\ t < t'
+            /\ job_of j1 = Some tsk /\ job_of j2 = Some tsk
+            -> t' = t + task_period tsk.
+
+(* Periodic arrival times *)
+Definition sporadic_task_model (ts: taskset) (sched: schedule) : Prop :=
+    ts_arrival_sequence ts sched ->
+    forall (j1: job) (j2: job) (tsk: sporadic_task) (t: time) (t': time),
+            (arrives_at sched) j1 t /\ (arrives_at sched) j2 t' /\ t < t'
+            /\ job_of j1 = Some tsk /\ job_of j2 = Some tsk
+            -> t' >= t + task_period tsk.
 
 Lemma backlogged_no_service : forall (sched: schedule_data) (j: job) (t: time),
     backlogged sched j t -> service_at sched j t = 0.
@@ -92,22 +100,27 @@ Proof.
         rewrite case2. reflexivity.
 Qed.
 
-(* Absolute time of completion for a job in a particular schedule *)
-Definition job_response_time (sched: schedule) (j: job) (t: time) :=
-    least_nat t (completed sched j).
+(* Response time of a job in a particular schedule *)
+Definition job_response_time (sched: schedule) (j: job) (r: time) : Prop :=
+    forall (t_a: time),
+        arrives_at sched j t_a ->
+        least_nat r (fun r => completed sched j (t_a + r)).
 
 (* Worst-case response time of any job of a task, in any schedule *)
-Definition task_response_time (tsk: sporadic_task) (t: time) :=
-    forall (j: job) (sched: schedule) (t: time),
-        job_of j = Some tsk /\ greatest_nat t (job_response_time sched j).
+Definition task_response_time (tsk: sporadic_task) (ts: taskset) (r: time) : Prop :=
+    In tsk ts /\
+    forall (sched: schedule) (j: job),
+        ts_arrival_sequence ts sched ->
+        job_of j = Some tsk ->
+        greatest_nat r (job_response_time sched j).
 
 (* Arrival time that generates the worst-case response time *)
-Definition critical_instant (tsk: sporadic_task) (sched: schedule) (t: time) :=
-    exists (j: job), job_response_time sched j t = task_response_time tsk t.
-
-(* Whether a schedule only contains jobs of a task set *)
-Definition schedule_of_taskset (sched: schedule) (ts: taskset) : Prop :=
-    forall (j: job) (t: time), scheduled sched j t -> (exists tsk, In tsk ts /\ job_of j = Some tsk).
+Definition critical_instant (tsk: sporadic_task) (ts: taskset) (sched: schedule) (t: time) :=
+    exists (j: job),
+        job_of j = Some tsk
+        /\ arrives_at sched j t
+        /\ exists (r: time), (job_response_time sched j r
+                              /\ task_response_time tsk ts r).
 
 Lemma no_completed_tasks_at_time_zero : forall (sched: schedule) (j: job) , ~completed sched j 0.
 Proof.

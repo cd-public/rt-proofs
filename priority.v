@@ -25,7 +25,8 @@ Definition DM (tsk1 tsk2: sporadic_task) : Prop :=
 
 (* Template for comparing task priority (with tie-break rule) *)
 Definition fp_higher_priority (fp_order: sporadic_task -> sporadic_task -> Prop)
-                              (tsk1 tsk2: sporadic_task) :=
+                                : sporadic_task -> sporadic_task -> Prop :=
+     fun (tsk1 tsk2: sporadic_task) =>
      fp_order tsk1 tsk2 \/ task_id tsk1 < task_id tsk2.
 
 (* Whether job priority is fixed priority *)
@@ -70,5 +71,5 @@ Definition EDF (j1 j2: job) : Prop := job_deadline j1 < job_deadline j2.
 (* Whether a priority order is schedule-independent *)
 Definition schedule_independent (hp: higher_priority) : Prop :=
     forall (sched1 sched2: schedule),
-        arr_seq sched1 = arr_seq sched2 ->
+        arrives_at sched1 = arrives_at sched2 ->
             forall (j1 j2: job) (t: time), hp sched1 t j1 j2 = hp sched2 t j1 j2.
