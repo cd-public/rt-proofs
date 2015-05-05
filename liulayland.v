@@ -7,6 +7,8 @@ Require Import schedule.
 Require Import identmp.
 Require Import priority.
 Require Import helper.
+Require Import response_time.
+Require Import task_arrival.
 Require Import Coq.Program.Tactics.
 
 Section LiuLayland.
@@ -56,6 +58,19 @@ Proof.
   specialize (H6 H3).
   apply In_singleton_list with (x := jhigh); trivial.
 Qed.
+
+Lemma bla : 
+    forall (j: job) (t: time) (tsk: sporadic_task), 
+        job_of j = Some tsk ->
+        arrives_at sched j t ->
+        forall k, exists (j': job), job_of j' = Some tsk /\ arrives_at sched j' (t + k*t).
+Proof.
+    intros j t j_arrival j_job_tsk next_job_arrival k.
+    unfold periodic_task_model in periodic_tasks.
+    specialize (periodic_tasks arr_seq_from_ts).
+
+    induction k.
+        - simpl.
 
 Lemma sync_release_is_critical_instant :
     forall (t: time) (tsk_i: sporadic_task),

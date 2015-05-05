@@ -66,28 +66,7 @@ Record schedule : Type :=
                 forall (t: time), t >= t_comp -> ~ scheduled sd j t
   }.
 
-(* Whether the arrival sequence of a schedule is induced by a task set *)
-Definition ts_arrival_sequence (ts: taskset) (sched: schedule) : Prop :=
-    forall (j: job) (t: time),
-        (arrives_at sched) j t -> (exists tsk: sporadic_task, job_of j = Some tsk /\ In tsk ts).
-
-(* Sporadic arrival times *)
-Definition periodic_task_model (ts: taskset) (sched: schedule) : Prop :=
-    ts_arrival_sequence ts sched ->
-    forall (j1: job) (j2: job) (tsk: sporadic_task) (t: time) (t': time),
-            (arrives_at sched) j1 t /\ (arrives_at sched) j2 t' /\ t < t'
-            /\ job_of j1 = Some tsk /\ job_of j2 = Some tsk
-            -> t' = t + task_period tsk.
-
-(* Periodic arrival times *)
-Definition sporadic_task_model (ts: taskset) (sched: schedule) : Prop :=
-    ts_arrival_sequence ts sched ->
-    forall (j1: job) (j2: job) (tsk: sporadic_task) (t: time) (t': time),
-            (arrives_at sched) j1 t /\ (arrives_at sched) j2 t' /\ t < t'
-            /\ job_of j1 = Some tsk /\ job_of j2 = Some tsk
-            -> t' >= t + task_period tsk.
-
-Lemma backlogged_no_service : forall (sched: schedule_data) (j: job) (t: time),
+Lemma backlogged_no_service : forall (sched: schedule) (j: job) (t: time),
     backlogged sched j t -> service_at sched j t = 0.
 Proof.
     intros sched j t j_backlogged.
@@ -99,28 +78,6 @@ Proof.
         contradiction.
         rewrite case2. reflexivity.
 Qed.
-
-(* Response time of a job in a particular schedule *)
-Definition job_response_time (sched: schedule) (j: job) (r: time) : Prop :=
-    forall (t_a: time),
-        arrives_at sched j t_a ->
-        least_nat r (fun r => completed sched j (t_a + r)).
-
-(* Worst-case response time of any job of a task, in any schedule *)
-Definition task_response_time (tsk: sporadic_task) (ts: taskset) (r: time) : Prop :=
-    In tsk ts /\
-    forall (sched: schedule) (j: job),
-        ts_arrival_sequence ts sched ->
-        job_of j = Some tsk ->
-        greatest_nat r (job_response_time sched j).
-
-(* Arrival time that generates the worst-case response time *)
-Definition critical_instant (tsk: sporadic_task) (ts: taskset) (sched: schedule) (t: time) :=
-    exists (j: job),
-        job_of j = Some tsk
-        /\ arrives_at sched j t
-        /\ exists (r: time), (job_response_time sched j r
-                              /\ task_response_time tsk ts r).
 
 Lemma no_completed_tasks_at_time_zero : forall (sched: schedule) (j: job) , ~completed sched j 0.
 Proof.

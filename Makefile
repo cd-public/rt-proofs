@@ -1,4 +1,5 @@
-MODULES := task job priority schedule identmp apa helper liulayland
+MODULES := task job priority schedule identmp apa helper \
+           response_time task_arrival liulayland
 VS      := $(MODULES:%=%.v)
 
 .PHONY: coq clean
