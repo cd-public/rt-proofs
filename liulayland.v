@@ -10,6 +10,7 @@ Require Import helper.
 Require Import response_time.
 Require Import task_arrival.
 Require Import Coq.Program.Tactics.
+Require Import Omega.
 
 Section LiuLayland.
 Variable ts: taskset.
@@ -59,18 +60,32 @@ Proof.
   apply In_singleton_list with (x := jhigh); trivial.
 Qed.
 
-Lemma bla : 
+Lemma periodic_arrival_k_times : 
     forall (j: job) (t: time) (tsk: sporadic_task), 
         job_of j = Some tsk ->
         arrives_at sched j t ->
-        forall k, exists (j': job), job_of j' = Some tsk /\ arrives_at sched j' (t + k*t).
+        forall k, exists (j': job), job_of j' = Some tsk
+                                    /\ arrives_at sched j' (t + k*(task_period tsk)).
 Proof.
-    intros j t j_arrival j_job_tsk next_job_arrival k.
+    intros j t tsk job_of_j j_arrival k.
     unfold periodic_task_model in periodic_tasks.
     specialize (periodic_tasks arr_seq_from_ts).
 
     induction k.
-        - simpl.
+        - simpl. rewrite <- plus_n_O.
+          exists j. split; trivial.
+        - simpl. inversion IHk as [j' [job_of_j' j'_arrival]].
+          specialize (periodic_tasks tsk j' (t + k*(task_period tsk))).
+          inversion periodic_tasks as [periodic_tasks_suf _].
+          specialize (periodic_tasks_suf (conj job_of_j' j'_arrival)).
+          inversion periodic_tasks_suf as [j'' [t'' [H1 [H2 H3]]]].
+          subst t''.
+          exists j''. split. trivial.
+          assert (H : t + k * task_period tsk + task_period tsk =
+                           t + (task_period tsk + k * task_period tsk)). omega.
+          rewrite <- H.
+          apply H2.
+Qed.
 
 Lemma sync_release_is_critical_instant :
     forall (t: time) (tsk_i: sporadic_task),
