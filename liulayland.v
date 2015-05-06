@@ -11,6 +11,7 @@ Require Import response_time.
 Require Import task_arrival.
 Require Import Coq.Program.Tactics.
 Require Import Omega.
+Require Import Coq.Sorting.Sorted.
 
 Section LiuLayland.
 Variable ts: taskset.
@@ -25,6 +26,9 @@ Hypothesis uniprocessor : ident_mp 1 sched hp cpumap. (* Uniprocessor system *)
 Hypothesis arr_seq_from_ts: ts_arrival_sequence ts sched. (* Arrival sequence from task set *)
 Hypothesis periodic_tasks: periodic_task_model ts sched.
 Hypothesis implicit_deadlines: implicit_deadline_model ts.
+
+Hypothesis ts_non_empty: ts <> nil. (* TODO move this? *)
+Hypothesis ts_sorted_by_prio: StronglySorted task_hp ts. 
 
 (* Simpler scheduling invariant for uniprocessor (eliminates cpu mapping) *)
 Lemma uni_simpler_invariant :
@@ -90,16 +94,30 @@ Qed.
 Lemma sync_release_is_critical_instant :
     forall (t: time) (tsk_i: sporadic_task),
         In tsk_i ts ->
-        (exists (j: job), job_of j = Some tsk_i /\ arrives_at sched j t) ->
-        (forall (hp_tsk: sporadic_task),
-            In tsk_i ts ->
-            exists (j_h: job), job_of j_h = Some hp_tsk /\ arrives_at sched j_h t)
-        -> critical_instant tsk_i ts sched t.
+        sync_release ts sched t ->
+        critical_instant tsk_i ts sched t.
 Proof.
-    intros t tsk_i tsk_i_in_taskset tsk_i_arrives all_hp_tasks_arrive.
-    inversion_clear tsk_i_arrives as [j_i [job_tsk_i tsk_i_arr]].
+    intros t tsk_i tsk_i_in_ts synchronous_release.
+    unfold sync_release in synchronous_release.
+    assert (tsk_i_arrives := synchronous_release tsk_i tsk_i_in_ts).
+    inversion_clear tsk_i_arrives as [j_i [job_of_tsk_i arrival_tsk_i]].
     unfold critical_instant.
-    exists j_i. do 2 (split;trivial).
+    exists j_i. do 2 (split; trivial).
+    intros r resptime_j_r.
+
+    destruct ts as [ts | tsk_1 ts'].
+        - contradiction ts_non_empty; trivial. (* Ignore empty taskset *)
+        - elim ts_sorted_by_prio. (* Induction on the sorted task set *)
+          inversion ts_sorted_by_prio as [tmp1 | tmp1 tmp2 ts'_sorted_by_prio tsk_1_hp tmp5]. subst tmp1 tmp2.s
+
+ inversion ts_sorted_by_prio as [x1 | x1 x2 x3]. subst a l.
+          induction 
+
+induction s.
+    elim ts_sorted_by_prio.
+
+    assert (H := periodic_arrival_k_times).
+    
     unfold job_response_time.
     intros t_a tsk_i_arr_ta.
 
