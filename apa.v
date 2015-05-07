@@ -8,6 +8,7 @@ Require Import Coq.Logic.Classical_Pred_Type.
 Require Import task.
 Require Import job.
 Require Import schedule.
+Require Import platform.
 Require Import priority.
 Require Import helper.
 Require Import identmp.
@@ -18,8 +19,8 @@ Definition affinity := job -> set nat.
 Definition affinity_non_empty := forall (alpha: affinity) (j: job), ~alpha j = empty_set nat.
 
 (* Whether a schedule is produced by an APA identical multiprocessor *)
-Record apa_ident_mp (num_cpus: nat) (sched: schedule) (hp: higher_priority)
-                    (cpumap: processor_list) (alpha: affinity) : Prop :=
+Record apa_ident_mp (num_cpus: nat) (hp: higher_priority)
+                    (cpumap: processor_list) (alpha: affinity) (sched: schedule) : Prop :=
   {
     (* An identical multiprocessor has a fixed number of cpus *)
     apa_ident_mp_cpus_nonzero: num_cpus > 0;
@@ -54,11 +55,11 @@ Record apa_ident_mp (num_cpus: nat) (sched: schedule) (hp: higher_priority)
    an identical multiprocessor with equal number of cpus *)
 Lemma exists_apa_platform_that_is_global :
     forall (num_cpus: nat) (sched: schedule) (hp: higher_priority) (cpumap: processor_list),
-        ident_mp num_cpus sched hp cpumap ->
+        ident_mp num_cpus hp cpumap sched ->
         schedule_independent hp ->
         exists (alpha: affinity),
             forall (sched': schedule) (cpumap': processor_list),
-                apa_ident_mp num_cpus sched' hp cpumap' alpha ->
+                apa_ident_mp num_cpus hp cpumap' alpha sched' ->
                 arrives_at sched = arrives_at sched' ->
                     (forall (j: job) (t: time), service sched j t = service sched' j t).
 Proof.
@@ -112,12 +113,12 @@ Lemma APA_service_invariant :
     forall (num_cpus: nat) (sched: schedule) (hp: higher_priority) (cpumap: processor_list)
            (ts: taskset) (alpha: affinity) (alpha': affinity) (tsk_i: sporadic_task)
            (j: job) (t: time),
-               apa_ident_mp num_cpus sched hp cpumap alpha
+               apa_ident_mp num_cpus hp cpumap alpha sched
                /\ In tsk_i ts
                /\ task_affinity alpha /\ task_affinity alpha'
                /\ restrict tsk_i ts alpha alpha'
                -> exists (sched': schedule) (cpumap': processor_list),
-                      (apa_ident_mp num_cpus sched' hp cpumap' alpha'
+                      (apa_ident_mp num_cpus hp cpumap' alpha' sched'
                        /\ service sched j t >= service sched' j t).
 Proof.
     intros.

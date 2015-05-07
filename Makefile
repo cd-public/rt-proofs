@@ -1,4 +1,4 @@
-MODULES := task job priority schedule identmp apa helper \
+MODULES := task job priority schedule platform identmp apa helper \
            response_time task_arrival liulayland
 VS      := $(MODULES:%=%.v)
 

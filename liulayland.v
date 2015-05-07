@@ -22,7 +22,7 @@ Variable cpumap: processor_list.
 Definition task_hp := fp_higher_priority RM. (* Rate-monotonic priority *)
 Hypothesis RM_priority : fixed_priority hp task_hp. (* Link job priority with task priority *)
 
-Hypothesis uniprocessor : ident_mp 1 sched hp cpumap. (* Uniprocessor system *)
+Hypothesis uniprocessor : ident_mp 1 hp cpumap sched. (* Uniprocessor system *)
 Hypothesis arr_seq_from_ts: ts_arrival_sequence ts sched. (* Arrival sequence from task set *)
 Hypothesis periodic_tasks: periodic_task_model ts sched.
 Hypothesis implicit_deadlines: implicit_deadline_model ts.
@@ -105,10 +105,34 @@ Proof.
     exists j_i. do 2 (split; trivial).
     intros r resptime_j_r.
 
+    generalize dependent tsk_i.
+    
+    assert (H := ts_sorted_by_prio). (* HACK: Coq cannot do induction on Hypothesis. *)
+    induction H as [ts' | tsk_1 ts'].
+      - contradiction ts_non_empty; trivial. (* Ignore empty taskset *)
+      - simpl. intros tsk_i tsk_i_first_or_cons.
+        destruct tsk_i_first_or_cons as [tsk_i_first | tsk_i_cons]. 
+          + intros job_of_tsk_i. subst tsk_i.
+
+            (* Need a lemma here... *)
+            unfold task_response_time.
+            split. simpl. apply or_introl. trivial.
+            
+
+
+
+    revert ts_non_empty.
+    elim ts.
     destruct ts as [ts | tsk_1 ts'].
         - contradiction ts_non_empty; trivial. (* Ignore empty taskset *)
         - elim ts_sorted_by_prio. (* Induction on the sorted task set *)
-          inversion ts_sorted_by_prio as [tmp1 | tmp1 tmp2 ts'_sorted_by_prio tsk_1_hp tmp5]. subst tmp1 tmp2.s
+          inversion ts_sorted_by_prio as [tmp1 | tmp1 tmp2 ts'_sorted_by_prio tsk_1_hp tmp5].
+          subst tmp1 tmp2.
+
+    elim ts_sorted_by_prio.
+    destruct ts as [ts | tsk_1 ts'].
+    - contradiction ts_non_empty; trivial. (* Ignore empty taskset *)
+    -
 
  inversion ts_sorted_by_prio as [x1 | x1 x2 x3]. subst a l.
           induction 
@@ -134,5 +158,19 @@ induction s.
     unfold job_response_time in r_job_response_time.
     specialize (r_job_response_time t tsk_i_arr).
     inversion r_job_response_time. trivial.
+
+
+Lemma hp_task_no_interference :
+    forall (tsk_i: sporadic_task),
+        Forall (task_hp tsk_i) ts ->
+            task_response_time tsk_i (tsk_i :: ts) (task_cost tsk_i).
+Proof.
+    intros tsk_i tsk_i_hp.
+    unfold task_response_time.
+    split. simpl. apply or_introl. trivial.
+    generalize sched.
+    clear periodic_tasks arr_seq_from_ts uniprocessor sched.
+    intros sched uniprocessor arr_seq_from_ts periodic_tasks.
+
 
 End LiuLayland.

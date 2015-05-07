@@ -3,13 +3,14 @@ Require Import Coq.Lists.List.
 Require Import job.
 Require Import schedule.
 Require Import priority.
+Require Import platform.
 
 (* Mapping from processors to tasks at time t *)
 Definition processor_list := schedule -> time -> list (option job).
 
 (* Whether a schedule is produced by an identical multiprocessor *)
-Record ident_mp (num_cpus: nat) (sched: schedule)
-                (hp: higher_priority) (cpumap: processor_list) : Prop :=
+Record ident_mp (num_cpus: nat) (hp: higher_priority)
+                (cpumap: processor_list) (sched: schedule) : Prop :=
   { (* An identical multiprocessor has a fixed number of cpus *)
     ident_mp_cpus_nonzero: num_cpus > 0;
     ident_mp_num_cpus: forall (t: time), length (cpumap sched t) = num_cpus;
