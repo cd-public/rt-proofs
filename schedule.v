@@ -108,6 +108,7 @@ Proof.
         apply single_arrival in j_arrives_at_t'. subst t_a.
         inversion t_a_positive.
 
+      (* TODO: simplify proof *)
       - intros S_t_0_less. simpl.
         assert (t_0_less : t_0 < t_a). omega.
         specialize (IHt_0 t_0_less).
@@ -117,7 +118,6 @@ Proof.
         apply not_gt_le in j_must_arrive.
         inversion j_must_arrive. auto.
         assert (single_arrival := no_multiple_arrivals (arrives_at sched) j t_a (S t_0) arr_j).
-
         unfold not. intros j_arrives_at_St0.
         inversion_clear j_arrives_at_St0 as [t' [t'_zero j_arrives_at_t']].
         inversion t'_zero. subst t'. clear t'_zero.
