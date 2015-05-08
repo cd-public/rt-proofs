@@ -1,5 +1,6 @@
 Require Import Coq.Lists.List.
 Require Import Coq.Arith.Lt.
+Require Import Omega.
 
 Lemma nat_seq_nth_In : forall len n, n < len -> In n (seq 0 len).
 Proof. intros.
@@ -52,3 +53,5 @@ Axiom excluded_middle : forall P: Prop, P \/ ~P.
 
 Theorem contrapositive : forall P Q : Prop, (P -> Q) -> (~Q -> ~P).
 Proof. tauto. Qed.
+
+Lemma not_gt_le : forall n m : nat, ~ n > m -> n <= m. intros; omega. Qed.

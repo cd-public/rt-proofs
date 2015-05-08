@@ -22,12 +22,14 @@ Variable cpumap: processor_list.
 Definition task_hp := fp_higher_priority RM. (* Rate-monotonic priority *)
 Hypothesis RM_priority : fixed_priority hp task_hp. (* Link job priority with task priority *)
 
-Hypothesis uniprocessor : ident_mp 1 hp cpumap sched. (* Uniprocessor system *)
+Definition uniprocessor := ident_mp 1 hp cpumap. (* Uniprocessor system *)
+Hypothesis platform : uniprocessor sched.
+
 Hypothesis arr_seq_from_ts: ts_arrival_sequence ts sched. (* Arrival sequence from task set *)
 Hypothesis periodic_tasks: periodic_task_model ts sched.
 Hypothesis implicit_deadlines: implicit_deadline_model ts.
 
-Hypothesis ts_non_empty: ts <> nil. (* TODO move this? *)
+Hypothesis ts_non_empty: ts <> nil. (* TODO: make this a global assumption? *)
 Hypothesis ts_sorted_by_prio: StronglySorted task_hp ts. 
 
 (* Simpler scheduling invariant for uniprocessor (eliminates cpu mapping) *)
@@ -37,31 +39,30 @@ Lemma uni_simpler_invariant :
               <-> exists jhigh : job, hp sched t jhigh jlow /\ scheduled sched jhigh t.
 Proof.
   intros.
-  assert (H1 := uniprocessor).
   split.
-  intros.
-  inversion H1.
-  assert (H3 := ident_mp_invariant jlow t).
-  inversion H3 as [H4 _]. clear H3 ident_mp_invariant ident_mp_cpus_nonzero.
-  edestruct ((H4 H) 0) as [jhigh H5]. apply le_lt_n_Sm. trivial.
-  inversion H5 as [H6 H7].
-  assert (H8 := element_in_list job jhigh (cpumap sched t) 0 H7).
-  exists jhigh.
-  specialize (ident_mp_mapping jhigh t).
-  inversion ident_mp_mapping as [H9 _].
-  apply H9 in H8.
-  apply (conj H6 H8).
+  - intros.
+    inversion platform.
+    assert (H3 := ident_mp_invariant jlow t).
+    inversion H3 as [H4 _]. clear H3 ident_mp_invariant ident_mp_cpus_nonzero.
+    edestruct ((H4 H) 0) as [jhigh H5]. apply le_lt_n_Sm. trivial.
+    inversion H5 as [H6 H7].
+    assert (H8 := element_in_list job jhigh (cpumap sched t) 0 H7).
+    exists jhigh.
+    specialize (ident_mp_mapping jhigh t).
+    inversion ident_mp_mapping as [H9 _].
+    apply H9 in H8.
+    apply (conj H6 H8).
   
-  intros. inversion H as [jhigh]. inversion H0.
-  inversion H1.
-  specialize (ident_mp_invariant jlow t).
-  inversion ident_mp_invariant as [_ H4].
-  apply H4.
-  intros. exists jhigh. split. apply H2.
-  specialize (ident_mp_mapping jhigh t).
-  inversion ident_mp_mapping as [_ H6].
-  specialize (H6 H3).
-  apply In_singleton_list with (x := jhigh); trivial.
+  - intros. inversion H as [jhigh]. inversion H0.
+    inversion platform.
+    specialize (ident_mp_invariant jlow t).
+    inversion ident_mp_invariant as [_ H4].
+    apply H4.
+    intros. exists jhigh. split. apply H1.
+    specialize (ident_mp_mapping jhigh t).
+    inversion ident_mp_mapping as [_ H6].
+    specialize (H6 H2).
+    apply In_singleton_list with (x := jhigh); trivial.
 Qed.
 
 Lemma periodic_arrival_k_times : 
@@ -80,9 +81,8 @@ Proof.
           exists j. split; trivial.
         - simpl. inversion IHk as [j' [job_of_j' j'_arrival]].
           specialize (periodic_tasks tsk j' (t + k*(task_period tsk))).
-          inversion periodic_tasks as [periodic_tasks_suf _].
-          specialize (periodic_tasks_suf (conj job_of_j' j'_arrival)).
-          inversion periodic_tasks_suf as [j'' [t'' [H1 [H2 H3]]]].
+          specialize (periodic_tasks (conj job_of_j' j'_arrival)).
+          inversion periodic_tasks as [j'' [t'' [H1 [H2 H3]]]].
           subst t''.
           exists j''. split. trivial.
           assert (H : t + k * task_period tsk + task_period tsk =
@@ -95,7 +95,7 @@ Lemma sync_release_is_critical_instant :
     forall (t: time) (tsk_i: sporadic_task),
         In tsk_i ts ->
         sync_release ts sched t ->
-        critical_instant tsk_i ts sched t.
+        critical_instant uniprocessor tsk_i ts sched t.
 Proof.
     intros t tsk_i tsk_i_in_ts synchronous_release.
     unfold sync_release in synchronous_release.
@@ -105,12 +105,20 @@ Proof.
     exists j_i. do 2 (split; trivial).
     intros r resptime_j_r.
 
-    generalize dependent tsk_i.
+    unfold task_response_time_ub.
+    split. trivial.
+    intros sched0 j0 r0 platform_sched0 arr_seq_from_ts_j0 job_of_j0 resp_time_j0.
     
     assert (H := ts_sorted_by_prio). (* HACK: Coq cannot do induction on Hypothesis. *)
     induction H as [ts' | tsk_1 ts'].
       - contradiction ts_non_empty; trivial. (* Ignore empty taskset *)
-      - simpl. intros tsk_i tsk_i_first_or_cons.
+      - destruct tsk_i_in_ts. 
+        + (* If tsk_i = tsk_1 *)
+          subst tsk_i.
+        + (* Else, tsk_i in ts' *)
+
+
+apply IHStronglySorted.
         destruct tsk_i_first_or_cons as [tsk_i_first | tsk_i_cons]. 
           + intros job_of_tsk_i. subst tsk_i.
 

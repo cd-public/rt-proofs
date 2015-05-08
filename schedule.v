@@ -84,3 +84,46 @@ Proof.
     unfold not. intros.
     inversion H. inversion H0.
 Qed.
+
+Lemma not_arrived_no_service :
+    forall (sched: schedule) (j: job) (t_a: time),
+        arrives_at sched j t_a ->
+        forall (t_0: time),
+            t_0 < t_a -> service sched j t_0 = 0.
+Proof.
+    intros sched j t_a arr_j.
+    assert (j_must_arrive := task_must_arrive_to_exec sched j).
+    unfold scheduled in j_must_arrive.
+    induction t_0.
+      - intros t_a_positive.
+        simpl.
+        specialize (j_must_arrive 0).
+        apply contrapositive in j_must_arrive.
+        apply not_gt_le in j_must_arrive.
+        inversion j_must_arrive. auto. 
+        unfold not. intros j_arrives_at_0.
+        assert (single_arrival := no_multiple_arrivals (arrives_at sched) j t_a 0 arr_j).
+        inversion_clear j_arrives_at_0 as [t' [t'_zero j_arrives_at_t']].
+        inversion t'_zero. subst t'. clear t'_zero.
+        apply single_arrival in j_arrives_at_t'. subst t_a.
+        inversion t_a_positive.
+
+      - intros S_t_0_less. simpl.
+        assert (t_0_less : t_0 < t_a). omega.
+        specialize (IHt_0 t_0_less).
+        rewrite IHt_0. simpl.
+        specialize (j_must_arrive (S t_0)).
+        apply contrapositive in j_must_arrive.
+        apply not_gt_le in j_must_arrive.
+        inversion j_must_arrive. auto.
+        assert (single_arrival := no_multiple_arrivals (arrives_at sched) j t_a (S t_0) arr_j).
+
+        unfold not. intros j_arrives_at_St0.
+        inversion_clear j_arrives_at_St0 as [t' [t'_zero j_arrives_at_t']].
+        inversion t'_zero. subst t'. clear t'_zero.
+        apply single_arrival in j_arrives_at_t'. subst t_a.
+        omega. subst m.
+        assert (H1 : t' < t_a). omega.
+        assert (single_arrival2 := no_multiple_arrivals (arrives_at sched) j t_a t' arr_j j_arrives_at_t').
+        omega.
+Qed.
