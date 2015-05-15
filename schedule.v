@@ -1,4 +1,3 @@
-Add LoadPath "/home/felipec/dev/coq/rt-scheduling-spec".
 Require Import job.
 Require Import task.
 Require Import Coq.Lists.List.
