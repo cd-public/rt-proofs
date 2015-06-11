@@ -1,31 +1,25 @@
-Require Import Coq.Lists.List.
-Require Import Coq.Arith.Lt.
-Require Import Omega.
+Require Import List Arith Vbase.
 
-Lemma nat_seq_nth_In : forall len n, n < len -> In n (seq 0 len).
-Proof. intros.
-       assert (H1 := seq_nth).
-       assert (H2 := H1 len 0 n len).
-       assert (H3 := H).
-       apply H2 in H. simpl in H.
-       assert (nth_In := nth_In).
-       assert (H4 := nth_In nat n (seq 0 len) len).
-       assert (H5 := seq_length len 0).
-       rewrite -> H5 in H4.
-       apply H4 in H3.
-       rewrite H in H3.
-       trivial.
+Lemma nat_seq_nth_In : forall n len (LT: n < len), In n (seq 0 len).
+Proof.
+  ins.
+  assert (NTH := seq_nth).
+  generalize LT; apply NTH with (start := 0) (d := len) in LT; simpl in LT; ins.
+  assert (NTHIn := nth_In).
+  specialize (NTHIn nat n (seq 0 len) len).
+  rewrite (seq_length len 0), LT in NTHIn.
+  eauto.
 Qed.
-
+  
 Lemma In_singleton_list :
     forall (A: Type) (x: A) l n, In (Some x) l -> n < 1 -> length l = 1 -> nth n l None = Some x.
 Proof.
-    intros.
-    destruct n; [|inversion H0; inversion H3].
-    destruct l; [inversion H1|].
-    destruct l; [|inversion H1].
-    destruct H; [|contradiction].
-    auto.
+  intros.
+  destruct n; [|inversion H0; inversion H3].
+  destruct l; [inversion H1|].
+  destruct l; [|inversion H1].
+  destruct H; [|contradiction].
+  auto.
 Qed.
 
 Lemma element_in_list : forall (A: Type) (x: A) (l: list (option A)) (n: nat),
@@ -41,7 +35,7 @@ Lemma element_in_list_no_overflow :
     forall (A: Type) (x: A) (l: list (option A)) (n: nat),
         nth n l None = Some x -> n < length l.
 Proof.
-    Admitted.
+Admitted.
 
 Definition least_nat (n: nat) (P: nat -> Prop) : Prop :=
     P n /\ forall (n': nat), P n' -> n <= n'.
@@ -49,9 +43,5 @@ Definition least_nat (n: nat) (P: nat -> Prop) : Prop :=
 Definition greatest_nat (n: nat) (P: nat -> Prop) : Prop :=
     P n /\ forall (n': nat), P n' -> n' <= n.
 
-Axiom excluded_middle : forall P: Prop, P \/ ~P.
-
-Theorem contrapositive : forall P Q : Prop, (P -> Q) -> (~Q -> ~P).
-Proof. tauto. Qed.
-
-Lemma not_gt_le : forall n m : nat, ~ n > m -> n <= m. intros; omega. Qed.
+Lemma not_gt_le : forall n m : nat, ~ n > m -> n <= m.
+Proof. by ins; omega. Qed.
