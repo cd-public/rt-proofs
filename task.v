@@ -1,4 +1,4 @@
-Require Import List.
+Require Import Vbase List.
 
 Section Task.
 
@@ -6,14 +6,14 @@ Section Task.
 Record sporadic_task : Type :=
 {
   task_id: nat; (* allows multiple tasks with same parameters *)
-  task_cost: nat;
-  task_period : nat;
+  task_cost: nat; (* worst-case cost *)
+  task_period : nat; (* inter-arrival time *)
   task_deadline: nat; (* relative deadline *)
 
   (* Properties of a task *)
-  task_cost_positive: task_cost > 0;
-  task_cost_le_deadline: task_cost <= task_deadline;
-  task_deadline_positive: task_deadline > 0
+  task_properties: << task_cost_positive: task_cost > 0 >> /\
+                   << task_cost_le_deadline: task_cost <= task_deadline >> /\
+                   << task_deadline_positive: task_deadline > 0 >>
 }.
 
 Definition taskset := list sporadic_task.
