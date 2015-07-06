@@ -19,12 +19,14 @@ Hypothesis implicit_deadlines: implicit_deadline_model ts.
 Hypothesis ts_non_empty: ts <> nil.
 Hypothesis ts_sorted_by_prio: StronglySorted task_hp ts. 
 
+Hypothesis job_cost_wcet: forall j t tsk (JOBj: job_of j = Some tsk) (ARRj: arrives_at sched j t), job_cost j = task_cost tsk.
+
 (* Simpler scheduling invariant for uniprocessor (eliminates cpu mapping) *)
 Lemma uni_simpler_invariant :
   forall jlow t, 
     backlogged sched jlow t <-> exists jhigh, hp sched t jhigh jlow /\ scheduled sched jhigh t.
 Proof.
-  revert platform; intros PLAT.
+  rename platform into PLAT.
   unfold uniprocessor, ident_mp in *; split; intro BL; des; specialize (mp_invariant jlow t).
   {
     destruct mp_invariant as [mp_invariant _].
