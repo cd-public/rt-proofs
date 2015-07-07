@@ -1,7 +1,7 @@
 Require Import Vbase List job schedule priority platform.
 
 (* Mapping from processors to tasks at time t *)
-Definition processor_list := schedule -> time -> list (option job).
+Definition processor_list := schedule -> cpu -> time -> job.
 
 (* Whether a schedule is produced by an identical multiprocessor *)
 Definition ident_mp (num_cpus: nat) (hp: higher_priority) (cpumap: processor_list) (sched: schedule) :=
