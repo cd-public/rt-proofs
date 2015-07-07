@@ -25,6 +25,8 @@ Definition immediate X (rel : relation X) (a b: X) :=
 
 Definition irreflexive X (rel : relation X) := forall x, rel x x -> False.
 
+Definition asymmetric X (rel : relation X) := forall x y, rel x y /\ rel y x -> False.
+
 Definition acyclic X (rel : relation X) := irreflexive (clos_trans X rel).
 
 Definition is_total X (cond: X -> Prop) (rel: relation X) :=
