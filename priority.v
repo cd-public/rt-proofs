@@ -31,10 +31,6 @@ Definition task_higher_priority (ts: taskset) (task_hp_rel: task_hp_relation) :=
        forall ts tsk1 tsk2 (IN1: In tsk1 ts) (IN2: In tsk2 ts) (NEQ: tsk1 <> tsk2), 
          task_hp_rel tsk1 tsk2 \/ task_hp_rel tsk2 tsk1 >>.
 
-(*Definition task_precedence (sched: schedule) (j1 j2: job) :=
-  forall t1 t2, job_task j1 = job_task j2 /\ t1 < t2 /\ 
-                arrives_at sched j1 t1 /\ arrives_at sched j2 t2.*)
-
 (* Rate-Monotonic and Deadline-Monotonic priority order *)
 Definition RM (tsk1 tsk2: sporadic_task) :=
   << LTper: task_period tsk1 < task_period tsk2 >> \/
@@ -44,7 +40,7 @@ Definition DM (tsk1 tsk2: sporadic_task) :=
   << LTper: task_deadline tsk1 < task_deadline tsk2 >> \/
   << TIE: (task_deadline tsk1 = task_deadline tsk2 /\ task_id tsk1 < task_id tsk2) >>.
 
-Lemma rm_valid : forall ts, task_higher_priority ts RM.
+Lemma rm_valid_fp_policy : forall ts, task_higher_priority ts RM.
 Proof.
   unfold task_higher_priority, irreflexive, asymmetric, transitive, RM;
     repeat (split; try red); ins.
@@ -62,7 +58,7 @@ Proof.
     by right; left.
 Qed.
 
-Lemma dm_valid : forall ts, task_higher_priority ts DM.
+Lemma dm_valid_fp_policy : forall ts, task_higher_priority ts DM.
 Proof.
   unfold task_higher_priority, irreflexive, asymmetric, transitive, DM;
     repeat (split; try red); ins.
@@ -81,13 +77,28 @@ Proof.
 Qed.
 
 (* Relate task priority with job priority *)
-Definition fixed_priority (ts: taskset) (hp: job_hp_relation) (task_hp: task_hp_relation) :=
-  forall jhigh jlow tsk_high tsk_low,
-    hp jhigh jlow <->
-    (<< NEQtsk: tsk_high <> tsk_low >> /\
-     << JOBjhigh: job_task jhigh = tsk_high>> /\
-     << JOBjlow: job_task jlow = tsk_low >> /\
-     << HPtsk: task_hp tsk_high tsk_low >>).
+Definition fixed_priority (hp: sched_job_hp_relation) (task_hp: task_hp_relation) :=
+  forall sched t jhigh jlow,
+    hp sched t jhigh jlow <->
+      (<< NEQtsk: (job_task jhigh) <> (job_task jlow) >> /\
+       << HPtsk: task_hp (job_task jhigh) (job_task jlow) >>).
+
+Lemma fp_valid_policy :
+  forall ts sched t hp task_hp
+         (ARRts: ts_arrival_sequence ts sched) (* All jobs come from taskset *)
+         (VALIDthp: task_higher_priority ts task_hp)
+         (FP: fixed_priority hp task_hp), higher_priority sched t (hp sched t).
+Proof.
+  unfold task_higher_priority, fixed_priority, higher_priority, irreflexive,
+  asymmetric, transitive, ts_arrival_sequence; repeat (split; try red); ins; des;
+  rewrite FP in *; try rewrite FP in *; des; repeat (split; try red); eauto.
+    by unfold not; intro EQ; rewrite EQ in *; eauto.
+    {
+      apply ARRts in ARRj1; apply ARRts in ARRj2.
+      specialize (hpTotal ts (job_task j1) (job_task j2) ARRj1 ARRj2 NEQtsk).
+      des; [left|right]; split; eauto.
+    }
+Qed.
 
 (* Job-level fixed priority *)
 Definition job_level_fixed_priority (hp: sched_job_hp_relation) :=
@@ -106,29 +117,15 @@ Proof.
 Qed.
 
 Lemma fp_implies_jlfp :
-  forall ts sched t hp task_hp
-         (ARRts: ts_arrival_sequence ts sched) (* All jobs come from taskset *)
+  forall ts hp task_hp
          (VALIDthp: task_higher_priority ts task_hp)
-         (FP: fixed_priority ts hp task_hp), higher_priority sched t hp.
+         (FP: fixed_priority hp task_hp), job_level_fixed_priority hp.
 Proof.
-  unfold task_higher_priority, fixed_priority, higher_priority, irreflexive,
-  asymmetric, transitive, ts_arrival_sequence; ins; repeat (split; try red); ins; des.
-
-  by rewrite FP with (tsk_high := job_task x) (tsk_low := job_task x) in *; des; eauto.
-  by rewrite FP with (tsk_high := job_task x) (tsk_low := job_task y) in H;
-     rewrite FP with (tsk_high := job_task y) (tsk_low := job_task x) in H0; des; eauto.
-  by rewrite FP with (tsk_high := job_task x) (tsk_low := job_task z);
-     rewrite FP with (tsk_high := job_task x) (tsk_low := job_task y) in H;
-     rewrite FP with (tsk_high := job_task y) (tsk_low := job_task z) in H0;
-     repeat (split; try red); des; [unfold not; intro EQ; rewrite EQ in *|]; eauto.
-  { apply ARRts in ARRj1; apply ARRts in ARRj2.
-    destruct (hpTotal ts (job_task j1) (job_task j2) ARRj1 ARRj2 NEQtsk).
-      by left; rewrite FP with (tsk_high := job_task j1) (tsk_low := job_task j2); split; eauto.
-      by right; rewrite FP with (tsk_high := job_task j2) (tsk_low := job_task j1); split; eauto.
-  }
+  unfold task_higher_priority, fixed_priority, job_level_fixed_priority; ins; des.
+  rewrite FP in *; eauto.
 Qed.
 
-Lemma edf_valid : forall sched t, higher_priority sched t (EDF sched t).
+Lemma edf_valid_policy : forall sched t, higher_priority sched t (EDF sched t).
 Proof.
   unfold higher_priority, EDF, irreflexive, asymmetric, transitive;
   repeat (split; try red); ins.
@@ -159,4 +156,11 @@ Lemma edf_schedule_independent : schedule_independent EDF.
 Proof.
   unfold schedule_independent, EDF; repeat (split; try red); ins; des; rewrite ARR in *;
   exists r1, r2; repeat split; eauto.
+Qed.
+
+Lemma fp_schedule_independent :
+  forall hp tsk_hp (FP: fixed_priority hp tsk_hp), schedule_independent hp.
+Proof.
+  unfold schedule_independent, fixed_priority, RM; repeat (split; try red);
+  ins; des; rewrite FP in *; eauto.
 Qed.
