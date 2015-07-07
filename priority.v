@@ -21,15 +21,13 @@ Definition higher_priority (sched: schedule) (t: time) (hp_rel: job_hp_relation)
 (* 1) A higher-priority order serves to compare jobs of different tasks, since
       jobs of the same task already have precedence. Making the relation total
       over any job would only complicate the specification (a lot of
-      "if j1 and j2 come from the same task" everywhere). *)
+      "if j1 and j2 are from the same task" when defining RM and EDF). *)
 
-Definition task_higher_priority (ts: taskset) (task_hp_rel: task_hp_relation) :=
+Definition task_higher_priority (task_hp_rel: task_hp_relation) :=
   << hpIrr: irreflexive task_hp_rel >> /\
   << hpAntisym: asymmetric task_hp_rel >> /\
   << hpTrans: transitive _ task_hp_rel >> /\
-  << hpTotal:
-       forall ts tsk1 tsk2 (IN1: In tsk1 ts) (IN2: In tsk2 ts) (NEQ: tsk1 <> tsk2), 
-         task_hp_rel tsk1 tsk2 \/ task_hp_rel tsk2 tsk1 >>.
+  << hpTotal: forall tsk1 tsk2 (NEQ: tsk1 <> tsk2), task_hp_rel tsk1 tsk2 \/ task_hp_rel tsk2 tsk1 >>.
 
 (* Rate-Monotonic and Deadline-Monotonic priority order *)
 Definition RM (tsk1 tsk2: sporadic_task) :=
@@ -40,7 +38,7 @@ Definition DM (tsk1 tsk2: sporadic_task) :=
   << LTper: task_deadline tsk1 < task_deadline tsk2 >> \/
   << TIE: (task_deadline tsk1 = task_deadline tsk2 /\ task_id tsk1 < task_id tsk2) >>.
 
-Lemma rm_valid_fp_policy : forall ts, task_higher_priority ts RM.
+Lemma rm_valid_fp_policy : task_higher_priority RM.
 Proof.
   unfold task_higher_priority, irreflexive, asymmetric, transitive, RM;
     repeat (split; try red); ins.
@@ -58,7 +56,7 @@ Proof.
     by right; left.
 Qed.
 
-Lemma dm_valid_fp_policy : forall ts, task_higher_priority ts DM.
+Lemma dm_valid_fp_policy : task_higher_priority DM.
 Proof.
   unfold task_higher_priority, irreflexive, asymmetric, transitive, DM;
     repeat (split; try red); ins.
@@ -86,7 +84,7 @@ Definition fixed_priority (hp: sched_job_hp_relation) (task_hp: task_hp_relation
 Lemma fp_valid_policy :
   forall ts sched t hp task_hp
          (ARRts: ts_arrival_sequence ts sched) (* All jobs come from taskset *)
-         (VALIDthp: task_higher_priority ts task_hp)
+         (VALIDthp: task_higher_priority task_hp)
          (FP: fixed_priority hp task_hp), higher_priority sched t (hp sched t).
 Proof.
   unfold task_higher_priority, fixed_priority, higher_priority, irreflexive,
@@ -95,7 +93,7 @@ Proof.
     by unfold not; intro EQ; rewrite EQ in *; eauto.
     {
       apply ARRts in ARRj1; apply ARRts in ARRj2.
-      specialize (hpTotal ts (job_task j1) (job_task j2) ARRj1 ARRj2 NEQtsk).
+      specialize (hpTotal (job_task j1) (job_task j2) NEQtsk).
       des; [left|right]; split; eauto.
     }
 Qed.
@@ -117,9 +115,8 @@ Proof.
 Qed.
 
 Lemma fp_implies_jlfp :
-  forall ts hp task_hp
-         (VALIDthp: task_higher_priority ts task_hp)
-         (FP: fixed_priority hp task_hp), job_level_fixed_priority hp.
+  forall hp task_hp (FP: fixed_priority hp task_hp) (VALIDthp: task_higher_priority task_hp),
+    job_level_fixed_priority hp.
 Proof.
   unfold task_higher_priority, fixed_priority, job_level_fixed_priority; ins; des.
   rewrite FP in *; eauto.
