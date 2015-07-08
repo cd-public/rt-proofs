@@ -7,6 +7,15 @@ Require Import Coq.Lists.List.
 Definition ts_arrival_sequence (ts: taskset) (sched: schedule) :=
   forall j t (ARR: arrives_at sched j t), In (job_task j) ts.
 
+(* Since the number of tasks is finite, and each task does not
+   spawn more than one job per time instant, the number of jobs
+   released in a bounded interval is finite. *)
+Lemma finite_arrival_sequence (ts: taskset) (sched: schedule) :
+  forall (ARRts: ts_arrival_sequence ts sched)
+         j arr (ARR: arrives_at sched j arr),
+    exists (l: list job), In j l <-> arrives_at sched j arr.
+
+
 (* Sporadic arrival times for every task in a taskset.
    We enforce -> only because the first arrival may be at any point. *)
 Definition periodic_task_model (ts: taskset) (sched: schedule) :=

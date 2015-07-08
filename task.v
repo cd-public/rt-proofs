@@ -12,8 +12,9 @@ Record sporadic_task : Type :=
 
   (* Properties of a task *)
   task_properties: << task_cost_positive: task_cost > 0 >> /\
-                   << task_cost_le_deadline: task_cost <= task_deadline >> /\
-                   << task_deadline_positive: task_deadline > 0 >>
+                   << task_period_positive: task_period > 0 >> /\
+                   << task_deadline_positive: task_deadline > 0 >> /\
+                   << task_cost_le_deadline: task_cost <= task_deadline >>
 }.
 
 Definition taskset := list sporadic_task.
