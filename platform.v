@@ -1,4 +1,4 @@
 Require Import schedule.
 
-Definition cpu := nat.
-Definition cpu_platform := schedule -> Prop.
+Definition processor_id := nat.
+Definition processor_platform := schedule -> Prop.

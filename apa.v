@@ -1,35 +1,34 @@
 Require Import List Classical ListSet Arith Vbase task job schedule platform priority helper identmp.
 
-(* Set of all possible affinities (mappings from jobs to processors) *)
-Definition affinity := job -> set nat.
+(* All possible affinity relations *)
+Definition affinity := job -> processor_id -> Prop.
 
-Definition affinity_non_empty := forall (alpha: affinity) j, ~alpha j = empty_set nat.
+Definition affinity_non_empty (alpha: affinity) (num_cpus: nat) (sched: schedule) :=
+  forall j arr (ARR: arrives_at sched j arr),
+    exists cpu, << MAX: cpu < num_cpus >> /\ << ALPHA: alpha j cpu >>.
 
-(* Whether a schedule is produced by an APA identical multiprocessor *)
-Definition apa_ident_mp (num_cpus: nat) (hp: higher_priority) (cpumap: processor_list)
-                        (alpha: affinity) (sched: schedule) :=
-  (* An identical multiprocessor has a fixed number of cpus *)
+(* APA multiprocessor platform *)
+Definition apa_ident_mp (num_cpus: nat) (hp: sched_job_hp_relation) (mapped: job_mapping)
+                    (alpha: affinity) (sched: schedule) :=
+  (* The mapping has a finite number of cpus: [1, num_cpus) *)
   << apa_cpus_nonzero: num_cpus > 0 >> /\
-  << apa_num_cpus: forall t, length (cpumap sched t) = num_cpus >> /\
+  << apa_num_cpus: forall j cpu t, mapped j cpu t <-> cpu < num_cpus >> /\
 
   (* Job is scheduled iff it is mapped to a processor*)
-  << apa_mapping: forall j t, List.In (Some j) (cpumap sched t) <-> scheduled sched j t >> /\
+  << apa_mapping: forall j cpu t, scheduled sched j t <-> mapped j cpu t >> /\
 
   (* A job receives at most 1 unit of service *)
   << apa_max_service: forall j t, service_at sched j t <= 1 >> /\
 
   (* If a job is scheduled, then its affinity should allow it. *)
-  << apa_alpha: forall t j cpu,
-          (nth cpu (cpumap sched t) (None) = Some j) -> List.In cpu (alpha j) >> /\
+  << apa_alpha: forall t j cpu, mapped j cpu t -> alpha j cpu >> /\
 
   (* (Weak) APA scheduling invariant *)
   << apa_invariant:
-    forall jlow t,
-      backlogged sched jlow t <->
-        (forall cpu, cpu < num_cpus ->
-          List.In cpu (alpha jlow) ->
-          (exists (jhigh: job), hp sched t jhigh jlow
-                                /\ (nth cpu (cpumap sched t) (None) = Some jhigh))) >>.
+    forall jlow t, backlogged sched jlow t <->
+      (exists (j0: job), earlier_job sched j0 jlow /\ pending sched j0 t) \/
+      (forall cpu (MAXcpu: cpu < num_cpus) (ALPHA: alpha jlow cpu),
+        exists jhigh, hp sched t jhigh jlow /\ mapped jhigh cpu t) >>.
 
 (* Proof that an APA multiprocessor with global affinities is the same as
    an identical multiprocessor with equal number of cpus *)
@@ -43,11 +42,14 @@ Lemma exists_apa_platform_that_is_global :
           (arrSame: arrives_at sched = arrives_at sched'),
             service sched j t = service sched' j t.
 Proof.
-   ins. exists (fun j => (seq 0 num_cpus)).
-   unfold apa_ident_mp; ins; des.
-   induction t.
-Admitted.
+ ins; exists (fun j cpu => True).
+ unfold apa_ident_mp; ins; des.
+ induction t.
+   (* Base case *)
+   (* Inductive Step *)
 
+
+Admitted.
 
 (* Definitions for APA affinity restoration *)
 

@@ -64,6 +64,12 @@ Record schedule : Type :=
        forall j t t_comp (jComp: completed sd j t_comp) (tAfter: t >= t_comp), ~ scheduled sd j t >>
 }.
 
+Definition earlier_job (sched: schedule) (j1 j2: job) :=
+  << EQtsk: job_task j1 = job_task j2 >> /\
+  exists arr1 arr2, << ARR1: arrives_at sched j1 arr1 >> /\
+                    << ARR2: arrives_at sched j2 arr2 >> /\
+                    << LT: arr1 < arr2 >>.
+  
 Lemma backlogged_no_service : forall sched j t,
   backlogged sched j t -> service_at sched j t = 0.
 Proof.
