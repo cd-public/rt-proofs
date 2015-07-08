@@ -9,7 +9,7 @@ Section SingleSchedule.
 Variable sched: schedule.
 Hypothesis sched_platform: platform sched.
 
-Definition no_deadline_miss (j: job) :=
+Definition job_misses_no_deadlines (j: job) :=
   exists arr, << ARR: arrives_at sched j arr >> /\
               << SERV: service sched j (arr + job_deadline j) = job_cost j >>.
 
@@ -17,7 +17,7 @@ Definition no_deadline_misses :=
   forall j arr (ARR: arrives_at sched j arr),
     service sched j (arr + job_deadline j) = job_cost j.
 
-Definition no_deadline_misses_task (ts: taskset) (tsk: sporadic_task) :=
+Definition task_misses_no_deadlines (ts: taskset) (tsk: sporadic_task) :=
   << IN: In tsk ts >> /\ << ARRts: ts_arrival_sequence ts sched >> /\
   forall j (JOB: job_task j = tsk) arr (ARR: arrives_at sched j arr), no_deadline_miss j.
 
@@ -26,7 +26,7 @@ End SingleSchedule.
 Definition schedulable_task (ts: taskset) (tsk: sporadic_task) :=
   forall sched (PLAT: platform sched), no_deadline_misses_task sched ts tsk.
 
-Definition schedulable_ts (ts: taskset) :=
+Definition schedulable_taskset (ts: taskset) :=
   forall sched (PLAT: platform sched) (ARRts: ts_arrival_sequence ts sched)
          tsk (IN: In tsk ts), no_deadline_misses_task sched ts tsk.
 
