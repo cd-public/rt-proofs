@@ -1,4 +1,4 @@
-Require Import Arith List Vbase job task schedule identmp priority helper task_arrival.
+Require Import Arith List Vbase job task schedule identmp priority helper task_arrival schedulability.
 
 Section WorkloadBound.
 
@@ -19,12 +19,15 @@ Definition W (tsk: sporadic_task) (delta: time) := 100. (* FIX: replace by formu
 
 Lemma workload_bound :
   forall ts sched (ARRts: ts_arrival_sequence ts sched)
+         (RESTR: restricted_deadline_model ts)
          tsk (IN: In tsk ts) j (JOB: job_task j = tsk)
          arr (ARRj: arrives_at sched j arr)
-         l (ARRlist: arrival_list sched l (arr + job_deadline j)),
-    (workload sched ts tsk arr (arr + job_deadline j) l ARRlist) < W tsk (job_deadline j).
+         l (ARRlist: arrival_list sched l (arr + job_deadline j))
+         (SCHED: task_misses_no_deadlines sched ts tsk),
+    (workload sched ts tsk arr (arr + job_deadline j) l ARRlist) <= W tsk (job_deadline j).
 Proof.
-  unfold arrival_list; ins; des.
+  ins.
+  unfold workload. unfold task_misses_no_deadlines in *; des.
 Admitted.
 
 End WorkloadBound.

@@ -1,6 +1,6 @@
 Require Import List Vbase task task_arrival job schedule helper platform priority. 
 
-Section ResponseTime.
+(*Section ResponseTime.
 
 (* Response time bounds are platform-specific.*)
 Variable platform: cpu_platform.
@@ -38,3 +38,4 @@ Definition critical_instant (tsk: sporadic_task) (ts: taskset) (sched: schedule)
     forall r (RTj: job_response_time sched j r), task_response_time_ub tsk ts r.
 
 End ResponseTime.
+*)

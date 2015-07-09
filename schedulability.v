@@ -19,15 +19,15 @@ Definition no_deadline_misses :=
 
 Definition task_misses_no_deadlines (ts: taskset) (tsk: sporadic_task) :=
   << IN: In tsk ts >> /\ << ARRts: ts_arrival_sequence ts sched >> /\
-  forall j (JOB: job_task j = tsk) arr (ARR: arrives_at sched j arr), no_deadline_miss j.
+  forall j (JOB: job_task j = tsk) arr (ARR: arrives_at sched j arr), job_misses_no_deadlines j.
 
 End SingleSchedule.
 
 Definition schedulable_task (ts: taskset) (tsk: sporadic_task) :=
-  forall sched (PLAT: platform sched), no_deadline_misses_task sched ts tsk.
+  forall sched (PLAT: platform sched), task_misses_no_deadlines sched ts tsk.
 
 Definition schedulable_taskset (ts: taskset) :=
   forall sched (PLAT: platform sched) (ARRts: ts_arrival_sequence ts sched)
-         tsk (IN: In tsk ts), no_deadline_misses_task sched ts tsk.
+         tsk (IN: In tsk ts), task_misses_no_deadlines sched ts tsk.
 
 End Schedulability.
