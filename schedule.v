@@ -27,11 +27,11 @@ Record schedule_data : Type :=
   arrives_at: arrival_sequence
 }.
 
-(* Cumulative service received by a job in a schedule, during [0, t+1) *)
+(* Cumulative service received by a job in a schedule before time t, i.e., during [0, t) *)
 Fixpoint service (sched: schedule_data) (j: job) (t: time) : nat :=
   match t with
-      | 0 => service_at sched j 0
-      | S t => service sched j t + service_at sched j (S t)
+      | 0 => 0
+      | S t => service sched j t + service_at sched j t
   end.
 
 (* Whether a job arrived at time t *)
@@ -44,7 +44,7 @@ Definition scheduled (sched: schedule_data) (j: job) (t: time) :=
 
 (* Whether a job has completed at time t (assumes costs are non-zero!) *)
 Definition completed (sched: schedule_data) (j: job) (t: time) :=
-  t <> 0 /\ service sched j (t-1) = job_cost j.
+  service sched j t = job_cost j.
 
 Definition pending (sched: schedule_data) (j: job) (t: time) :=
   arrived sched j t /\ ~completed sched j t.
@@ -81,7 +81,7 @@ Qed.
 
 Lemma no_completed_tasks_at_time_zero : forall sched j, completed sched j 0 -> False.
 Proof.
-  unfold completed; ins; des; eauto.
+  unfold completed; ins; assert (PROPj := job_properties j); des; intuition.
 Qed.
 
 Lemma not_arrived_no_service :
@@ -89,19 +89,10 @@ Lemma not_arrived_no_service :
 Proof.
   ins; des.
   assert (schedProp := sched_properties sched); des; clear comp_task_no_exec.
-  induction t_0; simpl.
-    (* Base case *)
-    destruct (classic (scheduled sched j 0)) as [SCHED | notSCHED]; unfold scheduled in *; [| by intuition].
-    {
-      apply task_must_arrive_to_exec in SCHED.
-      unfold arrived in SCHED; des.
-      assert (t_0 = t_a); eauto using no_multiple_arrivals; subst.
-      intuition.
-    }
-    
+  induction t_0; simpl; [by trivial|].
     (* Inductive step *)
     rewrite IHt_0; [simpl | by omega].
-    destruct (classic (scheduled sched j (S t_0))) as [SCHED | notSCHED]; unfold scheduled in *; [| by intuition].
+    destruct (classic (scheduled sched j (t_0))) as [SCHED | notSCHED]; unfold scheduled in *; [| by intuition].
     {
       apply task_must_arrive_to_exec in SCHED.
       unfold arrived in SCHED; des.
