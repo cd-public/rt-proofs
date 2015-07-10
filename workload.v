@@ -5,14 +5,13 @@ Section WorkloadBound.
 (* The workload is defined as the total service received by jobs of
    a specific task in the interval [t,t'+1). To allow summing over the
    jobs released in the interval we assume that a list of arrived jobs
-   (along with a proof that this is the right list) is passed by
-   parameter. *)
+   is passed by parameter. *)
 Definition workload (sched: schedule) (ts: taskset) (tsk: sporadic_task) (t t': time)
-                    (l: list job) (ARRlist: arrival_list sched l t') : nat :=
+                    (released_jobs: list job) : nat :=
   fold_left plus (map
-                    (fun j => service sched j t' - service sched j t) (* Check if off by 1*)
-                    (filter (fun j => beq_nat (job_deadline j) 1) (* FIX: job_task j = tsk *)
-                  l)
+                    (fun j => service sched j (t'-1) - service sched j t)
+                    (filter (fun j => beq_task (job_task j) tsk)
+                  released_jobs)
                  ) 0.
 
 Definition W (tsk: sporadic_task) (delta: time) := 100. (* FIX: replace by formula later *)
@@ -22,9 +21,9 @@ Lemma workload_bound :
          (RESTR: restricted_deadline_model ts)
          tsk (IN: In tsk ts) j (JOB: job_task j = tsk)
          arr (ARRj: arrives_at sched j arr)
-         l (ARRlist: arrival_list sched l (arr + job_deadline j))
+         released_jobs (ARRlist: arrival_list sched released_jobs (arr + job_deadline j))
          (SCHED: task_misses_no_deadlines sched ts tsk),
-    (workload sched ts tsk arr (arr + job_deadline j) l ARRlist) <= W tsk (job_deadline j).
+    (workload sched ts tsk arr (arr + job_deadline j) released_jobs) <= W tsk (job_deadline j).
 Proof.
   ins.
   unfold workload. unfold task_misses_no_deadlines in *; des.
