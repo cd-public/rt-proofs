@@ -87,18 +87,22 @@ Qed.
    We use only '->' because the first arrival may be at any point. *)
 Definition periodic_task_model (ts: taskset) (sched: schedule) :=
   << ARRts: ts_arrival_sequence ts sched >> /\
-  forall j arr (ARRj: arrives_at sched j arr),
-    exists (j': job) (arr': time), job_task j' = job_task j /\
-                                   arrives_at sched j' arr' /\
-                                   arr' = arr + task_period (job_task j).
+  << UNIQUE: task_job_unique sched >> /\ 
+  << NEXT:
+    forall j arr (ARRj: arrives_at sched j arr),
+    exists j' arr', job_task j' = job_task j /\
+                   arrives_at sched j' arr' /\
+                   arr' = arr + task_period (job_task j) >>.
 
 (* Periodic arrival times *)
 Definition sporadic_task_model (ts: taskset) (sched: schedule) :=
   << ARRts: ts_arrival_sequence ts sched >> /\
-  forall j arr (ARRj: arrives_at sched j arr),
-    exists (j': job) (arr': time), job_task j' = job_task j /\
-                                   arrives_at sched j' arr' /\
-                                   arr' >= arr + task_period (job_task j).
+  << UNIQUE: task_job_unique sched >> /\ 
+  << NEXT:
+    forall j arr (ARRj: arrives_at sched j arr),
+    exists j' arr', job_task j' = job_task j /\
+                    arrives_at sched j' arr' /\
+                    arr' >= arr + task_period (job_task j) >>.
 
 (* Synchronous release at time t *)
 Definition sync_release (ts: taskset) (sched: schedule) (t: time) :=

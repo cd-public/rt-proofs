@@ -29,7 +29,7 @@ Proof.
   induction k; simpl; des.
     by rewrite <- plus_n_O; eauto.
     {
-      apply PER0 in ARRj'; des; subst; rewrite JOBj' in *.
+      apply NEXT in ARRj'; des; subst; rewrite JOBj' in *.
       exists j'0; split; eauto using eq_trans.
       assert (COMM : t + k * task_period (job_task j) + task_period (job_task j) =
                      t + (task_period (job_task j) + k * task_period (job_task j))); [by omega |].
