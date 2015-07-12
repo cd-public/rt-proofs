@@ -9,12 +9,12 @@ Definition task_job_unique (sched: schedule) :=
          (ARR1: arrives_at sched j1 t) (ARR2: arrives_at sched j2 t),
     j1 = j2.
 
-(* Since the number of tasks is finite, and each task does not
-   spawn more than one job per time instant, the number of jobs
-   released in a bounded interval is finite. *)
 Definition arrival_list (sched: schedule) (l: list job) (t: time) :=
   forall j, In j l <-> arrived sched j t.
 
+(* Since the number of tasks is finite, and each task does not
+   spawn more than one job per time instant, the number of jobs
+   released in a bounded interval is finite. *)
 Lemma released_jobs_at:
   forall ts sched (ARRts: ts_arrival_sequence ts sched)
          (UNIQUE: task_job_unique sched) t,
