@@ -6,17 +6,17 @@ Definition time := nat.
 (* Set of all possible job arrival sequences *)
 Record arrival_sequence : Type :=
 {
-  arr :> job -> time -> Prop;
+  arr :> job -> time -> bool;
   no_multiple_arrivals: forall j t1 t2, arr j t1 -> arr j t2 -> t1 = t2
 }.
 
 (* Observations/ TODO *)
-(* 1) This definition of arrival sequence allows referring to any job that arrives
-      at time t. But it doesn't allow retrieving the finite set of jobs that
-      have arrived up to time t. We need to assume decidability somehow
-      and return a list. Otherwise, we cannot define things such as
-      "Cumulative execution time of task T_5 during [3, 8)", since
-      we cannot list all the jobs that have been released. 
+(* 1) This definition of arrival sequence tells whether a particular job
+      arrives at time t. But it doesn't allow retrieving the finite set of
+      jobs that arrive at time t, because we don't know whether a task spawned
+      a job or not. The finite list can be proved to exist, but it cannot be computed.
+      Therefore, we cannot directly define things like the "Cumulative execution
+      time of task T_5 during [3, 8)".
 *)
 
 Record schedule_data : Type :=

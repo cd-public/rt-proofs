@@ -67,7 +67,7 @@ Proof.
       remember (partition (fun j => beq_nat (job_deadline j) 0)
                           (filter (job_of tsk) released_jobs)) as part_carry.
       destruct part_carry as [l_carry l_rest].
-      rewrite sum_list_partition with (l1 := l_carry) (l2 := l_rest) (f := fun j => beq_nat (job_deadline j) 0).
+      (*rewrite sum_list_partition with (l1 := l_carry) (l2 := l_rest) (f := fun j => beq_nat (job_deadline j) 0).*)
       admit.
     }
     {
