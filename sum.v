@@ -34,18 +34,18 @@ Proof.
 Qed.
 
 Lemma sum_list_comm :
-  forall (l1 l2: list nat) (SAME: forall x, In x l1 <-> In x l2),
+  forall (l1 l2: list nat)
+         (Heqlen: length l1 = length l2)
+         (SAME: forall x, In x l1 <-> In x l2),
     list_sum l1 = list_sum l2.
 Proof.
-  ins; remember (length l1) as len.
-  assert (Heqlen2: len = length l2).
-    by rewrite <- length_comm with (l1 := l1).
+  ins; remember (length l1) as len; rename Heqlen0 into LEN1, Heqlen into LEN2.
   generalize dependent l2.
   generalize dependent l1.
   generalize dependent len. 
   induction len; ins; simpl in *.
     (* Base case : empty list *)
-    by symmetry in Heqlen, Heqlen2; rewrite length_nil in *; subst; simpl.
+    by symmetry in LEN1, LEN2; rewrite length_nil in *; subst; simpl.
     (* Inductive Step *)
     assert (exists a, In a l1); des.
       by apply list_nonempty; unfold not; ins; subst; simpl in *.
@@ -54,9 +54,9 @@ Proof.
     rewrite 2 sum_list_app; simpl.
     rewrite app_length in *. simpl in *.
     rewrite <- plus_n_Sm in *.
-    inversion Heqlen. inversion Heqlen2.
+    inversion LEN1 as [LEN45]; inversion LEN2 as [LEN03].
     rewrite <- app_length in *.
-    rewrite <- split_inclusion in SAME.
+    rewrite <- split_inclusion in SAME; [| by rewrite <- LEN45, LEN03].
     cut (list_sum l4 + list_sum l5 = list_sum l0 + list_sum l3); ins; [by omega|].
     rewrite <- 2 sum_list_app; eauto using IHlen.
 Qed.
@@ -68,5 +68,6 @@ Lemma sum_list_partition :
 Proof.
   ins.
   rewrite <- sum_list_app.
-  apply sum_list_comm.
+  apply sum_list_comm; [rewrite app_length, (length_partition l l1 l2 f); eauto|].
+    induction l. admit.
 Admitted.

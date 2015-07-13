@@ -7,13 +7,6 @@ Proof.
   by exfalso; apply (NOELEM a); left.
 Qed.
 
-Lemma length_comm :
-  forall (A: Type) (l1 l2: list A) (SAME: forall x, In x l1 <-> In x l2),
-    length l1 = length l2.
-Proof.
-  ins; remember (length l1) as len.
-Admitted.
-
 Lemma length_nil :
   forall (A: Type) (l: list A), length l = 0 <-> l = nil.
 Proof.
@@ -50,7 +43,8 @@ Proof.
 Admitted.
 
 Lemma split_inclusion :
-  forall (A: Type) (l0 l1 l2 l3: list A) (a: A),
+  forall (A: Type) (l0 l1 l2 l3: list A) (a: A)
+         (LEN: length (l0 ++ l1) = length (l2 ++ l3)),
     (forall x : A, In x (l0 ++ l1) <-> In x (l2 ++ l3)) <->
     (forall x : A, In x (l0 ++ a :: l1) <-> In x (l2 ++ a :: l3)).
 Proof.
@@ -63,6 +57,9 @@ Proof.
     by rewrite 2 in_app_iff in *.
   }
   {
+    remember (length (l0 ++ l1)) as len.
+    revert LEN.
+    induction len. admit.
     split; ins.
     {
       rewrite in_app_iff in *.
@@ -88,3 +85,35 @@ Proof.
     }
   }
 Qed.
+
+Lemma split_inclusion2 :
+  forall (A: Type) (l0 l1 l2 l3: list A) (a: A)
+         (LEN: length (l0 ++ l1) = length (l2 ++ l3))
+         (SAME: forall x, In x (l0 ++ a :: l1) <-> In x (l2 ++ a :: l3)),
+    In a (l0 ++ l1) <-> In a (l2 ++ l3).
+Proof.
+  ins; remember (length (l0 ++ l1)) as len; rename LEN into Heqlen2.
+  generalize dependent l3.
+  generalize dependent l2.
+  generalize dependent l1.
+  generalize dependent l0.
+  generalize dependent a.
+  generalize dependent len.
+  induction len; ins. 
+  {
+    symmetry in Heqlen, Heqlen2; rewrite length_nil in *.
+    by apply app_eq_nil in Heqlen; apply app_eq_nil in Heqlen2; des; subst; simpl in *.
+  }
+  {
+    split; intro OR; rewrite in_app_iff in *; destruct OR.
+    apply in_split in H; des; subst.
+    admit. admit. admit. admit.
+  }
+Qed.
+
+Lemma length_partition :
+  forall (l l1 l2: list nat)
+         f (PART: partition f l = (l1, l2)),
+    length l = length l1 + length l2.
+Proof.
+Admitted.
