@@ -1,4 +1,4 @@
-Require Import Vbase task.
+Require Import Vbase task Arith.
 
 Section Job.
 
@@ -16,6 +16,31 @@ Record job : Type :=
     << job_params: (job_cost <= task_cost job_task /\
                     job_deadline = task_deadline job_task)>>
 }.
+
+
+(* Define decidable equality for jobs, so that it can be
+   used in computations. *)
+Definition job_eq_dec (x y: job) : {x = y} + {x <> y}.
+  destruct x, y.
+  destruct (beq_nat job_cost0 job_cost1) eqn:Ecost;
+  destruct (beq_nat job_deadline0 job_deadline1) eqn:Edeadline;
+  destruct (beq_task job_task0 job_task1) eqn:Etask;
+  try rewrite beq_nat_true_iff in *; try rewrite beq_nat_false_iff in *;
+  try rewrite beq_task_true_iff in *; try rewrite beq_task_false_iff in *; subst;
+  try (by left; apply f_equal, proof_irrelevance);
+  try (by right; unfold not; intro EQ; inversion EQ; intuition).
+Defined.
+Definition beq_job (x y: job) := if job_eq_dec x y then true else false.
+
+Lemma beq_job_true_iff : forall x y, beq_job x y = true <-> x = y.
+Proof.
+  unfold beq_job; ins; destruct (job_eq_dec x y); split; ins.
+Qed.
+
+Lemma beq_job_false_iff : forall x y, beq_job x y = false <-> x <> y.
+Proof.
+  unfold beq_job; ins; destruct (job_eq_dec x y); split; ins.
+Qed.
 
 (* Observations / TODO *)
 (* 1) It should be ok to have 0-cost jobs. Deadlines can also be 0,

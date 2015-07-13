@@ -31,6 +31,16 @@ Definition task_eq_dec (x y: sporadic_task) : {x = y} + {x <> y}.
 Defined.
 Definition beq_task (x y: sporadic_task) := if task_eq_dec x y then true else false.
 
+Lemma beq_task_true_iff : forall x y, beq_task x y = true <-> x = y.
+Proof.
+  unfold beq_task; ins; destruct (task_eq_dec x y); split; ins.
+Qed.
+
+Lemma beq_task_false_iff : forall x y, beq_task x y = false <-> x <> y.
+Proof.
+  unfold beq_task; ins; destruct (task_eq_dec x y); split; ins.
+Qed.
+
 Definition taskset := list sporadic_task.
 
 (* Models for task deadlines *)

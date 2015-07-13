@@ -1,18 +1,27 @@
-Require Import Classical Arith List Vbase job task schedule task_arrival
-               schedulability divround sum ssreflect ssrbool ssrnat bigop.
+Require Import Classical List Arith Vbase job task schedule task_arrival
+        schedulability divround sum
+        ssrbool eqtype ssrnat seq div fintype bigop
+        eqtype ssromega myeqtype.
 
 Section WorkloadBound.
-
+  
 Definition job_of (tsk: sporadic_task) (j: job) : bool :=
   beq_task (job_task j) tsk.
-  
+
+Definition service_during (sched: schedule) (t1 t2: nat) (j: job) :=
+  service sched j t2 - service sched j t1.
+
+(*Definition service_during (sched: schedule) (t1 t2: nat) (j: job) :=
+  sum_(t1 <= t < t2) (scheduled sched j t) *)
+
+
 (* The workload is defined as the total service received by jobs of
    a specific task in the interval [t,t'). To allow summing over the
    jobs released in the interval we assume that a list of all jobs
    released before t' is passed by parameter. *)
 Definition workload (sched: schedule) (ts: taskset) (tsk: sporadic_task)
                      (t t': time) (released_jobs: list job) : nat :=
-  \sum_(j <- released_jobs | job_of tsk j) (service sched j t' - service sched j t).
+  \sum_(j <- released_jobs | job_of tsk j) (service_during sched t t' j).
 
 Definition max_jobs (tsk: sporadic_task) (delta: time) :=
   div_floor (delta + task_deadline tsk - task_cost tsk) (task_period tsk).
@@ -27,22 +36,19 @@ Definition W (tsk: sporadic_task) (delta: time) :=
 Definition carried_in (sched: schedule) (tsk: sporadic_task) (t: time) (j: job) :=
   << TSKj: job_task j = tsk >> /\
   << EARLIER: arrived sched j (t - 1) >> /\
-  exists t', << LATER: t' >= t >> /\
-             << SCHED: scheduled sched j t' >>.
-
-Definition carried_in_dec (sched: schedule) (tsk: sporadic_task) (t: time) (j: job) := job_of tsk j.
-(* I need a decidable version of carried_in!!! *)
+  << INTERF: exists t', t' >= t /\
+                        scheduled sched j t' >>.
 
 Lemma workload_bound :
   forall ts sched (ARRts: ts_arrival_sequence ts sched)
          (RESTR: restricted_deadline_model ts)
-         tsk (IN: In tsk ts) j (JOB: job_task j = tsk)
+         tsk (IN: tsk \in ts) j (JOB: job_task j = tsk)
          arr (ARRj: arrives_at sched j arr)
          released_jobs (ARRlist: arrival_list sched released_jobs (arr + job_deadline j - 1))
          (SCHED: task_misses_no_deadlines sched ts tsk),
     (workload sched ts tsk arr (arr + job_deadline j) released_jobs) <= W tsk (job_deadline j).
 Proof.
-  ins.
+  intros.
   unfold workload.
   destruct (classic (arr = 0)) as [| NZEROarr]; try subst arr.
     (* j arrives at time 0: no carried-in job *)
@@ -51,25 +57,51 @@ Proof.
     destruct (classic (exists j_0, carried_in sched tsk arr j_0)); des.
     {
       (* Carried-in job j_0 *)
-      (*assert (INj_0: In j_0 released_jobs).
+      assert (INj_0: j_0 \in released_jobs).
       {
-        unfold carried_in, arrival_list, arrived in *; rewrite ARRlist; des.
-        by exists t_0; split; [omega|].
+        (*unfold carried_in, arrival_list, arrived in *; rewrite ARRlist; des.
+        by exists t_0; split; [ssromega|].
+        -------------------------------BROKEN because \in <> In*)
+        admit.
       }
-      (* Only one carried-in job *)
+      (* At most one carried-in job *)
       assert (UNIQcarry:
-                forall j1 j2 (C1: carried_in sched tsk arr j1)
+                forall j1 j2 (IN1: j1 \in released_jobs)
+                       (IN2: j2 \in released_jobs)
+                       (C1: carried_in sched tsk arr j1)
                        (C2: carried_in sched tsk arr j2), j1 = j2).
       {
         ins. admit.
-      }*)
+      }
 
-      rewrite (bigID (carried_in_dec sched tsk arr)) /=.
+      rewrite big_seq_cond.
+      rewrite (bigID (beq_job j_0)); simpl.
+      unfold W.
       apply leq_add.
-        (* Prove that cost of all carried in-jobs <= min() *)
+      {
+        (* Prove that the service of the carried-in job <= min()*)
         admit.
-        (* Prove that cost of all normal jobs <= e_k * n_k *)
+      }
+      {
+        (* Prove that service of other jobs <= task_cost *)      
+        apply leq_trans with
+          (n := \sum_(i <- released_jobs | (i \in released_jobs) &&
+                 job_of tsk i && ~~beq_job j_0 i) task_cost tsk).
+        apply leq_sum; intro j_i; ins.
+        unfold service_during, andb, negb in *; desf.
+        rewrite leq_subLR.
+        (*easy to prove, since j_i does not execute for more than WCET *)
         admit.
+
+        rewrite big_const_seq, iter_addn.
+        rewrite addn0, mulnC.
+        rewrite leq_mul2r.
+        unfold orb; desf.
+        unfold max_jobs.
+
+        (* Prove that the number of non-carry-in jobs is at most n_k *)
+        admit.
+      }
     }
     {
       (* No carried-in job *)
