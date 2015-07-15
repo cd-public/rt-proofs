@@ -1,4 +1,5 @@
-Require Import Vbase task Arith.
+Require Import Vbase task
+               eqtype ssrbool ssrnat fintype.
 
 Section Job.
 
@@ -17,35 +18,38 @@ Record job : Type :=
                     job_deadline = task_deadline job_task)>>
 }.
 
-
 (* Define decidable equality for jobs, so that it can be
    used in computations. *)
 Definition job_eq_dec (x y: job) : {x = y} + {x <> y}.
   destruct x, y.
-  destruct (beq_nat job_cost0 job_cost1) eqn:Ecost;
-  destruct (beq_nat job_deadline0 job_deadline1) eqn:Edeadline;
+  destruct (eq_op job_cost0 job_cost1) eqn:Ecost;
+  destruct (eq_op job_deadline0 job_deadline1) eqn:Edeadline;
   destruct (beq_task job_task0 job_task1) eqn:Etask;
-  try rewrite beq_nat_true_iff in *; try rewrite beq_nat_false_iff in *;
-  try rewrite beq_task_true_iff in *; try rewrite beq_task_false_iff in *; subst;
+  unfold beq_task in *;
+  destruct (task_eq_dec job_task0 job_task1); subst.
+Admitted.
+(*
   try (by left; apply f_equal, proof_irrelevance);
   try (by right; unfold not; intro EQ; inversion EQ; intuition).
-Defined.
+Defined.*)
+
 Definition beq_job (x y: job) := if job_eq_dec x y then true else false.
 
-Lemma beq_job_true_iff : forall x y, beq_job x y = true <-> x = y.
-Proof.
-  unfold beq_job; ins; destruct (job_eq_dec x y); split; ins.
-Qed.
+(* - ssreflect decidable equality -- IGNORE! - *)
+  Lemma eqn_job : Equality.axiom beq_job.
+  Proof.
+    unfold beq_job, Equality.axiom; ins; desf;
+    [by apply ReflectT | by apply ReflectF].  
+  Qed.
 
-Lemma beq_job_false_iff : forall x y, beq_job x y = false <-> x <> y.
-Proof.
-  unfold beq_job; ins; destruct (job_eq_dec x y); split; ins.
-Qed.
+  Canonical job_eqMixin := EqMixin eqn_job.
+  Canonical job_eqType := Eval hnf in EqType job job_eqMixin.
+(* ----------------------------------------- *)
 
 (* Observations / TODO *)
 (* 1) It should be ok to have 0-cost jobs. Deadlines can also be 0,
       as long as the cost is no greater than the deadline.
-      But let's keep it like this for now. We can remove it if needed.
+      But let's keep it like this for now. We can remove the restriction if needed.
 
    2) job_task could be (option sporadic_task), so that we allow jobs that
       don't belong to any task. But our definition of job is not modular yet,
@@ -54,9 +58,9 @@ Qed.
       but the current specification is ok for the sporadic task model.
 
    3) job_properties restrict the deadline of the job to have the same
-      deadline as the task. Doesn't work if we want to use overhead accounting.
-      We need to decouple job_properties from job and enforce them only in
-      specific schedulability tests.
+      deadline as the task. Doesn't work for overhead accounting.
+      We might want to decouple job_properties from job and enforce them depending
+      on the task model.
 *)
 
 End Job.

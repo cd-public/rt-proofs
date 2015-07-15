@@ -530,6 +530,8 @@ Ltac des :=
       let x' := fresh x in let y' := fresh y in destruct H as [x' y']; red in y'
     | H : exists x, ?p |- _ =>
       let x' := fresh x in destruct H as [x' H]
+    | H : exists2 x, ?p & ?q |- _ =>
+      let x' := fresh x in destruct H as [x' H1 H2]
     | H : ?p /\ ?q |- _ =>
       let x' := match p with | NW (fun z => _) => fresh z | _ => H end in
       let y' := match q with | NW (fun z => _) => fresh z | _ => fresh H end in

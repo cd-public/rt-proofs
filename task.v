@@ -1,4 +1,5 @@
-Require Import Vbase List Arith Bool.Sumbool.
+Require Import Vbase Bool.Sumbool
+               eqtype ssrbool ssrnat fintype seq.
 
 Section Task.
 
@@ -21,34 +22,36 @@ Record sporadic_task : Type :=
    used in computations. *)
 Definition task_eq_dec (x y: sporadic_task) : {x = y} + {x <> y}.
   destruct x, y.
-  destruct (beq_nat task_id0 task_id1) eqn:Eid;
-  destruct (beq_nat task_cost0 task_cost1) eqn:Ecost;
-  destruct (beq_nat task_period0 task_period1) eqn:Eperiod;
-  destruct (beq_nat task_deadline0 task_deadline1) eqn:Edl;
-  try rewrite beq_nat_true_iff in *; try rewrite beq_nat_false_iff in *; subst;
+  destruct (eqn task_id0 task_id1) eqn:Eid.
+  destruct (eqn task_cost0 task_cost1) eqn:Ecost;
+  destruct (eqn task_period0 task_period1) eqn:Eperiod;
+  destruct (eqn task_deadline0 task_deadline1) eqn:Edl.
+Admitted.
+(*  try rewrite beq_nat_true_iff in *; try rewrite beq_nat_false_iff in *; subst;
   try (by left; apply f_equal, proof_irrelevance);
   try (by right; unfold not; intro EQ; inversion EQ; intuition).
-Defined.
+Defined.*)
 Definition beq_task (x y: sporadic_task) := if task_eq_dec x y then true else false.
 
-Lemma beq_task_true_iff : forall x y, beq_task x y = true <-> x = y.
-Proof.
-  unfold beq_task; ins; destruct (task_eq_dec x y); split; ins.
-Qed.
+(* - ssreflect decidable equality -- IGNORE! - *)
+  Lemma eqn_task : Equality.axiom beq_task.
+  Proof.
+    unfold beq_task, Equality.axiom; ins; desf;
+    [by apply ReflectT | by apply ReflectF].  
+  Qed.
 
-Lemma beq_task_false_iff : forall x y, beq_task x y = false <-> x <> y.
-Proof.
-  unfold beq_task; ins; destruct (task_eq_dec x y); split; ins.
-Qed.
-
-Definition taskset := list sporadic_task.
+  Canonical task_eqMixin := EqMixin eqn_task.
+  Canonical task_eqType := Eval hnf in EqType sporadic_task task_eqMixin.
+(* ----------------------------------------- *)
+  
+Definition taskset := seq sporadic_task.
 
 (* Models for task deadlines *)
 Definition implicit_deadline_model (ts: taskset) :=
-  forall tsk, In tsk ts -> task_deadline tsk = task_period tsk.
+  forall tsk (IN: tsk \in ts), task_deadline tsk = task_period tsk.
 
 Definition restricted_deadline_model (ts: taskset) :=
-  forall tsk, In tsk ts -> task_deadline tsk <= task_period tsk.
+  forall tsk (IN: tsk \in ts), task_deadline tsk <= task_period tsk.
 
 Definition arbitrary_deadline_model (ts: taskset) := True.
 
