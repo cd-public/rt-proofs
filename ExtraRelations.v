@@ -518,14 +518,14 @@ Proof.
   apply one_ext_irr, trans_irr_acyclic; eauto using tot_ext_trans.
 Qed.
 
-Lemma tot_ext_total : 
+(*Lemma tot_ext_total : 
   forall X (dom : list X) rel, is_total (fun x => In x dom) (tot_ext dom rel).
 Proof.
   induction dom; red; ins; desf.
   eapply one_ext_total_elem in NEQ; desf; eauto.
   eapply nesym, one_ext_total_elem in NEQ; desf; eauto.
   eapply IHdom in NEQ; desf; eauto using one_ext_extends.
-Qed.
+Qed.*)
 
 Lemma tot_ext_inv :
   forall X dom rel (x y : X),

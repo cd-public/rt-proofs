@@ -43,7 +43,7 @@ Definition beq_task (x y: sporadic_task) := if task_eq_dec x y then true else fa
   Canonical task_eqMixin := EqMixin eqn_task.
   Canonical task_eqType := Eval hnf in EqType sporadic_task task_eqMixin.
 (* ----------------------------------------- *)
-  
+
 Definition taskset := seq sporadic_task.
 
 (* Models for task deadlines *)

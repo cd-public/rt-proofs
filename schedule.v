@@ -67,8 +67,34 @@ Record schedule : Type :=
 
     (* A job cannot be scheduled after it completed *)
     << comp_task_no_exec:
-       forall j t t_comp (jComp: completed sd j t_comp) (tAfter: t >= t_comp), ~ scheduled sd j t >>
+       forall j t t_comp (jComp: completed sd j t_comp) (tAfter: t >= t_comp), ~~scheduled sd j t >>
 }.
+
+Lemma service_max_cost :
+  forall (sched: schedule) j t
+         (MAX: forall j t, service_at sched j t <= 1),
+    service sched j t <= job_cost j.
+Proof.
+  unfold service; ins.
+  have PROP := sched_properties sched; des; clear task_must_arrive_to_exec.
+  unfold completed, scheduled in *.
+  induction t; [by rewrite big_geq //|].
+    rewrite big_nat_recr //.
+    destruct (service sched j t == job_cost j) eqn:EQ.
+    {
+      apply comp_task_no_exec with (t := t) in EQ; [| by apply leqnn].
+      rewrite negbK in EQ; move: EQ => /eqP EQ.
+      by rewrite EQ /= addn0.
+    }
+    {
+      unfold service in *.
+      have LT: (\sum_(0 <= t_0 < t) service_at sched j t_0 < job_cost j).
+        by rewrite ltn_neqAle; apply/andP; split; [by apply negbT|by ins].
+      rewrite -[job_cost j] (ltn_predK LT) -addn1.
+      apply leq_add; [|by apply MAX].
+      by rewrite -ltnS (ltn_predK LT).
+    }
+Qed.
 
 Definition earlier_job (sched: schedule) (j1 j2: job) :=
   << EQtsk: job_task j1 = job_task j2 >> /\

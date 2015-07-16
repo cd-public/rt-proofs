@@ -1,4 +1,4 @@
-Require Import Classical Vbase task job schedule
+Require Import Classical Vbase task job schedule helper
                ssreflect ssrbool eqtype ssrnat seq fintype bigop.
 
 (* Whether the arrival sequence of a schedule is induced by a task set *)
@@ -9,47 +9,35 @@ Definition task_job_unique (sched: schedule) :=
   forall t j1 j2 (EQtsk: job_task j1 = job_task j2)
          (ARR1: arrives_at sched j1 t) (ARR2: arrives_at sched j2 t), j1 = j2.
 
+(* The list of jobs that arrived before t' is obtained by concatenation *)
 Definition prev_arrivals (sched: schedule) (t': time) : seq job :=
-  (\big[cat/nil]_(0 <= t < t') arr_list sched t).
+  \cat_(0 <= t < t') (arr_list sched t).
 
 Lemma ts_finite_arrival_sequence:
-  forall ts sched (ARRts: ts_arrival_sequence ts sched)
-         (UNIQUE: task_job_unique sched) t' j,
+  forall ts sched (ARRts: ts_arrival_sequence ts sched) t' j,
     j \in prev_arrivals sched t' <-> arrived_before sched j t'.
 Proof.
   unfold ts_arrival_sequence, prev_arrivals, arrived_before; ins.
   induction t'.
-  {
     rewrite big_geq // in_nil.
-    split; [by ins|].
-      move/exists_inP => EX; des.
-      move: H1 => /enum_rank_subproof.
-      by rewrite card_ord //.
-  }
+    by split; [|move/exists_inP_nat => EX]; ins; des; eauto.
   {
-    rewrite big_nat_recr //.
+    rewrite big_nat_recr //; simpl in *.
     split; rewrite mem_cat.
     {
       move/orP => OR.
-      destruct OR.
-        move: H => /IHt' /exists_inP H; des.
-        apply/exists_inP; exists (inord x).
-        apply predT_subset; by ins.
-        by rewrite inordK // ltnS; eauto.
-        apply/exists_inP; exists (inord t').
-        apply predT_subset; by ins.
-        by rewrite -/arrives_at inordK; eauto.
+      destruct OR; [| by apply/exists_inP_nat; exists t'; rewrite leqnn].
+        move: H => /IHt' /exists_inP_nat H; des.
+        apply/exists_inP_nat; exists x; split; [|by ins].
+        by apply ltn_trans with (n := t'); ins.
     }
     {
-      move/exists_inP => EX; des.
-      apply/orP.
-      destruct (t' == x) eqn:EQ; [by move: EQ => /eqP EQ; right; rewrite EQ|].
-      apply negbT in EQ; move: (ltn_ord x); rewrite ltnS => Le.
-      have LT : x < t'.
-        by rewrite ltn_neqAle; apply/andP; split; [rewrite eq_sym|].
-      left; apply IHt'0.
-      apply/exists_inP.
-      exists (Ordinal LT); eauto.
+      move/exists_inP_nat => EX; des.
+      rewrite leq_eqVlt eqSS in EX.
+      apply/orP; move: EX => /orP EX.
+      des; [by move: EX => /eqP EX; subst; right|].
+      left; apply IHt'0; apply /exists_inP_nat.
+      by unfold arrives_at in *; exists x; split; ins.
     }
   }
 Qed.

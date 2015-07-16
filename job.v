@@ -18,6 +18,9 @@ Record job : Type :=
                     job_deadline = task_deadline job_task)>>
 }.
 
+Definition job_of (tsk: sporadic_task) (j: job) : bool :=
+  beq_task (job_task j) tsk.
+
 (* Define decidable equality for jobs, so that it can be
    used in computations. *)
 Definition job_eq_dec (x y: job) : {x = y} + {x <> y}.
