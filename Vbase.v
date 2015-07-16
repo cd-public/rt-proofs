@@ -744,6 +744,7 @@ Ltac exploit x :=
 (** * Induction *)
 (* ************************************************************************** *)
 
+(*
 Tactic Notation "induction" "[" ident_list(y) "]" ident(x)  :=
   first [ try (intros until x); revert y; induction x
         | red; try (intros until x); revert y; induction x ].
@@ -2064,3 +2065,4 @@ Canonical Structure nat_eqType := Eval hnf in EqType nat nat_eqMixin.
 
 Lemma eqnE : eqn = (@eq_op _).
 Proof. done. Qed.
+*)
