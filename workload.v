@@ -17,7 +17,7 @@ Definition W (tsk: sporadic_task) (delta: time) :=
   let e_k := (task_cost tsk) in
   let d_k := (task_deadline tsk) in
   let p_k := (task_period tsk) in            
-    min e_k (delta + d_k - e_k - n_k * p_k) + n_k * e_k.
+    minn e_k (delta + d_k - e_k - n_k * p_k) + n_k * e_k.
 
 Definition carried_in (sched: schedule) (tsk: sporadic_task) (t: time) (j: job) :=
   << TSKj: job_task j = tsk >> /\
@@ -68,8 +68,17 @@ Proof.
     apply leq_add.
     {
       (* Prove that the service of the carried-in job <= min()*)
-      admit.
-      }
+      rewrite leq_min; apply/andP.
+        (*apply leq_sum. unfold job_of; intros j_i.
+          move/andP => INj_i; des.
+          move: INj_i INj_i0 => /andP INj_i NEQ; des.
+          unfold beq_task in *; destruct task_eq_dec as [JOBi|]; ins.
+          have PROP := job_properties j_i; des.
+          apply leq_trans with (n := job_cost j_i); [|by rewrite -JOBi].
+          apply service_interval_max_cost.
+          by unfold ident_mp in MULT; des.
+*) admit.
+    }
       {
         (* Prove that service of other jobs <= task_cost *)      
         apply leq_trans with
@@ -80,25 +89,10 @@ Proof.
           move/andP => INj_i; des.
           move: INj_i INj_i0 => /andP INj_i NEQ; des.
           unfold beq_task in *; destruct task_eq_dec as [JOBi|]; ins.
-          apply leq_trans with
-            (n := service sched j_i (arr + job_deadline j)).
-          {
-            (* service [arr, arr + d_k] <= service [0, arr + d_k] *)
-            unfold service, service_during.
-            have LE : arr <= arr + job_deadline j.
-              by rewrite -{1}[arr]addn0; apply leq_add; ins.
-            rewrite -> big_cat_nat with (m := 0) (n := arr); ins.
-            rewrite -{1 1}[\sum_(arr <= t < arr + job_deadline j)
-                  service_at sched j_i t] add0n.
-            by apply leq_add; by ins.
-          }
-          {
-            (* service <= task_cost *)
-            have PROP := job_properties j_i; des.
-            apply leq_trans with (n := job_cost j_i); [| by rewrite -JOBi].
-            apply service_max_cost.
-            by unfold ident_mp in MULT; des; by ins.
-          }
+          have PROP := job_properties j_i; des.
+          apply leq_trans with (n := job_cost j_i); [|by rewrite -JOBi].
+          apply service_interval_max_cost.
+          by unfold ident_mp in MULT; des.
         }
         {
           rewrite big_const_seq iter_addn addn0 mulnC.

@@ -96,6 +96,21 @@ Proof.
     }
 Qed.
 
+Lemma service_interval_max_cost :
+  forall (sched: schedule) j t t'
+         (MAX: forall j t, service_at sched j t <= 1),
+    service_during sched j t t' <= job_cost j.
+Proof.
+  unfold service_during; ins.
+  destruct (t > t') eqn:GT.
+    by rewrite big_geq // -ltnS; apply ltn_trans with (n := t); ins.
+    apply leq_trans with
+      (n := \sum_(0 <= t0 < t') service_at sched j t0);
+      [| by apply service_max_cost].
+    rewrite -> big_cat_nat with (m := 0) (n := t);
+      [by apply leq_addl | by ins | by rewrite leqNgt negbT //].
+Qed.   
+
 Definition earlier_job (sched: schedule) (j1 j2: job) :=
   << EQtsk: job_task j1 = job_task j2 >> /\
   exists arr1 arr2, << ARR1: arrives_at sched j1 arr1 >> /\
