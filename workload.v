@@ -20,11 +20,21 @@ Definition W (tsk: sporadic_task) (delta: time) :=
     minn e_k (delta + d_k - e_k - n_k * p_k) + n_k * e_k.
 
 Definition carried_in (sched: schedule) (tsk: sporadic_task) (t: time) (j: job) :=
-  << TSKj: job_task j = tsk >> /\
-  << EARLIER: arrived sched j (t - 1) >> /\
-  << INTERF: exists t', t' >= t /\ pending sched j t' >>.
+  [&& job_task j == tsk, arrived sched j (t - 1) & ~~ completed sched j t].
 
-
+Lemma carried_in_unique :
+  forall ts sched (ARRts: ts_arrival_sequence ts sched)
+         (RESTR: restricted_deadline_model ts)
+         tsk (IN: tsk \in ts) j (JOB: job_task j = tsk)
+         arr (ARRj: arrives_at sched j arr)
+         (SCHED: task_misses_no_deadlines sched ts tsk),
+    let released_jobs := prev_arrivals sched (arr + job_deadline j) in
+      (exists j_0, << CARRY: carried_in sched tsk arr j_0 >> /\
+                   << FILTER: filter (carried_in sched tsk arr) released_jobs = [::j_0] >>) \/
+      filter (carried_in sched tsk arr) released_jobs = nil.
+Proof.
+Admitted.
+  
 Lemma workload_bound :
   forall ts sched (ARRts: ts_arrival_sequence ts sched)
          hp cpumap num_cpus (MULT: ident_mp num_cpus hp cpumap sched) 
@@ -35,58 +45,53 @@ Lemma workload_bound :
     (workload sched ts tsk arr (arr + job_deadline j)) <= W tsk (arr + job_deadline j).
 Proof.
   unfold workload; ins.
+  generalize SCHED; apply carried_in_unique with (j := j) (arr := arr) in SCHED; des; ins;
   remember (prev_arrivals sched (arr + job_deadline j)) as released_jobs.
-
-  (* There exists at most one carried-in job *)
-  assert (UNIQcarry:
-            forall j1 j2 (IN1: j1 \in released_jobs)
-                   (IN2: j2 \in released_jobs)
-                   (C1: carried_in sched tsk arr j1)
-                   (C2: carried_in sched tsk arr j2), j1 = j2).
-  {
-    ins. admit.
-  }
-
-  destruct (classic (exists j_0, carried_in sched tsk arr j_0)); des.
-  {
-    (* Carried-in job j_0 *)
+  (* Case 1: j_0 is the carried-in job *)
     assert (INj_0: j_0 \in released_jobs).
     {
-      unfold carried_in in H; unfold arrived, pending in *; des; subst.
-      move: EARLIER => /exists_inP_nat EARLIER; des.
+      unfold carried_in in CARRY; unfold arrived, pending in *; des; subst.
+      (*move: EARLIER => /exists_inP_nat EARLIER; des.
       rewrite (ts_finite_arrival_sequence ts) //.
       unfold arrived_before.
       apply/exists_inP_nat.
       exists x; split; [| by ins].
       apply ltn_trans with (n := arr).
-      have a := (ltn_predK).
-      admit. admit.
+      have a := (ltn_predK).*)
+      admit.
     }
 
-    rewrite big_seq_cond.
-    rewrite (bigID (beq_job j_0)); simpl.
+    rewrite (bigID (carried_in sched tsk arr)); simpl.
     apply leq_add.
     {
-      (* Prove that the service of the carried-in job <= min()*)
-      rewrite leq_min; apply/andP.
-        (*apply leq_sum. unfold job_of; intros j_i.
-          move/andP => INj_i; des.
-          move: INj_i INj_i0 => /andP INj_i NEQ; des.
-          unfold beq_task in *; destruct task_eq_dec as [JOBi|]; ins.
-          have PROP := job_properties j_i; des.
-          apply leq_trans with (n := job_cost j_i); [|by rewrite -JOBi].
-          apply service_interval_max_cost.
-          by unfold ident_mp in MULT; des.
-*) admit.
-    }
+      rewrite -> eq_bigl with (P2 := fun j => carried_in sched tsk arr j);
+      last (
+          by unfold ssrfun.eqfun, carried_in, job_of; ins;
+          rewrite andb_idl //; move/and3P => CARRYjob; destruct CARRYjob
+      ).
+      rewrite -big_filter FILTER big_cons big_nil addn0.
+      rewrite leq_min; apply/andP; split.
       {
+        move: CARRY => /and3P CARRY; destruct CARRY as [JOBj0 _ _].
+        move: JOBj0 => /eqP JOBj0; rewrite -JOBj0.
+        have PROP := job_properties j_0; des.
+        apply leq_trans with (n := job_cost j_0); [|by ins].
+        by apply service_interval_max_cost; [by unfold ident_mp in *; des].
+      }
+      {
+        (* Prove that service of j_0 <= delta + d_k - e_k - n_k*p_k *)
+        admit.
+      }
+    }
+    {
+      rewrite big_seq_cond.
         (* Prove that service of other jobs <= task_cost *)      
         apply leq_trans with
           (n := \sum_(i <- released_jobs | (i \in released_jobs) &&
                  job_of tsk i && ~~beq_job j_0 i) task_cost tsk).
         {
-          apply leq_sum; unfold job_of; intros j_i.
-          move/andP => INj_i; des.
+          apply leq_sum; unfold job_of; intros j_i. move/and3P.
+          move/and3P => INj_i; des.
           move: INj_i INj_i0 => /andP INj_i NEQ; des.
           unfold beq_task in *; destruct task_eq_dec as [JOBi|]; ins.
           have PROP := job_properties j_i; des.
