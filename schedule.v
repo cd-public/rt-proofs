@@ -42,6 +42,9 @@ Definition arrived (sched: schedule_data) (j: job) (t: nat) :=
 Definition arrived_before (sched: schedule_data) (j: job) (t: nat) :=
   [exists t_0 in 'I_(t), arrives_at sched j t_0].
 
+Definition arrived_between (sched: schedule_data) (j: job) (t1 t2: nat) :=
+  [exists t in 'I_(t2), ((t1 <= t) && arrives_at sched j t)].
+
 (* Whether a job is scheduled at time t *)
 Definition scheduled (sched: schedule_data) (j: job) (t: time) :=
   service_at sched j t != 0.
