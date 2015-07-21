@@ -1,6 +1,6 @@
 Require Import Classical Vbase job task schedule task_arrival response_time
         schedulability divround helper priority identmp
-        ssreflect ssrbool eqtype ssrnat seq div fintype bigop ssromega.
+        ssreflect ssrbool eqtype ssrnat seq div fintype bigop path ssromega.
 
 Section WorkloadBound.
   
@@ -39,37 +39,117 @@ Lemma workload_bound :
     (workload sched ts tsk arr_j (arr_j + job_deadline j)) <= W tsk R_tsk (job_deadline j).
 Proof.
   unfold workload, W; ins.
-  remember (max_jobs tsk R_tsk (job_deadline j)) as n_k.
-  remember (prev_arrivals sched (arr_j + job_deadline j)) as released_jobs.
-  remember (count (fun x => job_of tsk x &&
-                            (service_during sched x arr_j (arr_j + job_deadline j) != 0))
-              released_jobs) as num_jobs.
+
+  (* Simplify names *)
+  set t1 := arr_j.
+  set t2 := arr_j + job_deadline j.
+  set n_k := max_jobs tsk R_tsk (job_deadline j).
+  
+  (* Focus only on the jobs of tsk that contribute to the workload *)
+  set released_jobs := filter (fun x => job_of tsk x && (service_during sched x t1 t2 != 0)) (prev_arrivals sched (arr_j + job_deadline j)).
+  
+  assert (SIMPL:
+    \sum_(i <- prev_arrivals sched t2 | job_of tsk i)
+       service_during sched i t1 t2 =
+    \sum_(i <- released_jobs) service_during sched i t1 t2).
+  {
+    unfold released_jobs.
+    rewrite (bigID (fun x => service_during sched x arr_j (arr_j + job_deadline j) == 0)) /=.
+    (*rewrite (eq_bigr (fun x => 0)); last by intro j_i; move/eqP; ins. 
+    rewrite big_const_seq iter_addn mul0n add0n add0n.*)
+    admit.
+  } rewrite SIMPL; clear SIMPL.
+
+  assert (LTserv: forall j_i (INi: j_i \in released_jobs),
+            service_during sched j_i t1 t2 <= task_cost tsk).
+  {
+    ins.
+    move: INi; rewrite mem_filter; move => /andP xxx; des.
+    move: xxx; move => /andP JOBi; des; clear xxx0 JOBi0.
+    have PROP := job_properties j_i; unfold job_of in *; des.
+    apply leq_trans with (n := job_cost j_i);
+      last by unfold beq_task in *; destruct task_eq_dec as [EQ|]; try rewrite -EQ; ins.
+    by apply service_interval_max_cost; unfold ident_mp in MULT; des.
+  }            
+  
+  set num_jobs := size released_jobs. 
   destruct (num_jobs <= n_k) eqn:NUM.
   {
     rewrite -[\sum_(_ <- _ | _) _]add0n leq_add //.
-    rewrite (bigID (fun x => service_during sched x arr_j (arr_j + job_deadline j) == 0)) /=.
-    rewrite (eq_bigr (fun x => 0)); last by (intro j_i; move/andP; ins; des; by apply/eqP).
-    rewrite big_const_seq iter_addn mul0n add0n add0n.
-    apply leq_trans with (n := \sum_(x <- released_jobs | (job_of tsk x) &&
-                                    (service_during sched x arr_j (arr_j + job_deadline j) != 0))
-                                task_cost tsk);
-    last by rewrite big_const_seq iter_addn addn0 mulnC -Heqnum_jobs leq_mul2r; apply/orP; right.
+    apply leq_trans with (n := \sum_(x <- released_jobs) task_cost tsk);
+      last by rewrite big_const_seq iter_addn addn0 mulnC leq_mul2r;
+      apply/orP; right.
     {
-      apply leq_sum; unfold job_of; intros j_i; move/andP => JOBi; des.
-      have PROP := job_properties j_i; des.
-      apply leq_trans with (n := job_cost j_i);
-        last by unfold beq_task in *; destruct task_eq_dec as [EQ|]; try rewrite -EQ; ins.
-      by apply service_interval_max_cost; unfold ident_mp in MULT; des.
+      rewrite big_seq_cond [\sum_(_ <- _ | _) _ _]big_seq_cond.
+      by apply leq_sum; intros j_i; move/andP => xxx; des; apply LTserv.
     }
   }
   {
-    (* Hard case: num_jobs with service > 0 in the interval is larger than n_k *)
-    assert (NUM_EQ: num_jobs = n_k + 1). admit. clear NUM.
+    (* Hard case: num_jobs with service > 0 in the interval more than n_k *)
 
+    assert (EQnum: num_jobs == n_k.+1). admit. clear NUM.
+    
+    (* Order the sequence of released_jobs by arrival time, so that
+       we identify easily the first and last jobs. *)
+    set order := (fun x y => task_id (job_task x) <= task_id (job_task y)).
+    set sorted_jobs := (sort order released_jobs). (* USE ARRIVAL TIME!! *)
+    assert (sorted: sorted order sorted_jobs);
+      first by apply sort_sorted; unfold total, order; ins; apply leq_total.
+    rewrite (eq_big_perm sorted_jobs) /=;last by rewrite -(perm_sort order).
+
+    set num_jobs_s := size sorted_jobs.                 
+    assert (EQ: num_jobs = num_jobs_s) by admit.
+    rewrite -> EQ in *. clear EQ num_jobs.
+    rename num_jobs_s into num_jobs.
+
+    assert (INboth: forall x, (x \in released_jobs) == (x \in sorted_jobs)).
     admit.
+    
+    destruct sorted_jobs as [| j_fst]; simpl in *; first by rewrite big_nil.
+    {
+      rewrite big_cons.
+      destruct (lastP sorted_jobs) as [| middle j_lst].
+        by rewrite big_nil; admit.
+      rewrite -cats1 big_cat big_cons big_nil /=.
+      rewrite addn0 addnC -addnA [_ + (_ * _)]addnC.
+      move: sorted; rewrite rcons_path; move => /andP sorted; des.
+      destruct n_k. admit.
+      rewrite mulSnr -addnA.
+      apply leq_add.
+      {
+        rewrite big_seq_cond.
+        apply leq_trans with (n := \sum_(i <- middle | (i \in middle) && true) task_cost tsk); last first.
+        {
+          rewrite -big_seq_cond big_const_seq iter_addn addn0 mulnC leq_mul2r; apply/orP; right.
+          rewrite count_predT; rewrite eqSS size_rcons eqSS in EQnum.
+          by move: EQnum => /eqP EQnum; rewrite -EQnum leqnn.
+        }
+        {
+          apply leq_sum; intro j_i; move => /andP MID; des; apply LTserv.
+          specialize (INboth j_i); move: INboth => /eqP INboth.
+          rewrite INboth in_cons mem_rcons in_cons.
+          by apply/or3P; apply Or33.
+        }
+      }
+      {
+        rewrite addn_minr leq_min; apply/andP; split.
+        {
+          apply leq_add; apply LTserv;
+          [specialize (INboth j_lst) | specialize (INboth j_fst)];
+          move: INboth => /eqP INboth;
+          try rewrite INboth in_cons mem_rcons in_cons; apply/or3P;
+          [by apply Or32 | by apply Or31].
+        }
+        {
+          admit.
+          (*rewrite addnBA. rewrite addnBA. rewrite [task_cost _ + _]addnC.
+          rewrite -addnBA. rewrite subnn addn0.
+          admit.*) 
+        }
+      }
+    }
   }
 Qed.
-
   
 (*Lemma carried_in_unique :
   forall ts sched (ARRts: ts_arrival_sequence ts sched)
