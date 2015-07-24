@@ -8,36 +8,30 @@ Definition affinity_non_empty (alpha: affinity) (num_cpus: nat) (sched: schedule
     exists cpu, << MAX: cpu < num_cpus >> /\ << ALPHA: alpha j cpu >>.
 
 (* APA multiprocessor platform *)
-Record apa_ident_mp (num_cpus: nat) (hp: sched_job_hp_relation) (sched: schedule) :=
-{
-  mapped: job_mapping;
-  alpha: affinity;
+Definition apa_ident_mp (num_cpus: nat) (hp: sched_job_hp_relation) (mapped: job_mapping) (alpha: affinity) (sched: schedule) :=
+  (* The mapping has a finite number of cpus: [1, num_cpus) *)
+  << apa_cpus_nonzero: num_cpus > 0 >> /\
+  << apa_num_cpus: forall j cpu t, mapped j cpu t -> cpu < num_cpus >> /\
 
-  apa_properties:
-    (* The mapping has a finite number of cpus: [1, num_cpus) *)
-    << apa_cpus_nonzero: num_cpus > 0 >> /\
-    << apa_num_cpus: forall j cpu t, mapped j cpu t -> cpu < num_cpus >> /\
+  (* Job is scheduled iff it is mapped to a processor*)
+  << apa_mapping: forall j t, scheduled sched j t <-> exists cpu, mapped j cpu t >> /\
 
-    (* Job is scheduled iff it is mapped to a processor*)
-    << apa_mapping: forall j t, scheduled sched j t <-> exists cpu, mapped j cpu t >> /\
-
-    (* Non-parallelism restrictions (mapping must be an injective function) *)
-    << mp_mapping_fun: forall j cpu cpu' t, mapped j cpu t /\ mapped j cpu' t -> cpu = cpu' >> /\
-    << mp_mapping_inj: forall j j' cpu t, mapped j cpu t /\ mapped j' cpu t -> j = j'>> /\
+  (* Non-parallelism restrictions (mapping must be an injective function) *)
+  << mp_mapping_fun: forall j cpu cpu' t, mapped j cpu t /\ mapped j cpu' t -> cpu = cpu' >> /\
+  << mp_mapping_inj: forall j j' cpu t, mapped j cpu t /\ mapped j' cpu t -> j = j'>> /\
                                                                   
-    (* A job receives at most 1 unit of service *)
-    << apa_max_service: forall j t, service_at sched j t <= 1 >> /\
+  (* A job receives at most 1 unit of service *)
+  << apa_max_service: forall j t, service_at sched j t <= 1 >> /\
 
-    (* If a job is scheduled, then its affinity should allow it. *)
-    << apa_alpha: forall t j cpu, mapped j cpu t -> alpha j cpu >> /\
+  (* If a job is scheduled, then its affinity should allow it. *)
+  << apa_alpha: forall t j cpu, mapped j cpu t -> alpha j cpu >> /\
 
-    (* (Weak) APA scheduling invariant *)
-    << apa_invariant: forall jlow t (ARRIVED: arrived sched jlow t),
-        backlogged sched jlow t <->
-          (exists (j0: job), earlier_job sched j0 jlow /\ pending sched j0 t) \/
-          (forall cpu (MAXcpu: cpu < num_cpus) (ALPHA: alpha jlow cpu),
-            exists jhigh, hp sched t jhigh jlow /\ mapped jhigh cpu t) >>
-}.
+  (* (Weak) APA scheduling invariant *)
+  << apa_invariant: forall jlow t (ARRIVED: arrived sched jlow t),
+      backlogged sched jlow t <->
+        (exists (j0: job), earlier_job sched j0 jlow /\ pending sched j0 t) \/
+        (forall cpu (MAXcpu: cpu < num_cpus) (ALPHA: alpha jlow cpu),
+          exists jhigh, hp sched t jhigh jlow /\ mapped jhigh cpu t) >>.
 
 (*
 (* Proof that an APA multiprocessor with global affinities is the same as
