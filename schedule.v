@@ -73,6 +73,14 @@ Record schedule : Type :=
        forall j t t_comp (jComp: completed sd j t_comp) (tAfter: t >= t_comp), ~~scheduled sd j t >>
 }.
 
+(* A carried-in job in [t1,t2) arrives before t1 and is not completed at time t1 *)
+Definition carried_in (sched: schedule) (t1: time) (j: job) :=
+  arrived_before sched j t1 && ~~ completed sched j t1.
+
+(* A carried-out job in [t1,t2) arrives after t1 and is not completed at time t2 *)
+Definition carried_out (sched: schedule) (t1 t2: time) (j: job) :=
+  arrived_between sched j t1 t2 && ~~ completed sched j t2.
+
 Lemma service_max_cost :
   forall (sched: schedule) j t
          (MAX: forall j t, service_at sched j t <= 1),

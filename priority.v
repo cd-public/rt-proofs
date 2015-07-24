@@ -9,14 +9,16 @@ Definition task_hp_relation := sporadic_task -> sporadic_task -> Prop.
 Definition job_hp_relation := job -> job -> Prop.
 Definition sched_job_hp_relation := schedule -> time -> job_hp_relation.
 
-Definition valid_jldp_policy (sched: schedule) (t: time) (hp_rel: job_hp_relation) :=
-  << hpIrr: irreflexive hp_rel >> /\
-  << hpAsym: asymmetric hp_rel >> /\
-  << hpTrans: transitive _ hp_rel >> /\
+Definition valid_jldp_policy (hp_rel: sched_job_hp_relation) :=
+  << hpIrr: forall sched t, irreflexive (hp_rel sched t) >> /\
+  << hpAsym: forall sched t, asymmetric (hp_rel sched t) >> /\
+  << hpTrans: forall sched t, transitive _ (hp_rel sched t) >> /\
   << hpTotalTS:
-       forall j1 j2 arr1 arr2 (NEQ: j1 <> j2) (NEQtsk: job_task j1 <> job_task j2)
-              (ARRj1: arrives_at sched j1 arr1) (ARRj2: arrives_at sched j2 arr2),
-                hp_rel j1 j2 \/ hp_rel j2 j1 >>. (* Should work for JLDP *)
+       forall (sched: schedule) t j1 j2 arr1 arr2
+              (NEQ: j1 <> j2) (NEQtsk: job_task j1 <> job_task j2)
+              (ARRj1: arrives_at sched j1 arr1)
+              (ARRj2: arrives_at sched j2 arr2),
+         hp_rel sched t j1 j2 \/ hp_rel sched t j2 j1 >>.
 
 (* Observations/TODO *)
 (* 1) A higher-priority order serves to compare jobs of different tasks, since
@@ -77,20 +79,19 @@ Definition convert_fp_jldp (task_hp: task_hp_relation) (hp: sched_job_hp_relatio
        << HPtsk: task_hp (job_task jhigh) (job_task jlow) >>).
 
 Lemma valid_fp_is_valid_jldp :
-  forall ts sched t hp task_hp
-         (ARRts: ts_arrival_sequence ts sched) (* All jobs come from taskset *)
+  forall (*ts sched*) hp task_hp
+         (*(ARRts: ts_arrival_sequence ts sched) (* All jobs come from taskset *)*)
          (FP: valid_fp_policy task_hp)
-         (CONV: convert_fp_jldp task_hp hp), valid_jldp_policy sched t (hp sched t).
+         (CONV: convert_fp_jldp task_hp hp), valid_jldp_policy hp.
 Proof.
   unfold valid_fp_policy, valid_jldp_policy, convert_fp_jldp, irreflexive,
   asymmetric, transitive, ts_arrival_sequence; repeat (split; try red); ins; des;
   rewrite CONV in *; try rewrite CONV in *; des; repeat (split; try red); eauto.
-    by unfold not; intro EQ; rewrite EQ in *; eauto.
-    {
-      apply ARRts in ARRj1; apply ARRts in ARRj2.
-      specialize (hpTotal (job_task j1) (job_task j2) NEQtsk).
-      des; [left|right]; split; eauto.
-    }
+  by unfold not; intro EQ; rewrite EQ in *; eauto.
+  {
+    specialize (hpTotal (job_task j1) (job_task j2) NEQtsk).
+    des; [left|right]; split; eauto.
+  }
 Qed.
 
 (* Job-level fixed priority *)
@@ -116,7 +117,7 @@ Proof.
   rewrite CONV in *; eauto.
 Qed.
 
-Lemma edf_valid_policy : forall sched t, valid_jldp_policy sched t (EDF sched t).
+Lemma edf_valid_policy : valid_jldp_policy EDF.
 Proof.
   unfold valid_jldp_policy, EDF, irreflexive, asymmetric, transitive, break_ties;
   repeat (split; try red); ins.

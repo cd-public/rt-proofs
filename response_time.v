@@ -1,13 +1,13 @@
 Require Import Vbase task task_arrival job schedule helper platform priority
                ssrbool ssrnat seq. 
 
-Definition response_time_ub_sched (sched: schedule) (ts: taskset) (tsk: sporadic_task) (R: time) : Prop :=
+Definition response_time_ub_sched (sched: schedule) (ts: taskset) (tsk: sporadic_task) (R: time) :=
   << IN: tsk \in ts >> /\
   << ARRts: ts_arrival_sequence ts sched >> /\
   forall j (JOBj: job_of tsk j) t_a (ARRj: arrives_at sched j t_a),
     completed sched j (t_a + R).
 
-Definition response_time_ub_task (platform: processor_platform) (ts: taskset) (tsk: sporadic_task) (R: time) : Prop :=
+Definition response_time_ub (platform: processor_platform) (ts: taskset) (tsk: sporadic_task) (R: time) :=
   << IN: tsk \in ts >> /\
   forall sched (PLAT: platform sched)
          (ARRts: ts_arrival_sequence ts sched)

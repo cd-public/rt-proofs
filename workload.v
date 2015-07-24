@@ -19,14 +19,6 @@ Definition W (tsk: sporadic_task) (R_tsk: time) (delta: time) :=
   let p_k := (task_period tsk) in            
     minn e_k (delta + R_tsk - e_k - n_k * p_k) + n_k * e_k.
 
-(* A carried-in job in [t1,t2) arrives before t1 and is not completed at time t1 *)
-Definition carried_in (sched: schedule) (tsk: sporadic_task) (t1: time) (j: job) :=
-  [&& job_task j == tsk, arrived_before sched j t1 & ~~ completed sched j t1].
-
-(* A carried-out job in [t1,t2) arrives after t1 and is not completed at time t2 *)
-Definition carried_out (sched: schedule) (tsk: sporadic_task) (t1 t2: time) (j: job) :=
-  [&& job_task j == tsk, arrived_between sched j t1 t2 & ~~ completed sched j t2].
-
 (* Returns the arrival time of a job that arrives before t'
    (or t' if the job doesn't arrive in the interval) *)
 Definition arrival_time (sched: schedule) (t': time) (j: job) : nat :=
@@ -39,79 +31,6 @@ Definition my_service_at (my_j: job) (j: job) : time -> nat :=
 
 Definition my_arr_seq (my_j: job) : nat -> seq job :=
   fun t => if (t == 0) then [::my_j] else [::].
-
-Lemma rt_geq_wcet_identmp : (* The definition of platform is wrong, shouldn't have hp and cpumap *)
-  forall ts tsk R_tsk num_cpus hp cpumap
-         (RESP: response_time_ub_task (ident_mp num_cpus hp cpumap) ts tsk R_tsk),
-    R_tsk >= task_cost tsk.  
-Proof.
-  unfold response_time_ub_task; ins; des.
-  have PROP := task_properties tsk; des.
-  have tmp_job := Build_job (task_cost tsk) (task_deadline tsk) tsk.
-
-  assert (VALIDj:  << X1: 0 < task_cost tsk >> /\
-                   << X2: task_cost tsk <= task_deadline tsk >> /\
-                   << X3: 0 < task_deadline tsk >> /\
-                   << X4: task_cost tsk <= task_cost tsk >> /\
-                   << X5: task_deadline tsk = task_deadline tsk >> ).
-    by repeat split; ins; try apply leqnn; clear tmp_job; rename x0 into j.
-    
-  set j := Build_job (task_cost tsk) (task_deadline tsk) tsk VALIDj.
-
-  assert (NOMULT: (forall (j0 : job_eqType) (t1 t2 : time),
-             j0 \in my_arr_seq j t1 -> j0 \in my_arr_seq j t2 -> t1 = t2)).
-    by ins; unfold my_arr_seq in *; destruct t1, t2; simpl in *; ins.
-  set arr := Build_arrival_sequence (my_arr_seq j) NOMULT.
-
-  assert (VALID: (<< BLA: forall (j0 : job) (t : time),
-   scheduled {| service_at := my_service_at j; arr_list := arr |} j0 t ->
-   arrived {| service_at := my_service_at j; arr_list := arr |} j0 t >> /\   
-    << BLA2: forall (j0 : job) (t : nat) (t_comp : time),
-   completed {| service_at := my_service_at j; arr_list := arr |} j0 t_comp ->
-   t_comp <= t ->
-   ~~ scheduled {| service_at := my_service_at j; arr_list := arr |} j0 t >> )).
-  {
-    repeat (split; try red).
-    {
-      intros j0 t SCHED.
-      unfold scheduled, arrived in *; apply/exists_inP_nat.
-      unfold service_at, my_service_at in SCHED.
-      destruct (j == j0) eqn:EQj_j0; last by move: SCHED => /eqP SCHED; intuition.
-      destruct (t < task_cost (job_task j0)) eqn:LE; last by move: SCHED => /eqP SCHED; intuition.
-      exists 0; split; first by apply ltn0Sn.
-      unfold arrives_at, arr_list, arr, my_arr_seq; simpl.
-      move: EQj_j0 => /eqP EQj_j0; subst.
-      by rewrite mem_seq1; apply/eqP.
-    }
-    {
-      unfold completed, service; intros j0 t t_comp COMPLETED LE.
-      unfold scheduled, service_at, my_service_at.
-      destruct (j == j0) eqn:EQj_j0; last by apply negbT; apply/eqP.
-      move: EQj_j0 => /eqP EQj_j0; subst j0.
-      apply negbT; apply/eqP.
-      have PROP := job_properties j; des; simpl in *.
-      destruct (t < task_cost tsk) eqn:LEcost; last by trivial.
-        assert (t_comp < task_cost tsk).
-          by apply leq_trans with (n := t.+1); [by rewrite ltnS | by ins].
-        move: COMPLETED => /eqP COMPLETED; rewrite <- COMPLETED in *.
-        assert (t_comp < t_comp).
-        apply leq_trans with (n := \sum_(0 <= t0 < t_comp) my_service_at j j t0); first by ins.
-        apply leq_trans with (n := \sum_(0 <= t0 < t_comp) 1).
-          apply leq_sum. admit.
-          by rewrite big_const_nat iter_addn mul1n addn0 subn0.
-      by rewrite ltnn in H0; ins.
-    }
-  }
-  
-  set sched := Build_schedule (Build_schedule_data (my_service_at j) arr) VALID.
-
-  assert (ARRts: ts_arrival_sequence ts sched). admit.
-
-  assert (my_cpumap: job_mapping). admit. (* Map always to cpu 0 *)
-  
-  assert (MULT: ident_mp num_cpus hp cpumap sched). admit.
-
-Admitted.
 
 Lemma max_jobs_bound :
   forall tsk delta R_tsk (GT: R_tsk >= task_cost tsk),
@@ -135,103 +54,19 @@ Admitted.
 
 
 
-Lemma telescoping_sum : forall (T: Type) F r (x0: T),
-              F (nth x0 r (size r).-1) - F (nth x0 r 0) =
-                \sum_(i < (size r).-1) (F (nth x0 r (i.+1)) - F (nth x0 r i)).
-Proof.
-  intros T F r x0.
-
-  assert (forall (i j: nat) (LE: i <= j), F (nth x0 r i) <= F (nth x0 r j)). admit.
-
-  induction r.
-    by rewrite subnn big_ord0.
-    
-  
-  destruct r.
-    by rewrite subnn big_ord0.
-    induction r.
-      by rewrite subnn big_ord0.
-      
-  
-  generalize dependent r.
-  induction r.
-    by rewrite subnn big_ord0.
-    ins.
-    assert (r = behead (a :: r)). admit.
-    exploit IHr. intros i j LE.
-    rewrite H0.
-    rewrite 2!nth_behead.
-    apply H. ins.
-    intro IH.
-    rewrite H0 in IH.
-    rewrite nth_behead in IH.
-    destruct r.
-      by rewrite subnn big_ord0.
-
-    rewrite big_ord_recl; simpl in *.
-    rewrite -IH.
-    rewrite addnBA; last first.
-    specialize (H 1 (size r)).
-    exploit H; ins.
-    unfold nth.
-
-  -addnA.
-      rewrite <- eqn_add2r with (p := F a).
-      rewrite addnC. rewrite addnBA.
-      exploit IHr.
-      ins. destruct nth.
-      unfold nth.
-      destruct s.
- 
-        rewrite -eqn_add2r.
-  destruct r.
-    by rewrite subnn big_ord0.
-  destruct r.
-    by rewrite subnn big_ord0.
-  induction r.
-    simpl in *. rewrite big_ord_recl. simpl in *.
-     by rewrite big_ord0 addn0.
-
-    repeat rewrite big_ord_recl.
-    simpl in *.
-    rewrite big_ord_recl in IHr.
-    simpl in *.
-     induction r.
-    by rewrite subnn big_ord0.
-     rewrite -big_ord_recl.
-  
-  
-  destruct r.
-    by rewrite subnn big_ord0.
-  
-  induction r.
-    by rewrite subnn big_ord0. 
-    simpl in *.
-    rewrite -> nth_last in *.
-    rewrite -> last_cons in *.
-    destruct r.
-      by rewrite big_ord_recl big_ord0 addn0; simpl in *.
-      simpl in *.
-      rewrite IHr. simpl in *.
-
-      rewrite big_ord_recl. rewrite big_ord_recl. rewrite big_ord_recl.
-      simpl in *.
-      rewrite addnA. simpl in *.
-      rewrite [(_ - _) + (_ - _)]addnC.
-      rewrite addnBA.
-
-
-
       
 Lemma workload_bound :
   forall ts sched (ARRts: ts_arrival_sequence ts sched)
-         hp cpumap num_cpus (MULT: ident_mp num_cpus hp cpumap sched) 
+         hp (VALIDhp: valid_jldp_policy hp)
+         cpumap num_cpus (MULT: ident_mp num_cpus hp cpumap sched)
          (RESTR: restricted_deadline_model ts)
          tsk (IN: tsk \in ts) j (JOB: job_task j = tsk)
          arr_j (ARRj: arrives_at sched j arr_j)
          (NOMISS: task_misses_no_deadlines sched ts tsk)
-         R_tsk (RESP: response_time_ub_task (ident_mp num_cpus hp cpumap) ts tsk R_tsk),
-    (workload sched ts tsk arr_j (arr_j + job_deadline j)) <= W tsk R_tsk (job_deadline j).
+         R_tsk (RESP: forall mapped,
+               response_time_ub (ident_mp num_cpus hp mapped) ts tsk R_tsk),
+    (workload sched ts tsk arr_j (arr_j + job_deadline j)) <=
+       W tsk R_tsk (job_deadline j).
 Proof.
   unfold workload, W; ins.
 
@@ -241,11 +76,13 @@ Proof.
   set n_k := max_jobs tsk R_tsk (job_deadline j).
 
   (* Remember the maximum number of jobs that contribute to the workload *)
-  have CEIL := max_num_jobs_ceil ts sched ARRts RESTR tsk IN NOMISS t1 t2; simpl in *.
+  have CEIL := max_num_jobs_ceil ts sched ARRts RESTR tsk IN NOMISS t1 t2;
+  simpl in *.
 
   (* Use a simpler name for the set of jobs that we are interested in *)
-  set released_jobs := filter (fun x => job_of tsk x && (service_during sched x t1 t2 != 0))
-                              (prev_arrivals sched t2); fold released_jobs in CEIL.
+  set released_jobs :=
+    filter (fun x => job_of tsk x && (service_during sched x t1 t2 != 0))
+                    (prev_arrivals sched t2); fold released_jobs in CEIL.
   
   (* Remove the elements that we don't care about from the sum *)
   assert (SIMPL:
@@ -274,7 +111,12 @@ Proof.
   }
 
   (* Remember that R_tsk >= task_cost tsk in this platform *)
-  generalize RESP; apply rt_geq_wcet_identmp in RESP; intro RT_WCET.
+  assert (R_tsk >= task_cost tsk).
+  {
+    apply rt_geq_wcet_identmp with (ts := ts)
+                                 (num_cpus := num_cpus) (hp := hp);
+    unfold ident_mp in MULT; des; ins.
+  }
 
   (* Now we begin the proof. *)
   (* Let num_jobs = (size released_jobs). Then, either (1) num_jobs <= n_k, or (2) num_jobs > n_k. *)
@@ -296,9 +138,7 @@ Proof.
     {
       apply negbT in NUM; rewrite -ltnNge in NUM.
       rewrite eqn_leq; apply/andP; split; last by ins.
-      apply leq_trans with (n := div_ceil (job_deadline j) (task_period tsk));
-      last by apply max_jobs_bound with (platform:= ident_mp num_cpus hp cpumap)
-              (ts:= ts) (delta := job_deadline j); have PROP := job_properties j; des; ins.
+      apply leq_trans with (n := div_ceil (job_deadline j) (task_period tsk)); last by apply max_jobs_bound.
       assert (EQ: t2 - t1 = job_deadline j); [by unfold t1,t2; rewrite addnC -addnBA // subnn addn0|].
       by rewrite -EQ.
     }
@@ -322,7 +162,7 @@ Proof.
     assert (INboth: forall x, (x \in released_jobs) = (x \in sorted_jobs)).
       by apply perm_eq_mem; rewrite -(perm_sort order).
 
-    Require Import tuple.
+   (* Require Import tuple.
     (* Index the sequence, so we can easily establish properties
        about consecutive elements. *)
 
@@ -402,7 +242,8 @@ Proof.
                    arrival_time sched t2 (nth j sorted_jobs i1) +
                    (i2-i1)*(task_period tsk)).
 
-    
+    *)
+      
     (* Break the list at both sides, so that we get the first and last elements. *)
     destruct sorted_jobs as [| j_fst]; simpl in *; first by rewrite big_nil.
     rewrite big_cons.
@@ -469,7 +310,7 @@ Proof.
         (* Now we prove the right side of the min(). We need to find the
            minimum distance between the arrival times of first and last *)
         move: sorted; rewrite rcons_path; move => /andP sorted; des.
-
+        (*
         apply leq_trans with (n := (arr_fst + R_tsk - t1) + (t2 - arr_lst)).
         {
           apply leq_add.
@@ -497,7 +338,7 @@ Proof.
           rewrite -addnBA. rewrite addnC.
           
           rewrite [(R_tsk - t1) + t2]addnC. rewrite -subnAC.
-          rewrite addnA. -subnBA.
+          rewrite addnA. -subnBA. *)
         admit.
         (*rewrite addnBA. rewrite addnBA. rewrite [task_cost _ + _]addnC.
         rewrite -addnBA. rewrite subnn addn0.
