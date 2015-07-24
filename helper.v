@@ -36,119 +36,79 @@ Proof.
     by exploit ALL; unfold negb; try rewrite H0 H1.
 Qed.
 
-Lemma big_nat_split m n o F:
-  forall (GE: o >= m) (LT: o <= n),
-    \sum_(m <= i < n) F i =
-      (\sum_(m <= i < o) F i) + (\sum_(o <= i < n) F i).
+Lemma sub1 : forall m n p (GE: m >= n), m - n + p = m + p - n.
 Proof.
-  remember (o - m) as k.
-  (*generalize dependent n. generalize dependent m.
-  induction k; ins.
-  {
-    assert (o = m). ssromega. subst.
-    by rewrite [\sum_(m <= i < m) _]big_geq //.
-  }
-  rewrite -addn1 in Heqk.
-  assert (m <= o - 1). ssromega.
-  apply IHk.
-  ssromega.
-  admit.*)
-  generalize dependent m.
-  induction o; ins.
-  {
-    move: GE; rewrite leqn0; move => /eqP GE; subst.
-    by rewrite [\sum_(0 <= i < 0 | _) _]big_geq //.
-  }
-  {
-    (*destruct m.*)
-    rewrite big_nat_recr //. rewrite big_add1.
-    rewrite -addnA. rewrite -big_nat_recl; last first.
-Admitted.
+  by ins; ssromega.
+Qed.
 
-(*Lemma telescoping_sum : forall (T: Type) F r (x0: T),
-              F (nth x0 r (size r).-1) - F (nth x0 r 0) =
-                \sum_(i < (size r).-1) (F (nth x0 r (i.+1)) - F (nth x0 r i)).
+Lemma sub2 : forall m1 m2 n1 n2 (GE1: m1 >= m2) (GE2: n1 >= n2),
+  (m1 + n1) - (m2 + n2) = m1 - m2 + (n1 - n2).
 Proof.
-  intros T F r x0.
+  by ins; ssromega.
+Qed.
 
-  assert (forall (i j: nat) (LE: i <= j), F (nth x0 r i) <= F (nth x0 r j)).
+Lemma sub3: forall m n p (GE: m >= p), m + n - p = m - p + n.
+Proof.
+  by ins; ssromega.
+Qed.
 
+Lemma add1r: forall m n p (GE: m >= n), m - n = p <-> m = p + n.
+Proof.
+  split; ins; ssromega.
+Qed.
 
-  induction r.
-    by rewrite subnn big_ord0.
-    
-  
-  destruct r.
-    by rewrite subnn big_ord0.
-    induction r.
-      by rewrite subnn big_ord0.
-      
-  
-  generalize dependent r.
-  induction r.
-    by rewrite subnn big_ord0.
-    ins.
-    assert (r = behead (a :: r)). admit.
-    exploit IHr. intros i j LE.
-    rewrite H0.
-    rewrite 2!nth_behead.
-    apply H. ins.
-    intro IH.
-    rewrite H0 in IH.
-    rewrite nth_behead in IH.
-    destruct r.
-      by rewrite subnn big_ord0.
+Lemma add1l: forall m n p (GE: m >= n), p = m - n <-> p + n = m.
+Proof.
+  split; ins; ssromega.
+Qed.
 
-    rewrite big_ord_recl; simpl in *.
-    rewrite -IH.
-    rewrite addnBA; last first.
-    specialize (H 1 (size r)).
-    exploit H; ins.
-    unfold nth.
+Lemma sum_diff_monotonic :
+  forall n G F (ALL: forall i : nat, i < n -> G i <= F i),
+    (\sum_(0 <= i < n) (G i)) <= (\sum_(0 <= i < n) (F i)).
+Proof.
+  ins; rewrite big_nat_cond [\sum_(0 <= i < n) F i]big_nat_cond.
+  apply leq_sum; intros i LT; rewrite andbT in LT.
+  move: LT => /andP LT; des.
+  apply ALL, leq_trans with (n := n); ins.
+Qed.
 
-  -addnA.
-      rewrite <- eqn_add2r with (p := F a).
-      rewrite addnC. rewrite addnBA.
-      exploit IHr.
-      ins. destruct nth.
-      unfold nth.
-      destruct s.
- 
-        rewrite -eqn_add2r.
-  destruct r.
-    by rewrite subnn big_ord0.
-  destruct r.
-    by rewrite subnn big_ord0.
-  induction r.
-    simpl in *. rewrite big_ord_recl. simpl in *.
-     by rewrite big_ord0 addn0.
+Lemma sum_diff : forall n F G (ALL: forall i (LT: i < n), F i >= G i),
+    \sum_(0 <= i < n) (F i - G i) =
+    (\sum_(0 <= i < n) (F i)) -
+    (\sum_(0 <= i < n) (G i)).       
+Proof.
+  induction n; ins; first by rewrite 3?big_geq.
+  assert (ALL': forall i, i < n -> G i <= F i).
+    by ins; apply ALL, leq_trans with (n := n); ins.
+  rewrite 3?big_nat_recr // IHn //; simpl.
+  rewrite sub1; last by apply sum_diff_monotonic.
+  rewrite sub2 //; try apply sum_diff_monotonic; ins.
+  rewrite sub3; ins; apply sum_diff_monotonic; ins.
+  by apply ALL; rewrite ltnS leqnn. 
+Qed.
 
-    repeat rewrite big_ord_recl.
-    simpl in *.
-    rewrite big_ord_recl in IHr.
-    simpl in *.
-     induction r.
-    by rewrite subnn big_ord0.
-     rewrite -big_ord_recl.
-  
-  
-  destruct r.
-    by rewrite subnn big_ord0.
-  
-  induction r.
-    by rewrite subnn big_ord0. 
-    simpl in *.
-    rewrite -> nth_last in *.
-    rewrite -> last_cons in *.
-    destruct r.
-      by rewrite big_ord_recl big_ord0 addn0; simpl in *.
-      simpl in *.
-      rewrite IHr. simpl in *.
-
-      rewrite big_ord_recl. rewrite big_ord_recl. rewrite big_ord_recl.
-      simpl in *.
-      rewrite addnA. simpl in *.
-      rewrite [(_ - _) + (_ - _)]addnC.
-      rewrite addnBA.
-
-*)
+Lemma telescoping_sum :
+  forall (T: Type) (F: T->nat) r (x0: T)
+  (ALL: forall i, i < (size r).-1 -> F (nth x0 r i) <= F (nth x0 r i.+1)), 
+    F (nth x0 r (size r).-1) - F (nth x0 r 0) =
+      \sum_(0 <= i < (size r).-1) (F (nth x0 r (i.+1)) - F (nth x0 r i)).
+Proof.
+  intros T F r x0 ALL.
+  have ADD1 := big_add1.
+  have RECL := big_nat_recl.
+  specialize (ADD1 nat 0 addn 0 (size r) (fun x => true) (fun i => F (nth x0 r i))).
+  specialize (RECL nat 0 addn (size r).-1 0 (fun i => F (nth x0 r i))).
+  rewrite sum_diff; last by ins.
+  rewrite add1r; last first.
+  {
+    admit.
+  }
+  rewrite -sub3; last by apply sum_diff_monotonic.
+  rewrite add1l; last first.
+  {
+    rewrite -[\sum_(0 <= i < _) F _]addn0.
+    apply leq_add; last by ins.
+    apply sum_diff_monotonic; last by ins.
+  }
+  rewrite addnC -big_nat_recr // -ADD1 addnC ADD1 -RECL //.
+Qed.

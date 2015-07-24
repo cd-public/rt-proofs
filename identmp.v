@@ -175,7 +175,7 @@ Proof.
         last by move: BACK1; rewrite EQ; move => /eqP BACK1; intuition.
       {
         unfold service; simpl; unfold my_service_at; rewrite eq_refl; simpl.
-        rewrite -> big_nat_split with (o := (task_cost tsk)); ins.
+        rewrite -> big_cat_nat with (n := (task_cost tsk)); ins.
         rewrite -> eq_big_nat with (F2 := (fun i => 1));
         last by intros i; move => /andP LTi; des; rewrite LTi0.
         {
