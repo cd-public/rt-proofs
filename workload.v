@@ -24,14 +24,6 @@ Definition W (tsk: sporadic_task) (R_tsk: time) (delta: time) :=
 Definition arrival_time (sched: schedule) (t': time) (j: job) : nat :=
   find (arrives_at sched j) (iota 0 t').
 
-Definition my_service_at (my_j: job) (j: job) : time -> nat :=
-  if my_j == j then
-    (fun t => (if t < task_cost (job_task j) then 1 else 0))
-  else (fun t => 0).
-
-Definition my_arr_seq (my_j: job) : nat -> seq job :=
-  fun t => if (t == 0) then [::my_j] else [::].
-
 Lemma max_jobs_bound :
   forall tsk delta R_tsk (GT: R_tsk >= task_cost tsk),
     (max_jobs tsk R_tsk delta).+1 >= div_ceil delta (task_period tsk).
@@ -162,88 +154,11 @@ Proof.
     assert (INboth: forall x, (x \in released_jobs) = (x \in sorted_jobs)).
       by apply perm_eq_mem; rewrite -(perm_sort order).
 
-   (* Require Import tuple.
     (* Index the sequence, so we can easily establish properties
        about consecutive elements. *)
 
-    rewrite (big_nth j).
-   
+    (*rewrite (big_nth j).*)
 
-    F service_during sched (tnth (in_tuple sorted_jobs) i) t1 t2 <=
-   minn (task_cost tsk)
-     (job_deadline j + R_tsk - task_cost tsk - n_k * task_period tsk) +
-   n_k * task_cost tsk
-
-                   
-    assert (forall l (l = fst :: mid ++ [:: lst]),
-             F lst - F fst = \sum(size - 1)
-
-                          i1 (*(LT1: i1 < size sorted_jobs)*)
-                        i2 (*(LT2: i2 < size sorted_jobs)*)
-                        k (DIST: i2 = i1 + k),
-                   arrival_time sched t2 (nth j sorted_jobs i2) >=
-                   arrival_time sched t2 (nth j sorted_jobs i1) +
-                   (i2-i1)*(task_period tsk)).
-    
-    (*rewrite (big_nth j).
-    assert (IND: forall i1 (*(LT1: i1 < size sorted_jobs)*)
-                        i2 (*(LT2: i2 < size sorted_jobs)*)
-                        k (DIST: i2 = i1 + k),
-                   arrival_time sched t2 (nth j sorted_jobs i2) >=
-                   arrival_time sched t2 (nth j sorted_jobs i1) +
-                   (i2-i1)*(task_period tsk)).
-    induction i2; ins.
-      rewrite sub0n mul0n addn0.
-    induction k; ins.
-      admit.
-    (*generalize dependent i2. generalize dependent i1.*)
-    ins. generalize dependent i2. generalize dependent k.
-    induction k; ins.
-      by rewrite DIST addn0 subnn mul0n addn0 leqnn.
-      apply IHk.
-      destruct i2. admit.
-      
-      apply IHk.
-    
-      remember (i2 - i1) as dist.
-      generalize dependent i2. generalize dependent i1. generalize dependent dist.
-      induction dist; ins.
-      {
-        assert (EQ: i1 = i2).
-          symmetry in Heqdist; move: Heqdist => /eqP Heqdist; rewrite subn_eq0 in Heqdist. 
-          by apply/eqP; rewrite eqn_leq; apply/andP; split.
-        by rewrite EQ mul0n addn0 leqnn.
-      }
-      {
-        apply IHdist. 
-        unfold arrival_time. 
-          assert (EQ': LT1 <-> LT2).
-          rewrite mul0n addn0.
-          subst. rewrite EQ in LT1. rewrite -> EQ in *. LT12 /\ Heqdist).
-      
-      set dist := i2 - i1.
-      induction dist.
-
-    assert (IND: forall i1 (LT1: i1 < size sorted_jobs)
-                        i2 (LT2: i2 < size sorted_jobs)
-                        (LT12: i1 < i2),
-                   arrival_time sched t2 (tnth (in_tuple sorted_jobs) i1) >=
-                   arrival_time sched t2 (tnth (in_tuple sorted_jobs) i2) +
-                   (i2-i1)*(task_period tsk)).
-      induction i1 as [i]; ins.
-        induction i2 as [i']; ins.
-
-    *)
-
-    assert (IND: forall i1 (*(LT1: i1 < size sorted_jobs)*)
-                        i2 (*(LT2: i2 < size sorted_jobs)*)
-                        k (DIST: i2 = i1 + k),
-                   arrival_time sched t2 (nth j sorted_jobs i2) >=
-                   arrival_time sched t2 (nth j sorted_jobs i1) +
-                   (i2-i1)*(task_period tsk)).
-
-    *)
-      
     (* Break the list at both sides, so that we get the first and last elements. *)
     destruct sorted_jobs as [| j_fst]; simpl in *; first by rewrite big_nil.
     rewrite big_cons.
