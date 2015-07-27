@@ -1,5 +1,5 @@
 Require Import Classical Vbase job task schedule task_arrival response_time platform
-        schedulability divround helper priority identmp
+        schedulability divround helper priority identmp helper
         ssreflect ssrbool eqtype ssrnat seq div fintype bigop path ssromega.
 
 Section WorkloadBound.
@@ -110,8 +110,12 @@ Proof.
     unfold ident_mp in MULT; des; ins.
   }
 
+  assert (EQdelta: t2 - t1 = job_deadline j).
+    by unfold t1,t2; rewrite addnC -addnBA // subnn addn0.
+
   (* Now we begin the proof. *)
   (* Let num_jobs = (size released_jobs). Then, either (1) num_jobs <= n_k, or (2) num_jobs > n_k. *)
+  (*remember (size released_jobs) as num_jobs*)
   set num_jobs := size released_jobs. 
   destruct (num_jobs <= n_k) eqn:NUM.
   {
@@ -130,10 +134,9 @@ Proof.
     {
       apply negbT in NUM; rewrite -ltnNge in NUM.
       rewrite eqn_leq; apply/andP; split; last by ins.
-      apply leq_trans with (n := div_ceil (job_deadline j) (task_period tsk)); last by apply max_jobs_bound.
-      assert (EQ: t2 - t1 = job_deadline j); [by unfold t1,t2; rewrite addnC -addnBA // subnn addn0|].
-      by rewrite -EQ.
-    }
+      apply leq_trans with (n := div_ceil (job_deadline j) (task_period tsk));
+      [by rewrite -EQdelta | by apply max_jobs_bound].
+    } clear NUM.
     
     (* Order the sequence of released_jobs by arrival time, so that
        we identify easily the first and last jobs. *)
@@ -154,11 +157,79 @@ Proof.
     assert (INboth: forall x, (x \in released_jobs) = (x \in sorted_jobs)).
       by apply perm_eq_mem; rewrite -(perm_sort order).
 
-    (* Index the sequence, so we can easily establish properties
-       about consecutive elements. *)
+    (* Index the sequence *)
+    rewrite (big_nth j); fold num_jobs.
+  
+    (* Show that the inequality holds if there's a single element in the list. *)
+    move: EQnum => /eqP EQnum; rewrite EQnum; unfold num_jobs in EQnum.
+    destruct n_k.
+    {
+      rewrite big_nat_recl // big_geq // 2!mul0n subn0 2!addn0.
+      rewrite leq_min; apply/andP; split; first by apply LTserv; rewrite INboth mem_nth // EQnum.
+      rewrite -addnBA // -[service_during sched _ _ _]addn0.
+      apply leq_add; last by ins.
+      unfold service_during; apply leq_trans with (n := \sum_(t1 <= t < t2) 1).
+      apply leq_sum; ins; first by unfold ident_mp in MULT; des; apply mp_max_service.
+      by rewrite big_const_nat iter_addn mul1n addn0 -EQdelta.
+    }
+    
+    (* Take first and last elements out of the sum *) 
+    rewrite [nth]lock big_nat_recl // big_nat_recr // /= -lock.
 
-    (*rewrite (big_nth j).*)
+    (* Move one (task_cost tsk) term inside the min *)
+    rewrite [_ * task_cost _]mulSn [_ + (task_cost _ + _)]addnA addn_minl.
+    rewrite addnA -addnC addnA.
 
+    (* Bound the service of the middle jobs *)
+    apply leq_add; last first.
+    {
+      apply leq_trans with (n := \sum_(0 <= i < n_k) task_cost tsk);
+        last by rewrite big_const_nat iter_addn addn0 mulnC subn0.
+      rewrite big_nat_cond [\sum_(0 <= i < n_k) task_cost _]big_nat_cond.
+      apply leq_sum; intros i; rewrite andbT; move => /andP LT; des.
+      by apply LTserv; rewrite INboth mem_nth // EQnum ltnS; apply (leq_trans LT0).
+    }
+    {
+      (* Bound the service of the first and last jobs *)
+      rewrite leq_min; apply/andP; split;
+      first by apply leq_add; apply LTserv; rewrite INboth mem_nth // EQnum.
+      {
+        (* Prove the right side of the min *)
+        set j_fst := (nth j sorted_jobs 0).
+        set j_lst := (nth j sorted_jobs n_k.+1).
+        apply leq_trans with (n := (arrival_time sched t2 j_fst  + R_tsk - t1) +
+                                   (t2 - arrival_time sched t2 j_lst)).
+        {
+          apply leq_add; unfold service_during.
+          admit.
+          admit.
+        }
+        {
+          rewrite [_ - _ + task_cost _]subh1; last by admit.
+          rewrite [_ - _ + task_cost _]subh1; last first.
+          {
+            rewrite -[task_cost _]addn0.
+            apply leq_add; last by ins.
+            have PROP := job_properties j; des.
+            rewrite job_params0 JOB.
+            by have PROP2 := task_properties tsk; des.
+          }
+          rewrite -[_ + _ - task_cost _]addnBA // subnn addn0.
+          rewrite addnC.
+          rewrite -
+          apply leq_trans with (n := job_deadline j + R_tsk
+ 
+          rewrite subnn. simpl. ; apply leq_add. [task]
+          rewrite -addnBA. -subnBA.
+        }
+      }
+    }
+  }
+Qed.    
+
+    (*rewrite addn_minl.
+    rewrite addn_minr leq_min; apply/andP; split.
+    
     (* Break the list at both sides, so that we get the first and last elements. *)
     destruct sorted_jobs as [| j_fst]; simpl in *; first by rewrite big_nil.
     rewrite big_cons.
@@ -180,17 +251,18 @@ Proof.
             apply mp_max_service. 
           by rewrite sum_nat_const_nat muln1 leq_subLR.
       }
-    }
+    } 
 
     (* Remember the minimum distance between the arrival times of first and last *)
     assert (ARRfst: exists arr_fst, arrives_at sched j arr_fst). admit.
     assert (ARRlst: exists arr_lst, arrives_at sched j arr_lst). admit. des.
     assert (DIST: arr_lst - arr_fst >= n_k * (task_period tsk)). admit.
     assert (LTlst: arr_lst < t2). admit.
+     *)
     
     (* Align the inequality so that we map (first, middle, last) with their respective bounds.
        We split the n_k*e_k as: e_k + (n_k - 1)*n_k. For that, we need to destruct n_k. *)
-    rewrite -cats1 big_cat big_cons big_nil /=.
+    (*rewrite -cats1 big_cat big_cons big_nil /=.
     rewrite addn0 addnC -addnA [_ + (_ * _)]addnC.
     destruct n_k; first by rewrite eqSS in EQnum;
       move: EQnum => /nilP EQnum; destruct middle; inversion EQnum.     
@@ -261,6 +333,6 @@ Proof.
       }
     }
   }
-Qed.
+Qed.*)
 
 End WorkloadBound.

@@ -36,28 +36,23 @@ Proof.
     by exploit ALL; unfold negb; try rewrite H0 H1.
 Qed.
 
-Lemma sub1 : forall m n p (GE: m >= n), m - n + p = m + p - n.
+Lemma subh1 : forall m n p (GE: m >= n), m - n + p = m + p - n.
 Proof.
   by ins; ssromega.
 Qed.
 
-Lemma sub2 : forall m1 m2 n1 n2 (GE1: m1 >= m2) (GE2: n1 >= n2),
+Lemma subh2 : forall m1 m2 n1 n2 (GE1: m1 >= m2) (GE2: n1 >= n2),
   (m1 + n1) - (m2 + n2) = m1 - m2 + (n1 - n2).
 Proof.
   by ins; ssromega.
 Qed.
 
-Lemma sub3: forall m n p (GE: m >= p), m + n - p = m - p + n.
-Proof.
-  by ins; ssromega.
-Qed.
-
-Lemma add1r: forall m n p (GE: m >= n), m - n = p <-> m = p + n.
+Lemma addmovr: forall m n p (GE: m >= n), m - n = p <-> m = p + n.
 Proof.
   split; ins; ssromega.
 Qed.
 
-Lemma add1l: forall m n p (GE: m >= n), p = m - n <-> p + n = m.
+Lemma addmovl: forall m n p (GE: m >= n), p = m - n <-> p + n = m.
 Proof.
   split; ins; ssromega.
 Qed.
@@ -81,9 +76,9 @@ Proof.
   assert (ALL': forall i, i < n -> G i <= F i).
     by ins; apply ALL, leq_trans with (n := n); ins.
   rewrite 3?big_nat_recr // IHn //; simpl.
-  rewrite sub1; last by apply sum_diff_monotonic.
-  rewrite sub2 //; try apply sum_diff_monotonic; ins.
-  rewrite sub3; ins; apply sum_diff_monotonic; ins.
+  rewrite subh1; last by apply sum_diff_monotonic.
+  rewrite subh2 //; try apply sum_diff_monotonic; ins.
+  rewrite subh1; ins; apply sum_diff_monotonic; ins.
   by apply ALL; rewrite ltnS leqnn. 
 Qed.
 
@@ -99,12 +94,12 @@ Proof.
   specialize (ADD1 nat 0 addn 0 (size r) (fun x => true) (fun i => F (nth x0 r i))).
   specialize (RECL nat 0 addn (size r).-1 0 (fun i => F (nth x0 r i))).
   rewrite sum_diff; last by ins.
-  rewrite add1r; last first.
+  rewrite addmovr; last first.
   {
     admit.
   }
-  rewrite -sub3; last by apply sum_diff_monotonic.
-  rewrite add1l; last first.
+  rewrite subh1; last by apply sum_diff_monotonic.
+  rewrite addmovl; last first.
   {
     rewrite -[\sum_(0 <= i < _) F _]addn0.
     apply leq_add; last by ins.
@@ -112,3 +107,15 @@ Proof.
   }
   rewrite addnC -big_nat_recr // -ADD1 addnC ADD1 -RECL //.
 Qed.
+
+
+(*Lemma bla : forall a_fst R t1 t2 a_lst n_k p e delta
+                   (LE: a_fst + R - t1 + (t2 - a_lst) <= delta + R - e - (n_k + 1) * p + e),
+             t1 <= t2 -> 
+             a_fst - t1 + (t2 - a_lst) <= delta - e - n_k.+1 * p + e.
+Proof.
+  ins.
+  ssromega.
+Lemma bla : forall a_fst R t1 t2 a_lst n_k p e delta,
+              a_fst + R - t1 + (t2 - a_lst) <= delta + R - e - n_k.+1 * p + e.
+Proof.*)
