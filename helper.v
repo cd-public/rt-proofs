@@ -82,6 +82,17 @@ Proof.
   by apply ALL; rewrite ltnS leqnn. 
 Qed.
 
+Lemma first_le_last :
+  forall (T: Type) (F: T->nat) r (x0: T)
+  (ALL: forall i, i < (size r).-1 -> F (nth x0 r i) <= F (nth x0 r i.+1)), 
+    F (nth x0 r 0) <= (F (nth x0 r (size r).-1)).
+Proof.
+  intros T F r x0 ALL.
+  generalize dependent r.
+  induction r; first by simpl; rewrite leqnn.
+  intros ALL.
+Admitted.
+
 Lemma telescoping_sum :
   forall (T: Type) (F: T->nat) r (x0: T)
   (ALL: forall i, i < (size r).-1 -> F (nth x0 r i) <= F (nth x0 r i.+1)), 
@@ -94,10 +105,7 @@ Proof.
   specialize (ADD1 nat 0 addn 0 (size r) (fun x => true) (fun i => F (nth x0 r i))).
   specialize (RECL nat 0 addn (size r).-1 0 (fun i => F (nth x0 r i))).
   rewrite sum_diff; last by ins.
-  rewrite addmovr; last first.
-  {
-    admit.
-  }
+  rewrite addmovr; last by apply first_le_last.
   rewrite subh1; last by apply sum_diff_monotonic.
   rewrite addmovl; last first.
   {
@@ -107,15 +115,3 @@ Proof.
   }
   rewrite addnC -big_nat_recr // -ADD1 addnC ADD1 -RECL //.
 Qed.
-
-
-(*Lemma bla : forall a_fst R t1 t2 a_lst n_k p e delta
-                   (LE: a_fst + R - t1 + (t2 - a_lst) <= delta + R - e - (n_k + 1) * p + e),
-             t1 <= t2 -> 
-             a_fst - t1 + (t2 - a_lst) <= delta - e - n_k.+1 * p + e.
-Proof.
-  ins.
-  ssromega.
-Lemma bla : forall a_fst R t1 t2 a_lst n_k p e delta,
-              a_fst + R - t1 + (t2 - a_lst) <= delta + R - e - n_k.+1 * p + e.
-Proof.*)

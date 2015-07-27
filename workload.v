@@ -43,9 +43,6 @@ Lemma max_num_jobs_ceil :
 Proof.
   ins.
 Admitted.
-
-
-
       
 Lemma workload_bound :
   forall ts sched (ARRts: ts_arrival_sequence ts sched)
@@ -215,21 +212,35 @@ Proof.
             by have PROP2 := task_properties tsk; des.
           }
           rewrite -[_ + _ - task_cost _]addnBA // subnn addn0.
-          rewrite addnC.
-          rewrite -
-          apply leq_trans with (n := job_deadline j + R_tsk
- 
-          rewrite subnn. simpl. ; apply leq_add. [task]
-          rewrite -addnBA. -subnBA.
+          rewrite addnC addnBA; last by admit. (*True, otherwise j_fst \notin sorted_jobs *)
+          rewrite leq_subLR.
+          rewrite [_ + R_tsk]addnC.
+          rewrite subh1; last by admit. (*true, otherwise j_lst \notin sorted_jobs*)
+          rewrite addnA.
+          rewrite addnBA; last first.
+            admit. (*true, since n_k.+1 jobs fit inside delta *)
+          rewrite -subnBA; last first.
+            admit. (* true, since j_fst arrives first *)
+          rewrite addnA; unfold t1, t2; apply leq_sub2l.
+          unfold j_fst, j_lst.
+          assert (EQnk: n_k.+1 = (size sorted_jobs).-1).
+          {
+            destruct sorted_jobs; first by ins.
+            by rewrite EQnum.
+          }
+          rewrite EQnk telescoping_sum; last first.
+            admit. (* true because of inter-arrival time *)
+          rewrite -[_ * _ tsk]addn0 mulnC -iter_addn -{1}[_.-1]subn0 -big_const_nat. 
+          rewrite big_nat_cond [\sum_(0 <= i < _)(_-_)]big_nat_cond.
+          apply leq_sum; intros i; rewrite andbT; move => /andP LT; des. 
+          admit. (* true because of inter-arrival time *)
         }
       }
     }
   }
-Qed.    
+Qed.
 
-    (*rewrite addn_minl.
-    rewrite addn_minr leq_min; apply/andP; split.
-    
+(*
     (* Break the list at both sides, so that we get the first and last elements. *)
     destruct sorted_jobs as [| j_fst]; simpl in *; first by rewrite big_nil.
     rewrite big_cons.
