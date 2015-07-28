@@ -20,7 +20,7 @@ Hypothesis ts_sorted_by_prio: StronglySorted RM ts.
 
 Hypothesis job_cost_wcet: forall j t tsk (JOBj: job_task j = tsk) (ARRj: arrives_at sched j t), job_cost j = task_cost tsk.
 
-Lemma periodic_arrival_k_times : 
+(*Lemma periodic_arrival_k_times : 
   forall j tsk (JOBj: job_task j = tsk) t (ARRj: arrives_at sched j t) k,
     exists j', << JOBj': job_task j' = tsk >> /\
                << ARRj': arrives_at sched j' (t + k*(task_period tsk)) >>.
@@ -35,7 +35,7 @@ Proof.
                      t + (task_period (job_task j) + k * task_period (job_task j))); [by omega |].
       rewrite <- COMM; trivial.
     }
-Qed.
+Qed.*)
 
 (*Lemma sync_release_is_critical_instant :
   forall t tsk_i (INi: In tsk_i ts) (SYNC: sync_release ts sched t),

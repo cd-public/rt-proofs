@@ -47,6 +47,13 @@ Proof.
   by ins; ssromega.
 Qed.
 
+Lemma subh3 : forall m n p (GE1: m + p <= n) (GE: n >= p),
+                    (m <= n - p).
+Proof.
+  ins. rewrite <- leq_add2r with (p := p).
+  by rewrite subh1 // -addnBA // subnn addn0.
+Qed.
+
 Lemma addmovr: forall m n p (GE: m >= n), m - n = p <-> m = p + n.
 Proof.
   split; ins; ssromega.

@@ -5,10 +5,6 @@ Require Import Classical Vbase task job schedule helper
 Definition ts_arrival_sequence (ts: taskset) (sched: schedule) :=
   forall j t (ARR: arrives_at sched j t), (job_task j) \in ts.
 
-Definition task_job_unique (sched: schedule) :=
-  forall t j1 j2 (EQtsk: job_task j1 = job_task j2)
-         (ARR1: arrives_at sched j1 t) (ARR2: arrives_at sched j2 t), j1 = j2.
-
 (* The list of jobs that arrived before t' is obtained by concatenation *)
 Definition prev_arrivals (sched: schedule) (t': time) : seq job :=
   \cat_(0 <= t < t') (arr_list sched t).
@@ -41,27 +37,43 @@ Proof.
     }
   }
 Qed.
-  
-(* Sporadic arrival times for every task in a taskset.
-   We use only '->' because the first arrival may be at any point. *)
+
+Definition at_most_one_job (sched: schedule) :=
+  forall t j1 j2 (EQtsk: job_task j1 = job_task j2)
+         (ARR1: arrives_at sched j1 t) (ARR2: arrives_at sched j2 t), j1 = j2.
+
+Definition next_job_periodic (sched: schedule) (tsk: sporadic_task) (arr arr': time) :=
+  arr' = arr + task_period tsk /\
+  exists j', job_task j' = tsk /\ arrives_at sched j' arr'.
+
+Definition next_job_sporadic (sched: schedule) (tsk: sporadic_task) (arr arr': time) :=
+  arr' >= arr + task_period tsk /\
+  exists j', job_task j' = tsk /\ arrives_at sched j' arr'.
+
+Definition interarrival_times (sched: schedule) :=
+  forall j j' arr arr' (LE: arr <= arr') (NEQ: j <> j')
+         (EQtsk: job_task j' = job_task j)
+         (ARR: arrives_at sched j arr)
+         (ARR': arrives_at sched j' arr'),
+    arr' >= arr + task_period (job_task j).
+
 Definition periodic_task_model (ts: taskset) (sched: schedule) :=
   << ARRts: ts_arrival_sequence ts sched >> /\
-  << UNIQUE: task_job_unique sched >> /\ 
+  << INTER: interarrival_times sched >> /\
   << NEXT:
     forall j arr (ARRj: arrives_at sched j arr),
-    exists j' arr', job_task j' = job_task j /\
-                   arrives_at sched j' arr' /\
-                   arr' = arr + task_period (job_task j) >>.
+      exists j' arr',
+        arr' = arr + task_period (job_task j) /\
+        arrives_at sched j' arr' >>.
 
-(* Periodic arrival times *)
 Definition sporadic_task_model (ts: taskset) (sched: schedule) :=
   << ARRts: ts_arrival_sequence ts sched >> /\
-  << UNIQUE: task_job_unique sched >> /\ 
+  << INTER: interarrival_times sched >> /\
   << NEXT:
     forall j arr (ARRj: arrives_at sched j arr),
-    exists j' arr', job_task j' = job_task j /\
-                    arrives_at sched j' arr' /\
-                    arr' >= arr + task_period (job_task j) >>.
+      exists j' arr',
+        arr' >= arr + task_period (job_task j) /\
+        arrives_at sched j' arr' >>.
 
 (* Synchronous release at time t *)
 Definition sync_release (ts: taskset) (sched: schedule) (t: time) :=

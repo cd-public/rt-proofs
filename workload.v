@@ -43,9 +43,9 @@ Lemma max_num_jobs_ceil :
 Proof.
   ins.
 Admitted.
-      
+
 Lemma workload_bound :
-  forall ts sched (ARRts: ts_arrival_sequence ts sched)
+  forall ts sched (SPO: sporadic_task_model ts sched)
          hp (VALIDhp: valid_jldp_policy hp)
          cpumap num_cpus (MULT: ident_mp num_cpus hp cpumap sched)
          (RESTR: restricted_deadline_model ts)
@@ -64,6 +64,8 @@ Proof.
   set t2 := arr_j + job_deadline j.
   set n_k := max_jobs tsk R_tsk (job_deadline j).
 
+  unfold sporadic_task_model in SPO; des.
+  
   (* Remember the maximum number of jobs that contribute to the workload *)
   have CEIL := max_num_jobs_ceil ts sched ARRts RESTR tsk IN NOMISS t1 t2;
   simpl in *.
@@ -112,7 +114,6 @@ Proof.
 
   (* Now we begin the proof. *)
   (* Let num_jobs = (size released_jobs). Then, either (1) num_jobs <= n_k, or (2) num_jobs > n_k. *)
-  (*remember (size released_jobs) as num_jobs*)
   set num_jobs := size released_jobs. 
   destruct (num_jobs <= n_k) eqn:NUM.
   {
@@ -139,10 +140,15 @@ Proof.
        we identify easily the first and last jobs. *)
     set order := fun x y => arrival_time sched t2 x <= arrival_time sched t2 y.
     set sorted_jobs := (sort order released_jobs).
-    assert (sorted: sorted order sorted_jobs);
+    assert (SORT: sorted order sorted_jobs);
       first by apply sort_sorted; unfold total, order; ins; apply leq_total.
     rewrite (eq_big_perm sorted_jobs) /=; last by rewrite -(perm_sort order).
 
+    (* Remember that the jobs are ordered by arrival *)
+    assert (ALL: forall i (LTsort: i < (size sorted_jobs).-1),
+                   order (nth j sorted_jobs i) (nth j sorted_jobs i.+1)).
+      by destruct sorted_jobs; [by ins| by apply/pathP; apply SORT].
+ 
     (* State that the sorted list has the same size as the old one *)
     set num_jobs_s := size sorted_jobs.                 
     assert (EQ: num_jobs = num_jobs_s).
@@ -150,7 +156,7 @@ Proof.
     rewrite -> EQ in *. clear EQ num_jobs.
     rename num_jobs_s into num_jobs; simpl in *.
 
-    (* Remember that they have the same set of elements *)
+    (* Remember that both sequences have the same set of elements *)
     assert (INboth: forall x, (x \in released_jobs) = (x \in sorted_jobs)).
       by apply perm_eq_mem; rewrite -(perm_sort order).
 
@@ -228,12 +234,43 @@ Proof.
             destruct sorted_jobs; first by ins.
             by rewrite EQnum.
           }
-          rewrite EQnk telescoping_sum; last first.
-            admit. (* true because of inter-arrival time *)
+
+          (* Final step: derive the separation between the first
+             and last jobs using the period. *)
+          rewrite EQnk telescoping_sum; last by ins.
           rewrite -[_ * _ tsk]addn0 mulnC -iter_addn -{1}[_.-1]subn0 -big_const_nat. 
           rewrite big_nat_cond [\sum_(0 <= i < _)(_-_)]big_nat_cond.
-          apply leq_sum; intros i; rewrite andbT; move => /andP LT; des. 
-          admit. (* true because of inter-arrival time *)
+          apply leq_sum; intros i; rewrite andbT; move => /andP LT; des.
+          {
+            set cur := nth j sorted_jobs i.
+            set next := nth j sorted_jobs i.+1.
+            clear LT EQdelta CEIL LTserv NEXT.           
+
+            assert (ARRle: arrival_time sched t2 cur <= arrival_time sched t2 next).
+            admit.
+            assert (ARRcur: arrives_at sched cur (arrival_time sched t2 cur) ).
+            admit.
+            assert (ARRnext: arrives_at sched next (arrival_time sched t2 next)).
+            admit.
+
+            assert (INnth: cur \in released_jobs /\ next \in released_jobs).
+            rewrite 2!INboth; split.
+              by apply mem_nth, (ltn_trans LT0); destruct sorted_jobs; ins.
+              by apply mem_nth; destruct sorted_jobs; ins.
+            rewrite 2?mem_filter in INnth; des.
+
+            unfold t2 in ARRle.
+            unfold interarrival_times in *; des.
+            exploit INTER.
+              apply ARRle. instantiate (1 := next). instantiate (1 := cur).
+              unfold not; intro EQ; rewrite -> EQ in *. admit.
+              by unfold job_of, beq_task in *; destruct (task_eq_dec (job_task next)); destruct (task_eq_dec (job_task cur)); try rewrite e e0; ins.
+            by ins. by ins.
+            intros LE; apply subh3; last by ins.
+            rewrite addnC; unfold job_of, beq_task, t2 in *.
+            destruct (task_eq_dec (job_task cur) tsk);
+              try rewrite e in LE; ins.
+          }
         }
       }
     }

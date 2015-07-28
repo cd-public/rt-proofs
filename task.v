@@ -22,15 +22,14 @@ Record sporadic_task : Type :=
    used in computations. *)
 Definition task_eq_dec (x y: sporadic_task) : {x = y} + {x <> y}.
   destruct x, y.
-  destruct (eqn task_id0 task_id1) eqn:Eid.
-  destruct (eqn task_cost0 task_cost1) eqn:Ecost;
-  destruct (eqn task_period0 task_period1) eqn:Eperiod;
-  destruct (eqn task_deadline0 task_deadline1) eqn:Edl.
-Admitted.
-(*  try rewrite beq_nat_true_iff in *; try rewrite beq_nat_false_iff in *; subst;
+  destruct (eq_op task_id0 task_id1) eqn:Eid;
+  destruct (eq_op task_cost0 task_cost1) eqn:Ecost;
+  destruct (eq_op task_period0 task_period1) eqn:Eperiod;
+  destruct (eq_op task_deadline0 task_deadline1) eqn:Edl;
+  move: Eid Ecost Eperiod Edl => /eqP Eid /eqP Ecost /eqP Eperiod /eqP Edl; subst;
   try (by left; apply f_equal, proof_irrelevance);
   try (by right; unfold not; intro EQ; inversion EQ; intuition).
-Defined.*)
+Defined.
 Definition beq_task (x y: sporadic_task) := if task_eq_dec x y then true else false.
 
 (* - ssreflect decidable equality -- IGNORE! - *)
