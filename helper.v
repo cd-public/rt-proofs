@@ -21,6 +21,19 @@ Proof.
     by exploit ALL; unfold negb; try rewrite H0.
 Qed.
 
+Lemma forall_inP_nat (t: nat) (P: nat -> bool):
+  reflect ((forall (x: nat) (LT: x < t), P x)) [forall (x | x \in 'I_t), P x].
+Proof.
+  destruct [forall x0 in 'I_t, P x0] eqn:ALL; [apply ReflectT | apply ReflectF]; ins.
+    move: ALL => /forall_inP ALL; des.
+    by exploit (ALL (Ordinal LT)). 
+
+    apply negbT in ALL; rewrite negb_forall_in in ALL.
+    move: ALL => /exists_inP ALL; des.
+    unfold not; ins; des.
+    by exploit (H x); [by apply ltn_ord | by apply/negP].
+Qed.
+
 Lemma exists_inPQ_nat t (P Q: nat -> bool):
   reflect (exists x, x < t /\ P x /\ Q x) [exists (x | x \in 'I_t), P x && Q x].
 Proof.
@@ -36,6 +49,8 @@ Proof.
     by exploit ALL; unfold negb; try rewrite H0 H1.
 Qed.
 
+About exists_inP_nat.
+About forall_inP_nat.
 Lemma subh1 : forall m n p (GE: m >= n), m - n + p = m + p - n.
 Proof.
   by ins; ssromega.

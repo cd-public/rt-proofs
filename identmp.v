@@ -5,10 +5,6 @@ Definition job_mapping := job -> processor_id -> time -> bool.
 
 (* Identical multiprocessor platform *)
 Definition ident_mp (num_cpus: nat) (hp: sched_job_hp_relation) (mapped: job_mapping) (sched: schedule) :=
-(*{
-  mapped: job_mapping;
-  
-  mp_properties:*)
   (* The mapping has a finite positive number of cpus: [0, num_cpus) *)
   << mp_cpus_nonzero: num_cpus > 0 >> /\
   << mp_num_cpus: forall j cpu t, mapped j cpu t -> cpu < num_cpus >> /\
@@ -29,7 +25,6 @@ Definition ident_mp (num_cpus: nat) (hp: sched_job_hp_relation) (mapped: job_map
       (exists (j0: job), earlier_job sched j0 jlow /\ pending sched j0 t) \/
       (forall cpu (MAXcpu: cpu < num_cpus),
        exists jhigh, hp sched t jhigh jlow /\ mapped jhigh cpu t) >>.
-(*}.*)
 
 (* TODO/Observations *)
 (* 1) Note that the scheduling invariant only applies to jobs that
@@ -57,23 +52,29 @@ Lemma rt_geq_wcet_identmp :
 Proof.
   unfold response_time_ub; ins; des.
   have PROP := task_properties tsk; des.
-  have tmp_job := Build_job (task_cost tsk) (task_deadline tsk) tsk.
 
   assert (VALIDj:  << X1: 0 < task_cost tsk >> /\
                    << X2: task_cost tsk <= task_deadline tsk >> /\
                    << X3: 0 < task_deadline tsk >> /\
                    << X4: task_cost tsk <= task_cost tsk >> /\
                    << X5: task_deadline tsk = task_deadline tsk >> ).
-    by repeat split; ins; try apply leqnn; clear tmp_job; rename x0 into j.
-    
-  set j := Build_job (task_cost tsk) (task_deadline tsk) tsk VALIDj.
+    by repeat split; ins; try apply leqnn; clear tmp_job; rename x0 into j.    
+  set j := Build_job 0 (task_cost tsk) (task_deadline tsk) tsk VALIDj.
 
-  assert (NOMULT: (forall (j0 : job_eqType) (t1 t2 : time),
-             j0 \in my_arr_seq j t1 -> j0 \in my_arr_seq j t2 -> t1 = t2)).
-    by ins; unfold my_arr_seq in *; destruct t1, t2; simpl in *; ins.
-  set arr := Build_arrival_sequence (my_arr_seq j) NOMULT.
+  assert (VALIDarr: << NOMULT: forall (j0 : job_eqType) (t1 t2 : time),
+                         j0 \in my_arr_seq j t1 -> j0 \in my_arr_seq j t2 -> t1 = t2 >> /\
+                    << ARR_PARAMS: forall (j0 : job_eqType) (t : time),
+                        j0 \in my_arr_seq j t -> job_arrival j0 = t >>).
+  {
+    split; red.
+      by intros j0 t1 t2 ARR1 ARR2; unfold my_arr_seq in *; destruct t1, t2; ins.
+      intros j0 t ARRj0; unfold my_arr_seq in *; destruct t; simpl in *.
+        by move: ARRj0; rewrite mem_seq1; move => /eqP ARRj0; subst.
+        by rewrite in_nil in ARRj0.
+  }
+  set arr := Build_arrival_sequence (my_arr_seq j) VALIDarr.
 
-  assert (VALID: (<< VALID0: forall (j0 : job) (t : time),
+  assert (VALIDsched: (<< VALID0: forall (j0 : job) (t : time),
    scheduled {| service_at := my_service_at j; arr_list := arr |} j0 t ->
    arrived {| service_at := my_service_at j; arr_list := arr |} j0 t >> /\   
     << VALID1: forall (j0 : job) (t : nat) (t_comp : time),
@@ -118,7 +119,7 @@ Proof.
     }
   }
   
-  set sched := Build_schedule (Build_schedule_data (my_service_at j) arr) VALID.
+  set sched := Build_schedule (Build_schedule_data (my_service_at j) arr) VALIDsched.
 
   set my_cpumap : job_mapping :=
     (fun j' cpu t => [&& j == j', (cpu == 0) & service_at sched j t == 1]).

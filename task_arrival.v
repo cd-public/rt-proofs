@@ -11,29 +11,41 @@ Definition prev_arrivals (sched: schedule) (t': time) : seq job :=
 
 Lemma ts_finite_arrival_sequence:
   forall ts sched (ARRts: ts_arrival_sequence ts sched) t' j,
-    j \in prev_arrivals sched t' <-> arrived_before sched j t'.
+    j \in prev_arrivals sched t' = arrived_before sched j t'.
 Proof.
   unfold ts_arrival_sequence, prev_arrivals, arrived_before; ins.
   induction t'.
-    rewrite big_geq // in_nil.
-    by split; [|move/exists_inP_nat => EX]; ins; des; eauto.
   {
-    rewrite big_nat_recr //; simpl in *.
-    split; rewrite mem_cat.
+    rewrite big_geq // in_nil.
+    symmetry; apply/exists_inP_nat; unfold not; ins; des; intuition.
+  }
+  {
+    rewrite big_nat_recr // mem_cat IHt'.
+    destruct ([exists t_0 in 'I_t', arrives_at sched j t_0] || (j \in (arr_list sched) t')) eqn:OR.
     {
-      move/orP => OR.
-      destruct OR; [| by apply/exists_inP_nat; exists t'; rewrite leqnn].
-        move: H => /IHt' /exists_inP_nat H; des.
-        apply/exists_inP_nat; exists x; split; [|by ins].
-        by apply ltn_trans with (n := t'); ins.
+      move: OR => /orP OR; des.
+      {
+        rewrite OR orTb; symmetry; apply/exists_inP_nat.
+        move: OR => /exists_inP_nat OR; des.
+        exists x; split; [by apply (ltn_trans OR); ins | by ins].
+      }
+      {
+        rewrite OR orbT; symmetry; apply/exists_inP_nat.
+        exists t'; split; [by apply ltnSn | by ins].
+      }
     }
     {
-      move/exists_inP_nat => EX; des.
-      rewrite leq_eqVlt eqSS in EX.
-      apply/orP; move: EX => /orP EX.
-      des; [by move: EX => /eqP EX; subst; right|].
-      left; apply IHt'0; apply /exists_inP_nat.
-      by unfold arrives_at in *; exists x; split; ins.
+      rewrite OR; symmetry.
+      apply negbT in OR; rewrite negb_or in OR.
+      move: OR => /andP OR; des.
+      rewrite negb_exists_in in OR.
+      move: OR => /(forall_inP_nat t' (fun x => ~~ arrives_at sched j x)) OR.
+      apply negbTE; rewrite negb_exists_in.
+      apply/(forall_inP_nat t'.+1 (fun x => ~~ arrives_at sched j x)); ins.
+      rewrite ltnS in LT; unfold arrives_at in *.
+      move: LT; rewrite leq_eqVlt; move => /orP LT; des.
+        by move: LT => /eqP LT; subst.
+        by apply OR.
     }
   }
 Qed.

@@ -120,10 +120,11 @@ Qed.
 Lemma edf_valid_policy : valid_jldp_policy EDF.
 Proof.
   unfold valid_jldp_policy, EDF, irreflexive, asymmetric, transitive, break_ties;
-  repeat (split; try red); ins.
-    by des; [assert (r1 = r2) by eauto using no_multiple_arrivals; subst|]; intuition.
-    by des; assert (r0 = r2); assert (r1 = r3); eauto using no_multiple_arrivals; by intuition.
-    des; assert (r1 = r3); eauto using no_multiple_arrivals; subst; exists r0,r2; repeat split; eauto.
+  repeat (split; try red); ins;
+  have arrProp := arr_properties (arr_list sched).
+    by des; [assert (r1 = r2) by eauto using NOMULT; subst|]; intuition.
+    by des; assert (r0 = r2); assert (r1 = r3); eauto using NOMULT; by intuition.
+    des; assert (r1 = r3); eauto using NOMULT; subst; exists r0,r2; repeat split; eauto.
       by left; eauto using lt_trans.
       by left; rewrite TIE.
       by left; rewrite <- TIE.

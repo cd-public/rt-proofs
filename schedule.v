@@ -4,16 +4,22 @@ Require Import Classical Vbase task job helper
 (* Integer time *)
 Definition time := nat.
 
-(* Set of all possible job arrival sequences *)
+(* Valid job arrival sequence *)
 Record arrival_sequence : Type :=
 {
   arr :> time -> seq job;
-  no_multiple_arrivals: forall j t1 t2, j \in (arr t1) -> j \in (arr t2) -> t1 = t2
+  arr_properties:
+    << NOMULT: forall j t1 t2 (INj1: j \in (arr t1)) (INj2: j \in (arr t2)), t1 = t2 >> /\
+    << ARR_PARAMS: forall j t (INj: j \in (arr t)), job_arrival j = t >>
 }.
 
 (* 1) This definition of arrival sequence allows retrieving the finite set of
       jobs that arrive at time t. So we can define things like the "Cumulative
       execution time of task T_5 during [3, 8)".
+   2) Although it is a bit redundant to have the job arrival time both in the job
+      and in the arrival sequence, it has some advantages. In case of the job,
+      this allows retrieving the arrival time if we want to sort a sequence of jobs,
+      for example. For the arrival sequence, it makes it easy to return a prefix.
 *)
 
 Record schedule_data : Type :=
@@ -147,7 +153,8 @@ Lemma not_arrived_no_service :
     service sched j t_0 = 0.
 Proof.
   unfold service; ins; des.
-  assert (schedProp := sched_properties sched); des; clear comp_task_no_exec.
+  have schedProp := sched_properties sched;
+  have arrProp := arr_properties (arr_list sched); des; clear comp_task_no_exec.
   induction t_0; [by rewrite big_geq|].
   (* Inductive step *)
     rewrite big_nat_recr; [|by trivial]; simpl.
@@ -158,7 +165,7 @@ Proof.
         apply task_must_arrive_to_exec in SCHED.
         unfold arrived in SCHED.
         assert (EX := exists_inP SCHED); des.
-        assert (t_a = x); eauto using no_multiple_arrivals; subst.
+        assert (t_a = x); eauto using NOMULT; subst.
         assert (x < t_0.+1); [by apply ltn_ord|]. exfalso.
         assert (x < x).
         apply ltn_trans with (n := t_0.+1); ins.

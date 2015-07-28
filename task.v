@@ -21,7 +21,8 @@ Record sporadic_task : Type :=
 (* Define decidable equality for tasks, so that it can be
    used in computations. *)
 Definition task_eq_dec (x y: sporadic_task) : {x = y} + {x <> y}.
-  destruct x, y.
+Admitted. (* This is VERY SLOW! *)
+  (*  destruct x, y.
   destruct (eq_op task_id0 task_id1) eqn:Eid;
   destruct (eq_op task_cost0 task_cost1) eqn:Ecost;
   destruct (eq_op task_period0 task_period1) eqn:Eperiod;
@@ -29,7 +30,7 @@ Definition task_eq_dec (x y: sporadic_task) : {x = y} + {x <> y}.
   move: Eid Ecost Eperiod Edl => /eqP Eid /eqP Ecost /eqP Eperiod /eqP Edl; subst;
   try (by left; apply f_equal, proof_irrelevance);
   try (by right; unfold not; intro EQ; inversion EQ; intuition).
-Defined.
+Defined.*)
 Definition beq_task (x y: sporadic_task) := if task_eq_dec x y then true else false.
 
 (* - ssreflect decidable equality -- IGNORE! - *)

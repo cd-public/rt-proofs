@@ -25,7 +25,8 @@ Definition job_of (tsk: sporadic_task) (j: job) : bool :=
 (* Define decidable equality for jobs, so that it can be
    used in computations. *)
 Definition job_eq_dec (x y: job) : {x = y} + {x <> y}.
-  destruct x, y.
+Admitted. (* THIS IS VERY SLOW! *)
+(*  destruct x, y.
   destruct (eq_op job_arrival0 job_arrival1) eqn:Earrival;
   destruct (eq_op job_cost0 job_cost1) eqn:Ecost;
   destruct (eq_op job_deadline0 job_deadline1) eqn:Edeadline;
@@ -35,7 +36,7 @@ Definition job_eq_dec (x y: job) : {x = y} + {x <> y}.
   move: Earrival Ecost Edeadline => /eqP Earrival /eqP Ecost /eqP Edeadline; des; subst;
   try (by left; apply f_equal, proof_irrelevance);
   try (by right; unfold not; intro EQ; inversion EQ; intuition).
-Defined.
+Defined.*)
 
 Definition beq_job (x y: job) := if job_eq_dec x y then true else false.
 

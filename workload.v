@@ -138,7 +138,7 @@ Proof.
     
     (* Order the sequence of released_jobs by arrival time, so that
        we identify easily the first and last jobs. *)
-    set order := fun x y => arrival_time sched t2 x <= arrival_time sched t2 y.
+    set order := fun x y => job_arrival x <= job_arrival y.
     set sorted_jobs := (sort order released_jobs).
     assert (SORT: sorted order sorted_jobs);
       first by apply sort_sorted; unfold total, order; ins; apply leq_total.
@@ -200,8 +200,8 @@ Proof.
         (* Prove the right side of the min *)
         set j_fst := (nth j sorted_jobs 0).
         set j_lst := (nth j sorted_jobs n_k.+1).
-        apply leq_trans with (n := (arrival_time sched t2 j_fst  + R_tsk - t1) +
-                                   (t2 - arrival_time sched t2 j_lst)).
+        apply leq_trans with (n := (job_arrival j_fst  + R_tsk - t1) +
+                                   (t2 - job_arrival j_lst)).
         {
           apply leq_add; unfold service_during.
           admit.
@@ -246,19 +246,20 @@ Proof.
             set next := nth j sorted_jobs i.+1.
             clear LT EQdelta CEIL LTserv NEXT.           
 
-            assert (ARRle: arrival_time sched t2 cur <= arrival_time sched t2 next).
+            assert (ARRle: job_arrival cur <= job_arrival next).
             admit.
-            assert (ARRcur: arrives_at sched cur (arrival_time sched t2 cur) ).
+            (*assert (ARRcur: arrives_at sched cur (job_arrival cur)).
             admit.
             assert (ARRnext: arrives_at sched next (arrival_time sched t2 next)).
-            admit.
+            admit.*)
 
             assert (INnth: cur \in released_jobs /\ next \in released_jobs).
             rewrite 2!INboth; split.
               by apply mem_nth, (ltn_trans LT0); destruct sorted_jobs; ins.
               by apply mem_nth; destruct sorted_jobs; ins.
             rewrite 2?mem_filter in INnth; des.
-
+            unfold prev_arrival
+            
             unfold t2 in ARRle.
             unfold interarrival_times in *; des.
             exploit INTER.
