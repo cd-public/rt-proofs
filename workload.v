@@ -41,10 +41,19 @@ Lemma max_num_jobs_ceil :
                                 (service_during sched x t1 t2 != 0)) (prev_arrivals sched t2) in  
     size released_jobs <= div_ceil (t2 - t1) (task_period tsk).
 Proof.
-  ins.
+  ins; unfold div_ceil in *.
+  set released_jobs := filter (fun x => job_of tsk x &&
+                                (service_during sched x t1 t2 != 0)) (prev_arrivals sched t2).
+  have PROP := task_properties tsk; des.
+  destruct (task_period tsk %| (t2 - t1)) eqn:DIV.
+(*    rewrite leq_divRL //. admit.
+    destruct (size released_jobs); first by ins.
+    rewrite ltnS.
+    apply leqW. rewrite leq_divRL. rewrite -leq_divRL.
+  *)
 Admitted.
 
-Lemma workload_bound :
+Theorem workload_bound :
   forall ts sched (SPO: sporadic_task_model ts sched)
          hp (VALIDhp: valid_jldp_policy hp)
          cpumap num_cpus (MULT: ident_mp num_cpus hp cpumap sched)
@@ -153,7 +162,7 @@ Proof.
     set num_jobs_s := size sorted_jobs.                 
     assert (EQ: num_jobs = num_jobs_s).
       by apply perm_eq_size; rewrite -(perm_sort order).
-    rewrite -> EQ in *. clear EQ num_jobs.
+    fold num_jobs in CEIL; rewrite -> EQ in *; clear EQ num_jobs.
     rename num_jobs_s into num_jobs; simpl in *.
 
     (* Remember that both sequences have the same set of elements *)
@@ -197,10 +206,47 @@ Proof.
       rewrite leq_min; apply/andP; split;
       first by apply leq_add; apply LTserv; rewrite INboth mem_nth // EQnum.
       {
-        (* First we show that the service can be bounded using the arrival times
-           of the first and last jobs. *)
         set j_fst := (nth j sorted_jobs 0).
         set j_lst := (nth j sorted_jobs n_k.+1).
+
+        (* First let's infer some facts about how the events are ordered in the timeline *)
+        assert (INfst: j_fst \in released_jobs).
+          by unfold j_fst; rewrite INboth; apply mem_nth; destruct sorted_jobs; ins.
+        move: INfst; rewrite mem_filter; move => /andP INfst; des.
+        move: INfst => /andP INfst; des.
+
+        assert (AFTERt1: t1 <= job_arrival j_fst + R_tsk).
+        {
+          rewrite leqNgt; apply /negP; unfold not; intro LTt1.
+          move: INfst1 => /eqP INfst1; apply INfst1.
+          unfold service_during.
+          by rewrite -> (sum_service_after_rt (ident_mp num_cpus hp cpumap) sched ts tsk) with
+                                              (R_tsk := R_tsk); try apply ltnW.
+        }
+        assert (BEFOREt2: job_arrival j_lst < t2).
+        {
+          rewrite leqNgt; apply/negP; unfold not; intro LT2.
+          assert (LTsize: n_k.+1 < size sorted_jobs).
+            by destruct sorted_jobs; ins; rewrite EQnum; apply ltnSn.
+          apply (mem_nth j) in LTsize; rewrite -INboth in LTsize.
+          rewrite -/released_jobs mem_filter in LTsize.  
+          move: LTsize => /andP xxx; des; move: xxx xxx0 => /andP xxx INlst; des.
+          rename xxx0 into SERV; clear xxx.
+          unfold service_during in SERV; move: SERV => /negP SERV; apply SERV.
+          by rewrite sum_service_before_arrival.
+        }
+
+        assert (NK_LE_DELTA: n_k.+1 * task_period tsk <= job_deadline j).
+        {
+          unfold num_jobs, div_ceil in *; rewrite EQnum in CEIL; rewrite -> EQdelta in *.
+          have PROP := task_properties tsk; des.
+          destruct (task_period tsk %| job_deadline j) eqn:DIV.
+            by rewrite -leq_divRL; [by apply ltnW | by ins].
+            by rewrite ltnS leq_divRL in CEIL.
+        }
+
+        (* Now we continue the proof, showing that the service can be bounded
+           using the arrival times of the first and last jobs. *)
         apply leq_trans with (n := (job_arrival j_fst  + R_tsk - t1) +
                                    (t2 - job_arrival j_lst)).
         {
@@ -217,22 +263,11 @@ Proof.
                 by try apply leq_addr; try apply ltnW.
             }
             {
-              assert (INfst: j_fst \in released_jobs).
-                by unfold j_fst; rewrite INboth; apply mem_nth; destruct sorted_jobs; ins.
-              move: INfst; rewrite mem_filter; move => /andP INfst; des.
-              move: INfst => /andP INfst; des.
-              rewrite -> big_cat_nat with (n := job_arrival j_fst + R_tsk); simpl; last by ins.
-              rewrite -{2}[\sum_(_ <= _ < _) _]addn0.
+              rewrite -> big_cat_nat with (n := job_arrival j_fst + R_tsk); [| by ins | by ins].
+              rewrite -{2}[\sum_(_ <= _ < _) _]addn0 /=.
               apply leq_add; first by ins.
               by rewrite -> (sum_service_after_rt (ident_mp num_cpus hp cpumap) sched ts tsk) with
                  (R_tsk := R_tsk); try apply leqnn.
-              {
-                rewrite leqNgt; apply /negP; unfold not; intro LTt1.
-                move: INfst1 => /eqP INfst1; apply INfst1.
-                unfold service_during.
-                by rewrite -> (sum_service_after_rt (ident_mp num_cpus hp cpumap) sched ts tsk) with
-                                 (R_tsk := R_tsk); try apply ltnW.
-              }
             }
           }
           {
@@ -246,20 +281,8 @@ Proof.
             }
             {
               apply negbT in LT; rewrite -ltnNge in LT.
-              rewrite -> big_cat_nat with (n := job_arrival j_lst); simpl;
-              [|by apply ltnW|]; last first.
-              {
-                rewrite leqNgt; apply/negP; unfold not; intro LT2.
-                assert (LTsize: n_k.+1 < size sorted_jobs).
-                  by destruct sorted_jobs; ins; rewrite EQnum; apply ltnSn.
-                apply (mem_nth j) in LTsize; rewrite -INboth in LTsize.
-                rewrite -/released_jobs mem_filter in LTsize.  
-                move: LTsize => /andP xxx; des; move: xxx xxx0 => /andP xxx INlst; des.
-                rename xxx0 into SERV; clear xxx.
-                unfold service_during in SERV; move: SERV => /negP SERV; apply SERV.
-                by rewrite sum_service_before_arrival; [by ins | by apply ltnW]. 
-              }
-              rewrite -[\sum_(_ <= _ < _) 1]add0n; apply leq_add.
+              rewrite -> big_cat_nat with (n := job_arrival j_lst); [|by apply ltnW| by apply ltnW].
+              rewrite /= -[\sum_(_ <= _ < _) 1]add0n; apply leq_add.
               rewrite sum_service_before_arrival; [by ins | by apply leqnn].
               by apply leq_sum; unfold ident_mp in MULT; des; ins; apply mp_max_service.
             }
@@ -269,32 +292,24 @@ Proof.
           (* Now we show that the expression with the arrival times is no larger
              than the workload bound for j_fst and j_lst (based on n_k).
              For that, we need to rearrange the formulas. *)
-          rewrite [_ - _ + task_cost _]subh1; last by admit.
+          rewrite [_ - _ + task_cost _]subh1;
+            last by rewrite -addnBA // -[_*_]addn0; apply leq_add.
           rewrite [_ - _ + task_cost _]subh1; last first.
           {
-            rewrite -[task_cost _]addn0.
-            apply leq_add; last by ins.
-            have PROP := job_properties j; des.
-            rewrite job_params0 JOB.
+            rewrite -[task_cost _]addn0; apply leq_add; last by ins.
+            have PROP := job_properties j; des; rewrite job_params0 JOB.
             by have PROP2 := task_properties tsk; des.
           }
           rewrite -[_ + _ - task_cost _]addnBA // subnn addn0.
-          rewrite addnC addnBA; last by admit. (*True, otherwise j_fst \notin sorted_jobs *)
-          rewrite leq_subLR.
-          rewrite [_ + R_tsk]addnC.
-          rewrite subh1; last by admit. (*true, otherwise j_lst \notin sorted_jobs*)
-          rewrite addnA.
-          rewrite addnBA; last first.
-            admit. (*true, since n_k.+1 jobs fit inside delta *)
-          rewrite -subnBA; last first.
-            admit. (* true, since j_fst arrives first *)
+          rewrite addnC addnBA; last by ins.
+          rewrite leq_subLR [_ + R_tsk]addnC.
+          rewrite subh1; last by apply ltnW.
+          rewrite addnA addnBA; last by rewrite -[_*_]addn0; apply leq_add.
+          rewrite -subnBA;
+            last by apply prev_le_next; [by ins |]; apply/andP; split; [| rewrite EQnum]; ins.
           rewrite addnA; unfold t1, t2; apply leq_sub2l.
-          unfold j_fst, j_lst.
-          assert (EQnk: n_k.+1 = (size sorted_jobs).-1).
-          {
-            destruct sorted_jobs; first by ins.
-            by rewrite EQnum.
-          }
+          unfold j_fst, j_lst in *.
+          assert (EQnk: n_k.+1=(size sorted_jobs).-1); [by destruct sorted_jobs;[ins|rewrite EQnum]|].
 
           (* Final step: derive the minimum separation between the first
              and last jobs using the period and number of middle jobs. *)
@@ -306,7 +321,7 @@ Proof.
             (* To simplify, call the jobs 'cur' and 'next' *)
             set cur := nth j sorted_jobs i.
             set next := nth j sorted_jobs i.+1.
-            clear LT EQdelta CEIL LTserv NEXT j_fst j_lst.           
+            clear LT EQdelta CEIL LTserv NEXT j_fst j_lst INfst INfst0 INfst1 AFTERt1 BEFOREt2.
 
             (* Show that cur arrives earlier than next *)
             assert (ARRle: job_arrival cur <= job_arrival next).
@@ -336,22 +351,20 @@ Proof.
                prove that it doesn't contain duplicates. *)
             unfold t2 in ARRle.
             unfold interarrival_times in *; des.
-            exploit INTER; last intros LE.
-              apply ARRcur0. instantiate (1 := next).
-              unfold cur, next, not; intro EQ.
-              move: EQ => /eqP EQ.
+            assert (CUR_LE_NEXT: arr_cur + task_period (job_task cur) <= arr_next).
+            {
+              apply INTER with (j' := next); try by ins.
+              unfold cur, next, not; intro EQ; move: EQ => /eqP EQ.
               rewrite nth_uniq in EQ; first by move: EQ => /eqP EQ; intuition.
                 by apply ltn_trans with (n := (size sorted_jobs).-1); destruct sorted_jobs; ins.
                 by destruct sorted_jobs; ins.
                 by rewrite sort_uniq -/released_jobs filter_uniq //; apply uniq_prev_arrivals.
-                by apply ARRle.
                 by unfold job_of, beq_task in *;
                    destruct (task_eq_dec (job_task next) tsk);
                    destruct (task_eq_dec (job_task cur) tsk); try rewrite e e0; ins.
-                by ins.
-              apply subh3; last by ins.
-            rewrite addnC; unfold job_of, beq_task, t2 in *.
-            destruct (task_eq_dec (job_task cur) tsk); try rewrite e in LE; ins.
+            }
+            rewrite subh3 // addnC; unfold job_of, beq_task, t2 in *.
+            by destruct (task_eq_dec (job_task cur) tsk); try rewrite e in CUR_LE_NEXT.
           }
         }
       }
