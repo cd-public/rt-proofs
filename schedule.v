@@ -175,3 +175,39 @@ Proof.
     }
     apply leq_ltn_trans with (n := t_0.+1); [by apply leqnSn | by ins].
 Qed.
+
+Lemma service_before_arrival :
+  forall (sched: schedule) j t0 (LT: t0 < job_arrival j),
+    service_at sched j t0 = 0.
+Proof.
+  ins; have arrPROP := arr_properties (arr_list sched); des.
+  have schedPROP := sched_properties sched; des.
+  rename task_must_arrive_to_exec into EXEC; specialize (EXEC j t0).
+  apply contra with (c := scheduled sched j t0) (b := arrived sched j t0) in EXEC;
+    first by rewrite -/scheduled negbK in EXEC; apply/eqP.
+  {
+    destruct (classic (exists arr_j, arrives_at sched j arr_j)) as [ARRIVAL|NOARRIVAL]; des;
+    last by apply/negP; move => /exists_inP_nat ARRIVED; des; apply NOARRIVAL; exists x.
+    {
+      generalize ARRIVAL; apply ARR_PARAMS in ARRIVAL; ins.
+      rewrite -> ARRIVAL in *.
+      apply/negP; unfold not, arrived; move => /exists_inP_nat ARRIVED; des.
+      apply leq_trans with (p := arr_j) in ARRIVED; last by ins.
+      apply NOMULT with (t1 := x) in ARRIVAL0; last by ins.
+      by subst; rewrite ltnn in ARRIVED.
+    }
+  }
+Qed.
+
+Lemma sum_service_before_arrival :
+  forall (sched: schedule) j t0 (LT: t0 <= job_arrival j) m,
+    \sum_(m <= i < t0) service_at sched j i = 0.
+Proof.
+  ins; apply/eqP; rewrite -leqn0.
+  apply leq_trans with (n := \sum_(m <= i < t0) 0);
+    last by rewrite big_const_nat iter_addn mul0n addn0.
+  rewrite big_nat_cond [\sum_(_ <= _ < _) 0]big_nat_cond.
+  apply leq_sum; intro i; rewrite andbT; move => /andP LTi; des.
+  rewrite service_before_arrival; first by ins.
+  by apply leq_trans with (n := t0); ins.
+Qed.

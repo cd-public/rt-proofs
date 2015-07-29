@@ -115,6 +115,25 @@ Proof.
   intros ALL.
 Admitted.
 
+Lemma prev_le_next :
+  forall (T: Type) (F: T->nat) r (x0: T)
+  (ALL: forall i, i < (size r).-1 -> F (nth x0 r i) <= F (nth x0 r i.+1))
+  i j (LT: i < j <= (size r).-1),
+    F (nth x0 r i) <= F (nth x0 r j).
+Proof.
+  intros T F r x0 ALL.
+  generalize dependent r.
+Admitted.
+
+Lemma uniq_seq :
+  forall (T: eqType) (s: seq T) (UNIQ: uniq s)
+         i (LTi: i < (size s).-1)
+         j (LTj: j < (size s).-1) (NEQ: i != j) x0,
+    nth x0 s i <> nth x0 s i.+1.
+Proof.
+  ins.
+Admitted.
+
 Lemma telescoping_sum :
   forall (T: Type) (F: T->nat) r (x0: T)
   (ALL: forall i, i < (size r).-1 -> F (nth x0 r i) <= F (nth x0 r i.+1)), 

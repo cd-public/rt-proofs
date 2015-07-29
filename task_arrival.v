@@ -50,22 +50,10 @@ Proof.
   }
 Qed.
 
-Definition at_most_one_job (sched: schedule) :=
-  forall t j1 j2 (EQtsk: job_task j1 = job_task j2)
-         (ARR1: arrives_at sched j1 t) (ARR2: arrives_at sched j2 t), j1 = j2.
-
-Definition next_job_periodic (sched: schedule) (tsk: sporadic_task) (arr arr': time) :=
-  arr' = arr + task_period tsk /\
-  exists j', job_task j' = tsk /\ arrives_at sched j' arr'.
-
-Definition next_job_sporadic (sched: schedule) (tsk: sporadic_task) (arr arr': time) :=
-  arr' >= arr + task_period tsk /\
-  exists j', job_task j' = tsk /\ arrives_at sched j' arr'.
-
 Definition interarrival_times (sched: schedule) :=
-  forall j j' arr arr' (LE: arr <= arr') (NEQ: j <> j')
+  forall j arr (ARR: arrives_at sched j arr)
+         j' (NEQ: j <> j') arr' (LE: arr <= arr')
          (EQtsk: job_task j' = job_task j)
-         (ARR: arrives_at sched j arr)
          (ARR': arrives_at sched j' arr'),
     arr' >= arr + task_period (job_task j).
 
@@ -92,3 +80,11 @@ Definition sync_release (ts: taskset) (sched: schedule) (t: time) :=
   << ARRts: ts_arrival_sequence ts sched >> /\
   forall (tsk: sporadic_task) (IN: tsk \in ts),
     exists (j: job), job_task j = tsk /\ arrives_at sched j t.
+
+Lemma uniq_prev_arrivals :
+  forall sched t, uniq (prev_arrivals sched t).
+Proof.
+  unfold prev_arrivals.
+  induction t; ins.
+    ins. admit.
+Admitted.

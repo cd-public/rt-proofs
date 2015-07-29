@@ -1,5 +1,5 @@
 Require Import Vbase task task_arrival job schedule helper platform priority
-               ssrbool ssrnat seq. 
+               ssrbool ssrnat seq bigop. 
 
 Definition response_time_ub_sched (sched: schedule) (ts: taskset) (tsk: sporadic_task) (R: time) :=
   << IN: tsk \in ts >> /\
@@ -14,6 +14,21 @@ Definition response_time_ub (platform: processor_platform) (ts: taskset) (tsk: s
          j (JOBj: job_of tsk j) t_a (ARRj: arrives_at sched j t_a),
     completed sched j (t_a + R).
 
+Lemma service_after_rt :
+  forall plat (sched: schedule) ts tsk j (JOBj: job_of tsk j)
+         R_tsk (RESP: response_time_ub plat ts tsk R_tsk)
+         t' (GE: t' >= job_arrival j + R_tsk),
+    service_at sched j t' = 0.
+Proof.
+Admitted.
+
+Lemma sum_service_after_rt :
+  forall plat (sched: schedule) ts tsk j (JOBj: job_of tsk j)
+         R_tsk (RESP: response_time_ub plat ts tsk R_tsk)
+         t0 t' (GE: t0 >= job_arrival j + R_tsk),
+    \sum_(t0 <= t < t') service_at sched j t = 0.
+Proof.
+Admitted.
 
 (*Section ResponseTime.
 
