@@ -1,5 +1,5 @@
 Require Import Vbase task task_arrival job schedule helper platform priority
-               ssrbool ssrnat seq bigop. 
+                ssreflect ssrbool eqtype ssrnat seq fintype bigop.
 
 Definition response_time_ub_sched (sched: schedule) (ts: taskset) (tsk: sporadic_task) (R: time) :=
   << IN: tsk \in ts >> /\
@@ -15,20 +15,41 @@ Definition response_time_ub (platform: processor_platform) (ts: taskset) (tsk: s
     completed sched j (t_a + R).
 
 Lemma service_after_rt :
-  forall plat (sched: schedule) ts tsk j (JOBj: job_of tsk j)
+  forall (plat: processor_platform) (sched: schedule) ts
+         (PLAT: plat sched) (ARRts: ts_arrival_sequence ts sched)
+         tsk j (JOBj: job_of tsk j) arr_j (ARRj: arrives_at sched j arr_j)
          R_tsk (RESP: response_time_ub plat ts tsk R_tsk)
          t' (GE: t' >= job_arrival j + R_tsk),
     service_at sched j t' = 0.
 Proof.
-Admitted.
+  unfold response_time_ub; ins; des.
+  specialize (RESP0 sched PLAT ARRts j JOBj arr_j ARRj).
+  have arrProp := arr_properties (arr_list sched); des.
+  generalize ARRj; apply ARR_PARAMS in ARRj; ins; subst.
+  have schedProp := sched_properties sched; des; clear task_must_arrive_to_exec.
+  rename comp_task_no_exec into COMP.
+  specialize (COMP j t' (job_arrival j + R_tsk) RESP0 GE).
+  by rewrite negbK in COMP; apply/eqP.
+Qed.
 
 Lemma sum_service_after_rt :
-  forall plat (sched: schedule) ts tsk j (JOBj: job_of tsk j)
+  forall (plat: processor_platform) (sched: schedule) ts
+         (PLAT: plat sched) (ARRts: ts_arrival_sequence ts sched)
+         tsk j (JOBj: job_of tsk j) arr_j (ARRj: arrives_at sched j arr_j)
          R_tsk (RESP: response_time_ub plat ts tsk R_tsk)
          t0 t' (GE: t0 >= job_arrival j + R_tsk),
     \sum_(t0 <= t < t') service_at sched j t = 0.
 Proof.
-Admitted.
+  ins; apply/eqP; rewrite -leqn0.
+  apply leq_trans with (n := \sum_(t0 <= t < t') 0);
+    last by rewrite big_const_nat iter_addn mul0n addn0.
+  {
+    rewrite big_nat_cond [\sum_(_ <= _ < _) 0]big_nat_cond.
+    apply leq_sum; intro i; rewrite andbT; move => /andP LTi; des.
+    rewrite ->(service_after_rt plat sched ts PLAT ARRts tsk j JOBj arr_j ARRj R_tsk); ins.
+    by apply leq_trans with (n := t0).
+  }
+Qed.
 
 (*Section ResponseTime.
 

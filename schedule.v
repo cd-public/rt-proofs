@@ -10,7 +10,8 @@ Record arrival_sequence : Type :=
   arr :> time -> seq job;
   arr_properties:
     << NOMULT: forall j t1 t2 (INj1: j \in (arr t1)) (INj2: j \in (arr t2)), t1 = t2 >> /\
-    << ARR_PARAMS: forall j t (INj: j \in (arr t)), job_arrival j = t >>
+    << ARR_PARAMS: forall j t (INj: j \in (arr t)), job_arrival j = t >> /\
+    << UNIQ: forall t, uniq (arr t) >>
 }.
 
 (* 1) This definition of arrival sequence allows retrieving the finite set of

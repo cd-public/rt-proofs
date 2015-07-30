@@ -64,13 +64,15 @@ Proof.
   assert (VALIDarr: << NOMULT: forall (j0 : job_eqType) (t1 t2 : time),
                          j0 \in my_arr_seq j t1 -> j0 \in my_arr_seq j t2 -> t1 = t2 >> /\
                     << ARR_PARAMS: forall (j0 : job_eqType) (t : time),
-                        j0 \in my_arr_seq j t -> job_arrival j0 = t >>).
+                         j0 \in my_arr_seq j t -> job_arrival j0 = t >> /\
+                    << UNIQ: forall t, uniq (my_arr_seq j t)>>).
   {
-    split; red.
+    repeat split; try red.
       by intros j0 t1 t2 ARR1 ARR2; unfold my_arr_seq in *; destruct t1, t2; ins.
       intros j0 t ARRj0; unfold my_arr_seq in *; destruct t; simpl in *.
         by move: ARRj0; rewrite mem_seq1; move => /eqP ARRj0; subst.
         by rewrite in_nil in ARRj0.
+      by intros t; unfold my_arr_seq; destruct (t == 0).
   }
   set arr := Build_arrival_sequence (my_arr_seq j) VALIDarr.
 
