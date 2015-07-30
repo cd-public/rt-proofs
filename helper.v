@@ -104,18 +104,6 @@ Proof.
   by apply ALL; rewrite ltnS leqnn. 
 Qed.
 
-(*
-Lemma first_le_last :
-  forall (T: Type) (F: T->nat) r (x0: T)
-  (ALL: forall i, i < (size r).-1 -> F (nth x0 r i) <= F (nth x0 r i.+1)), 
-    F (nth x0 r 0) <= (F (nth x0 r (size r).-1)).
-Proof.
-  intros T F r x0 ALL.
-  generalize dependent r.
-  induction r; first by simpl; rewrite leqnn.
-  intros ALL.
-Admitted.*)
-
 Lemma prev_le_next :
   forall (T: Type) (F: T->nat) r (x0: T)
   (ALL: forall i, i < (size r).-1 -> F (nth x0 r i) <= F (nth x0 r i.+1))
