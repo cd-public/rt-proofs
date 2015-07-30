@@ -237,7 +237,7 @@ Proof.
 
   specialize (RESP my_cpumap); des; specialize (RESP0 sched MULT ARRts j).
   exploit RESP0.
-    by unfold job_of, beq_task; destruct (task_eq_dec); ins.
+    by apply/eqP.
     by instantiate (1 := 0); unfold my_arr_seq, arrives_at in *; rewrite mem_seq1; apply/eqP.
     unfold completed, service; simpl; move => /eqP SUM; rewrite -SUM add0n.
     apply leq_trans with (n := \sum_(0 <= t < R_tsk) 1);

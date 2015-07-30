@@ -19,37 +19,30 @@ Record job : Type :=
                     job_deadline = task_deadline job_task)>>
 }.
 
-Definition job_of (tsk: sporadic_task) (j: job) : bool :=
-  beq_task (job_task j) tsk.
-
 (* Define decidable equality for jobs, so that it can be
    used in computations. *)
 Definition job_eq_dec (x y: job) : {x = y} + {x <> y}.
-Admitted. (* THIS IS VERY SLOW! *)
-(*  destruct x, y.
+  destruct x, y.
   destruct (eq_op job_arrival0 job_arrival1) eqn:Earrival;
   destruct (eq_op job_cost0 job_cost1) eqn:Ecost;
   destruct (eq_op job_deadline0 job_deadline1) eqn:Edeadline;
-  destruct (beq_task job_task0 job_task1) eqn:Etask;
-  unfold beq_task in *;
-  destruct (task_eq_dec job_task0 job_task1); subst;
-  move: Earrival Ecost Edeadline => /eqP Earrival /eqP Ecost /eqP Edeadline; des; subst;
+  destruct (eq_op job_task0 job_task1) eqn:Etask;
+  move: Earrival Ecost Edeadline Etask => /eqP Earrival /eqP Ecost /eqP Edeadline /eqP Etask;
+  des; subst;
   try (by left; apply f_equal, proof_irrelevance);
   try (by right; unfold not; intro EQ; inversion EQ; intuition).
-Defined.*)
-
-Definition beq_job (x y: job) := if job_eq_dec x y then true else false.
+Qed.
 
 (* ssreflect decidable equality *)
-  Lemma eqn_job : Equality.axiom beq_job.
+  Lemma eqn_job : Equality.axiom job_eq_dec.
   Proof.
-    unfold beq_job, Equality.axiom; ins; desf;
+    unfold Equality.axiom; ins; destruct (job_eq_dec x y);
     [by apply ReflectT | by apply ReflectF].  
   Qed.
 
   Canonical job_eqMixin := EqMixin eqn_job.
   Canonical job_eqType := Eval hnf in EqType job job_eqMixin.
-(* ----------------------------------------- *)
+(* ---------------------------- *)
 
 (* Observations / TODO *)
 (* 1) It should be ok to have 0-cost jobs. Deadlines can also be 0,

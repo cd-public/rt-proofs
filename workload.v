@@ -43,7 +43,7 @@ Lemma max_num_jobs_ceil :
 Proof.
 (*
   ins; unfold div_ceil in *.
-  set released_jobs := filter (fun x => job_of tsk x &&
+  set released_jobs := filter (fun x => (job_task x == tsk) &&
                                 (service_during sched x t1 t2 != 0)) (prev_arrivals sched t2).
   have PROP := task_properties tsk; des.
 
@@ -462,8 +462,7 @@ Proof.
                 by rewrite sort_uniq -/released_jobs filter_uniq //; apply uniq_prev_arrivals.
                 by move: INnth INnth0 => /eqP INnth /eqP INnth0; rewrite INnth INnth0.  
             }
-            rewrite subh3 // addnC; unfold job_of, beq_task, t2 in *.
-            by move: INnth => /eqP INnth; rewrite -INnth.
+            by rewrite subh3 // addnC; move: INnth => /eqP INnth; rewrite -INnth.
           }
         }
       }
