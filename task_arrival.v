@@ -83,17 +83,11 @@ Definition sync_release (ts: taskset) (sched: schedule) (t: time) :=
 Lemma uniq_prev_arrivals :
   forall sched t, uniq (prev_arrivals sched t).
 Proof.
-  ins; have arrProp := arr_properties (arr_list sched); des.
-  have PROP := ts_finite_arrival_sequence sched t.
-  (*
-  assert (forall x, x \in (prev_arrivals sched t) -> (exists t0, t0 < t /\ x \in (arr_list sched t0))). admit.
-  induction prev_arrivals; first by ins.
-  rewrite cons_uniq; apply/andP; split.
-    admit.
-  {
-    apply IHl; ins.
-    specialize (H j).
-    rewrite in_cons in H. rewrite H orbT in H.
-    by exploit H.
-  }*)
-Admitted.
+  induction t; first by unfold prev_arrivals; rewrite -/prev_arrivals big_geq //.
+  have arrProp := arr_properties (arr_list sched); des.
+  unfold prev_arrivals; rewrite big_nat_recr // /=.
+  rewrite cat_uniq; apply/and3P; split; [by ins | | by apply UNIQ].
+  apply/hasP; unfold not; intro HAS; destruct HAS as [x IN MEM]; rewrite -unfold_in mem_mem in MEM.
+  rewrite ts_finite_arrival_sequence in MEM; move: MEM => /exists_inP_nat MEM; des.
+  by apply (NOMULT x t x0) in MEM0; [by subst; rewrite ltnn in MEM | by ins].
+Qed.

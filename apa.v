@@ -51,7 +51,7 @@ Proof.
  induction t.
    (* Base case *)
    (* Inductive Step *)
-Admitted.
+
 
 (* Definitions for APA affinity restoration -- IGNORE *)
 
@@ -73,5 +73,5 @@ Lemma APA_service_invariant :
        << SERV: service sched j t >= service sched' j t >>.
 Proof.
     intros.
-    Admitted.
+
 *)

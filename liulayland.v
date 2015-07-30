@@ -41,13 +41,13 @@ Qed.*)
   forall t tsk_i (INi: In tsk_i ts) (SYNC: sync_release ts sched t),
     critical_instant uniprocessor tsk_i ts sched t.
 Proof.
-Admitted.
+
 
 Lemma hp_task_no_interference :
     forall (tsk_i: sporadic_task),
         Forall (task_hp tsk_i) ts ->
             task_response_time tsk_i (tsk_i :: ts) (task_cost tsk_i).
 Proof.
-Admitted.*)
+*)
 
 End LiuLayland.
