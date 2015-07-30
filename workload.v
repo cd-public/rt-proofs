@@ -7,7 +7,7 @@ Section WorkloadBound.
 (* Workload is defined as the total service received by jobs of
    a specific task in the interval [t,t'). *)
 Definition workload (sched: schedule) (ts: taskset) (tsk: sporadic_task) (t t': time) :=
-  \sum_(j <- prev_arrivals sched t' | job_of tsk j) (service_during sched j t t').
+  \sum_(j <- prev_arrivals sched t' | job_task j == tsk) (service_during sched j t t').
 
 Definition max_jobs (tsk: sporadic_task) (R_tsk: time) (delta: time) :=
   div_floor (delta + R_tsk - task_cost tsk) (task_period tsk).
@@ -37,7 +37,7 @@ Lemma max_num_jobs_ceil :
   forall ts sched (ARRts: ts_arrival_sequence ts sched)
          (RESTR: restricted_deadline_model ts) tsk (IN: tsk \in ts)
          (SCHED: task_misses_no_deadlines sched ts tsk) t1 t2,
-    let released_jobs := filter (fun x => job_of tsk x &&
+    let released_jobs := filter (fun x => (job_task x == tsk) &&
                                 (service_during sched x t1 t2 != 0)) (prev_arrivals sched t2) in  
     size released_jobs <= div_ceil (t2 - t1) (task_period tsk).
 Proof.
@@ -181,12 +181,12 @@ Proof.
 
   (* Use a simpler name for the set of jobs that we are interested in *)
   set released_jobs :=
-    filter (fun x => job_of tsk x && (service_during sched x t1 t2 != 0))
+    filter (fun x => (job_task x == tsk) && (service_during sched x t1 t2 != 0))
                     (prev_arrivals sched t2); fold released_jobs in CEIL.
   
   (* Remove the elements that we don't care about from the sum *)
   assert (SIMPL:
-    \sum_(i <- prev_arrivals sched t2 | job_of tsk i)
+    \sum_(i <- prev_arrivals sched t2 | job_task i == tsk)
        service_during sched i t1 t2 =
     \sum_(i <- released_jobs) service_during sched i t1 t2).
   {
@@ -204,18 +204,17 @@ Proof.
   {
     ins; move: INi; rewrite mem_filter; move => /andP xxx; des.
     move: xxx; move => /andP JOBi; des; clear xxx0 JOBi0.
-    have PROP := job_properties j_i; unfold job_of in *; des.
-    apply leq_trans with (n := job_cost j_i);
-      last by unfold beq_task in *; destruct task_eq_dec as [EQ|]; try rewrite -EQ; ins.
+    have PROP := job_properties j_i; des.
+    move: JOBi => /eqP JOBi; rewrite -JOBi.
+    apply leq_trans with (n := job_cost j_i); last by ins. 
     by apply service_interval_max_cost; unfold ident_mp in MULT; des.
   }
 
   (* Remember that R_tsk >= task_cost tsk in this platform *)
   assert (R_tsk >= task_cost tsk).
   {
-    apply rt_geq_wcet_identmp with (ts := ts)
-                                 (num_cpus := num_cpus) (hp := hp);
-    unfold ident_mp in MULT; des; ins.
+    apply rt_geq_wcet_identmp with (ts := ts) (num_cpus := num_cpus) (hp := hp);
+    by unfold ident_mp in MULT; des; ins.
   }
 
   assert (EQdelta: t2 - t1 = job_deadline j).
@@ -405,15 +404,17 @@ Proof.
           rewrite leq_subLR [_ + R_tsk]addnC.
           rewrite subh1; last by apply ltnW.
           rewrite addnA addnBA; last by rewrite -[_*_]addn0; apply leq_add.
-          rewrite -subnBA;
-            last by apply prev_le_next; [by ins |]; apply/andP; split; [| rewrite EQnum]; ins.
+          rewrite -subnBA; last first.
+          {
+            unfold j_fst, j_lst; rewrite -[_.+1]add0n; apply prev_le_next; first by ins.
+            by rewrite add0n EQnum ltnSn.
+          }
           rewrite addnA; unfold t1, t2; apply leq_sub2l.
-          unfold j_fst, j_lst in *.
-          assert (EQnk: n_k.+1=(size sorted_jobs).-1); [by destruct sorted_jobs;[ins|rewrite EQnum]|].
-
+      
           (* Final step: derive the minimum separation between the first
              and last jobs using the period and number of middle jobs. *)
-          rewrite EQnk telescoping_sum; last by ins.
+          assert (EQnk: n_k.+1=(size sorted_jobs).-1); [by destruct sorted_jobs;[ins|rewrite EQnum]|].
+          unfold j_fst, j_lst; rewrite EQnk telescoping_sum; last by ins.
           rewrite -[_ * _ tsk]addn0 mulnC -iter_addn -{1}[_.-1]subn0 -big_const_nat. 
           rewrite big_nat_cond [\sum_(0 <= i < _)(_-_)]big_nat_cond.
           apply leq_sum; intros i; rewrite andbT; move => /andP LT; des.
@@ -425,8 +426,11 @@ Proof.
 
             (* Show that cur arrives earlier than next *)
             assert (ARRle: job_arrival cur <= job_arrival next).
-              by apply prev_le_next; [by ins | by apply/andP; split].
-
+            {
+              unfold cur, next; rewrite -addn1; apply prev_le_next; first by ins.
+              by apply leq_trans with (n := i.+1); try rewrite addn1.
+            }
+            
             (* Show that both cur and next are in the arrival sequence *)
             assert (INnth: cur \in released_jobs /\ next \in released_jobs).
             rewrite 2!INboth; split.
@@ -456,12 +460,10 @@ Proof.
                 by apply ltn_trans with (n := (size sorted_jobs).-1); destruct sorted_jobs; ins.
                 by destruct sorted_jobs; ins.
                 by rewrite sort_uniq -/released_jobs filter_uniq //; apply uniq_prev_arrivals.
-                by unfold job_of, beq_task in *;
-                   destruct (task_eq_dec (job_task next) tsk);
-                   destruct (task_eq_dec (job_task cur) tsk); try rewrite e e0; ins.
+                by move: INnth INnth0 => /eqP INnth /eqP INnth0; rewrite INnth INnth0.  
             }
             rewrite subh3 // addnC; unfold job_of, beq_task, t2 in *.
-            by destruct (task_eq_dec (job_task cur) tsk); try rewrite e in CUR_LE_NEXT.
+            by move: INnth => /eqP INnth; rewrite -INnth.
           }
         }
       }

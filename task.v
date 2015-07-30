@@ -18,6 +18,9 @@ Record sporadic_task : Type :=
                    << task_cost_le_deadline: task_cost <= task_deadline >>
 }.
 
+Variable t1 t2: sporadic_task.
+(*Check (t1 == t2).*)
+
 (* Define decidable equality for tasks, so that it can be
    used in computations. *)
 Definition task_eq_dec (x y: sporadic_task) : {x = y} + {x <> y}.

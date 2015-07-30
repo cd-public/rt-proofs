@@ -107,22 +107,17 @@ Qed.
 Lemma prev_le_next :
   forall (T: Type) (F: T->nat) r (x0: T)
   (ALL: forall i, i < (size r).-1 -> F (nth x0 r i) <= F (nth x0 r i.+1))
-  i j (LT: i <= j <= (size r).-1),
-    F (nth x0 r i) <= F (nth x0 r j).
+  i k (LT: i + k <= (size r).-1),
+    F (nth x0 r i) <= F (nth x0 r (i+k)).
 Proof.
-  intros T F r x0 ALL.
-  generalize dependent r.
-Admitted.
-
-Lemma uniq_seq :
-  forall (T: eqType) (s: seq T) (UNIQ: uniq s)
-         i (LTi: i < (size s).-1)
-         j (LTj: j < (size s).-1) (NEQ: i != j) x0,
-    nth x0 s i <> nth x0 s i.+1.
-Proof.
-  
-  ins.
-Admitted.
+  intros.
+  generalize dependent i. generalize dependent k.
+  induction k; intros; first by rewrite addn0 leqnn.
+  specialize (IHk i.+1); exploit IHk; [by rewrite addSnnS | intro LE].
+  apply leq_trans with (n := F (nth x0 r (i.+1))); last by rewrite -addSnnS.
+  apply ALL, leq_trans with (n := i + k.+1); last by ins.
+  by rewrite addnS ltnS leq_addr.
+Qed.
 
 Lemma telescoping_sum :
   forall (T: Type) (F: T->nat) r (x0: T)
@@ -136,13 +131,9 @@ Proof.
   specialize (ADD1 nat 0 addn 0 (size r) (fun x => true) (fun i => F (nth x0 r i))).
   specialize (RECL nat 0 addn (size r).-1 0 (fun i => F (nth x0 r i))).
   rewrite sum_diff; last by ins.
-  rewrite addmovr; last by apply prev_le_next; try (apply/andP; split).
+  rewrite addmovr; last by rewrite -[_.-1]add0n; apply prev_le_next; try rewrite add0n leqnn.
   rewrite subh1; last by apply sum_diff_monotonic.
-  rewrite addmovl; last first.
-  {
-    rewrite -[\sum_(0 <= i < _) F _]addn0.
-    apply leq_add; last by ins.
-    apply sum_diff_monotonic; last by ins.
-  }
-  rewrite addnC -big_nat_recr // -ADD1 addnC ADD1 -RECL //.
+  rewrite addnC -RECL //.
+  rewrite addmovl; last by rewrite big_nat_recr // -{1}[\sum_(_ <= _ < _) _]addn0; apply leq_add.
+  by rewrite addnC -big_nat_recr.
 Qed.
