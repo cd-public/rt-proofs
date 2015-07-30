@@ -153,8 +153,8 @@ Proof.
 
     admit.
   }
-*)  
-  by destruct (task_period tsk %| (t2 - t1)) eqn:DIV; [|apply leqW]; rewrite leq_divRL //.
+
+  by destruct (task_period tsk %| (t2 - t1)) eqn:DIV; [|apply leqW]; rewrite leq_divRL //.*)
 Admitted.
 
 Theorem workload_bound :
@@ -168,7 +168,7 @@ Theorem workload_bound :
          R_tsk (RESP: forall mapped, response_time_ub (ident_mp num_cpus hp mapped) ts tsk R_tsk),
     (workload sched ts tsk arr_j (arr_j + job_deadline j)) <= W tsk R_tsk (job_deadline j).
 Proof.
-  unfold sporadic_task_model, workload, W; ins.
+  unfold sporadic_task_model, workload, W; ins; des.
 
   (* Simplify names *)
   set t1 := arr_j.
@@ -320,8 +320,8 @@ Proof.
           rewrite leqNgt; apply /negP; unfold not; intro LTt1.
           move: INfst1 => /eqP INfst1; apply INfst1.
           unfold service_during.
-          by rewrite -> (sum_service_after_rt (ident_mp num_cpus hp cpumap) sched ts tsk) with
-                                              (R_tsk := R_tsk); try apply ltnW.
+          by rewrite (sum_service_after_rt (ident_mp num_cpus hp cpumap) sched ts MULT ARRts
+                                           tsk j_fst INfst R_tsk); try apply ltnW.
         }
         assert (BEFOREt2: job_arrival j_lst < t2).
         {
@@ -366,8 +366,8 @@ Proof.
               rewrite -> big_cat_nat with (n := job_arrival j_fst + R_tsk); [| by ins | by ins].
               rewrite -{2}[\sum_(_ <= _ < _) _]addn0 /=.
               apply leq_add; first by ins.
-              by rewrite -> (sum_service_after_rt (ident_mp num_cpus hp cpumap) sched ts tsk) with
-                 (R_tsk := R_tsk); try apply leqnn.
+              by rewrite -> (sum_service_after_rt (ident_mp num_cpus hp cpumap) sched ts) with
+                                                  (R_tsk := R_tsk) (tsk := tsk); try apply leqnn.
             }
           }
           {
@@ -433,17 +433,14 @@ Proof.
               by apply mem_nth, (ltn_trans LT0); destruct sorted_jobs; ins.
               by apply mem_nth; destruct sorted_jobs; ins.
             rewrite 2?mem_filter in INnth; des.
-            rewrite (ts_finite_arrival_sequence ts) // in INnth1. 
-            rewrite (ts_finite_arrival_sequence ts) // in INnth3.
-            unfold arrived_before in *.
+            rewrite 2?ts_finite_arrival_sequence // in INnth1 INnth3; unfold arrived_before in *.
             move: INnth1 INnth3 => /exists_inP_nat INnth1 /exists_inP_nat INnth3.
-            destruct INnth1 as [arr_next [_ ARRnext]].
-            destruct INnth3 as [arr_cur [_ ARRcur]].
+            destruct INnth1 as [arr_next [_ ARRnext]]; destruct INnth3 as [arr_cur [_ ARRcur]].
             generalize ARRnext ARRcur; unfold arrives_at in ARRnext, ARRcur; intros ARRnext0 ARRcur0.
             have arrPROP := arr_properties (arr_list sched); des.
             apply ARR_PARAMS in ARRnext; apply ARR_PARAMS in ARRcur.
             rewrite -> ARRnext in *; rewrite -> ARRcur in *.
-            clear ARR_PARAMS.
+            clear ARR_PARAMS NOMULT UNIQ.
 
             (* Use the sporadic task model to conclude that cur and next are separated
                by at least (task_period tsk) units. Of course this only holds if cur != next.

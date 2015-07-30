@@ -104,6 +104,7 @@ Proof.
   by apply ALL; rewrite ltnS leqnn. 
 Qed.
 
+(*
 Lemma first_le_last :
   forall (T: Type) (F: T->nat) r (x0: T)
   (ALL: forall i, i < (size r).-1 -> F (nth x0 r i) <= F (nth x0 r i.+1)), 
@@ -113,12 +114,12 @@ Proof.
   generalize dependent r.
   induction r; first by simpl; rewrite leqnn.
   intros ALL.
-Admitted.
+Admitted.*)
 
 Lemma prev_le_next :
   forall (T: Type) (F: T->nat) r (x0: T)
   (ALL: forall i, i < (size r).-1 -> F (nth x0 r i) <= F (nth x0 r i.+1))
-  i j (LT: i < j <= (size r).-1),
+  i j (LT: i <= j <= (size r).-1),
     F (nth x0 r i) <= F (nth x0 r j).
 Proof.
   intros T F r x0 ALL.
@@ -131,6 +132,7 @@ Lemma uniq_seq :
          j (LTj: j < (size s).-1) (NEQ: i != j) x0,
     nth x0 s i <> nth x0 s i.+1.
 Proof.
+  
   ins.
 Admitted.
 
@@ -146,7 +148,7 @@ Proof.
   specialize (ADD1 nat 0 addn 0 (size r) (fun x => true) (fun i => F (nth x0 r i))).
   specialize (RECL nat 0 addn (size r).-1 0 (fun i => F (nth x0 r i))).
   rewrite sum_diff; last by ins.
-  rewrite addmovr; last by apply first_le_last.
+  rewrite addmovr; last by apply prev_le_next; try (apply/andP; split).
   rewrite subh1; last by apply sum_diff_monotonic.
   rewrite addmovl; last first.
   {
