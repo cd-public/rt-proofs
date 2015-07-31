@@ -15,7 +15,8 @@ Record sporadic_task : Type :=
   task_properties: << task_cost_positive: task_cost > 0 >> /\
                    << task_period_positive: task_period > 0 >> /\
                    << task_deadline_positive: task_deadline > 0 >> /\
-                   << task_cost_le_deadline: task_cost <= task_deadline >>
+                   << task_cost_le_deadline: task_cost <= task_deadline >> /\
+                   << task_cost_le_period: task_cost <= task_period >>
 }.
 
 (* Define decidable equality for tasks, so that it can be

@@ -24,14 +24,32 @@ Definition W (tsk: sporadic_task) (R_tsk: time) (delta: time) :=
 Definition arrival_time (sched: schedule) (t': time) (j: job) : nat :=
   find (arrives_at sched j) (iota 0 t').
 
-Lemma max_jobs_bound :
+(*Lemma max_jobs_bound :
   forall tsk delta R_tsk (GT: R_tsk >= task_cost tsk),
-    (max_jobs tsk R_tsk delta).+1 >= div_ceil delta (task_period tsk).
+    (max_jobs tsk R_tsk delta).+1 >= div_ceil (delta + R_tsk) (task_period tsk).
 Proof.
   unfold max_jobs, div_floor, div_ceil; ins.
-  destruct (task_period tsk %| delta); [apply leqW | rewrite ltnS];
+  have PROP := task_properties tsk; des.
+  destruct (task_period tsk %| (delta + R_tsk)) eqn:DIV.
+  {
+    move: DIV => /dvdnP DIV; des.
+    rewrite DIV mulnK //.
+    destruct k; first by rewrite mul0n sub0n div0n.
+    {
+      apply leq_trans with (n := ((k.+1 * task_period tsk - task_period tsk) %/ task_period tsk).+1).
+        by rewrite mulSn addnC -addnBA // subnn addn0 mulnK.
+        by rewrite ltnS leq_div2r // leq_sub2l //.
+    }
+  }
+  {
+    have bla := geq_divBl.
+    specialize (bla (delta + R_tsk) (task_cost tsk) (task_period tsk)).
+  }
+
+  
     by rewrite leq_div2r // -addnBA // leq_addr.
-Qed.
+
+Qed.*)
 
 Lemma max_num_jobs_ceil :
   forall ts sched (ARRts: ts_arrival_sequence ts sched)
@@ -238,10 +256,11 @@ Proof.
     (* Since num_jobs cannot be larger than n_k.+1, it must be equal to n_k.+1 *)
     assert (EQnum: num_jobs == n_k.+1).
     {
+      (*
       apply negbT in NUM; rewrite -ltnNge in NUM.
       rewrite eqn_leq; apply/andP; split; last by ins.
       apply leq_trans with (n := div_ceil (job_deadline j) (task_period tsk));
-      [by rewrite -EQdelta | by apply max_jobs_bound].
+      [by rewrite -EQdelta | by apply max_jobs_bound].*) admit.
     } clear NUM.
     
     (* Order the sequence of released_jobs by arrival time, so that
