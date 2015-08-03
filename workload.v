@@ -277,10 +277,6 @@ Proof.
       first by apply sort_sorted; unfold total, order; ins; apply leq_total.
     rewrite (eq_big_perm sorted_jobs) /=; last by rewrite -(perm_sort order).
 
-    (* Remember that the jobs are ordered by arrival *)
-    assert (ALL: forall i (LTsort: i < (size sorted_jobs).-1),
-                   order (nth j sorted_jobs i) (nth j sorted_jobs i.+1)).
-      by destruct sorted_jobs; [by ins| by apply/pathP; apply SORT].
  
     (* State that the sorted list has the same size as the old one *)
     (*set num_jobs := size sorted_jobs.*)                 
@@ -297,7 +293,6 @@ Proof.
     (* Index the sequence *)
     rewrite (big_nth j); set num_jobs := size sorted_jobs.
 
-    assert (NUM: n_k >= num_jobs - 2). admit.
 
     destruct (size sorted_jobs) eqn:SIZE; first by rewrite big_geq //.
 
@@ -338,7 +333,7 @@ Proof.
     }
     {
       unfold num_jobs in *; clear num_jobs.
-      rewrite subn2 in NUM; simpl in NUM.
+      (*rewrite subn2 in NUM; simpl in NUM.*)
 
     (* Show that the inequality holds if there's a single element in the list. *)
     (*move: EQnum => /eqP EQnum; rewrite EQnum; unfold num_jobs in EQnum.*)
@@ -400,6 +395,17 @@ Proof.
     rewrite [_ * task_cost _]mulSn [_ + (task_cost _ + _)]addnA addn_minl.
     rewrite addnA -addnC addnA.*)
 
+    assert (NK: n_k >= (size sorted_jobs).-2). admit.
+    rewrite SIZE in NK; simpl in NK.
+
+    (*destruct (num_jobs <= n_k) eqn:LE.
+    {
+      admit.
+    }
+    apply negbT in LE; rewrite -ltnNge in LE.
+    destruct (num_jobs == n_k.+1). admit.*)
+
+    
     (* Bound the service of the middle jobs *)
     apply leq_add; last first.
     {
@@ -414,7 +420,7 @@ Proof.
     {
         set j_fst := (nth j sorted_jobs 0).
         set j_lst := (nth j sorted_jobs n.+1).
-
+                     
         (* First let's infer some facts about how the events are ordered in the timeline *)
         assert (INfst: j_fst \in released_jobs).
           by unfold j_fst; rewrite INboth; apply mem_nth; destruct sorted_jobs; ins.
@@ -451,7 +457,12 @@ Proof.
             by rewrite ltnS leq_divRL in CEIL.
         }*)
 
+        (* Remember that the jobs are ordered by arrival *)
+        assert (ALL: forall i (LTsort: i < (size sorted_jobs).-1),
+                   order (nth j sorted_jobs i) (nth j sorted_jobs i.+1)).
+          by destruct sorted_jobs; [by ins| by apply/pathP; apply SORT].
 
+        
         apply leq_trans with (n := (job_arrival j_fst  + R_tsk - t1) +
                                    (t2 - job_arrival j_lst)).
         {
@@ -492,16 +503,145 @@ Proof.
               by apply leq_sum; unfold ident_mp in MULT; des; ins; apply mp_max_service.
             }
           }
+       }
+
+        rewrite addnBA; last by apply ltnW.
+        rewrite subh1 // -addnBA; last by apply leq_addr.
+        rewrite addnC [job_arrival _ + _]addnC.
+        unfold t1, t2; rewrite [arr_j + _]addnC -[_ + arr_j - _]addnBA // subnn addn0.
+        rewrite addnA -subnBA; last first.
+        {
+          unfold j_fst, j_lst. rewrite -[n.+1]add0n.
+          apply prev_le_next; [by ins | by rewrite SIZE add0n ltnSn].
         }
 
+        apply leq_trans with (n := job_deadline j + R_tsk - (size sorted_jobs).-1*(task_period tsk)).
+        {
+          apply leq_sub2l.
+          assert (EQnk: n.+1=(size sorted_jobs).-1); first by rewrite SIZE. 
+          unfold j_fst, j_lst; rewrite EQnk telescoping_sum; last by ins.
+          rewrite -[_ * _ tsk]addn0 mulnC -iter_addn -{1}[_.-1]subn0 -big_const_nat. 
+          rewrite big_nat_cond [\sum_(0 <= i < _)(_-_)]big_nat_cond.
+          apply leq_sum; intros i; rewrite andbT; move => /andP LT; des.
+          {
+            (* To simplify, call the jobs 'cur' and 'next' *)
+            set cur := nth j sorted_jobs i.
+            set next := nth j sorted_jobs i.+1.
+            clear LT EQdelta LTserv NEXT j_fst j_lst INfst INfst0 INfst1 AFTERt1 BEFOREt2.
 
+            (* Show that cur arrives earlier than next *)
+            assert (ARRle: job_arrival cur <= job_arrival next).
+            {
+              unfold cur, next; rewrite -addn1; apply prev_le_next; first by ins.
+              by apply leq_trans with (n := i.+1); try rewrite addn1.
+            }
+            
+            (* Show that both cur and next are in the arrival sequence *)
+            assert (INnth: cur \in released_jobs /\ next \in released_jobs).
+            rewrite 2!INboth; split.
+              by apply mem_nth, (ltn_trans LT0); destruct sorted_jobs; ins.
+              by apply mem_nth; destruct sorted_jobs; ins.
+            rewrite 2?mem_filter in INnth; des.
+            rewrite 2?ts_finite_arrival_sequence // in INnth1 INnth3; unfold arrived_before in *.
+            move: INnth1 INnth3 => /exists_inP_nat INnth1 /exists_inP_nat INnth3.
+            destruct INnth1 as [arr_next [_ ARRnext]]; destruct INnth3 as [arr_cur [_ ARRcur]].
+            generalize ARRnext ARRcur; unfold arrives_at in ARRnext, ARRcur; intros ARRnext0 ARRcur0.
+            have arrPROP := arr_properties (arr_list sched); des.
+            apply ARR_PARAMS in ARRnext; apply ARR_PARAMS in ARRcur.
+            rewrite -> ARRnext in *; rewrite -> ARRcur in *.
+            clear ARR_PARAMS NOMULT UNIQ.
 
-
-      (* Bound the service of the first and last jobs *)
-      rewrite leq_min; apply/andP; split.
-      {
-        unfold n_k, max_jobs, div_floor in NUM.
+            (* Use the sporadic task model to conclude that cur and next are separated
+               by at least (task_period tsk) units. Of course this only holds if cur != next.
+               Since we don't know much about the list, except that it's sorted, we must
+               prove that it doesn't contain duplicates. *)
+            unfold t2 in ARRle.
+            unfold interarrival_times in *; des.
+            assert (CUR_LE_NEXT: arr_cur + task_period (job_task cur) <= arr_next).
+            {
+              apply INTER with (j' := next); try by ins.
+              unfold cur, next, not; intro EQ; move: EQ => /eqP EQ.
+              rewrite nth_uniq in EQ; first by move: EQ => /eqP EQ; intuition.
+                by apply ltn_trans with (n := (size sorted_jobs).-1); destruct sorted_jobs; ins.
+                by destruct sorted_jobs; ins.
+                by rewrite sort_uniq -/released_jobs filter_uniq //; apply uniq_prev_arrivals.
+                by move: INnth INnth0 => /eqP INnth /eqP INnth0; rewrite INnth INnth0.  
+            }
+            by rewrite subh3 // addnC; move: INnth => /eqP INnth; rewrite -INnth.
+          }
+        }
+        
+        (*assert (EQnk: n_k = n). admit.*)
+        rewrite leq_min; apply/andP; split.
+        {
+          rewrite leq_subLR [_ + task_cost _]addnC -leq_subLR.
+          rewrite ltnW // -ltn_divLR; last by have PROP := task_properties tsk; des.
+          by rewrite SIZE /= -EQnk; unfold n_k, max_jobs, div_floor.
+        }
+        {
+          rewrite -subnDA; apply leq_sub2l.
+          rewrite SIZE /= -addn1 -EQnk addnC mulnDl mul1n.
+          rewrite leq_add2l; last by have PROP := task_properties tsk; des. 
+        }
       }
+    }
+Qed.  
+
+        (* Show that both cur and next are in the arrival sequence *)
+        assert (INnth: cur \in released_jobs /\ next \in released_jobs).
+        rewrite 2!INboth; split.
+          by apply mem_nth, (ltn_trans LT0); destruct sorted_jobs; ins.
+          by apply mem_nth; destruct sorted_jobs; ins.
+        rewrite 2?mem_filter in INnth; des.
+        rewrite 2?ts_finite_arrival_sequence // in INnth1 INnth3; unfold arrived_before in *.
+        move: INnth1 INnth3 => /exists_inP_nat INnth1 /exists_inP_nat INnth3.
+        destruct INnth1 as [arr_next [_ ARRnext]]; destruct INnth3 as [arr_cur [_ ARRcur]].
+        generalize ARRnext ARRcur; unfold arrives_at in ARRnext, ARRcur; intros ARRnext0 ARRcur0.
+        have arrPROP := arr_properties (arr_list sched); des.
+            apply ARR_PARAMS in ARRnext; apply ARR_PARAMS in ARRcur.
+            rewrite -> ARRnext in *; rewrite -> ARRcur in *.
+            clear ARR_PARAMS NOMULT UNIQ.
+
+            (* Use the sporadic task model to conclude that cur and next are separated
+               by at least (task_period tsk) units. Of course this only holds if cur != next.
+               Since we don't know much about the list, except that it's sorted, we must
+               prove that it doesn't contain duplicates. *)
+            unfold t2 in ARRle.
+            unfold interarrival_times in *; des.
+            assert (CUR_LE_NEXT: arr_cur + task_period (job_task cur) <= arr_next).
+            {
+              apply INTER with (j' := next); try by ins.
+              unfold cur, next, not; intro EQ; move: EQ => /eqP EQ.
+              rewrite nth_uniq in EQ; first by move: EQ => /eqP EQ; intuition.
+                by apply ltn_trans with (n := (size sorted_jobs).-1); destruct sorted_jobs; ins.
+                by destruct sorted_jobs; ins.
+                by rewrite sort_uniq -/released_jobs filter_uniq //; apply uniq_prev_arrivals.
+                by move: INnth INnth0 => /eqP INnth /eqP INnth0; rewrite INnth INnth0.  
+            }
+            by rewrite subh3 // addnC; move: INnth => /eqP INnth; rewrite -INnth.
+          }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+        rewrite -addn1.
+        rewrite [n.+1 + 1]addnC. rewrite mulnDl.
+        
+        rewrite leq_min; apply/andP; split.
+        {
+          unfold n_k, max_jobs, div_floor in NUM.
+        }
         apply leq_add; apply LTserv; rewrite INboth mem_nth. // SIZE.
       {
 
