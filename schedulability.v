@@ -1,4 +1,5 @@
-Require Import Vbase List job task task_arrival schedule platform.
+Require Import Vbase job task task_arrival schedule platform
+               ssrbool ssrnat seq.
 
 Section Schedulability.
 
@@ -18,7 +19,7 @@ Definition no_deadline_misses :=
     service sched j (arr + job_deadline j) = job_cost j.
 
 Definition task_misses_no_deadlines (ts: taskset) (tsk: sporadic_task) :=
-  << IN: In tsk ts >> /\ << ARRts: ts_arrival_sequence ts sched >> /\
+  << IN: tsk \in ts >> /\ << ARRts: ts_arrival_sequence ts sched >> /\
   forall j (JOB: job_task j = tsk) arr (ARR: arrives_at sched j arr), job_misses_no_deadlines j.
 
 End SingleSchedule.
@@ -28,6 +29,6 @@ Definition schedulable_task (ts: taskset) (tsk: sporadic_task) :=
 
 Definition schedulable_taskset (ts: taskset) :=
   forall sched (PLAT: platform sched) (ARRts: ts_arrival_sequence ts sched)
-         tsk (IN: In tsk ts), task_misses_no_deadlines sched ts tsk.
+         tsk (IN: tsk \in ts), task_misses_no_deadlines sched ts tsk.
 
 End Schedulability.

@@ -49,8 +49,6 @@ Proof.
     by exploit ALL; unfold negb; try rewrite H0 H1.
 Qed.
 
-About exists_inP_nat.
-About forall_inP_nat.
 Lemma subh1 : forall m n p (GE: m >= n), m - n + p = m + p - n.
 Proof.
   by ins; ssromega.
