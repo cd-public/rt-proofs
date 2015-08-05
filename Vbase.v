@@ -487,7 +487,7 @@ Ltac autos   := clarsimp; auto with vlib.
 (** Destruct but give useful names *)
 (* ************************************************************************** *)
 
-Definition  NW (P: unit -> Prop) : Prop := P tt.
+Definition NW A (P: unit -> A) : A := P tt.
 
 Notation "<< x : t >>" := (NW (fun x => t)) (at level 80, x ident, no associativity).
 Notation "<< t >>" := (NW (fun _ => t)) (at level 79, no associativity).

@@ -11,7 +11,7 @@ Variable sched: schedule.
 Hypothesis sched_platform: platform sched.
 
 Definition job_misses_no_dl (j: job) :=
-  << COMP: completed sched j (job_arrival j + job_deadline j) >>.
+  completed sched j (job_arrival j + job_deadline j).
 
 Definition no_dl_misses :=
   forall j arr (ARR: arrives_at sched j arr),
@@ -38,6 +38,6 @@ Definition schedulable_task (ts: taskset) (tsk: sporadic_task) :=
 
 Definition schedulable_taskset (ts: taskset) :=
   forall sched (PLAT: platform sched) (ARRts: ts_arrival_sequence ts sched)
-         tsk (IN: tsk \in ts), task_misses_no_ sched ts tsk.
+         tsk (IN: tsk \in ts), task_misses_no_dl sched ts tsk.
 
 End Schedulability.

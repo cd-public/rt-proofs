@@ -1,18 +1,19 @@
-Require Import List Relations Classical Arith Vbase extralib ExtraRelations task job task_arrival helper schedule.
+Require Import Vbase task ExtraRelations job task_arrival helper schedule
+               ssreflect ssrbool eqtype ssrnat seq.
 Set Implicit Arguments.
 
 (* Task ids are assumed to uniquely identify a task. Necessary to break ties in priority. *)
 Hypothesis same_id_same_task : forall tsk1 tsk2 (EQid: task_id tsk1 = task_id tsk2), tsk1 = tsk2. 
 Definition break_ties (tsk1 tsk2: sporadic_task) := task_id tsk1 < task_id tsk2.
 
-Definition task_hp_relation := sporadic_task -> sporadic_task -> Prop.
-Definition job_hp_relation := job -> job -> Prop.
+Definition task_hp_relation := sporadic_task -> sporadic_task -> bool.
+Definition job_hp_relation := job -> job -> bool.
 Definition sched_job_hp_relation := schedule -> time -> job_hp_relation.
 
 Definition valid_jldp_policy (hp_rel: sched_job_hp_relation) :=
   << hpIrr: forall sched t, irreflexive (hp_rel sched t) >> /\
   << hpAsym: forall sched t, asymmetric (hp_rel sched t) >> /\
-  << hpTrans: forall sched t, transitive _ (hp_rel sched t) >> /\
+  << hpTrans: forall sched t, transitive (hp_rel sched t) >> /\
   << hpTotalTS:
        forall (sched: schedule) t j1 j2 arr1 arr2
               (NEQ: j1 <> j2) (NEQtsk: job_task j1 <> job_task j2)
@@ -29,69 +30,107 @@ Definition valid_jldp_policy (hp_rel: sched_job_hp_relation) :=
 Definition valid_fp_policy (task_hp_rel: task_hp_relation) :=
   << hpIrr: irreflexive task_hp_rel >> /\
   << hpAntisym: asymmetric task_hp_rel >> /\
-  << hpTrans: transitive _ task_hp_rel >> /\
+  << hpTrans: transitive task_hp_rel >> /\
   << hpTotal: forall tsk1 tsk2 (NEQ: tsk1 <> tsk2), task_hp_rel tsk1 tsk2 \/ task_hp_rel tsk2 tsk1 >>.
 
 (* Rate-Monotonic and Deadline-Monotonic priority order *)
 Definition RM (tsk1 tsk2: sporadic_task) :=
-  << LTper: task_period tsk1 < task_period tsk2 >> \/
-  << TIE: (task_period tsk1 = task_period tsk2 /\ break_ties tsk1 tsk2) >>.
+  << LT_PER: (task_period tsk1 < task_period tsk2) >> ||
+    << TIE: ((task_period tsk1 == task_period tsk2) && break_ties tsk1 tsk2) >>.
 
 Definition DM (tsk1 tsk2: sporadic_task) :=
-  << LTper: task_deadline tsk1 < task_deadline tsk2 >> \/
-  << TIE: (task_deadline tsk1 = task_deadline tsk2 /\ break_ties tsk1 tsk2) >>.
+  << LT_DL: (task_deadline tsk1 < task_deadline tsk2) >> ||
+    << TIE: ((task_deadline tsk1 == task_deadline tsk2) && break_ties tsk1 tsk2) >>.
 
 Lemma rm_is_valid : valid_fp_policy RM.
 Proof.
   unfold valid_fp_policy, irreflexive, asymmetric, transitive, RM, break_ties;
-  repeat (split; try red); ins; try by (des; intuition).
-  destruct (lt_eq_lt_dec (task_period tsk1) (task_period tsk2)) as [DEC2 | LTper];
-  [destruct DEC2 as [LTper| EQper] |].
-    by left; left.
-    destruct (lt_eq_lt_dec (task_id tsk1) (task_id tsk2)) as [DEC3 | LTid];
-    [destruct DEC3 as [LTid| EQid]|].
-      by left; right.
-      by apply same_id_same_task in EQid; eauto; intuition.
-      by right; right.      
-    by right; left.
+  repeat (split; try red).
+  {
+    intro x; apply/orP; unfold not; intro BUG; des; first by rewrite ltnn in BUG.
+    by move: BUG => /andP BUG; des; rewrite ltnn in BUG0.
+  }
+  {
+    intros x y BUG; des.
+      by apply ltn_trans with (m := task_period y) in BUG; [by rewrite ltnn in BUG | by ins]. 
+      by move: BUG =>/andP BUG; des; move: BUG =>/eqP BUG; rewrite BUG ltnn in BUG0.
+      by move: BUG0 =>/andP BUG0; des; move: BUG0 =>/eqP BUG0; rewrite BUG0 ltnn in BUG.
+      by move: BUG BUG0 => /andP BUG /andP BUG0; des; apply ltn_trans with (m := task_id x) in BUG1;
+        [by rewrite ltnn in BUG1 | by ins].
+  }
+  {
+    intros y x z; move => /orP XY /orP YZ; apply/orP; des.
+      by left; apply ltn_trans with (n := task_period y).
+      by left; move: XY => /andP XY; des; move: XY => /eqP XY; rewrite -XY in YZ.
+      by left; move: YZ => /andP YZ; des; move: YZ => /eqP YZ; rewrite YZ in XY.
+      by right; move: XY YZ => /andP XY /andP YZ; des; apply/andP; split;
+        [by move: XY => /eqP XY; rewrite XY | by apply ltn_trans with (n := task_id y)].
+  }
+  {
+    intros tsk1 tsk2 NEQ; destruct (ltngtP (task_period tsk1) (task_period tsk2)).
+      by left; apply/orP; left.
+      by right; apply/orP; left.
+      rewrite e eq_refl 2!andTb 2!orFb.
+      destruct (ltngtP (task_id tsk1) (task_id tsk2)) as [LT12 | LT21 | EQ];
+        [by left | by right | by apply same_id_same_task in EQ]. 
+  }
 Qed.
 
 Lemma dm_is_valid : valid_fp_policy DM.
 Proof.
   unfold valid_fp_policy, irreflexive, asymmetric, transitive, DM, break_ties;
-  repeat (split; try red); ins; try by (des; intuition).
-  destruct (lt_eq_lt_dec (task_deadline tsk1) (task_deadline tsk2)) as [DEC2 | LTdl];
-  [destruct DEC2 as [LTdl| EQper] |].
-    by left; left.
-    destruct (lt_eq_lt_dec (task_id tsk1) (task_id tsk2)) as [DEC3 | LTid];
-    [destruct DEC3 as [LTid| EQid]|].
-      by left; right.
-      by apply same_id_same_task in EQid; eauto; intuition.
-      by right; right.      
-    by right; left.
+  repeat (split; try red).
+  {
+    intro x; apply/orP; unfold not; intro BUG; des; first by rewrite ltnn in BUG.
+    by move: BUG => /andP BUG; des; rewrite ltnn in BUG0.
+  }
+  {
+    intros x y BUG; des.
+      by apply ltn_trans with (m := task_deadline y) in BUG; [by rewrite ltnn in BUG | by ins]. 
+      by move: BUG =>/andP BUG; des; move: BUG =>/eqP BUG; rewrite BUG ltnn in BUG0.
+      by move: BUG0 =>/andP BUG0; des; move: BUG0 =>/eqP BUG0; rewrite BUG0 ltnn in BUG.
+      by move: BUG BUG0 => /andP BUG /andP BUG0; des; apply ltn_trans with (m := task_id x) in BUG1;
+        [by rewrite ltnn in BUG1 | by ins].
+  }
+  {
+    intros y x z; move => /orP XY /orP YZ; apply/orP; des.
+      by left; apply ltn_trans with (n := task_deadline y).
+      by left; move: XY => /andP XY; des; move: XY => /eqP XY; rewrite -XY in YZ.
+      by left; move: YZ => /andP YZ; des; move: YZ => /eqP YZ; rewrite YZ in XY.
+      by right; move: XY YZ => /andP XY /andP YZ; des; apply/andP; split;
+        [by move: XY => /eqP XY; rewrite XY | by apply ltn_trans with (n := task_id y)].
+  }
+  {
+    intros tsk1 tsk2 NEQ; destruct (ltngtP (task_deadline tsk1) (task_deadline tsk2)).
+      by left; apply/orP; left.
+      by right; apply/orP; left.
+      rewrite e eq_refl 2!andTb 2!orFb.
+      destruct (ltngtP (task_id tsk1) (task_id tsk2)) as [LT12 | LT21 | EQ];
+        [by left | by right | by apply same_id_same_task in EQ]. 
+  }
 Qed.
 
 (* Relate task priority with job priority *)
 Definition convert_fp_jldp (task_hp: task_hp_relation) (hp: sched_job_hp_relation) :=
   forall sched t jhigh jlow,
-    hp sched t jhigh jlow <->
-      (<< NEQtsk: (job_task jhigh) <> (job_task jlow) >> /\
+    hp sched t jhigh jlow =
+      (<< NEQtsk: (job_task jhigh) != (job_task jlow) >> &&
        << HPtsk: task_hp (job_task jhigh) (job_task jlow) >>).
 
 Lemma valid_fp_is_valid_jldp :
-  forall (*ts sched*) hp task_hp
-         (*(ARRts: ts_arrival_sequence ts sched) (* All jobs come from taskset *)*)
-         (FP: valid_fp_policy task_hp)
-         (CONV: convert_fp_jldp task_hp hp), valid_jldp_policy hp.
+  forall hp task_hp (FP: valid_fp_policy task_hp) (CONV: convert_fp_jldp task_hp hp),
+    valid_jldp_policy hp.
 Proof.
   unfold valid_fp_policy, valid_jldp_policy, convert_fp_jldp, irreflexive,
-  asymmetric, transitive, ts_arrival_sequence; repeat (split; try red); ins; des;
-  rewrite CONV in *; try rewrite CONV in *; des; repeat (split; try red); eauto.
-  by unfold not; intro EQ; rewrite EQ in *; eauto.
-  {
-    specialize (hpTotal (job_task j1) (job_task j2) NEQtsk).
-    des; [left|right]; split; eauto.
-  }
+  asymmetric, transitive, ts_arrival_sequence; repeat (split; try red).
+    by ins; rewrite CONV eq_refl /=.
+    by intros sched t x y; rewrite 2!CONV; ins; des; eauto.
+    intros sched t y x z; rewrite 3!CONV. move => /andP XY /andP YZ; apply/andP; split; des.
+      by apply/negP; move/eqP => EQ; rewrite -> EQ in *; eauto.
+      by apply hpTrans with (y := job_task y).
+    intros sched t j1 j2 arr1 arr2 NEQ NEQjob ARR1 ARR2; des.
+    rewrite 2!CONV; destruct (hpTotal (job_task j1) (job_task j2) NEQjob) as [HP | HP];
+    rewrite HP andbT; [left | right]; apply/eqP; [by ins | by red; ins; intuition].
 Qed.
 
 (* Job-level fixed priority *)
@@ -99,11 +138,9 @@ Definition jlfp_policy (hp: sched_job_hp_relation) :=
   forall sched j1 j2 t t' (HP: hp sched t j1 j2), hp sched t' j1 j2.
 
 Definition EDF (sched: schedule) (t: time) (j1 j2: job) :=
-  exists r1 r2, << ARR1: arrives_at sched j1 r1 >> /\
-                << ARR2: arrives_at sched j2 r2 >> /\
-                (<< LTper: r1 + job_deadline j1 < r2 + job_deadline j2 >> \/
-                 <<  TIE: (r1 + job_deadline j1 = r2 + job_deadline j2 /\
-                           break_ties (job_task j1) (job_task j2)) >>).
+  (<< LTdl: job_arrival j1 + job_deadline j1 < job_arrival j2 + job_deadline j2 >>) ||
+     (<< TIE: (job_arrival j1 + job_deadline j1 == job_arrival j2 + job_deadline j2) &&
+                           break_ties (job_task j1) (job_task j2) >>).
 
 Lemma edf_jlfp : jlfp_policy EDF. 
 Proof.
@@ -114,30 +151,44 @@ Lemma fp_is_jlfp :
   forall hp task_hp (CONV: convert_fp_jldp task_hp hp), jlfp_policy hp.
 Proof.
   unfold jlfp_policy, valid_fp_policy, convert_fp_jldp; ins; des.
-  rewrite CONV in *; eauto.
+  rewrite -> CONV in *; move: HP => /andP HP; des.
+  by apply/andP; split.
 Qed.
 
 Lemma edf_valid_policy : valid_jldp_policy EDF.
 Proof.
   unfold valid_jldp_policy, EDF, irreflexive, asymmetric, transitive, break_ties;
-  repeat (split; try red); ins;
-  have arrProp := arr_properties (arr_list sched).
-    by des; [assert (r1 = r2) by eauto using NOMULT; subst|]; intuition.
-    by des; assert (r0 = r2); assert (r1 = r3); eauto using NOMULT; by intuition.
-    des; assert (r1 = r3); eauto using NOMULT; subst; exists r0,r2; repeat split; eauto.
-      by left; eauto using lt_trans.
-      by left; rewrite TIE.
-      by left; rewrite <- TIE.
-      by right; split; [omega | eauto using lt_trans].
-  destruct (lt_eq_lt_dec (arr1 + job_deadline j1) (arr2 + job_deadline j2)) as [xxx | LTdl];
-  [destruct xxx as [LTdl| EQdl] |].
-    by left; exists arr1, arr2; repeat split; eauto.
-    destruct (lt_eq_lt_dec (task_id (job_task j1)) (task_id (job_task j2))) as [DEC3 | LTid];
-    [destruct DEC3 as [LTid| EQid]|].
-      by left; exists arr1, arr2; repeat split; eauto.
-      by apply same_id_same_task in EQid; intuition.
-      by right; exists arr2, arr1; repeat split; eauto.
-    by right; exists arr2, arr1; repeat split; eauto.
+  repeat (split; try red).
+  {
+    ins; apply/orP; unfold not; intro BUG; des; [| move: BUG => /andP BUG; des];
+      by rewrite -> ltnn in *.
+  }
+  {
+    intros sched t x y DL; des.
+      by apply ltn_trans with (m := job_arrival y + job_deadline y) in DL; [by rewrite ltnn in DL|].
+      by move: DL =>/andP DL; des; move: DL =>/eqP DL; rewrite DL ltnn in DL0.
+      by move: DL0 =>/andP DL0; des; move: DL0 =>/eqP DL0; rewrite DL0 ltnn in DL.
+      by move: DL DL0 => /andP DL /andP DL0; des; apply ltn_trans with
+                                                  (m := task_id (job_task x)) in DL1;
+        [by rewrite ltnn in DL1 | by ins].
+  }
+  {
+    intros sched t y x z; move => /orP XY /orP YZ; apply/orP; des.
+      by left; apply ltn_trans with (n := job_arrival y + job_deadline y).
+      by left; move: XY => /andP XY; des; move: XY => /eqP XY; rewrite -XY in YZ.
+      by left; move: YZ => /andP YZ; des; move: YZ => /eqP YZ; rewrite YZ in XY.
+      by right; move: XY YZ => /andP XY /andP YZ; des; apply/andP; split;
+        [by move: XY => /eqP XY; rewrite XY | by apply ltn_trans with (n := task_id (job_task y))].
+  }
+  {
+    intros sched t j1 j2 arr1 arr2 NEQ NEQtsk ARR1 ARR2.
+    destruct (ltngtP (job_arrival j1 + job_deadline j1) (job_arrival j2 + job_deadline j2)).
+      by left; apply/orP; left.
+      by right; apply/orP; left.
+      rewrite e eq_refl 2!andTb 2!orFb.
+      by destruct (ltngtP (task_id (job_task j1)) (task_id (job_task j2))) as [LT12 | LT21 | EQ];
+        [by left | by right | by apply same_id_same_task in EQ].     
+  }
 Qed.
 
 (* Whether a priority order is schedule-independent *)
@@ -154,6 +205,5 @@ Qed.
 Lemma fp_schedule_independent :
   forall hp tsk_hp (CONV: convert_fp_jldp tsk_hp hp), schedule_independent hp.
 Proof.
-  unfold schedule_independent, convert_fp_jldp, RM; repeat (split; try red);
-  ins; des; rewrite CONV in *; eauto.
+  unfold schedule_independent, convert_fp_jldp, RM; repeat (split; try red); rewrite 2!CONV; ins.
 Qed.

@@ -102,7 +102,7 @@ Proof.
       destruct (j == j0) eqn:EQj_j0; last by apply negbT; apply/eqP.
       move: EQj_j0 => /eqP EQj_j0; subst j0.
       apply negbT; apply/eqP.
-      have PROP := job_properties j; des; simpl in *.
+      have jPROP := job_properties j; des; simpl in *.
       destruct (t < task_cost tsk) eqn:LEcost; last by trivial.
       {
         assert (LT: t_comp < task_cost tsk).
@@ -198,18 +198,18 @@ Proof.
       }
     }
     {
-      intros OTHER; des.
+      intros OTHER; destruct OTHER as [EARLIER | OTHER].
       {
-        unfold earlier_job in OTHER; des; unfold arrives_at in *.
+        unfold earlier_job in EARLIER; des; unfold arrives_at in *.
         simpl in *. unfold my_arr_seq in *.
         assert (NOMULT' := NOMULT j0 arr1 arr2).
-        destruct (arr1 == 0); last by rewrite in_nil in ARR1.
-        destruct (arr2 == 0); last by rewrite in_nil in ARR2.
-        rewrite mem_seq1 in ARR1; rewrite mem_seq1 in ARR2;
+        destruct (arr1 == 0); last by rewrite in_nil in EARLIER1.
+        destruct (arr2 == 0); last by rewrite in_nil in EARLIER2.
+        rewrite mem_seq1 in EARLIER1; rewrite mem_seq1 in EARLIER2;
         rewrite mem_seq1 in NOMULT'.
-        move: ARR1 ARR2 => /eqP ARR1 /eqP ARR2; subst j0 jlow.
+        move: EARLIER1 EARLIER2 => /eqP EARLIER1 /eqP EARLIER2; subst j0 jlow.
         exploit NOMULT'; try apply/eqP; ins; subst.
-        by rewrite ltnn in LT.
+        by rewrite ltnn in EARLIER3.
       }
       {
         move: ARRIVED; unfold arrived. move => /exists_inP_nat ARRIVED; des.
@@ -221,7 +221,7 @@ Proof.
         destruct MAP0 as [EQ _ SERV].
         move: EQ => /eqP EQ; subst jhigh.
         unfold valid_jldp_policy, ExtraRelations.irreflexive in *; des.
-        by exfalso; apply (hpIrr sched t j).
+        by unfold irreflexive in *; rewrite (hpIrr sched t j) in MAP.
       }
     }
   }       
