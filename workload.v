@@ -1,4 +1,4 @@
-Require Import Classical Vbase job task schedule task_arrival response_time platform
+Require Import Vbase job task schedule task_arrival response_time platform
         schedulability divround helper priority identmp helper
         ssreflect ssrbool eqtype ssrnat seq div fintype bigop path ssromega.
 
@@ -18,11 +18,6 @@ Definition W (tsk: sporadic_task) (R_tsk: time) (delta: time) :=
   let d_k := (task_deadline tsk) in
   let p_k := (task_period tsk) in            
     minn e_k (delta + R_tsk - e_k - n_k * p_k) + n_k * e_k.
-
-(* Returns the arrival time of a job that arrives before t'
-   (or t' if the job doesn't arrive in the interval) *)
-Definition arrival_time (sched: schedule) (t': time) (j: job) : nat :=
-  find (arrives_at sched j) (iota 0 t').
 
 Theorem workload_bound :
   forall ts sched (SPO: sporadic_task_model ts sched)
