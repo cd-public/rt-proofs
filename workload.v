@@ -31,7 +31,7 @@ Theorem workload_bound :
          (RESTR: restricted_deadline_model ts)
          tsk (IN: tsk \in ts) j (JOB: job_task j = tsk)
          arr_j (ARRj: arrives_at sched j arr_j)
-         (NOMISS: task_misses_no_deadlines sched ts tsk)
+         (NOMISS: task_misses_no_dl_before sched ts tsk (arr_j + job_deadline j))
          R_tsk (RESP: forall mapped, response_time_ub (ident_mp num_cpus hp mapped) ts tsk R_tsk),
     (workload sched ts tsk arr_j (arr_j + job_deadline j)) <= W tsk R_tsk (job_deadline j).
 Proof.
@@ -335,22 +335,34 @@ Proof.
       last by unfold j_fst, j_lst; rewrite -[_.+1]add0n prev_le_next // SIZE // add0n ltnS leqnn.
     rewrite -subnBA // subnn subn0 in DISTmax.
     rewrite [job_deadline j + task_period tsk]addnC addnA in DISTmax.
-    move: BEFOREt2; rewrite ltnNge; move => /negP BEFOREt2; apply BEFOREt2.
+    generalize BEFOREt2; move: BEFOREt2; rewrite {1}ltnNge; move => /negP BEFOREt2'.
+    intros BEFOREt2; apply BEFOREt2'; clear BEFOREt2'.
     apply leq_trans with (n := job_arrival j_fst + task_deadline tsk + job_deadline j);
     last by apply leq_trans with (n := job_arrival j_fst + task_period tsk + job_deadline j);
             [by rewrite leq_add2r leq_add2l; apply RESTR| apply DISTmax].
     {
       (* Prove that j_fst does not execute d_k units after its arrival. *)
       unfold t2; rewrite leq_add2r; fold t1.
-      unfold task_misses_no_deadlines, job_misses_no_deadlines in NOMISS; des.
+      have PROP := arr_properties (arr_list sched); des.
+      have PROP2 := sched_properties sched; des; rename comp_task_no_exec into EXEC.
+      unfold task_misses_no_dl_before, job_misses_no_dl, completed in *; des.
       rewrite ts_finite_arrival_sequence in INfst0.
-      move: INfst0 => /exists_inP_nat ARRIVED; des.
-      specialize (NOMISS1 j_fst FSTtask x ARRIVED0); des.
+      move: INfst0 => /exists_inP_nat ARRIVED; destruct ARRIVED as [arr_fst [ARRfstLE ARRfst]].
+      specialize (NOMISS1 j_fst FSTtask arr_fst ARRfst).
+      specialize (ARR_PARAMS j_fst arr_fst ARRfst); rewrite -> ARR_PARAMS in *.
+      exploit NOMISS1; last intros COMP.
+      {
+        (* Prove that arr_fst + d_k <= t2 *)
+        apply leq_trans with (n := job_arrival j_lst); last by apply ltnW.
+        apply leq_trans with (n := arr_fst + task_period tsk + job_deadline j); last by ins.
+        rewrite -addnA leq_add2l -[job_deadline _]addn0.
+        apply leq_add; last by ins.
+        unfold restricted_deadline_model in RESTR.
+        have PROP := job_properties j_fst; des.
+        by rewrite job_params0 FSTtask RESTR.
+      } red in COMP.
       rewrite leqNgt; apply/negP; unfold not; intro H2.
-      have PROP := sched_properties sched; des; rename comp_task_no_exec into EXEC.
-      clear task_must_arrive_to_exec ARRIVED ARRIVED0 BEFOREt2.
-      have PROP2 := arr_properties (arr_list sched); des.
-      specialize (ARR_PARAMS j_fst arr ARR). rewrite -> ARR_PARAMS in *; clear ARR_PARAMS.
+      clear task_must_arrive_to_exec ARRfst ARRfstLE BEFOREt2.
       assert (NOSERV: service_during sched j_fst t1 t2 = 0).
       {
         unfold service_during; apply/eqP; rewrite -leqn0.
@@ -360,8 +372,8 @@ Proof.
           rewrite big_nat_cond [\sum_(_ <= _ < _) 0]big_nat_cond.
           apply leq_sum; intros i; rewrite andbT; move => /andP LTi; des.
           have PROP := job_properties j_fst; des. 
-          specialize (EXEC j_fst i (arr + job_deadline j_fst)).
-          unfold completed in *; rewrite SERV in EXEC.
+          specialize (EXEC j_fst i (arr_fst + job_deadline j_fst)).
+          unfold completed in *; rewrite COMP in EXEC.
           exploit EXEC; last intro NOTSCHED; first by apply/eqP.
             by rewrite job_params0 FSTtask; apply leq_trans with (n := t1); [by apply ltnW|by ins].
           move: NOTSCHED; unfold scheduled; rewrite negbK; move => /eqP NOTSCHED.

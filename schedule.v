@@ -212,3 +212,12 @@ Proof.
   rewrite service_before_arrival; first by ins.
   by apply leq_trans with (n := t0); ins.
 Qed.
+
+Lemma service_nonzero_arrived :
+  forall (sched: schedule) j t0 (LT: t0 < job_arrival j),
+    t1 t2 (NONZERO: service_during sched j t1 t2 != 0),
+  arrived sched j t2.
+Proof.
+  ins; have arrPROP := arr_properties (arr_list sched); des.
+  have schedPROP := sched_properties sched; des.
+  rename task_must_arrive_to_exec into EXEC; specialize (EXEC j t0).
