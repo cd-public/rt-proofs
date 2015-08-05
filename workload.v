@@ -28,19 +28,16 @@ Theorem workload_bound :
   forall ts sched (SPO: sporadic_task_model ts sched)
          hp (VALIDhp: valid_jldp_policy hp)
          cpumap num_cpus (MULT: ident_mp num_cpus hp cpumap sched)
-         (RESTR: restricted_deadline_model ts)
-         tsk (IN: tsk \in ts) j (JOB: job_task j = tsk)
-         arr_j (ARRj: arrives_at sched j arr_j)
-         (NOMISS: task_misses_no_dl_before sched ts tsk (arr_j + job_deadline j))
+         (RESTR: restricted_deadline_model ts) tsk (IN: tsk \in ts)
+         t1 delta (NOMISS: task_misses_no_dl_before sched ts tsk (t1 + delta))
          R_tsk (RESP: forall mapped, response_time_ub (ident_mp num_cpus hp mapped) ts tsk R_tsk),
-    (workload sched ts tsk arr_j (arr_j + job_deadline j)) <= W tsk R_tsk (job_deadline j).
+    (workload sched ts tsk t1 (t1 + delta)) <= W tsk R_tsk delta.
 Proof.
   unfold sporadic_task_model, workload, W; ins; des.
 
   (* Simplify names *)
-  set t1 := arr_j.
-  set t2 := arr_j + job_deadline j.
-  set n_k := max_jobs tsk R_tsk (job_deadline j).
+  set t2 := t1 + delta.
+  set n_k := max_jobs tsk R_tsk delta.
 
   (* Name the subset of jobs that actually cause interference *)
   set interfering_jobs :=
@@ -77,10 +74,6 @@ Proof.
     apply rt_geq_wcet_identmp with (ts := ts) (num_cpus := num_cpus) (hp := hp);
     by unfold ident_mp in MULT; des; ins.
   }
-
-  (* Remember that delta = t2 - t1 *)
-  assert (EQdelta: t2 - t1 = job_deadline j).
-    by unfold t1,t2; rewrite addnC -addnBA // subnn addn0.
     
   (* Order the sequence of interfering jobs by arrival time, so that
      we can identify the first and last jobs. *)
@@ -94,9 +87,12 @@ Proof.
   assert (INboth: forall x, (x \in interfering_jobs) = (x \in sorted_jobs)).
     by apply perm_eq_mem; rewrite -(perm_sort order).
 
-  (* Remember that the jobs are ordered by arrival *)
+  (* Remember that the jobs are ordered by arrival. We create some dummy job
+     to use as default in nth. *)
+  exploit (Build_job t2 1 (task_deadline tsk) tsk); last intros dummy.
+    by repeat split; have PROP := task_properties tsk; des; ins.
   assert (ALL: forall i (LTsort: i < (size sorted_jobs).-1),
-                 order (nth j sorted_jobs i) (nth j sorted_jobs i.+1)).
+                 order (nth dummy sorted_jobs i) (nth dummy sorted_jobs i.+1)).
   by destruct sorted_jobs; [by ins| by apply/pathP; apply SORT].
 
   (* Now we start the proof. First, we show that the workload bound
@@ -105,8 +101,7 @@ Proof.
   {
     rewrite -[\sum_(_ <- _ | _) _]add0n leq_add //.
     apply leq_trans with (n := \sum_(x <- sorted_jobs) task_cost tsk);
-      last by rewrite big_const_seq iter_addn addn0 mulnC leq_mul2r;
-      apply/orP; right.
+      last by rewrite big_const_seq iter_addn addn0 mulnC leq_mul2r; apply/orP; right.
     {
       rewrite [\sum_(_ <- _) service_during _ _ _ _]big_seq_cond.
       rewrite [\sum_(_ <- _) task_cost _]big_seq_cond.
@@ -116,14 +111,14 @@ Proof.
   apply negbT in NUM; rewrite -ltnNge in NUM.
 
   (* Now we index the sum, so that we can access the first and last elements. *)
-  rewrite (big_nth j).
+  rewrite (big_nth dummy).
 
   (* First and last only exist if there are at least 2 jobs. Thus, we must show
      that the bound holds for the empty list. *)
   destruct (size sorted_jobs) eqn:SIZE; [by rewrite big_geq // SIZE | rewrite SIZE].
 
   (* Let's derive some properties about the first element. *)
-  exploit (mem_nth j); last intros FST.
+  exploit (mem_nth dummy); last intros FST.
     by instantiate (1:= sorted_jobs); instantiate (1 := 0); rewrite SIZE.
   move: FST; rewrite -INboth mem_filter; move => /andP FST; des.
   move: FST => /andP FST; des; move: FST => /eqP FST.
@@ -137,9 +132,9 @@ Proof.
       rewrite 2!mul0n addn0 subn0 big_nat_recl // big_geq // addn0.
       rewrite leq_min; apply/andP; split.
       {
-        apply leq_trans with (n := job_cost (nth j sorted_jobs 0)).
+        apply leq_trans with (n := job_cost (nth dummy sorted_jobs 0)).
         apply service_interval_max_cost; first by unfold ident_mp in MULT; des; ins.
-        by rewrite -FSTtask; have PROP := job_properties (nth j sorted_jobs 0); des.
+        by rewrite -FSTtask; have PROP := job_properties (nth dummy sorted_jobs 0); des.
       }
       {
       rewrite -addnBA; last by ins.
@@ -147,7 +142,7 @@ Proof.
       apply leq_add; last by ins.
       unfold service_during; apply leq_trans with (n := \sum_(t1 <= t < t2) 1).
         by apply leq_sum; intros i _; unfold ident_mp in MULT; des; apply mp_max_service.
-        by rewrite big_const_nat iter_addn mul1n addn0 EQdelta.
+        by unfold t2; rewrite big_const_nat iter_addn mul1n addn0 addnC -addnBA // subnn addn0.
       }
     }
   } rewrite [nth]lock /= -lock in ALL.
@@ -155,8 +150,8 @@ Proof.
   (* Knowing that we have at least two elements, we take first and last out of the sum *) 
   rewrite [nth]lock big_nat_recl // big_nat_recr // /= -lock.
   rewrite addnA addnC addnA.
-  set j_fst := (nth j sorted_jobs 0).
-  set j_lst := (nth j sorted_jobs n.+1).
+  set j_fst := (nth dummy sorted_jobs 0).
+  set j_lst := (nth dummy sorted_jobs n.+1).
                      
   (* Now we infer some facts about how first and last are ordered in the timeline *)
   assert (INfst: j_fst \in interfering_jobs).
@@ -177,7 +172,7 @@ Proof.
     rewrite leqNgt; apply/negP; unfold not; intro LT2.
     assert (LTsize: n.+1 < size sorted_jobs).
       by destruct sorted_jobs; ins; rewrite SIZE; apply ltnSn.
-    apply (mem_nth j) in LTsize; rewrite -INboth in LTsize.
+    apply (mem_nth dummy) in LTsize; rewrite -INboth in LTsize.
     rewrite -/interfering_jobs mem_filter in LTsize.  
     move: LTsize => /andP xxx; des; move: xxx xxx0 => /andP xxx INlst; des.
     rename xxx0 into SERV; clear xxx.
@@ -197,9 +192,9 @@ Proof.
         last by apply leq_sum; unfold ident_mp in MULT; des; ins; apply mp_max_service.
       destruct (job_arrival j_fst + R_tsk <= t2) eqn:LEt2; last first.
       {
-        apply negbT in LEt2; rewrite -ltnNge in LEt2.
-        rewrite -> big_cat_nat with (n := t2) (p := job_arrival j_fst + R_tsk);
-          by try apply leq_addr; try apply ltnW.
+        unfold t2; apply negbT in LEt2; rewrite -ltnNge in LEt2.
+        rewrite -> big_cat_nat with (n := t1 + delta) (p := job_arrival j_fst + R_tsk);
+          [by apply leq_addr | by apply leq_addr | by apply ltnW].
       }
       {
         rewrite -> big_cat_nat with (n := job_arrival j_fst + R_tsk); [| by ins | by ins].
@@ -213,9 +208,9 @@ Proof.
       rewrite -[_ - _]mul1n -[1 * _]addn0 -iter_addn -big_const_nat.
       destruct (job_arrival j_lst <= t1) eqn:LT.
       {
-        apply leq_trans with (n := \sum_(job_arrival j_lst <= t < t2) service_at sched j_lst t).
-        rewrite -> big_cat_nat with (m := job_arrival j_lst) (n := t1);
-          [by apply leq_addl | by ins | by unfold t1, t2; apply leq_addr].
+        apply leq_trans with (n := \sum_(job_arrival j_lst <= t < t2) service_at sched j_lst t);
+          first by rewrite -> big_cat_nat with (m := job_arrival j_lst) (n := t1);
+            [by apply leq_addl | by ins | by apply leq_addr].
         by apply leq_sum; unfold ident_mp in MULT; des; ins; apply mp_max_service.
       }
       {
@@ -230,12 +225,12 @@ Proof.
 
   (* Let's simplify the expression of the bound *)
   assert (SUBST: job_arrival j_fst + R_tsk - t1 + (t2 - job_arrival j_lst) =
-                 job_deadline j + R_tsk - (job_arrival j_lst - job_arrival j_fst)).
+                 delta + R_tsk - (job_arrival j_lst - job_arrival j_fst)).
   {
     rewrite addnBA; last by apply ltnW.
     rewrite subh1 // -addnBA; last by apply leq_addr.
     rewrite addnC [job_arrival _ + _]addnC.
-    unfold t1, t2; rewrite [arr_j + _]addnC -[_ + arr_j - _]addnBA // subnn addn0.
+    unfold t2; rewrite [t1 + _]addnC -[delta + t1 - _]subnBA // subnn subn0.
     rewrite addnA -subnBA; first by ins.
     {
       unfold j_fst, j_lst; rewrite -[n.+1]add0n.
@@ -244,7 +239,7 @@ Proof.
   } rewrite SUBST in BOUNDend; clear SUBST.
 
   (* Now we upper-bound the service of the middle jobs. *)
-  assert (BOUNDmid: \sum_(0 <= i < n) service_during sched (nth j sorted_jobs i.+1) t1 t2 <=
+  assert (BOUNDmid: \sum_(0 <= i < n) service_during sched (nth dummy sorted_jobs i.+1) t1 t2 <=
                       n * task_cost tsk).
   {
     apply leq_trans with (n := n * task_cost tsk);
@@ -267,9 +262,9 @@ Proof.
     apply leq_sum; intros i; rewrite andbT; move => /andP LT; des.
     {
       (* To simplify, call the jobs 'cur' and 'next' *)
-      set cur := nth j sorted_jobs i.
-      set next := nth j sorted_jobs i.+1.
-      clear BOUNDend BOUNDmid LT EQdelta LTserv NEXT j_fst j_lst INfst INfst0 INfst1
+      set cur := nth dummy sorted_jobs i.
+      set next := nth dummy sorted_jobs i.+1.
+      clear BOUNDend BOUNDmid LT LTserv NEXT j_fst j_lst INfst INfst0 INfst1
             AFTERt1 BEFOREt2 FSTserv FSTtask FSTin.
 
       (* Show that cur arrives earlier than next *)
@@ -318,12 +313,12 @@ Proof.
   assert (NK: n_k >= n).
   {
     rewrite leqNgt; apply/negP; unfold not; intro LTnk.
-    assert (DISTmax: job_arrival j_lst - job_arrival j_fst >= job_deadline j + task_period tsk).
+    assert (DISTmax: job_arrival j_lst - job_arrival j_fst >= delta + task_period tsk).
     {
       apply leq_trans with (n := n_k.+2 * task_period tsk).
       {
         rewrite -addn1 mulnDl mul1n leq_add2r.
-        apply leq_trans with (n := job_deadline j + R_tsk - task_cost tsk);
+        apply leq_trans with (n := delta + R_tsk - task_cost tsk);
           first by rewrite -addnBA //; apply leq_addr.
         by apply ltnW, ltn_ceil; by have PROP := task_properties tsk; des.
       }
@@ -334,15 +329,15 @@ Proof.
     rewrite addnC subh1 in DISTmax;
       last by unfold j_fst, j_lst; rewrite -[_.+1]add0n prev_le_next // SIZE // add0n ltnS leqnn.
     rewrite -subnBA // subnn subn0 in DISTmax.
-    rewrite [job_deadline j + task_period tsk]addnC addnA in DISTmax.
+    rewrite [delta + task_period tsk]addnC addnA in DISTmax.
     generalize BEFOREt2; move: BEFOREt2; rewrite {1}ltnNge; move => /negP BEFOREt2'.
     intros BEFOREt2; apply BEFOREt2'; clear BEFOREt2'.
-    apply leq_trans with (n := job_arrival j_fst + task_deadline tsk + job_deadline j);
-    last by apply leq_trans with (n := job_arrival j_fst + task_period tsk + job_deadline j);
-            [by rewrite leq_add2r leq_add2l; apply RESTR| apply DISTmax].
+    apply leq_trans with (n := job_arrival j_fst + task_deadline tsk + delta);
+      last by apply leq_trans with (n := job_arrival j_fst + task_period tsk + delta);
+        [by rewrite leq_add2r leq_add2l; apply RESTR| apply DISTmax].
     {
       (* Prove that j_fst does not execute d_k units after its arrival. *)
-      unfold t2; rewrite leq_add2r; fold t1.
+      unfold t2; rewrite leq_add2r.
       have PROP := arr_properties (arr_list sched); des.
       have PROP2 := sched_properties sched; des; rename comp_task_no_exec into EXEC.
       unfold task_misses_no_dl_before, job_misses_no_dl, completed in *; des.
@@ -354,7 +349,7 @@ Proof.
       {
         (* Prove that arr_fst + d_k <= t2 *)
         apply leq_trans with (n := job_arrival j_lst); last by apply ltnW.
-        apply leq_trans with (n := arr_fst + task_period tsk + job_deadline j); last by ins.
+        apply leq_trans with (n := arr_fst + task_period tsk + delta); last by ins.
         rewrite -addnA leq_add2l -[job_deadline _]addn0.
         apply leq_add; last by ins.
         unfold restricted_deadline_model in RESTR.
@@ -399,13 +394,12 @@ Proof.
     {
       rewrite subnAC subnK; last first.
       {
-        assert (TMP:job_deadline j + R_tsk =
-                    task_cost tsk + (job_deadline j + R_tsk - task_cost tsk));
+        assert (TMP: delta + R_tsk = task_cost tsk + (delta + R_tsk - task_cost tsk));
           first by rewrite subnKC; [by ins | by rewrite -[task_cost _]add0n; apply leq_add].
         rewrite TMP; clear TMP.
         rewrite -{1}[task_cost _]addn0 -addnBA NK; [by apply leq_add | by apply leq_trunc_div].
       }
-      apply leq_trans with (job_deadline j + R_tsk - (job_arrival j_lst - job_arrival j_fst));
+      apply leq_trans with (delta + R_tsk - (job_arrival j_lst - job_arrival j_fst));
         first by rewrite addnC; apply BOUNDend.
       by apply leq_sub2l, DIST.
     }
@@ -414,7 +408,7 @@ Proof.
     (* Case 2: n_k = n, where n is the number of middle jobs. *)
     move: NK => /eqP NK; rewrite -NK.
     apply leq_add; [clear BOUNDmid | by apply BOUNDmid].
-    apply leq_trans with (job_deadline j + R_tsk - (job_arrival j_lst - job_arrival j_fst));
+    apply leq_trans with (delta + R_tsk - (job_arrival j_lst - job_arrival j_fst));
       first by rewrite addnC; apply BOUNDend.
     rewrite leq_min; apply/andP; split.
     {
