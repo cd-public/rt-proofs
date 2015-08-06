@@ -1,17 +1,17 @@
 Require Import Vbase job task schedule task_arrival response_time platform
         schedulability divround helper priority identmp helper
         ssreflect ssrbool eqtype ssrnat seq div fintype bigop path ssromega.
-
-Section WorkloadBound.
   
 (* Workload is defined as the total service received by jobs of
    a specific task in the interval [t,t'). *)
 Definition workload (sched: schedule) (ts: taskset) (tsk: sporadic_task) (t t': time) :=
   \sum_(j <- prev_arrivals sched t' | job_task j == tsk) (service_during sched j t t').
 
+(* Bound n_k on the number of jobs that execute completely in the interval *)
 Definition max_jobs (tsk: sporadic_task) (R_tsk: time) (delta: time) :=
   div_floor (delta + R_tsk - task_cost tsk) (task_period tsk).
 
+(* Bound on the workload of a task in an interval of length delta *)
 Definition W (tsk: sporadic_task) (R_tsk: time) (delta: time) :=
   let n_k := (max_jobs tsk R_tsk delta) in
   let e_k := (task_cost tsk) in
@@ -19,21 +19,47 @@ Definition W (tsk: sporadic_task) (R_tsk: time) (delta: time) :=
   let p_k := (task_period tsk) in            
     minn e_k (delta + R_tsk - e_k - n_k * p_k) + n_k * e_k.
 
-Theorem workload_bound :
-  forall ts sched (SPO: sporadic_task_model ts sched)
-         hp (VALIDhp: valid_jldp_policy hp)
-         cpumap num_cpus (MULT: ident_mp num_cpus hp cpumap sched)
-         (RESTR: restricted_deadline_model ts) tsk (IN: tsk \in ts)
-         t1 delta (NOMISS: task_misses_no_dl_before sched ts tsk (t1 + delta))
-         R_tsk (RESP: forall mapped, response_time_ub (ident_mp num_cpus hp mapped) ts tsk R_tsk),
-    (workload sched ts tsk t1 (t1 + delta)) <= W tsk R_tsk delta.
+Section WorkloadBound.
+  
+Variable ts: taskset.
+Variable sched: schedule.
+Hypothesis sporadic_tasks: sporadic_task_model ts sched.
+Hypothesis restricted_deadlines: restricted_deadline_model ts.
+
+(* Assume a generic, but valid JLDP policy. This is required to derive that
+   R_k >= e_k. *)
+Variable hp: sched_job_hp_relation.
+Hypothesis valid_policy: valid_jldp_policy hp.
+
+(* Assume an identical multiprocessor with an arbitrary number of CPUs *)
+Variable cpumap: job_mapping.
+Variable num_cpus: nat.
+Hypothesis sched_of_multiprocessor: ident_mp num_cpus hp cpumap sched.
+
+(* Let tsk be any task in the taskset. *)
+Variable tsk: sporadic_task.
+Hypothesis in_ts: tsk \in ts.
+
+(* Suppose that we are given a response-time bound R_tsk for that task in any
+   schedule of this processor platform. *)
+Variable R_tsk: time.
+Hypothesis response_time_bound:
+  forall cpumap, response_time_ub (ident_mp num_cpus hp cpumap) ts tsk R_tsk.
+
+(* Consider an interval [t1, t1 + delta).*)
+Variable t1 delta: time.
+Hypothesis no_deadline_misses: task_misses_no_dl_before sched ts tsk (t1 + delta).
+
+Theorem workload_bound : workload sched ts tsk t1 (t1 + delta) <= W tsk R_tsk delta.
 Proof.
-  unfold sporadic_task_model, workload, W; ins; des.
+  rename sched_of_multiprocessor into MULT, sporadic_tasks into SPO, restricted_deadlines into RESTR,
+         no_deadline_misses into NOMISS.
+  unfold sporadic_task_model, workload, W in *; ins; des.
 
   (* Simplify names *)
   set t2 := t1 + delta.
   set n_k := max_jobs tsk R_tsk delta.
-
+  
   (* Name the subset of jobs that actually cause interference *)
   set interfering_jobs :=
     filter (fun x => (job_task x == tsk) && (service_during sched x t1 t2 != 0))
@@ -329,7 +355,7 @@ Proof.
     intros BEFOREt2; apply BEFOREt2'; clear BEFOREt2'.
     apply leq_trans with (n := job_arrival j_fst + task_deadline tsk + delta);
       last by apply leq_trans with (n := job_arrival j_fst + task_period tsk + delta);
-        [by rewrite leq_add2r leq_add2l; apply RESTR| apply DISTmax].
+        [by rewrite leq_add2r leq_add2l; apply RESTR | apply DISTmax].
     {
       (* Prove that j_fst does not execute d_k units after its arrival. *)
       unfold t2; rewrite leq_add2r.
