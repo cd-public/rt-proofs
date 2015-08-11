@@ -28,13 +28,13 @@ Hypothesis restricted_deadlines: restricted_deadline_model ts.
 
 (* Assume a generic, but valid JLDP policy. This is required to derive that
    R_k >= e_k. *)
-Variable hp: sched_job_hp_relation.
-Hypothesis valid_policy: valid_jldp_policy hp.
+Variable higher_priority: sched_job_hp_relation.
+Hypothesis valid_policy: valid_jldp_policy higher_priority.
 
 (* Assume an identical multiprocessor with an arbitrary number of CPUs *)
 Variable cpumap: job_mapping.
 Variable num_cpus: nat.
-Hypothesis sched_of_multiprocessor: ident_mp num_cpus hp cpumap sched.
+Hypothesis sched_of_multiprocessor: ident_mp num_cpus higher_priority cpumap sched.
 
 (* Let tsk be any task in the taskset. *)
 Variable tsk: sporadic_task.
@@ -44,7 +44,7 @@ Hypothesis in_ts: tsk \in ts.
    schedule of this processor platform. *)
 Variable R_tsk: time.
 Hypothesis response_time_bound:
-  forall cpumap, response_time_ub (ident_mp num_cpus hp cpumap) ts tsk R_tsk.
+  forall cpumap, response_time_ub (ident_mp num_cpus higher_priority cpumap) ts tsk R_tsk.
 
 (* Consider an interval [t1, t1 + delta).*)
 Variable t1 delta: time.
@@ -53,7 +53,7 @@ Hypothesis no_deadline_misses: task_misses_no_dl_before sched ts tsk (t1 + delta
 Theorem workload_bound : workload sched ts tsk t1 (t1 + delta) <= W tsk R_tsk delta.
 Proof.
   rename sched_of_multiprocessor into MULT, sporadic_tasks into SPO, restricted_deadlines into RESTR,
-         no_deadline_misses into NOMISS.
+         no_deadline_misses into NOMISS, higher_priority into hp.
   unfold sporadic_task_model, workload, W in *; ins; des.
 
   (* Simplify names *)

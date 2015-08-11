@@ -1,28 +1,30 @@
 Require Import Classical Vbase JobDefs helper
                ssreflect ssrbool eqtype ssrnat seq fintype bigop.
 
-Definition time := nat.
-
 Module ArrivalSequence.
 
 Import Job.
-  
-Definition arrival_sequence := time -> seq job.
+
+(* Integer time *)
+Definition time := nat.
+
+Parameter arrival_sequence: Set.
+Parameter arriving_jobs: arrival_sequence -> time -> seq job.
 
 Definition valid_arrival_sequence (arr: arrival_sequence) :=
   << no_multiple_jobs:
-       forall j t1 t2 (INj1: j \in arr t1)
-                      (INj2: j \in arr t2), t1 = t2 >> /\
+       forall j t1 t2 (INj1: j \in (arriving_jobs arr t1))
+                      (INj2: j \in (arriving_jobs arr t2)), t1 = t2 >> /\
   << arrival_times_match:
-       forall j t (INj: j \in arr t), job_arrival j = t >> /\
-  << arrival_seq_unique: forall t, uniq (arr t) >>.
+       forall j t (INj: j \in (arriving_jobs arr t)), job_arrival j = t >> /\
+  << arrival_seq_unique: forall t, uniq (arriving_jobs arr t) >>.
 
 Section ArrivingJobs.
 
 Variable arr: arrival_sequence.
 Variable j: job.
   
-Definition arrives_at (t: time) :=  j \in arr t.
+Definition arrives_at (t: time) :=  j \in arriving_jobs arr t.
 
 (* A job has arrived at time t iff it arrives at some time t_0, with 0 <= t_0 <= t. *)
 Definition has_arrived (t: nat) := [exists t_0 in 'I_(t.+1), arrives_at t_0].
@@ -92,60 +94,46 @@ Definition carried_out (t1 t2: time) := arrived_between sched j t1 t2 && ~~ comp
 
 End ScheduledJobs.
 
-Section ValidSchedules.
+Definition valid_schedule (sched: schedule) :=
+  (* A job can only be scheduled if it has arrived *)
+  << task_must_arrive_to_exec:
+    forall j t, scheduled sched j t -> has_arrived sched j t >> /\
 
-Variable sched: schedule.
-
-(* Whether a job can only be scheduled if it has arrived *)
-Definition job_must_arrive_to_exec :=
-  forall j t, scheduled sched j t -> has_arrived sched j t.
-
-(* Whether a job can be scheduled after it completes *)
-Definition completed_job_doesnt_exec :=
-  forall j t, service sched j t <= job_cost j.
-
-Definition valid_sporadic_schedule :=
-  job_must_arrive_to_exec /\ completed_job_doesnt_exec.
-
-End ValidSchedules.
+  (* A job cannot be scheduled after it completed, i.e., it cannot accumulate
+     more service than its execution cost. *)
+  << comp_task_no_exec: forall j t, service sched j t <= job_cost j >>.
 
 Section ServiceProperties.
 
 Variable sched: schedule.
-Variable j: job.
+Hypothesis sched_valid: valid_schedule sched.  
 
-Section Completion.
-
-Hypothesis completed_jobs: completed_job_doesnt_exec sched.
 Hypothesis max_service_one: forall j' t, service_at sched j' t <= 1.
 
-Lemma service_interval_le_cost :
+Variable j: job.
+
+Lemma service_interval_max_cost :
   forall t t', service_during sched j t t' <= job_cost j.
 Proof.
-  unfold service_during; rename completed_jobs into COMP; red in COMP; ins.
+  unfold service_during; rename sched_valid into schedPROP; red in schedPROP; des; ins.
   destruct (t > t') eqn:GT.
     by rewrite big_geq // -ltnS; apply ltn_trans with (n := t); ins.
     apply leq_trans with (n := \sum_(0 <= t0 < t') service_at sched j t0);
-      last by apply COMP.
+      last by apply comp_task_no_exec.
     rewrite -> big_cat_nat with (m := 0) (n := t);
       [by apply leq_addl | by ins | by rewrite leqNgt negbT //].
 Qed.
 
-End Completion.
-
-Section Arrival.
-
 Hypothesis valid_arr_seq: valid_arrival_sequence sched.
-Hypothesis jobs_must_arrive: job_must_arrive_to_exec sched.
 
-Lemma service_before_arrival_zero :
+Lemma service_before_arrival :
   forall t0 (LT: t0 < job_arrival j), service_at sched j t0 = 0.
 Proof.
   rename valid_arr_seq into arrPROP; red in arrPROP; des;
-  rename jobs_must_arrive into ARR; red in ARR; ins.
-  specialize (ARR j t0).
-  apply contra with (c := scheduled sched j t0) (b := has_arrived sched j t0) in ARR;
-    first by rewrite -/scheduled negbK in ARR; apply/eqP.
+  rename sched_valid into schedPROP; red in schedPROP; des; ins.
+  rename task_must_arrive_to_exec into EXEC; specialize (EXEC j t0).
+  apply contra with (c := scheduled sched j t0) (b := has_arrived sched j t0) in EXEC;
+    first by rewrite -/scheduled negbK in EXEC; apply/eqP.
   {
     destruct (classic (exists arr_j, arrives_at sched j arr_j)) as [ARRIVAL|NOARRIVAL]; des;
     last by apply/negP; move => /exists_inP_nat ARRIVED; des; apply NOARRIVAL; exists x.
@@ -169,15 +157,14 @@ Proof.
     last by rewrite big_const_nat iter_addn mul0n addn0.
   rewrite big_nat_cond [\sum_(_ <= _ < _) 0]big_nat_cond.
   apply leq_sum; intro i; rewrite andbT; move => /andP LTi; des.
-  rewrite service_before_arrival_zero; first by ins.
+  rewrite service_before_arrival; first by ins.
   by apply leq_trans with (n := t2); ins.
 Qed.
-
-End Arrival.
 
 End ServiceProperties.
 
 End Schedule.
+
 
 (* Specific definitions for schedules of sporadic tasks *)
 Module ScheduleOfSporadicTask.

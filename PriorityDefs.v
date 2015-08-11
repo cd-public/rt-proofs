@@ -1,19 +1,26 @@
-Require Import Vbase task ExtraRelations job task_arrival helper schedule
+Require Import Vbase ExtraRelations TaskDefs JobDefs ScheduleDefs
                ssreflect ssrbool eqtype ssrnat seq.
 Set Implicit Arguments.
 
-(* Task ids are assumed to uniquely identify a task. Necessary to break ties in priority. *)
-Hypothesis same_id_same_task : forall tsk1 tsk2 (EQid: task_id tsk1 = task_id tsk2), tsk1 = tsk2. 
-Definition break_ties (tsk1 tsk2: sporadic_task) := task_id tsk1 < task_id tsk2.
+Module Priority.
 
-Definition task_hp_relation := sporadic_task -> sporadic_task -> bool.
-Definition job_hp_relation := job -> job -> bool.
-Definition sched_job_hp_relation := schedule -> time -> job_hp_relation.
+Import Job SporadicTask Schedule.
+  
+(* We define a policy as a relation between two jobs:
+   j1 < j2 iff j1 has higher priority than j2. *)
+Definition jldp_policy := schedule -> time -> job -> job -> bool.
+Definition fp_policy := sporadic_task -> sporadic_task -> bool.
 
-Definition valid_jldp_policy (hp_rel: sched_job_hp_relation) :=
-  << hpIrr: forall sched t, irreflexive (hp_rel sched t) >> /\
-  << hpAsym: forall sched t, asymmetric (hp_rel sched t) >> /\
-  << hpTrans: forall sched t, transitive (hp_rel sched t) >> /\
+
+(*(* Assume that jobs have a total order (say, jobs ids) to be used
+   as a tie-break. *)
+Parameter tie_break: job -> job -> bool.
+Hypothesis tie_break_strict_total : forall (j1 j2: job), tie_break j1 j2 (+) tie_break j2 j1.*)
+
+Definition valid_jldp_policy (hp: jldp_policy) :=
+  << hpIrr: forall sched t, irreflexive (hp sched t) >> /\
+  << hpAsym: forall sched t, asymmetric (hp sched t) >> /\
+  << hpTrans: forall sched t, transitive (hp sched t) >> /\
   << hpTotalTS:
        forall (sched: schedule) t j1 j2 arr1 arr2
               (NEQ: j1 <> j2) (NEQtsk: job_task j1 <> job_task j2)
