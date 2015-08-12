@@ -1,11 +1,11 @@
-Require Import ScheduleDefs PriorityDefs.
+Require Import Vbase ScheduleDefs PriorityDefs.
 
 Module Platform.
 
 Import Schedule.
 
-(* A processor platform is just a set of constraints on a schedule, \ie.,
-   constraints on the amout of service that jobs receive over time. *)
+(* A processor platform is simply a set of schedules, \ie.,
+   it defines the amount of service that jobs receive over time. *)
 
 Definition processor_platform := schedule -> Prop.
 
@@ -14,35 +14,23 @@ Definition processor_platform := schedule -> Prop.
    of the platform should not be trivially false. *)
 Definition valid_platform (plat: processor_platform) :=
   forall (arr: arrival_sequence),
-    exists (sched: schedule), (arr_seq_of_schedule sched = arr) /\
-                               plat sched.
+    exists (sched: schedule), (arr_seq_of_schedule sched = arr) /\ plat sched.
 
 End Platform.
 
 Module IdenticalMultiprocessor.
 
-Import Schedule.
-Import Platform.
-Import Priority.
+Import Schedule Platform Priority.
 
-Variable higher_priority: sched_job_hp_relation.
+Section Multiprocessor.
+  
+Variable higher_priority: jldp_policy.
 Variable num_cpus: nat.
-Variable   
-  Definition ident_mp (num_cpus:
-Definition processor_id := nat.
+Variable sched: schedule.
 
-
-
-Require Import Classical Vbase task job schedule priority platform task_arrival
-               response_time ssreflect ssrbool eqtype seq ssrnat bigop helper.
-
-Definition job_mapping := job -> processor_id -> time -> bool.
-
-(* Identical multiprocessor platform *)
-Definition ident_mp (num_cpus: nat) (hp: sched_job_hp_relation) (mapped: job_mapping) (sched: schedule) :=
   (* The mapping has a finite positive number of cpus: [0, num_cpus) *)
-  << mp_cpus_nonzero: num_cpus > 0 >> /\
-  << mp_num_cpus: forall j cpu t, mapped j cpu t -> cpu < num_cpus >> /\
+Definition mp_cpus_nonzero: num_cpus > 0.
+Definition mp_num_cpus: forall j cpu t, mapped j cpu t -> cpu < num_cpus.  >> /\
 
   (* Job is scheduled iff it is mapped to some processor*)
   << mp_mapping: forall j t, scheduled sched j t <-> exists cpu, mapped j cpu t >> /\
