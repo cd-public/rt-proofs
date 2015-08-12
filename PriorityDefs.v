@@ -1,4 +1,4 @@
-Require Import Vbase ExtraRelations TaskDefs JobDefs ScheduleDefs
+Require Import Vbase ExtraRelations TaskDefs JobDefs ScheduleDefs TaskArrivalDefs
                ssreflect ssrbool eqtype ssrnat seq.
 Set Implicit Arguments.
 
@@ -103,5 +103,28 @@ Lemma fp_schedule_independent :
 Proof.
   by unfold schedule_independent, fp_to_jldp.
 Qed.
+
+Section BasicDefinitions.
+
+Variable higher_eq_priority: jldp_policy.
+Variable sched: schedule.
+Variable t: time.
+
+Definition num_pending_jobs :=
+  count (fun j => pending sched j t) (all_arrivals sched t).
+
+Definition num_scheduled_jobs :=
+  count (fun j => scheduled sched j t) (all_arrivals sched t).
+
+(* Whether a job jhigh can preempt jlow at time t *)
+Definition interferes_with (jlow jhigh: job) :=
+  scheduled sched jhigh t &&
+  higher_eq_priority sched t jhigh jlow &&
+  (jhigh != jlow).
+
+Definition num_interfering_jobs (jlow: job) :=
+  count (interferes_with jlow) (all_arrivals sched t).
+
+End BasicDefinitions.
 
 End Priority.

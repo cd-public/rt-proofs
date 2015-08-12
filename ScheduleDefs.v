@@ -43,6 +43,74 @@ Definition arrived_between (t1 t2: nat) := [exists t in 'I_(t2), ((t1 <= t) && a
 
 End ArrivingJobs.
 
+Section SetOfArrivals.
+
+Variable arr: arrival_sequence.
+
+(* The list of jobs that arrived before t' is obtained by concatenation *)
+Definition prev_arrivals (t': time) : seq job :=  \cat_(0 <= t < t') arr t.
+
+Definition all_arrivals (t': time) : seq job := \cat_(0 <= t < t'.+1) arr t.
+
+Lemma in_all_arrivals_iff_has_arrived :
+  forall t' j, j \in all_arrivals t' = has_arrived arr j t'.
+Proof.
+  unfold all_arrivals, has_arrived; ins.
+  induction t'.
+  {
+    rewrite big_nat_recr // big_geq // /=.
+    destruct (j \in arr 0) eqn:IN; rewrite IN; symmetry.
+      by apply/exists_inP_nat; unfold arrives_at; exists 0; split.
+      {
+        apply negbTE; rewrite negb_exists_in.
+        apply/(forall_inP_nat 1 (fun x => ~~ arrives_at arr j x)); ins.
+        move: LT; rewrite ltnS leqn0; move => /eqP LT; subst.
+        by unfold arrives_at; apply negbT.
+      }
+  }
+  {
+    rewrite big_nat_recr // mem_cat IHt'.
+    destruct ([exists t_0 in 'I_t'.+1, arrives_at arr j t_0] || (j \in arr t'.+1)) eqn:OR.
+    {
+      move: OR => /orP OR; des.
+      {
+        rewrite OR orTb; symmetry; apply/exists_inP_nat.
+        move: OR => /exists_inP_nat OR; des.
+        exists x; split; [by apply (ltn_trans OR); ins | by ins].
+      }
+      {
+        rewrite OR orbT; symmetry; apply/exists_inP_nat.
+        exists t'.+1; split; [by apply ltnSn | by ins].
+      }
+    }
+    {
+      rewrite OR; symmetry.
+      apply negbT in OR; rewrite negb_or in OR.
+      move: OR => /andP OR; des.
+      rewrite negb_exists_in in OR.
+      move: OR => /(forall_inP_nat t'.+1 (fun x => ~~ arrives_at arr j x)) OR.
+      apply negbTE; rewrite negb_exists_in.
+      apply/(forall_inP_nat t'.+2 (fun x => ~~ arrives_at arr j x)); ins.
+      rewrite ltnS in LT; unfold arrives_at in *.
+      move: LT; rewrite leq_eqVlt; move => /orP LT; des.
+        by move: LT => /eqP LT; subst.
+        by apply OR.
+    }
+  }
+Qed.
+
+Lemma in_prev_arrivals_iff_arrived_before :
+  forall t' j, j \in prev_arrivals t' = arrived_before arr j t'.
+Proof.
+  unfold prev_arrivals, arrived_before; ins.
+  destruct t'; last by rewrite in_all_arrivals_iff_has_arrived.
+  rewrite big_geq // in_nil; symmetry.
+  apply negbTE. rewrite negb_exists_in. apply/forall_inP; ins.
+  by have BUG := ltn_ord x.
+Qed.
+
+End SetOfArrivals.
+
 End ArrivalSequence.
 
 (* 1) This definition of arrival sequence allows retrieving the finite set of
@@ -194,11 +262,20 @@ Module ScheduleOfSporadicTask.
 Import SporadicTaskJob.
 Export Schedule.
 
+Section EarlierJobs.
+
+Variable sched: schedule.
+  
 (* Whether job j1 arrives earlier than j2 (both are from the same task) *)
-Definition earlier_job (sched: schedule) (j1 j2: job) :=
+Definition earlier_job (j1 j2: job) :=
   << EQtsk: job_task j1 = job_task j2 >> /\
   exists arr1 arr2, << ARR1: arrives_at sched j1 arr1 >> /\
                     << ARR2: arrives_at sched j2 arr2 >> /\
                     << LT: arr1 < arr2 >>.
+
+Definition exists_earlier_job (t: time) (jlow: job) :=
+  (exists (j0: job), earlier_job j0 jlow /\ pending sched j0 t).
+
+End EarlierJobs.
 
 End ScheduleOfSporadicTask.

@@ -1,4 +1,5 @@
-Require Import Vbase ScheduleDefs PriorityDefs.
+Require Import Vbase ScheduleDefs JobDefs PriorityDefs TaskArrivalDefs
+               ssreflect ssrbool eqtype ssrnat seq.
 
 Module Platform.
 
@@ -16,51 +17,65 @@ Definition valid_platform (plat: processor_platform) :=
   forall (arr: arrival_sequence),
     exists (sched: schedule), (arr_seq_of_schedule sched = arr) /\ plat sched.
 
+(* A job receives at most 1 unit of service *)
+Definition max_service_one (sched: schedule) := forall j t, service_at sched j t <= 1.
+
 End Platform.
 
 Module IdenticalMultiprocessor.
 
-Import Schedule Platform Priority.
+Import Job ScheduleOfSporadicTask Platform Priority SporadicTaskArrival.
 
 Section Multiprocessor.
-  
-Variable higher_priority: jldp_policy.
+
 Variable num_cpus: nat.
+Variable higher_eq_priority: jldp_policy.
 Variable sched: schedule.
 
-  (* The mapping has a finite positive number of cpus: [0, num_cpus) *)
-Definition mp_cpus_nonzero: num_cpus > 0.
-Definition mp_num_cpus: forall j cpu t, mapped j cpu t -> cpu < num_cpus.  >> /\
+(* There is at least one processor. *)
+Definition mp_cpus_nonzero := num_cpus > 0.
 
-  (* Job is scheduled iff it is mapped to some processor*)
-  << mp_mapping: forall j t, scheduled sched j t <-> exists cpu, mapped j cpu t >> /\
+(* At any time,
+     (a) processors never stay idle when there are pending jobs (work conservation), and,
+     (b) the number of scheduled jobs does not exceed the number of processors. *)
+Definition mp_work_conserving :=
+  forall t, num_scheduled_jobs sched t = minn (num_pending_jobs sched t) num_cpus.
 
-  (* Non-parallelism restrictions (mapping must be an injective function) *)
-  << mp_mapping_fun: forall j cpu cpu' t, mapped j cpu t /\ mapped j cpu' t -> cpu = cpu' >> /\
-  << mp_mapping_inj: forall j j' cpu t, mapped j cpu t /\ mapped j' cpu t -> j = j'>> /\
-  
-  (* A job receives at most 1 unit of service *)
-  << mp_max_service: forall j t, service_at sched j t <= 1 >> /\
+(* If a job is backlogged, then either:
+     (a) there exists an earlier pending job of the same task
+     (b) all processor are busy with (other) jobs with higher or equal priority. *)
+Definition mp_scheduling_invariant :=
+  forall jlow t (ARRIVED: jlow \in prev_arrivals sched t)
+         (BACK: backlogged sched jlow t),
+    exists_earlier_job sched t jlow \/
+    num_interfering_jobs higher_eq_priority sched t jlow = num_cpus.
 
-  (* Global scheduling invariant *)
-  << mp_invariant: forall jlow t (ARRIVED: arrived sched jlow t),
-    backlogged sched jlow t <->
-      (exists (j0: job), earlier_job sched j0 jlow /\ pending sched j0 t) \/
-      (forall cpu (MAXcpu: cpu < num_cpus),
-       exists jhigh, hp sched t jhigh jlow /\ mapped jhigh cpu t) >>.
+Definition identical_multiprocessor :=
+  mp_cpus_nonzero /\ mp_scheduling_invariant /\ mp_work_conserving.
 
-(* TODO/Observations *)
-(* 1) Note that the scheduling invariant only applies to jobs that
-      have arrived in the schedule, thus the need for (ARRIVED: ...).
-      If all processors are occupied by higher-priority
-      jobs, it doesn't mean that a random job jlow (not part of the
-      task set) is backlogged.
- *)
+End Multiprocessor.
 
-Definition my_service_at (my_j j: job) (t: time) :=
+Section Uniprocessor.
+
+(* Uniprocessor is a special case of a multiprocessor *)
+Definition uniprocessor := identical_multiprocessor 1.
+
+End Uniprocessor.
+
+Lemma identmp_valid :
+  forall num_cpus higher_eq_priority,
+    valid_platform (identical_multiprocessor num_cpus higher_eq_priority).
+Proof.
+  unfold valid_platform, identical_multiprocessor, mp_cpus_nonzero,
+  mp_scheduling_invariant; ins.
+Admitted.
+
+End IdenticalMultiprocessor.
+
+(*Definition my_service_at (my_j j: job) (t: time) :=
   if my_j == j then
     (if t < task_cost (job_task j) then 1 else 0)
   else 0.
 
 Definition my_arr_seq (my_j: job) (t: nat) :=
-  if (t == 0) then [::my_j] else [::].
+  if (t == 0) then [::my_j] else [::].*)
