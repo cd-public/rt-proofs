@@ -6,18 +6,16 @@ Module Platform.
 Import Schedule.
 
 (* A processor platform is simply a set of schedules, \ie.,
-   it defines the amount of service that jobs receive over time. *)
-
-Definition processor_platform := schedule -> Prop.
+   it specifies the amount of service that jobs receive over time. *)
+Definition processor_platform := schedule_mapping -> Prop.
 
 (* For a processor platform to be valid, it must be able to schedule
    any possible job arrival sequence. In particular, the constraints
    of the platform should not be trivially false. *)
-Definition valid_platform (plat: processor_platform) :=
-  forall (arr: arrival_sequence),
-    exists (sched: schedule), (arr_seq_of_schedule sched = arr) /\ plat sched.
+(*Definition valid_platform (plat: processor_platform) :=
+  exists (sched: schedule), plat sched.*)
 
-(* A job receives at most 1 unit of service *)
+(* Whether a job receives at most 1 unit of service *)
 Definition max_service_one (sched: schedule) := forall j t, service_at sched j t <= 1.
 
 End Platform.
@@ -62,20 +60,12 @@ Definition uniprocessor := identical_multiprocessor 1.
 
 End Uniprocessor.
 
-Lemma identmp_valid :
+(*Lemma identmp_valid :
   forall num_cpus higher_eq_priority,
     valid_platform (identical_multiprocessor num_cpus higher_eq_priority).
 Proof.
   unfold valid_platform, identical_multiprocessor, mp_cpus_nonzero,
   mp_scheduling_invariant; ins.
-Admitted.
+Admitted.*)
 
 End IdenticalMultiprocessor.
-
-(*Definition my_service_at (my_j j: job) (t: time) :=
-  if my_j == j then
-    (if t < task_cost (job_task j) then 1 else 0)
-  else 0.
-
-Definition my_arr_seq (my_j: job) (t: nat) :=
-  if (t == 0) then [::my_j] else [::].*)

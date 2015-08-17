@@ -1,4 +1,4 @@
-Require Import Classical Vbase task job schedule platform priority helper identmp.
+(*Require Import Classical Vbase task job schedule platform priority helper identmp.
 
 (* All possible affinity relations *)
 Definition affinity := job -> processor_id -> Prop.
@@ -74,4 +74,4 @@ Lemma APA_service_invariant :
 Proof.
     intros.
 
-*)
+*)*)

@@ -129,19 +129,22 @@ Export ArrivalSequence.
 
 (* Schedule is defined as the amount of service given to jobs during
    discrete time [t, t+1). *)
-Definition schedule := job -> time -> nat.
 
-(* Every schedule has an arrival sequence. We add a coercion to
-   make it easily accessible. *)
-Parameter arr_seq_of_schedule :> schedule -> arrival_sequence.
+Definition schedule_mapping := job -> time -> nat.
+
+(* Every schedule has a mapping and an arrival sequence.
+   We add a coercion to make the them easily accessible. *)
+Definition schedule := (arrival_sequence * schedule_mapping) % type.
+Coercion arr_seq_of (sched: schedule) := fst sched.
+Coercion mapping_of (sched: schedule) := snd sched.
 
 Section ScheduledJobs.
 
 Variable sched: schedule.
 Variable j: job.
 
-(* Service received by a job during [t, t+1) -- just an alias to schedule. *)
-Definition service_at (t: time) := sched j t.
+(* Service received by a job during [t, t+1) -- just an alias to the mapping. *)
+Definition service_at (t: time) := mapping_of sched j t.
 
 (* Cumulative service received during [0, t') *)
 Definition service (t': time) := \sum_(0 <= t < t') (service_at t).

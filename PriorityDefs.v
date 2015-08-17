@@ -90,7 +90,7 @@ Qed.
 (* Whether a priority order is schedule-independent *)
 Definition schedule_independent (hp: jldp_policy) :=
   forall (sched1 sched2: schedule)
-         (ARR: arr_seq_of_schedule sched1 = arr_seq_of_schedule sched2),
+         (ARR: arr_seq_of sched1 = arr_seq_of sched2),
     hp sched1 = hp sched2.
 
 Lemma edf_schedule_independent : schedule_independent EDF.
