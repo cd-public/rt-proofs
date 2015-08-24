@@ -31,7 +31,6 @@ Hypothesis job_of_task: job_task j == tsk.
 Variable t_a: time.
 Hypothesis arrives: arrives_at sched j t_a.
 
-Hypothesis arr_seq_of_ts: ts_arrival_sequence ts sched.
 Hypothesis jobs_must_arrive: job_must_arrive_to_exec sched.
 Hypothesis arrival_times_valid: arrival_times_match sched.
 Hypothesis comp_jobs_dont_exec: completed_job_doesnt_exec sched.

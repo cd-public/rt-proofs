@@ -2,7 +2,7 @@ Require Import Vbase ExtraRelations TaskDefs JobDefs ScheduleDefs TaskArrivalDef
                ssreflect ssrbool eqtype ssrnat seq.
 Set Implicit Arguments.
 
-Module Priority.
+(*Module Priority.
 
 Import SporadicTaskJob Schedule.
 
@@ -47,8 +47,8 @@ Proof.
       [by left | by right; apply ltnW].
 Qed.
 
-Definition fp_to_jldp (task_hp: fp_policy) :=
-  fun (sched: schedule) (t: time) jhigh jlow =>
+Definition fp_to_jldp (task_hp: fp_policy) : jldp_policy :=
+  fun (sched: schedule) (t: time) (jhigh jlow: job) =>
     task_hp (job_task jhigh) (job_task jlow).
 
 Lemma valid_fp_is_valid_jldp :
@@ -127,4 +127,4 @@ Definition num_interfering_jobs (jlow: job) :=
 
 End BasicDefinitions.
 
-End Priority.
+End Priority. *)

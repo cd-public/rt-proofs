@@ -1,7 +1,7 @@
 Require Import Vbase ScheduleDefs JobDefs PriorityDefs TaskArrivalDefs
                ssreflect ssrbool eqtype ssrnat seq.
 
-Module Platform.
+(*Module Platform.
 
 Import Schedule.
 
@@ -68,4 +68,4 @@ Proof.
   mp_scheduling_invariant; ins.
 Admitted.*)
 
-End IdenticalMultiprocessor.
+End IdenticalMultiprocessor. *)

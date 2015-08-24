@@ -1,5 +1,24 @@
 Require Import Vbase ssreflect ssrbool eqtype ssrnat seq fintype bigop ssromega.
 
+Section Pair.
+
+Context {A B: Type}.
+Variable p: A * B.
+Definition pair_1st := fst p.
+Definition pair_2nd := snd p.
+
+End Pair.
+
+Section Triple.
+
+Context {A B C: Type}.
+Variable p: A * B * C.
+Definition triple_1st (p: A * B * C) := fst (fst p).
+Definition triple_2nd := snd (fst p).
+Definition triple_3rd := snd p.
+
+End Triple.
+
 Reserved Notation "\cat_ ( m <= i < n ) F"
   (at level 41, F at level 41, i, m, n at level 50,
    format "'[' \cat_ ( m <= i < n ) '/ ' F ']'").
