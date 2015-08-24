@@ -1,7 +1,7 @@
 Require Import Vbase TaskDefs JobDefs TaskArrivalDefs ScheduleDefs PlatformDefs helper
                 ssreflect ssrbool eqtype ssrnat seq fintype bigop.
 
-Module ResponseTime.
+(*Module ResponseTime.
 
 Import SporadicTaskJob Schedule SporadicTaskset SporadicTaskArrival Platform.
 
@@ -194,4 +194,4 @@ Proof.
     apply leq_trans with (n := \sum_(0 <= t < R_tsk) 1);
       last by rewrite sum_nat_const_nat muln1 subn0.
     by apply leq_sum; intros t _; apply service_lt_one, EX0.
-Qed.
+Qed.*)

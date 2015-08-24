@@ -1,68 +1,110 @@
-Require Import Vbase job task schedule task_arrival response_time platform
-        schedulability divround helper priority identmp helper
+Require Import Vbase TaskDefs ScheduleDefs TaskArrivalDefs divround helper
         ssreflect ssrbool eqtype ssrnat seq div fintype bigop path ssromega.
+
+Module Workload.
+
+  Import SporadicTaskset Schedule SporadicTaskArrival.
   
-(* Workload is defined as the total service received by jobs of
-   a specific task in the interval [t,t'). *)
-Definition workload (sched: schedule) (ts: taskset) (tsk: sporadic_task) (t t': time) :=
-  \sum_(j <- prev_arrivals sched t' | job_task j == tsk) (service_during sched j t t').
+  Section WorkloadDef.
+    
+    Context {Job: eqType}.
+    Variable job_task: Job -> sporadic_task.
+    
+    Variable rate: Job -> processor -> nat.
+    Variable num_cpus: nat.
+    Variable sched: schedule Job.
 
-(* Bound n_k on the number of jobs that execute completely in the interval *)
-Definition max_jobs (tsk: sporadic_task) (R_tsk: time) (delta: time) :=
-  div_floor (delta + R_tsk - task_cost tsk) (task_period tsk).
+    Hypothesis rate_at_most_one :
+      forall j cpu, rate j cpu <= 1.
 
-(* Bound on the workload of a task in an interval of length delta *)
-Definition W (tsk: sporadic_task) (R_tsk: time) (delta: time) :=
-  let n_k := (max_jobs tsk R_tsk delta) in
-  let e_k := (task_cost tsk) in
-  let d_k := (task_deadline tsk) in
-  let p_k := (task_period tsk) in            
-    minn e_k (delta + R_tsk - e_k - n_k * p_k) + n_k * e_k.
+    Variable tsk: sporadic_task.
 
-Section WorkloadBound.
+    Definition service_of_task (cpu: nat) (j: option Job) : nat :=
+      match j with
+        | Some j' => (job_task j' == tsk) * (rate j' cpu)
+        | None => 0
+      end.
+
+    (* Workload is defined as the service receives by jobs of
+       a particular task in the interval [t1,t2). *)
+    Definition workload (t1 t2: time) :=
+      \sum_(t1 <= t < t2)
+        \sum_(0 <= cpu < num_cpus)
+          service_of_task cpu (sched cpu t).
+  End WorkloadDef.
+
+  Section WorkloadBound.
+
+    Variable tsk: sporadic_task.
+    Variable R_tsk: time. (* Known response-time bound for the task *)
+    Variable delta: time. (* Size of the interval *)
+    
+    (* Bound on the # of jobs that execute completely in the interval *)
+    Definition max_jobs :=
+      div_floor (delta + R_tsk - task_cost tsk) (task_period tsk).
+
+    (* Bound on the workload of a task in an interval of length delta *)
+    Definition W :=
+      let e_k := (task_cost tsk) in
+      let d_k := (task_deadline tsk) in
+      let p_k := (task_period tsk) in            
+        minn e_k (delta + R_tsk - e_k - max_jobs * p_k) + max_jobs * e_k.
+
+  End WorkloadBound.
+
+  Section ProofWorkloadBound.
   
-Variable ts: taskset.
-Variable sched: schedule.
-Hypothesis sporadic_tasks: sporadic_task_model ts sched.
-Hypothesis restricted_deadlines: restricted_deadline_model ts.
+    Variable ts: sporadic_taskset.
 
-(* Assume a generic, but valid JLDP policy. This is required to derive that
-   R_k >= e_k. *)
-Variable higher_priority: sched_job_hp_relation.
-Hypothesis valid_policy: valid_jldp_policy higher_priority.
+    Variable Job: eqType.
+    Variable job_arrival: Job -> nat.
+    Variable job_task: Job -> sporadic_task.
 
-(* Assume an identical multiprocessor with an arbitrary number of CPUs *)
-Variable cpumap: job_mapping.
-Variable num_cpus: nat.
-Hypothesis sched_of_multiprocessor: ident_mp num_cpus higher_priority cpumap sched.
 
-(* Let tsk be any task in the taskset. *)
-Variable tsk: sporadic_task.
-Hypothesis in_ts: tsk \in ts.
+    Variable num_cpus: nat.
+    Variable rate: Job -> processor -> nat.
+    Variable sched: schedule Job.
 
-(* Suppose that we are given a response-time bound R_tsk for that task in any
-   schedule of this processor platform. *)
-Variable R_tsk: time.
-Hypothesis response_time_bound:
-  forall cpumap, response_time_ub (ident_mp num_cpus higher_priority cpumap) ts tsk R_tsk.
+    Hypothesis sporadic_tasks: sporadic_task_model job_arrival job_task.
+    Hypothesis restricted_deadlines: restricted_deadline_model ts.
 
-(* Consider an interval [t1, t1 + delta).*)
-Variable t1 delta: time.
-Hypothesis no_deadline_misses: task_misses_no_dl_before sched ts tsk (t1 + delta).
+    (*Variable higher_priority: sched_job_hp_relation.
+    Hypothesis valid_policy: valid_jldp_policy higher_priority.*)
 
-Theorem workload_bound : workload sched ts tsk t1 (t1 + delta) <= W tsk R_tsk delta.
-Proof.
-  rename sched_of_multiprocessor into MULT, sporadic_tasks into SPO, restricted_deadlines into RESTR,
+    (*(* Assume an identical multiprocessor with an arbitrary number of CPUs *)
+    Variable cpumap: job_mapping.
+    Variable num_cpus: nat.
+    Hypothesis sched_of_multiprocessor: ident_mp num_cpus higher_priority cpumap sched.*)
+
+    (* Let tsk be any task in the taskset. *)
+    Variable tsk: sporadic_task.
+    Hypothesis in_ts: tsk \in ts.
+
+    (* Suppose that we are given a response-time bound R_tsk for that task in any
+       schedule of this processor platform. *)
+    Variable R_tsk: time.
+    (*Hypothesis response_time_bound:
+      forall cpumap, response_time_ub (ident_mp num_cpus higher_priority cpumap) ts tsk R_tsk.*)
+
+    (* Consider an interval [t1, t1 + delta).*)
+    Variable t1 delta: time.
+    (*Hypothesis no_deadline_misses: task_misses_no_dl_before sched ts tsk (t1 + delta).*)
+
+    Theorem workload_bound :
+      workload job_task rate num_cpus sched tsk t1 (t1 + delta) <=
+        W tsk R_tsk delta.
+    Proof.
+      (*rename sched_of_multiprocessor into MULT, sporadic_tasks into SPO, restricted_deadlines into RESTR,
          no_deadline_misses into NOMISS, higher_priority into hp.
-  unfold sporadic_task_model, workload, W in *; ins; des.
+  unfold sporadic_task_model, workload, W in *; ins; des.*)
 
-  (* Simplify names *)
-  set t2 := t1 + delta.
-  set n_k := max_jobs tsk R_tsk delta.
+      (* Simplify names *)
+      set t2 := t1 + delta.
+      set n_k := max_jobs tsk R_tsk delta.
   
-  (* Name the subset of jobs that actually cause interference *)
-  set interfering_jobs :=
-    filter (fun x => (job_task x == tsk) && (service_during sched x t1 t2 != 0))
+      (* Name the subset of jobs that actually cause interference *)
+      set interfering_jobs :=
+        filter (fun x => (job_task x == tsk) && (service_during sched x t1 t2 != 0))
                     (prev_arrivals sched t2).
   
   (* Remove the elements that we don't care about from the sum *)

@@ -5,59 +5,60 @@ Definition time := nat.
 
 Module ArrivalSequence.
 
+  (*
   Section ArrivalSequenceDef.
 
-    Variable JobType: eqType. (* Assume any job type with decidable equality *)
-    Variable job_arrival: JobType -> nat. (* that has a job_arrival *)
+    Variable Job: eqType. (* Assume any job type with decidable equality *)
+    Variable job_arrival: Job -> nat. (* that has a job_arrival *)
 
-    Definition arrival_sequence := time -> seq JobType.
+    Definition arrival_sequence := time -> seq Job.
 
   End ArrivalSequenceDef.
 
   Section ArrivalSequenceProperties.
 
-    Context {JobType: eqType}.
-    Variable job_arrival: JobType -> nat.
-    Variable arr: arrival_sequence JobType.
+    Context {Job: eqType}.
+    Variable job_arrival: Job -> nat.
+    Variable arr: arrival_sequence Job.
 
     (* The arrival time parameter of a job matches the time it arrives.*)
     Definition arrival_times_match :=
-      forall j t, j \in arr t -> job_arrival j = t.
+      forall j t, j \in arr t <-> job_arrival j = t.
 
     (* If job j arrives at two times, then they must be the same time. *)
     Definition no_multiple_arrivals :=
       forall j t1 t2, j \in arr t1 -> j \in arr t2 -> t1 = t2.
 
     (* No multiple jobs arrivals at the same time. *)
-    Definition arrival_sequence_unique := forall t, uniq (arr t).
+    Definition arrival_sequence_is_a_set := forall t, uniq (arr t).
 
     (* A valid arrival sequence satisfies the three properties above. *)
     Definition valid_arrival_sequence :=
-      no_multiple_arrivals /\ arrival_times_match /\ arrival_sequence_unique.
+      no_multiple_arrivals /\ arrival_times_match /\ arrival_sequence_is_a_set.
 
-  End ArrivalSequenceProperties.  
+  End ArrivalSequenceProperties.  *)
   
   Section ArrivingJobs.
 
-    Context {JobType: eqType}. (* Assume any job type with decidable equality *)
-    Variable arr: arrival_sequence JobType.
-    Variable j: JobType.
+    Context {Job: eqType}. (* Assume any job type with decidable equality *)
+    Variable job_arrival: Job -> nat.
+    Variable j: Job.
 
     (* Whether a job arrives at time t. *)
-    Definition arrives_at (t: time) :=  j \in arr t.
+    Definition arrives_at (t: time) := job_arrival j == t.
 
     (* A job has arrived at time t iff it arrives at some time t_0, with 0 <= t_0 <= t. *)
-    Definition has_arrived (t: nat) := [exists t_0 in 'I_(t.+1), arrives_at t_0].
+    Definition has_arrived (t: nat) := job_arrival j <= t.
 
     (* A job arrived before t iff it arrives at some time t_0, with 0 <= t_0 < t. *)
-    Definition arrived_before (t: nat) := [exists t_0 in 'I_(t), arrives_at t_0].
+    Definition arrived_before (t: nat) := job_arrival j < t.
 
     (* A job arrives between t1 and t2 iff it arrives at some time t with t1 <= t < t2. *)
-    Definition arrived_between (t1 t2: nat) := [exists t in 'I_(t2), ((t1 <= t) && arrives_at t)].
+    Definition arrived_between (t1 t2: nat) := t1 <= job_arrival j < t2.
 
   End ArrivingJobs.
 
-  Section SetOfArrivals.
+  (*Section SetOfArrivals.
 
     Variable JobType: eqType.
     Variable arr: arrival_sequence JobType.
@@ -148,7 +149,7 @@ Module ArrivalSequence.
 
     End UniqueArrivals.
     
-  End SetOfArrivals.
+  End SetOfArrivals.*)
   
 End ArrivalSequence.
 
@@ -156,73 +157,74 @@ Module Schedule.
 
   Export ArrivalSequence.
 
+  Definition processor := nat.
+  
   Section ScheduleDef.
 
-    Variable JobType: eqType. (* Assume any job type with decidable equality. *)
-  
-    (* Schedule mapping is defined as the amount of service given to jobs during
-       discrete time [t, t+1). *)
-    Definition schedule_mapping := JobType -> time -> nat.
+    Variable Job: eqType. (* Assume any job type with decidable equality. *)
 
-    (* Every schedule is a pair of an arrival sequence and a mapping. *)
-    Definition schedule := (arrival_sequence JobType * schedule_mapping) % type.
+    Definition schedule := processor -> time -> option Job.
 
   End ScheduleDef.
   
-  (* Define projections: arrival sequence and mapping. *)
-  Coercion arr_seq_of {JobType: eqType} (sched: schedule JobType) := pair_1st sched.
-  Coercion mapping_of {JobType: eqType} (sched: schedule JobType) := pair_2nd sched.
-  
   Section ScheduledJobs.
 
-    Context {JobType: eqType}. (* Assume a job type with decidable equality *)
-    Variable job_cost: JobType -> nat. (* and that has a cost function. *)
+    Context {Job: eqType}. (* Assume a job type with decidable equality, *)
+    Variable job_arrival: Job -> nat. (* a job arrival time, *)
+    Variable job_cost: Job -> nat. (* and a cost. *)
 
-    Variable sched: schedule JobType.
-    Variable j: JobType.
-
-    (* Service received by a job during [t, t+1) -- just an alias to the mapping. *)
-    Definition service_at (t: time) := mapping_of sched j t.
-
-    (* Cumulative service received during [0, t') *)
-    Definition service (t': time) := \sum_(0 <= t < t') (service_at t).
-
-    (* Cumulative service received during [t1, t2) *)
-    Definition service_during (t1 t2: time) := \sum_(t1 <= t < t2) (service_at t).
+    Variable num_cpus: nat.
+    Variable rate: Job -> processor -> nat.
+    Variable sched: schedule Job.
+    Variable j: Job.
 
     (* Whether a job is scheduled at time t *)
-    Definition scheduled (t: time) := service_at t != 0.
+    Definition scheduled (t: time) :=
+      [exists cpu in 'I_(num_cpus), (sched cpu t == Some j)].
 
-    (* Whether a job has completed at time t (assumes costs are non-zero!) *)
-    Definition completed (t: time) := (service t == job_cost j).
+    Definition service_at (t: time) :=
+      \sum_(0 <= cpu < num_cpus) (sched cpu t == Some j) * (rate j cpu).
+
+    (* Cumulative service received during [0, t') *)
+    Definition service (t': time) := \sum_(0 <= t < t') service_at t.
+
+    (* Cumulative service received during [t1, t2) *)
+    Definition service_during (t1 t2: time) := \sum_(t1 <= t < t2) service_at t.
+    
+    (* Whether a job has completed at time t *)
+    Definition completed (t: time) := service t == job_cost j.
 
     (* A pending job has arrived but has not completed. *)
-    Definition pending (t: time) := has_arrived sched j t && ~~completed t.
+    Definition pending (t: time) := (has_arrived job_arrival) j t && ~~completed t.
 
     (* Whether a job is pending and not scheduled at time t *)
     Definition backlogged (t: time) := pending t && ~~scheduled t.
 
     (* A carried-in job in [t1,t2) arrives before t1 and is not completed at time t1 *)
-    Definition carried_in (t1: time) := arrived_before sched j t1 && ~~ completed t1.
+    Definition carried_in (t1: time) := (arrived_before job_arrival) j t1 && ~~ completed t1.
 
     (* A carried-out job in [t1,t2) arrives after t1 and is not completed at time t2 *)
-    Definition carried_out (t1 t2: time) := arrived_between sched j t1 t2 && ~~ completed t2.
+    Definition carried_out (t1 t2: time) := (arrived_between job_arrival) j t1 t2 && ~~ completed t2.
 
   End ScheduledJobs.
 
   Section ValidSchedules.
 
-    Context {JobType: eqType}. (* Assume a job type with decidable equality *)
-    Variable job_cost: JobType -> nat. (* and that has a cost function. *)
-    Variable sched: schedule JobType.
+    Context {Job: eqType}. (* Assume a job type with decidable equality *)
+    Variable job_arrival: Job -> nat.
+    Variable job_cost: Job -> nat. (* and that has a cost function. *)
+
+    Variable num_cpus: nat.
+    Variable rate: Job -> processor -> nat.
+    Variable sched: schedule Job.
 
     (* Whether a job can only be scheduled if it has arrived *)
     Definition job_must_arrive_to_exec :=
-      forall j t, scheduled sched j t -> has_arrived sched j t.
+      forall j t, scheduled num_cpus sched j t -> has_arrived job_arrival j t.
 
     (* Whether a job can be scheduled after it completes *)
     Definition completed_job_doesnt_exec :=
-      forall j t, service sched j t <= job_cost j.
+      forall j t, service num_cpus rate sched j t <= job_cost j.
 
     Definition valid_sporadic_schedule :=
       job_must_arrive_to_exec /\ completed_job_doesnt_exec.
@@ -231,24 +233,31 @@ Module Schedule.
 
   Section ServiceProperties.
 
-    Variable JobType: eqType.
-    Variable job_arrival: JobType -> nat.
-    Variable job_cost: JobType -> nat.
-    Variable sched: schedule JobType.
-    Variable j: JobType.
+    Variable Job: eqType.
+    Variable job_arrival: Job -> nat.
+    Variable job_cost: Job -> nat.
+
+    Variable num_cpus: nat.
+    Variable rate: Job -> processor -> nat.
+    Variable sched: schedule Job.
+    Variable j: Job.
 
     Section Completion.
 
-      Hypothesis completed_jobs: completed_job_doesnt_exec job_cost sched.
-      Hypothesis max_service_one: forall j' t, service_at sched j' t <= 1.
+      Hypothesis completed_jobs:
+        completed_job_doesnt_exec job_cost num_cpus rate sched.
+      Hypothesis max_service_one:
+        forall j' t, service_at num_cpus rate sched j' t <= 1.
 
       Lemma service_interval_le_cost :
-        forall t t', service_during sched j t t' <= job_cost j.
+        forall t t',
+          service_during num_cpus rate sched j t t' <= job_cost j.
       Proof.
         unfold service_during; rename completed_jobs into COMP; red in COMP; ins.
         destruct (t > t') eqn:GT.
           by rewrite big_geq // -ltnS; apply ltn_trans with (n := t); ins.
-          apply leq_trans with (n := \sum_(0 <= t0 < t') service_at sched j t0);
+          apply leq_trans with
+              (n := \sum_(0 <= t0 < t') service_at num_cpus rate sched j t0);
             last by apply COMP.
           rewrite -> big_cat_nat with (m := 0) (n := t);
             [by apply leq_addl | by ins | by rewrite leqNgt negbT //].
@@ -258,35 +267,35 @@ Module Schedule.
 
     Section Arrival.
 
-      Hypothesis jobs_must_arrive: job_must_arrive_to_exec sched.
-      Hypothesis arrival_times_valid: arrival_times_match job_arrival sched.
-      Hypothesis no_multiple_job_arrivals: no_multiple_arrivals sched.
+      Hypothesis jobs_must_arrive:
+        job_must_arrive_to_exec job_arrival num_cpus sched.
+      (*Hypothesis arrival_times_valid:
+        arrival_times_match job_arrival sched.
+      Hypothesis no_multiple_job_arrivals: no_multiple_arrivals sched.*)
 
       Lemma service_before_arrival_zero :
-        forall t0 (LT: t0 < job_arrival j), service_at sched j t0 = 0.
+        forall t0 (LT: t0 < job_arrival j),
+          service_at num_cpus rate sched j t0 = 0.
       Proof.
-        unfold no_multiple_arrivals, arrival_times_match in *.
         rename jobs_must_arrive into ARR; red in ARR; ins.
         specialize (ARR j t0).
-        apply contra with (c := scheduled sched j t0) (b := has_arrived sched j t0) in ARR;
-          first by rewrite -/scheduled negbK in ARR; apply/eqP.
-        {
-          destruct (classic (exists arr_j, arrives_at sched j arr_j)) as [ARRIVAL|NOARRIVAL]; des;
-          last by apply/negP; move => /exists_inP_nat ARRIVED; des; apply NOARRIVAL; exists x.
-          {
-            generalize ARRIVAL; apply arrival_times_valid in ARRIVAL; ins.
-            rewrite -> ARRIVAL in *.
-            apply/negP; unfold not, has_arrived; move => /exists_inP_nat ARRIVED; des.
-            apply leq_trans with (p := arr_j) in ARRIVED; last by ins.
-            apply no_multiple_job_arrivals with (t1 := x) in ARRIVAL0; last by ins.
-            by subst; rewrite ltnn in ARRIVED.
-          }
-        }
+        apply contra with (c := scheduled num_cpus sched j t0) (b := has_arrived job_arrival j t0) in ARR; last by rewrite -ltnNge.
+        apply/eqP; rewrite -leqn0; unfold service_at.
+        apply leq_trans with (n := \sum_(0 <= cpu < num_cpus) 0);
+          last by rewrite big_const_nat iter_addn mul0n addn0 leqnn.
+        rewrite big_nat_cond [\sum_(_ <= _ < _) 0]big_nat_cond.
+        apply leq_sum; intro i; rewrite andbT; move => /andP [_ LTcpus].
+        rewrite leqn0 muln_eq0; apply/orP; left.
+        unfold scheduled in ARR.
+        rewrite negb_exists_in in ARR.
+        move: ARR => /(forall_inP_nat num_cpus (fun x => sched x t0 != Some j)) ARR.
+        apply/eqP; specialize (ARR i LTcpus).
+        by destruct (sched i t0 == Some j).
       Qed.
 
       Lemma sum_service_before_arrival :
         forall t1 t2 (LT: t2 <= job_arrival j),
-          \sum_(t1 <= i < t2) service_at sched j i = 0.
+          \sum_(t1 <= i < t2) service_at num_cpus rate sched j i = 0.
       Proof.
         ins; apply/eqP; rewrite -leqn0.
         apply leq_trans with (n := \sum_(t1 <= i < t2) 0);
@@ -311,23 +320,27 @@ Module ScheduleOfSporadicTask.
 
   Section EarlierJobs.
 
-    Variable JobType: eqType.
-    Variable job_cost: JobType -> nat.
-    Variable job_task: JobType -> sporadic_task.
-    Variable sched: schedule JobType.
+    Variable Job: eqType.
+    Variable job_arrival: Job -> nat.
+    Variable job_cost: Job -> nat.
+    Variable job_task: Job -> sporadic_task.
 
-    (* Whether job j1 arrives earlier than j2 (both are from the same task) *)
-    Definition earlier_job (j1 j2: JobType) :=
+    Variable num_cpus: nat.
+    Variable rate: Job -> processor -> time.
+    Variable sched: schedule Job.
+
+    (* Whether job j1 arrives earlier than j2 (same task) *)
+    Definition earlier_job (j1 j2: Job) :=
       job_task j1 = job_task j2 /\
-      exists arr1 arr2, arrives_at sched j1 arr1 /\
-                        arrives_at sched j2 arr2 /\
+      exists arr1 arr2, arrives_at job_arrival j1 arr1 /\
+                        arrives_at job_arrival j2 arr2 /\
                         arr1 < arr2.
 
-    Definition exists_earlier_job (t: time) (jlow: JobType) :=
-      exists j0, earlier_job j0 jlow /\ (pending job_cost) sched j0 t.
+    Definition exists_earlier_job (t: time) (jlow: Job) :=
+      exists j0, earlier_job j0 jlow /\
+                 (pending job_arrival job_cost num_cpus rate) sched j0 t.
 
-    (* TODO: Can we not have to pass job_cost as a parameter?
-             If pending is a function of a type that has job_cost function? *)
+    (* TODO: How do we avoid passing so many parameters? *)
     
 End EarlierJobs.
 
