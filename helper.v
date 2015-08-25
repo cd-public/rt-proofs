@@ -26,6 +26,20 @@ Reserved Notation "\cat_ ( m <= i < n ) F"
 Notation "\cat_ ( m <= i < n ) F" :=
   (\big[cat/[::]]_(m <= i < n) F%N) : nat_scope.
 
+
+Lemma mem_bigcat:
+  forall (T: eqType) x m n j (f: nat -> list T)
+         (LE: m <= j < n) (IN: x \in (f j)),
+  x \in \cat_(m <= i < n) (f i).
+Proof.
+  ins; move: LE => /andP LE; des.
+  rewrite -> big_cat_nat with (n := j); simpl; [| by ins | by apply ltnW].
+  rewrite mem_cat; apply/orP; right.
+  destruct n; first by rewrite ltn0 in LE0.
+  rewrite big_nat_recl; last by ins.
+  by rewrite mem_cat; apply/orP; left.
+Qed.
+  
 Lemma exists_inP_nat t (P: nat -> bool):
   reflect (exists x, x < t /\ P x) [exists (x | x \in 'I_t), P x].
 Proof.

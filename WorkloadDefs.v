@@ -1,9 +1,10 @@
-Require Import Vbase TaskDefs ScheduleDefs TaskArrivalDefs divround helper
+Require Import Vbase TaskDefs ScheduleDefs TaskArrivalDefs ResponseTimeDefs
+        SchedulabilityDefs divround helper
         ssreflect ssrbool eqtype ssrnat seq div fintype bigop path ssromega.
 
 Module Workload.
 
-  Import SporadicTaskset Schedule SporadicTaskArrival.
+  Import SporadicTaskset Schedule SporadicTaskArrival ResponseTime Schedulability.
   
   Section WorkloadDef.
     
@@ -14,23 +15,87 @@ Module Workload.
     Variable num_cpus: nat.
     Variable sched: schedule Job.
 
-    Hypothesis rate_at_most_one :
-      forall j cpu, rate j cpu <= 1.
-
+    (* Consider some task *)
     Variable tsk: sporadic_task.
 
+    (* First, we define a function that returns the amount of service
+       received by this task in a particular processor. *)
     Definition service_of_task (cpu: nat) (j: option Job) : nat :=
       match j with
         | Some j' => (job_task j' == tsk) * (rate j' cpu)
         | None => 0
       end.
 
-    (* Workload is defined as the service receives by jobs of
-       a particular task in the interval [t1,t2). *)
+    (* Next, workload is defined as the service received by jobs of
+       the task in the interval [t1,t2). *)
     Definition workload (t1 t2: time) :=
       \sum_(t1 <= t < t2)
         \sum_(0 <= cpu < num_cpus)
           service_of_task cpu (sched cpu t).
+
+    (* Now we provide an alternative definition for workload,
+       which is more suitable for our proof.
+       First, we compute the list of jobs that are scheduled
+       between t1 and t2 (without duplicates). *)
+    Definition jobs_scheduled_between (t1 t2: time) : list Job :=
+      undup (\cat_(t1 <= t < t2)
+               \cat_(0 <= cpu < num_cpus)
+                 match (sched cpu t) with
+                 | Some j => [::j]
+                 | None => [::]
+                 end).
+
+    (* Now, we sum up the cumulative service between t1 and t2
+       of the scheduled jobs, but only those spawned by the task
+       that we care about. *)
+    Definition workload_joblist (t1 t2: time) :=
+      \sum_(j <- jobs_scheduled_between t1 t2 | job_task j == tsk)
+        service_during num_cpus rate sched j t1 t2.
+
+    Lemma workload_eq_workload_joblist (t1 t2: time) :
+      workload t1 t2 = workload_joblist t1 t2.
+    Proof.
+      unfold workload, workload_joblist, service_during.
+      rewrite [\sum_(j <- jobs_scheduled_between _ _ | _) _]exchange_big /=.
+      rewrite -> eq_big_nat with (F2 := fun j =>
+                \sum_(i <- jobs_scheduled_between t1 t2 | job_task i == tsk)
+                  service_at num_cpus rate sched i j); first by ins.
+      intros t LEt; rewrite exchange_big /=.
+      rewrite -> eq_big_nat with (F2 := fun j =>
+              \sum_(i0 <- jobs_scheduled_between t1 t2 | job_task i0 == tsk)
+                    (sched j t == Some i0) * rate i0 j); first by ins.
+      intros cpu LEcpu; rewrite -big_filter.
+      destruct (sched cpu t) eqn:SCHED; simpl; last first.
+        by rewrite -> eq_bigr with (F2 := fun i => 0);
+          [by rewrite big_const_seq iter_addn | by ins].
+        {
+          rename s into j; destruct (job_task j == tsk) eqn:EQtsk; try rewrite mul1n; try rewrite mul0n.
+          {  
+            rewrite -> bigD1_seq with (j := j); last by rewrite filter_undup undup_uniq.
+            { 
+              rewrite -> eq_bigr with (F2 := fun i => 0);
+                first by rewrite big_const_seq iter_addn /= mul0n 2!addn0 eq_refl mul1n.
+                intros i NEQ; destruct (Some j == Some i) eqn:SOMEeq; last by rewrite mul0n.
+                by move: SOMEeq => /eqP SOMEeq; inversion SOMEeq; subst; rewrite eq_refl in NEQ.
+            }
+            {
+              rewrite mem_filter; apply/andP; split; first by ins.
+              rewrite mem_undup.
+              apply mem_bigcat with (j := t); first by ins.
+              apply mem_bigcat with (j := cpu); first by ins.
+              by rewrite SCHED inE; apply/eqP.
+            }
+          }
+          {
+            rewrite big_filter; rewrite -> eq_bigr with (F2 := fun i => 0);
+              first by rewrite big_const_seq iter_addn mul0n addn0.
+            intros i EQtsk2; destruct (Some j == Some i) eqn:SOMEeq; last by rewrite mul0n.
+            by move: SOMEeq => /eqP SOMEeq; inversion SOMEeq;
+              subst; rewrite EQtsk2 in EQtsk.
+          }
+        }
+      Qed.
+ 
   End WorkloadDef.
 
   Section WorkloadBound.
@@ -58,42 +123,41 @@ Module Workload.
 
     Variable Job: eqType.
     Variable job_arrival: Job -> nat.
+    Variable job_cost: Job -> nat.
     Variable job_task: Job -> sporadic_task.
-
+    Variable job_deadline: Job -> nat.
 
     Variable num_cpus: nat.
     Variable rate: Job -> processor -> nat.
+    Variable schedule_of_platform: schedule Job -> Prop.
     Variable sched: schedule Job.
 
+    Hypothesis rate_at_most_one :
+      forall j cpu, rate j cpu <= 1.
+   
     Hypothesis sporadic_tasks: sporadic_task_model job_arrival job_task.
     Hypothesis restricted_deadlines: restricted_deadline_model ts.
-
-    (*Variable higher_priority: sched_job_hp_relation.
-    Hypothesis valid_policy: valid_jldp_policy higher_priority.*)
-
-    (*(* Assume an identical multiprocessor with an arbitrary number of CPUs *)
-    Variable cpumap: job_mapping.
-    Variable num_cpus: nat.
-    Hypothesis sched_of_multiprocessor: ident_mp num_cpus higher_priority cpumap sched.*)
 
     (* Let tsk be any task in the taskset. *)
     Variable tsk: sporadic_task.
     Hypothesis in_ts: tsk \in ts.
 
-    (* Suppose that we are given a response-time bound R_tsk for that task in any
-       schedule of this processor platform. *)
+    (* Assume that a response-time bound R_tsk for that task in any
+       schedule of this processor platform is also given. *)
     Variable R_tsk: time.
-    (*Hypothesis response_time_bound:
-      forall cpumap, response_time_ub (ident_mp num_cpus higher_priority cpumap) ts tsk R_tsk.*)
+    Hypothesis response_time_bound:
+      response_time_ub_task job_arrival job_cost job_task num_cpus rate schedule_of_platform tsk R_tsk.
 
     (* Consider an interval [t1, t1 + delta).*)
     Variable t1 delta: time.
-    (*Hypothesis no_deadline_misses: task_misses_no_dl_before sched ts tsk (t1 + delta).*)
+    Hypothesis no_deadline_misses_during_interval:
+      task_misses_no_deadline_before job_arrival job_cost job_deadline job_task num_cpus rate sched tsk (t1 + delta).
 
     Theorem workload_bound :
       workload job_task rate num_cpus sched tsk t1 (t1 + delta) <=
         W tsk R_tsk delta.
     Proof.
+      rewrite workload_eq_workload_joblist.
       (*rename sched_of_multiprocessor into MULT, sporadic_tasks into SPO, restricted_deadlines into RESTR,
          no_deadline_misses into NOMISS, higher_priority into hp.
   unfold sporadic_task_model, workload, W in *; ins; des.*)

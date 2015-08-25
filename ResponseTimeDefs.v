@@ -1,13 +1,46 @@
 Require Import Vbase TaskDefs JobDefs TaskArrivalDefs ScheduleDefs PlatformDefs helper
                 ssreflect ssrbool eqtype ssrnat seq fintype bigop.
 
-(*Module ResponseTime.
+Module ResponseTime.
 
-Import SporadicTaskJob Schedule SporadicTaskset SporadicTaskArrival Platform.
+  Import SporadicTaskJob Schedule SporadicTaskset SporadicTaskArrival.
 
-Section ResponseTimeBound.
+  Section ResponseTimeBound.
+
+    Context {Job: eqType}.
+    Variable job_arrival: Job -> nat.
+    Variable job_cost: Job -> nat.
+    Variable job_task: Job -> sporadic_task.
   
-Variable plat: processor_platform.
+    Variable num_cpus: nat.
+    Variable rate: Job -> processor -> nat.
+    Variable schedule_of_platform: schedule Job -> Prop.
+  
+    Variable tsk: sporadic_task.
+    Variable R: time.
+
+    Definition response_time_ub_task :=
+      forall (sched: schedule Job) (j: Job),
+        job_task j == tsk ->
+        schedule_of_platform sched ->
+        completed job_cost num_cpus rate sched j (job_arrival j + R).
+
+  End ResponseTimeBound.
+
+End ResponseTime.
+  
+
+
+
+  
+
+
+
+
+
+  
+  
+(*Variable plat: processor_platform.
 Variable ts: sporadic_taskset.
 Variable tsk: sporadic_task.
 
