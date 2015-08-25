@@ -3,7 +3,7 @@ Require Import Vbase TaskDefs JobDefs TaskArrivalDefs ScheduleDefs PlatformDefs 
 
 Module ResponseTime.
 
-  Import SporadicTaskJob Schedule SporadicTaskset SporadicTaskArrival.
+  Import Schedule SporadicTaskset SporadicTaskArrival.
 
   Section ResponseTimeBound.
 
@@ -17,21 +17,73 @@ Module ResponseTime.
     Variable schedule_of_platform: schedule Job -> Prop.
   
     Variable tsk: sporadic_task.
-    Variable R: time.
 
-    Definition response_time_ub_task :=
+    Definition job_has_completed_by (sched: schedule Job) :=
+      completed job_cost num_cpus rate sched.
+    
+    Definition response_time_ub_task (response_time_bound: time) :=
       forall (sched: schedule Job) (j: Job),
         job_task j == tsk ->
         schedule_of_platform sched ->
-        completed job_cost num_cpus rate sched j (job_arrival j + R).
+        job_has_completed_by sched j (job_arrival j + response_time_bound).
+
+    Section BasicLemmas.
+  
+      Variable sched: schedule Job.
+      Hypothesis platform: schedule_of_platform sched.
+
+      Variable response_time_bound: time.
+      Hypothesis is_response_time_bound:
+        response_time_ub_task response_time_bound.
+
+      Variable j: Job.
+      Hypothesis job_of_task: job_task j == tsk.
+
+      (*Hypothesis jobs_must_arrive: job_must_arrive_to_exec sched.
+      Hypothesis arrival_times_valid: arrival_times_match sched.
+      Hypothesis comp_jobs_dont_exec: completed_job_doesnt_exec sched.*)
+
+      Lemma service_at_after_rt_zero :
+        forall t' (GE: t' >= job_arrival j + response_time_bound),
+          service_at num_cpus rate sched j t' = 0.
+      Proof.
+      Admitted.
+     (*   unfold response_time_ub, completed_job_doesnt_exec, completed in *; ins; des.
+      rename rt_bound into RT, jobs_must_arrive into EXEC,
+             arrival_times_valid into ARR_PARAMS, comp_jobs_dont_exec into COMP.
+  destruct (has_arrived sched j t') eqn:ARRIVED; last first.
+  {
+    specialize (EXEC j t').
+    apply contra with (c:= scheduled sched j t') (b := has_arrived sched j t') in EXEC;
+      [ by apply/eqP; rewrite negbK in EXEC| by apply negbT].
+  }
+  {
+    move: ARRIVED => /exists_inP_nat ARRIVED; destruct ARRIVED as [arr_j [_ ARRj]].
+    apply ARR_PARAMS in ARRj; apply ARR_PARAMS in arrives; subst.
+    apply/eqP; rewrite -leqn0 -(leq_add2l (job_cost j)) addn0.
+    admit.
+  }*)
+
+      Lemma sum_service_after_rt_zero :
+        forall t' (GE: t' >= job_arrival j + response_time_bound) t'',
+          \sum_(t' <= t < t'') service_at num_cpus rate sched j t = 0.
+      Proof.
+      Admitted.
+    (*ins; apply/eqP; rewrite -leqn0.
+  apply leq_trans with (n := \sum_(t' <= t < t'') 0);
+    last by rewrite big_const_nat iter_addn mul0n addn0.
+  {
+    rewrite big_nat_cond [\sum_(_ <= _ < _) 0]big_nat_cond.
+    apply leq_sum; intro i; rewrite andbT; move => /andP LTi; des.
+    by rewrite service_after_rt //; apply leq_trans with (n := t').
+  }
+Qed.*)
+
+    End BasicLemmas.
 
   End ResponseTimeBound.
-
-End ResponseTime.
   
-
-
-
+End ResponseTime.
   
 
 
@@ -50,62 +102,6 @@ Definition response_time_ub (R: time) :=
          t_a (ARRj: arrives_at sched j t_a),
     completed sched j (t_a + R).
 
-Section BasicLemmas.
-
-Variable R: time.
-Hypothesis rt_bound: response_time_ub R.
-
-Variable sched: schedule.
-Hypothesis plat_of_sched: plat sched.
-
-Variable j: job.
-Hypothesis job_of_task: job_task j == tsk.
-
-Variable t_a: time.
-Hypothesis arrives: arrives_at sched j t_a.
-
-Hypothesis jobs_must_arrive: job_must_arrive_to_exec sched.
-Hypothesis arrival_times_valid: arrival_times_match sched.
-Hypothesis comp_jobs_dont_exec: completed_job_doesnt_exec sched.
-
-Lemma service_after_rt :
-  forall t' (GE: t' >= job_arrival j + R),
-    service_at sched j t' = 0.
-Proof.
-  unfold response_time_ub, completed_job_doesnt_exec, completed in *; ins; des.
-  rename rt_bound into RT, jobs_must_arrive into EXEC,
-         arrival_times_valid into ARR_PARAMS, comp_jobs_dont_exec into COMP.
-  destruct (has_arrived sched j t') eqn:ARRIVED; last first.
-  {
-    specialize (EXEC j t').
-    apply contra with (c:= scheduled sched j t') (b := has_arrived sched j t') in EXEC;
-      [ by apply/eqP; rewrite negbK in EXEC| by apply negbT].
-  }
-  {
-    move: ARRIVED => /exists_inP_nat ARRIVED; destruct ARRIVED as [arr_j [_ ARRj]].
-    apply ARR_PARAMS in ARRj; apply ARR_PARAMS in arrives; subst.
-    apply/eqP; rewrite -leqn0 -(leq_add2l (job_cost j)) addn0.
-    admit.
-  }
-Qed.
-
-Lemma sum_service_after_rt :
-  forall t' (GE: t' >= job_arrival j + R) t'',
-    \sum_(t' <= t < t'') service_at sched j t = 0.
-Proof.
-  ins; apply/eqP; rewrite -leqn0.
-  apply leq_trans with (n := \sum_(t' <= t < t'') 0);
-    last by rewrite big_const_nat iter_addn mul0n addn0.
-  {
-    rewrite big_nat_cond [\sum_(_ <= _ < _) 0]big_nat_cond.
-    apply leq_sum; intro i; rewrite andbT; move => /andP LTi; des.
-    by rewrite service_after_rt //; apply leq_trans with (n := t').
-  }
-Qed.
-
-End BasicLemmas.
-
-End ResponseTimeBound.
 
 Import SporadicTaskJob SporadicTaskset Platform.
 

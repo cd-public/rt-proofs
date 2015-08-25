@@ -1,4 +1,4 @@
-Require Import Classical Vbase JobDefs helper
+Require Import Vbase JobDefs TaskDefs helper
                ssreflect ssrbool eqtype ssrnat seq fintype bigop.
 
 Definition time := nat.
@@ -233,7 +233,7 @@ Module Schedule.
 
   Section ServiceProperties.
 
-    Variable Job: eqType.
+    Context {Job: eqType}.
     Variable job_arrival: Job -> nat.
     Variable job_cost: Job -> nat.
 
@@ -242,6 +242,17 @@ Module Schedule.
     Variable sched: schedule Job.
     Variable j: Job.
 
+    Section Basic.
+
+      Lemma service_monotonic :
+        forall t t',
+          (t <= t') =
+            (service num_cpus rate sched j t <=
+             service num_cpus rate sched j t').
+      Admitted.
+      
+    End Basic.
+        
     Section Completion.
 
       Hypothesis completed_jobs:
@@ -315,7 +326,7 @@ End Schedule.
 (* Specific definitions for schedules of sporadic tasks *)
 Module ScheduleOfSporadicTask.
 
-  Import SporadicTaskJob.
+  Import SporadicTask.
   Export Schedule.
 
   Section EarlierJobs.

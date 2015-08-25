@@ -1,8 +1,62 @@
-Require Import Vbase helper ssrnat TaskDefs.  
+Require Import TaskDefs helper ssrnat ssrbool eqtype.  
 
 Module Job.
 
-  Definition job := (nat * nat) % type.
+  Section ValidJob.
+
+    Context {Job: eqType}.
+    Variable job_cost: Job -> nat.
+
+    Variable j: Job.
+
+    Definition job_cost_positive (j: Job) := job_cost j > 0.
+
+  End ValidJob.
+
+  Section ValidRealtimeJob.
+
+    Context {Job: eqType}.
+    Variable job_cost: Job -> nat.
+    Variable job_deadline: Job -> nat.
+    
+    Variable j: Job.
+
+    Definition job_cost_le_deadline := job_cost j <= job_deadline j.
+    Definition job_dl_positive := job_deadline j > 0.
+        
+    Definition valid_realtime_job :=
+      job_cost_positive job_cost j /\
+      job_cost_le_deadline /\
+      job_dl_positive.
+
+  End ValidRealtimeJob.
+
+  Section ValidSporadicTaskJob.
+
+    Import SporadicTask.
+    
+    Context {Job: eqType}.
+    Variable job_cost: Job -> nat.
+    Variable job_deadline: Job -> nat.
+    Variable job_task: Job -> sporadic_task.
+    
+    Variable j: Job.
+
+    Definition job_cost_le_task_cost :=
+      job_cost j <= task_cost (job_task j).
+    Definition job_deadline_eq_task_deadline :=
+      job_deadline j = task_deadline (job_task j).
+
+    Definition valid_sporadic_task_job :=
+      valid_realtime_job job_cost job_deadline j /\
+      job_cost_le_task_cost /\
+      job_deadline_eq_task_deadline.
+
+  End ValidSporadicTaskJob.
+
+End Job.
+
+(*  Definition job := (nat * nat) % type.
 
   (* Assume decidable equality for computations involving jobs. *)
   Load eqjob_dec.
@@ -106,3 +160,5 @@ Module Test.
   Variable serv: service.
   Check (serv j 5).
   Check (serv j' 10).*)
+
+*)
