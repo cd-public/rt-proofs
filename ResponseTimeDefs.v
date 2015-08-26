@@ -39,45 +39,37 @@ Module ResponseTime.
       Variable j: Job.
       Hypothesis job_of_task: job_task j == tsk.
 
-      (*Hypothesis jobs_must_arrive: job_must_arrive_to_exec sched.
-      Hypothesis arrival_times_valid: arrival_times_match sched.
-      Hypothesis comp_jobs_dont_exec: completed_job_doesnt_exec sched.*)
+      Hypothesis comp_jobs_dont_exec:
+        completed_job_doesnt_exec job_cost num_cpus rate sched.
 
       Lemma service_at_after_rt_zero :
         forall t' (GE: t' >= job_arrival j + response_time_bound),
           service_at num_cpus rate sched j t' = 0.
       Proof.
-      Admitted.
-     (*   unfold response_time_ub, completed_job_doesnt_exec, completed in *; ins; des.
-      rename rt_bound into RT, jobs_must_arrive into EXEC,
-             arrival_times_valid into ARR_PARAMS, comp_jobs_dont_exec into COMP.
-  destruct (has_arrived sched j t') eqn:ARRIVED; last first.
-  {
-    specialize (EXEC j t').
-    apply contra with (c:= scheduled sched j t') (b := has_arrived sched j t') in EXEC;
-      [ by apply/eqP; rewrite negbK in EXEC| by apply negbT].
-  }
-  {
-    move: ARRIVED => /exists_inP_nat ARRIVED; destruct ARRIVED as [arr_j [_ ARRj]].
-    apply ARR_PARAMS in ARRj; apply ARR_PARAMS in arrives; subst.
-    apply/eqP; rewrite -leqn0 -(leq_add2l (job_cost j)) addn0.
-    admit.
-  }*)
+        rename response_time_bound into R, is_response_time_bound into RT,
+               comp_jobs_dont_exec into EXEC; ins.
+        unfold response_time_ub_task, job_has_completed_by, completed,
+               completed_job_doesnt_exec in *.
+        specialize (RT sched j job_of_task platform).
+        apply/eqP; rewrite -leqn0.
+        rewrite <- leq_add2l with (p := job_cost j).
+        move: RT => /eqP RT; rewrite -{1}RT addn0.
+        apply leq_trans with (n := service num_cpus rate sched j t'.+1); last by apply EXEC.
+        unfold service; rewrite -> big_cat_nat with (p := t'.+1) (n := job_arrival j + R);
+          [rewrite leq_add2l /= | by ins | by apply ltnW].
+        by rewrite big_nat_recr // /=; apply leq_addl.
+      Qed.
 
       Lemma sum_service_after_rt_zero :
         forall t' (GE: t' >= job_arrival j + response_time_bound) t'',
           \sum_(t' <= t < t'') service_at num_cpus rate sched j t = 0.
       Proof.
-      Admitted.
-    (*ins; apply/eqP; rewrite -leqn0.
-  apply leq_trans with (n := \sum_(t' <= t < t'') 0);
-    last by rewrite big_const_nat iter_addn mul0n addn0.
-  {
-    rewrite big_nat_cond [\sum_(_ <= _ < _) 0]big_nat_cond.
-    apply leq_sum; intro i; rewrite andbT; move => /andP LTi; des.
-    by rewrite service_after_rt //; apply leq_trans with (n := t').
-  }
-Qed.*)
+        ins; apply/eqP; rewrite -leqn0.
+        rewrite big_nat_cond; rewrite -> eq_bigr with (F2 := fun i => 0);
+          first by rewrite big_const_seq iter_addn mul0n addn0 leqnn.
+        intro i; rewrite andbT; move => /andP [LE _].
+        by rewrite service_at_after_rt_zero; [by ins | by apply leq_trans with (n := t')].
+      Qed.
 
     End BasicLemmas.
 
