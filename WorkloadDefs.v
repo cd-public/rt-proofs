@@ -20,7 +20,7 @@ Module Workload.
 
     (* First, we define a function that returns the amount of service
        received by this task in a particular processor. *)
-    Definition service_of_task (cpu: nat) (j: option Job) : nat :=
+    Definition service_of_task (cpu: processor) (j: option Job) : nat :=
       match j with
         | Some j' => (job_task j' == tsk) * (rate j' cpu)
         | None => 0
@@ -104,7 +104,7 @@ Module Workload.
 
     Variable tsk: sporadic_task.
     Variable R_tsk: time. (* Known response-time bound for the task *)
-    Variable delta: time. (* Size of the interval *)
+    Variable delta: time. (* Length of the interval *)
     
     (* Bound on the number of jobs that execute completely in the interval *)
     Definition max_jobs :=

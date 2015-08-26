@@ -77,59 +77,78 @@ Module ResponseTime.
 
     End BasicLemmas.
     
-    Section LowerBoundOfResponseTimeBound.
-
-      Import Job.
-      
-      Variable response_time_bound: time.
-      Hypothesis is_response_time_bound:
-        response_time_ub_task response_time_bound.
-      
-      Hypothesis set_of_jobs_nonempty:
-        exists j: Job, job_task j == tsk.
-
-      Hypothesis rate_at_most_one:
-        forall (j: Job) (cpu: processor), rate j cpu <= 1.
-
-      Lemma response_time_ub_ge_cost: response_time_bound >= task_cost tsk.
-      Proof.
-        unfold response_time_ub_task, valid_sporadic_task,
-               job_has_completed_by, completed in *;
-        rename set_of_jobs_nonempty into EX, is_response_time_bound into BOUND,
-               response_time_bound into R; des.
-        set myarr := fun (j: Job) => 0.
-        
-        set mysched := fun (cpu: processor) (t: time) =>
-                          if cpu == 0 then
-                            (if t < task_cost (job_task j) then Some j else None)
-                          else None.
-
-        assert (PLAT: schedule_of_platform mysched). admit.
-
-        set mycost := fun (j: Job) => task_cost (job_task j).
-        specialize (BOUND myarr mycost mysched j EX PLAT).
-        move: EX => /eqP EX.
-        move: BOUND; rewrite eqn_leq; move => /andP [_ LE].
-        
-        apply leq_trans with (n := service num_cpus rate mysched j (myarr j + R));
-          first by unfold mycost in LE; rewrite EX in LE.
-
-        unfold service, service_at, myarr, mysched.
-        rewrite exchange_big_nat /=.
-        destruct num_cpus; first by rewrite big_geq //.
-        rewrite big_nat_recl // /=.
-        rewrite -> eq_big_nat with (n := n) (F2 := fun i => 0);
-          last by ins; rewrite -> eq_big_nat with (F2 := fun i => 0);
-            by ins; rewrite big_const_nat iter_addn mul0n addn0.
-        rewrite big_const_nat iter_addn mul0n 2!addn0.
-        apply leq_trans with (n := \sum_(0 <= i < 0 + R) 1);
-          last by rewrite big_const_nat iter_addn subn0 add0n mul1n addn0 leqnn.
-        apply leq_sum; ins.
-        rewrite -[1]muln1; apply leq_mul; [by apply leq_b1 | by apply rate_at_most_one].
-      Qed.
-
-    End LowerBoundOfResponseTimeBound.
-    
   End ResponseTimeBound.
+
+  Section LowerBoundOfResponseTimeBound.
+
+    Context {Job: eqType}.
+
+    Variable job_task: Job -> sporadic_task.
   
+    Variable num_cpus: nat.
+    Variable rate: Job -> processor -> nat.
+    Variable schedule_of_platform: schedule Job -> Prop.
+
+    Hypothesis rate_at_most_one:
+      forall (j: Job) (cpu: processor), rate j cpu <= 1.
+
+    Variable tsk: sporadic_task.
+    Hypothesis set_of_jobs_nonempty:
+      exists j: Job, job_task j == tsk.
+
+    Variable response_time_bound: time.
+    Hypothesis is_response_time_bound:
+      response_time_ub_task job_task num_cpus rate schedule_of_platform tsk response_time_bound.
+      
+    Lemma response_time_ub_ge_cost: response_time_bound >= task_cost tsk.
+    Proof.
+      unfold response_time_ub_task, valid_sporadic_task,
+             job_has_completed_by, completed in *;
+      rename set_of_jobs_nonempty into EX, is_response_time_bound into BOUND,
+             response_time_bound into R; des.
+      set myarr := fun (j': Job) => if j' == j then 0 else task_cost tsk + 1.
+      set mysched := fun (cpu: processor) (t: time) =>
+                        if cpu == 0 then
+                          (if t < task_cost (job_task j) then Some j else None)
+                        else None.
+
+      (* Problems:
+         1) We cannot create a set of jobs with only j.
+            How do we define the schedule function for the other jobs?
+            This schedule is definitely not work-conserving for the other jobs.
+ 
+        2) The schedule function has to satisfy all the constraints
+            specified by its platform (e.g. affinities). Otherwise, we need
+            to prove one lemma for each platform.
+            
+            Defininition valid (plat: platform):
+              for every arrival sequence,
+                exists schedule that satisfies the constraints of the platform. *)
+ 
+      assert (PLAT: schedule_of_platform mysched). admit.
+
+      set mycost := fun (j: Job) => task_cost (job_task j).
+      specialize (BOUND myarr mycost mysched j EX PLAT).
+      move: EX => /eqP EX.
+      move: BOUND; rewrite eqn_leq; move => /andP [_ LE].
+        
+      apply leq_trans with (n := service num_cpus rate mysched j (myarr j + R));
+        first by unfold mycost in LE; rewrite EX in LE.
+
+      unfold service, service_at, myarr, mysched; rewrite eq_refl.
+      rewrite exchange_big_nat /=.
+      destruct num_cpus; first by rewrite big_geq //.
+      rewrite big_nat_recl // /=.
+      rewrite -> eq_big_nat with (n := n) (F2 := fun i => 0);
+        last by ins; rewrite -> eq_big_nat with (F2 := fun i => 0);
+          by ins; rewrite big_const_nat iter_addn mul0n addn0.
+      rewrite big_const_nat iter_addn mul0n 2!addn0.
+      apply leq_trans with (n := \sum_(0 <= i < 0 + R) 1);
+        last by rewrite big_const_nat iter_addn subn0 add0n mul1n addn0 leqnn.
+      apply leq_sum; ins.
+      rewrite -[1]muln1; apply leq_mul; [by apply leq_b1 | by apply rate_at_most_one].
+    Qed.
+
+  End LowerBoundOfResponseTimeBound.
+    
 End ResponseTime.
