@@ -70,7 +70,8 @@ Module Workload.
         by rewrite -> eq_bigr with (F2 := fun i => 0);
           [by rewrite big_const_seq iter_addn | by ins].
         {
-          rename s into j; destruct (job_task j == tsk) eqn:EQtsk; try rewrite mul1n; try rewrite mul0n.
+          rename s into j; destruct (job_task j == tsk) eqn:EQtsk;
+            try rewrite mul1n; try rewrite mul0n.
           {  
             rewrite -> bigD1_seq with (j := j); last by rewrite filter_undup undup_uniq.
             { 
@@ -138,43 +139,29 @@ Module Workload.
     Variable sched: schedule Job.
     Hypothesis sched_of_platform: schedule_of_platform sched.
 
-    (* Assumption: used to eliminate jobs that arrive after t2. *)
+    (* Assumption: jobs only execute if they arrived.
+       This is used to eliminate jobs that arrive after end of the interval t1 + delta. *)
     Hypothesis jobs_must_arrive:
       job_must_arrive_to_exec job_arrival num_cpus sched.
 
-    (* Assumption: used to eliminate jobs that complete before t1. *)
+    (* Assumption: jobs do not execute after they completed.
+       This is used to eliminate jobs that complete before the start of the interval t1. *)
     Hypothesis completed_jobs:
       completed_job_doesnt_exec job_cost num_cpus rate sched.
 
     (* Assumptions:
-         Necessary to use interval lengths as a measure of service.
-         The second one is not necessary but I'll remove it later. *)
+         1) A job does not execute in parallel.
+         2) The service rate of the platform is at most 1.
+       This is required to use interval lengths as a measure of service. *)
+    Hypothesis no_parallelism:
+      jobs_dont_execute_in_parallel sched.
     Hypothesis rate_at_most_one :
       forall j cpu, rate j cpu <= 1.
-    Hypothesis max_service_one:
-      forall j t, service_at num_cpus rate sched j t <= 1.
 
-    Variable ts: sporadic_taskset.
-
-    (* Assumption: needed to conclude that jobs ordered by arrival times
-                   are separated by 'period' times units. *)
+    (* Assumption: sporadic task model.
+       This is necessary to conclude that consecutive jobs ordered by arrival times
+       are separated by at least 'period' times units. *)
     Hypothesis sporadic_tasks: sporadic_task_model job_arrival job_task.
-
-    (* Assumption: we need valid task parameters such as
-                   a) period > 0 (used in divisions)
-                   b) deadline of the job = deadline of the task
-                   c) cost <= period
-                      (At some point I need to prove that the distance between
-                      the first and the last jobs is at least (cost + n*period),
-                      where n is the number of middle jobs. If cost >> period,
-                      the claim does not hold for every task set. *)
-    Hypothesis valid_task_parameters: valid_sporadic_taskset ts.
-
-    (* Assumption: I used the restricted deadlines assumption when proving that
-                   that n_k (max_jobs) from Bertogna and Cirinei's formula
-                   accounts for at least the number of middle jobs
-                   (i.e., number of jobs - 2 in the worst case). *)
-    Hypothesis restricted_deadlines: restricted_deadline_model ts.
 
     (* Before starting the proof, let's give simpler names to the definitions. *)
     Definition response_time_bound_of (tsk: sporadic_task) (R: time) :=
@@ -188,8 +175,23 @@ Module Workload.
 
     (* Now we define the theorem. Let tsk be any task in the taskset. *)
     Variable tsk: sporadic_task.
-    Hypothesis in_ts: tsk \in ts.
-    
+
+    (* Assumption: the task must have valid parameters:
+         a) period > 0 (used in divisions)
+         b) deadline of the jobs = deadline of the task
+         c) cost <= period
+            (used to prove that the distance between the first and last
+             jobs is at least (cost + n*period), where n is the number
+             of middle jobs. If cost >> period, the claim does not hold
+             for every task set. *)
+    Hypothesis valid_task_parameters: valid_sporadic_task tsk.
+
+    (* Assumption: the task must have a restricted deadline.
+       This is required to prove that n_k (max_jobs) from Bertogna
+       and Cirinei's formula accounts for at least the number of
+       middle jobs (i.e., number of jobs - 2 in the worst case). *)
+    Hypothesis restricted_deadline: task_deadline tsk <= task_period tsk.
+
     (* Assume that a response-time bound R_tsk for that task in any
        schedule of this processor platform is also given. *)
     Variable R_tsk: time.
@@ -320,7 +322,7 @@ Module Workload.
             rewrite -[service_during _ _ _ _ _ _]addn0.
             apply leq_add; last by ins.
             apply leq_trans with (n := \sum_(t1 <= t < t2) 1).
-              by apply leq_sum; intros i _; apply max_service_one.
+              by apply leq_sum; ins; apply service_at_le_max_rate.
               by unfold t2; rewrite big_const_nat iter_addn mul1n addn0 addnC -addnBA // subnn addn0.
           }
         }
@@ -361,8 +363,8 @@ Module Workload.
       }
 
       (* Next, we upper-bound the service of the first and last jobs using their arrival times. *)
-      assert(BOUNDend: service_during num_cpus rate sched j_fst t1 t2 +
-                       service_during num_cpus rate sched j_lst t1 t2 <=
+      assert (BOUNDend: service_during num_cpus rate sched j_fst t1 t2 +
+                        service_during num_cpus rate sched j_lst t1 t2 <=
                         (job_arrival j_fst  + R_tsk - t1) + (t2 - job_arrival j_lst)).
       {
         apply leq_add; unfold service_during.
@@ -370,7 +372,7 @@ Module Workload.
           rewrite -[_ + _ - _]mul1n -[1*_]addn0 -iter_addn -big_const_nat.
           apply leq_trans with (n := \sum_(t1 <= t < job_arrival j_fst + R_tsk)
                                          service_at num_cpus rate sched j_fst t);
-            last by apply leq_sum; ins; apply max_service_one. 
+            last by apply leq_sum; ins; apply service_at_le_max_rate.
           destruct (job_arrival j_fst + R_tsk <= t2) eqn:LEt2; last first.
           {
             unfold t2; apply negbT in LEt2; rewrite -ltnNge in LEt2.
@@ -395,7 +397,7 @@ Module Workload.
                                         service_at num_cpus rate sched j_lst t);
               first by rewrite -> big_cat_nat with (m := job_arrival j_lst) (n := t1);
                 [by apply leq_addl | by ins | by apply leq_addr].
-            by apply leq_sum; ins; apply max_service_one.
+            by apply leq_sum; ins; apply service_at_le_max_rate.
           }
           {
             apply negbT in LT; rewrite -ltnNge in LT.
@@ -403,7 +405,7 @@ Module Workload.
             rewrite /= -[\sum_(_ <= _ < _) 1]add0n; apply leq_add.
             rewrite (sum_service_before_arrival job_arrival);
               [by apply leqnn | by ins | by apply leqnn].
-            by apply leq_sum; ins; apply max_service_one.
+            by apply leq_sum; ins; apply service_at_le_max_rate.
           }
         }
       }
@@ -497,7 +499,7 @@ Module Workload.
             rewrite -addn1 mulnDl mul1n leq_add2r.
             apply leq_trans with (n := delta + R_tsk - task_cost tsk);
               first by rewrite -addnBA //; apply leq_addr.
-            by apply ltnW, ltn_ceil; specialize (task_properties tsk in_ts); des.
+            by apply ltnW, ltn_ceil, task_properties0.
           }
           by apply leq_trans with (n.+1 * task_period tsk); 
             [by rewrite leq_mul2r; apply/orP; right | by apply DIST].
@@ -511,7 +513,7 @@ Module Workload.
         intros BEFOREt2; apply BEFOREt2'; clear BEFOREt2'.
         apply leq_trans with (n := job_arrival j_fst + task_deadline tsk + delta);
           last by apply leq_trans with (n := job_arrival j_fst + task_period tsk + delta);
-            [by rewrite leq_add2r leq_add2l; apply restricted_deadlines | apply DISTmax].
+            [rewrite leq_add2r leq_add2l; apply restricted_deadline | apply DISTmax].
         {
           (* Show that j_fst doesn't execute d_k units after its arrival. *)
           unfold t2; rewrite leq_add2r; rename completed_jobs into EXEC.
@@ -524,7 +526,7 @@ Module Workload.
             rewrite -addnA leq_add2l -[job_deadline _]addn0.
             apply leq_add; last by ins.
             specialize (job_properties j_fst); des.
-            by rewrite job_properties1 FSTtask (restricted_deadlines tsk in_ts).
+            by rewrite job_properties1 FSTtask restricted_deadline.
           }
           rewrite leqNgt; apply/negP; unfold not; intro LTt1.
           (* Now we assume that (job_arrival j_fst + d_k < t1) and reach a contradiction.
@@ -583,14 +585,14 @@ Module Workload.
         {
           rewrite leq_subLR [_ + task_cost _]addnC -leq_subLR.
           apply leq_trans with (n.+1 * task_period tsk); last by apply DIST.
-          rewrite NK ltnW // -ltn_divLR; last by specialize (task_properties tsk in_ts); des.
+          rewrite NK ltnW // -ltn_divLR; last by apply task_properties0.
           by unfold n_k, max_jobs, div_floor.
         }
         {
           rewrite -subnDA; apply leq_sub2l.
           apply leq_trans with (n := n.+1 * task_period tsk); last by apply DIST.
           rewrite -addn1 addnC mulnDl mul1n.
-          by rewrite leq_add2l; last by specialize (task_properties tsk in_ts); des. 
+          rewrite leq_add2l; last by apply task_properties3.
         }
       }
     Qed.

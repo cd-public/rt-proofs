@@ -218,6 +218,11 @@ Module Schedule.
     Variable rate: Job -> processor -> nat.
     Variable sched: schedule Job.
 
+    (* Whether job parallelism is disallowed *)
+    Definition jobs_dont_execute_in_parallel :=
+      forall j t cpu1 cpu2,
+        sched cpu1 t == Some j -> sched cpu2 t == Some j -> cpu1 = cpu2.
+    
     (* Whether a job can only be scheduled if it has arrived *)
     Definition job_must_arrive_to_exec :=
       forall j t, scheduled num_cpus sched j t -> has_arrived job_arrival j t.
@@ -247,14 +252,52 @@ Module Schedule.
       Lemma service_monotonic :
         forall t t',
           t <= t' ->
-            (service num_cpus rate sched j t <=
-             service num_cpus rate sched j t').
+            service num_cpus rate sched j t <= service num_cpus rate sched j t'.
       Proof.
         unfold service; ins; rewrite -> big_cat_nat with (p := t') (n := t);
           by  [apply leq_addr | by ins | by ins].
       Qed.
 
     End Basic.
+    
+    Section MaxRate.
+
+      Variable max_rate: nat.
+      Hypothesis there_is_max_rate:
+        forall j cpu, rate j cpu <= max_rate.
+
+      Hypothesis no_parallelism:
+        jobs_dont_execute_in_parallel sched.
+
+      Lemma service_at_le_max_rate :
+        forall t, service_at num_cpus rate sched j t <= max_rate.
+      Proof.
+        unfold service_at, jobs_dont_execute_in_parallel in *; ins.
+        rewrite -> eq_bigr with (F2 := fun cpu => if sched cpu t == Some j then rate j cpu else 0);
+          last by ins; rewrite mulnbl.
+        rewrite -big_mkcond /=.
+        destruct (scheduled num_cpus sched j t) eqn:SCHED; unfold scheduled in SCHED.
+        {
+          move: SCHED => /(exists_inP_nat num_cpus (fun cpu => sched cpu t == Some j)) SCHED; des.
+          rewrite -big_filter.
+          rewrite (bigD1_seq x); [simpl | | by rewrite filter_uniq // iota_uniq];
+            last by rewrite mem_filter; apply/andP; split;
+              [by ins | by rewrite mem_iota; apply/andP; split; [by ins | by rewrite subn0 add0n]].
+          rewrite -big_filter -filter_predI big_filter.
+          rewrite -> eq_bigr with (F2 := fun cpu => 0);
+            first by rewrite big_const_seq iter_addn /= mul0n 2!addn0 there_is_max_rate.
+          intro i; move => /andP [/eqP NEQ SCHEDi].
+          apply no_parallelism with (cpu1 := x) in SCHEDi; [by subst | by ins].
+        }
+        {
+          apply negbT in SCHED; rewrite negb_exists_in in SCHED.
+          move: SCHED => /(forall_inP_nat num_cpus (fun cpu => sched cpu t != Some j)) SCHED.
+          rewrite big_nat_cond big_pred0 //; red; ins; apply/negP; move => /andP [LT EQ].
+          by specialize (SCHED x LT); move: EQ => /eqP EQ; rewrite EQ eq_refl in SCHED.
+        }
+      Qed.
+        
+    End MaxRate.
         
     Section Completion.
 
