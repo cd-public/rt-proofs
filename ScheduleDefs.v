@@ -250,9 +250,8 @@ Module Schedule.
     Section Basic.
 
       Lemma service_monotonic :
-        forall t t',
-          t <= t' ->
-            service num_cpus rate sched j t <= service num_cpus rate sched j t'.
+        forall t t', t <= t' ->
+           service num_cpus rate sched j t <= service num_cpus rate sched j t'.
       Proof.
         unfold service; ins; rewrite -> big_cat_nat with (p := t') (n := t);
           by  [apply leq_addr | by ins | by ins].
