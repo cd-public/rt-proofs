@@ -7,185 +7,191 @@ Module ResponseTime.
 
   Section ResponseTimeBound.
     
-
     Context {Job: eqType}.
-    Context {Processor : nat}.
+    Variable job_task: Job -> sporadic_task.
+    Variable job_arrival: Job -> nat.
+    Variable job_cost: Job -> nat.
 
     (* A response-time bound always applies with regard to some set of
     considered schedules, e.g., "all global EDF schedules".  This
     Prop checks whether a schedule is valid with regard to the
     considered class. *)
-    Variable is_a_valid_schedule: schedule Job -> Prop.
+    Variable is_a_valid_schedule: processor -> (Job -> processor -> nat) -> schedule Job -> Prop.
 
     (* Given a task ...*)
     Variable tsk: sporadic_task.
+    
+    (*...and some valid schedule,...*)
+    Variable num_cpus : nat.
+    Variable rate: Job -> processor -> nat.
+    Variable sched: schedule Job.
+    Hypothesis H_is_a_valid_schedule: is_a_valid_schedule num_cpus rate sched.
 
-    (* ...and a response-time bound R... *)
+    (* ...R is a response-time bound of tsk in this schedule... *)
     Variable R: time.
 
-    (* ... it is a valid response-time bound of tsk if... *)
-    Variable j : Job.
+    Definition job_has_completed_by :=
+      completed job_cost num_cpus rate sched.
+
+    (* ... iff any j job of tsk has completed by (job_arrival j + R). *)
+    Definition is_a_valid_response_time_bound :=
+      forall j,
+        job_task j == tsk ->
+        job_has_completed_by j (job_arrival j + R).
+        
+  End ResponseTimeBound.
+
+  Section BasicLemmas.
+
+    Context {Job: eqType}.
     Variable job_task: Job -> sporadic_task.
-
-    (* ...for any job of tsk... *) 
-    Hypothesis H_is_a_job_of_tsk: job_task j == tsk.
-
-    (*...in any valid schedule...*)
-    Variable sched: schedule Job.
-    Hypothesis H_is_a_valid_schedule: is_a_valid_schedule sched.
-
-    (*...the job remains pending no longer than specified by the bound.*)
     Variable job_arrival: Job -> nat.
     Variable job_cost: Job -> nat.
-    Variable rate: Job -> Processor -> nat.
+
+    Variable is_a_valid_schedule: schedule Job -> Prop.
+
+    (* Assume a task ...*)
+    Variable tsk: sporadic_task.
     
-    Definition job_has_completed_by :=
-      completed job_cost rate sched.
+    (*...any valid schedule,...*)
+    Variable num_cpus : nat.
+    Variable sched: schedule Job.
+    Variable rate: Job -> processor -> nat.
+    Hypothesis H_is_a_valid_schedule: is_a_valid_schedule sched.
 
+    Hypothesis comp_jobs_dont_exec:
+      completed_job_doesnt_exec job_cost num_cpus rate sched.
 
-    Definition is_a_valid_response_time_bound :=
-      job_has_completed_by job_cost sched j (job_arrival j + R).
+    (* ...and that R is a response-time bound of tsk in this schedule. *)
+    Variable R: time.
+    Hypothesis response_time_bound:
+      is_a_valid_response_time_bound job_task job_arrival job_cost tsk num_cpus rate sched R.
 
-
-
+    Variable j: Job.
+    Hypothesis H_job_of_task: job_task j == tsk.
     
-
-    Definition response_time_is_bounded :=
-      job_task j == tsk ->
-
-      (* job_arrival and job_cost are valid -> *)
-      job_has_completed_by j (job_arrival j + response_time_bound).
-      
-    
-    Definition response_time_ub_task (response_time_bound: time) :=
-      forall (job_arrival: Job -> nat)
-             (job_cost: Job -> nat)
-             (sched: schedule Job) (j: Job),
-         ->
-
-        (* job_arrival and job_cost are valid -> *)
-        
-
-    Section BasicLemmas.
-
-      Variable response_time_bound: time.
-      Hypothesis is_response_time_bound:
-        response_time_ub_task response_time_bound.
-
-      Variable job_arrival: Job -> nat.
-      Variable job_cost: Job -> nat.
-      Variable sched: schedule Job.
-      Hypothesis platform: schedule_of_platform sched.
-
-      Variable j: Job.
-      Hypothesis job_of_task: job_task j == tsk.
-
-      Hypothesis comp_jobs_dont_exec:
-        completed_job_doesnt_exec job_cost num_cpus rate sched.
-
-      Lemma service_at_after_rt_zero :
-        forall t' (GE: t' >= job_arrival j + response_time_bound),
-          service_at num_cpus rate sched j t' = 0.
-      Proof.
-        rename response_time_bound into R, is_response_time_bound into RT,
-               comp_jobs_dont_exec into EXEC; ins.
-        unfold response_time_ub_task, completed,
-               completed_job_doesnt_exec in *.
-        specialize (RT job_arrival job_cost sched j job_of_task platform).
-        apply/eqP; rewrite -leqn0.
-        rewrite <- leq_add2l with (p := job_cost j).
-        move: RT => /eqP RT; rewrite -{1}RT addn0.
-        apply leq_trans with (n := service num_cpus rate sched j t'.+1); last by apply EXEC.
-        unfold service; rewrite -> big_cat_nat with (p := t'.+1) (n := job_arrival j + R);
+    Lemma service_at_after_rt_zero :
+      forall t',
+        t' >= job_arrival j + R ->
+        service_at num_cpus rate sched j t' = 0.
+    Proof.
+      rename response_time_bound into RT,
+             comp_jobs_dont_exec into EXEC; ins.
+      unfold is_a_valid_response_time_bound, completed,
+             completed_job_doesnt_exec in *.
+      specialize (RT j H_job_of_task).
+      apply/eqP; rewrite -leqn0.
+      rewrite <- leq_add2l with (p := job_cost j).
+      move: RT => /eqP RT; rewrite -{1}RT addn0.
+      apply leq_trans with (n := service num_cpus rate sched j t'.+1);
+        last by apply EXEC.
+      unfold service; rewrite -> big_cat_nat with
+                                 (p := t'.+1) (n := job_arrival j + R);
           [rewrite leq_add2l /= | by ins | by apply ltnW].
         by rewrite big_nat_recr // /=; apply leq_addl.
-      Qed.
+    Qed.
 
-      Lemma sum_service_after_rt_zero :
-        forall t' (GE: t' >= job_arrival j + response_time_bound) t'',
-          \sum_(t' <= t < t'') service_at num_cpus rate sched j t = 0.
-      Proof.
-        ins; apply/eqP; rewrite -leqn0.
-        rewrite big_nat_cond; rewrite -> eq_bigr with (F2 := fun i => 0);
-          first by rewrite big_const_seq iter_addn mul0n addn0 leqnn.
-        intro i; rewrite andbT; move => /andP [LE _].
-        by rewrite service_at_after_rt_zero; [by ins | by apply leq_trans with (n := t')].
-      Qed.
+    Lemma sum_service_after_rt_zero :
+      forall t' t'',
+        t' >= job_arrival j + R ->
+        \sum_(t' <= t < t'') service_at num_cpus rate sched j t = 0.
+    Proof.
+      ins; apply/eqP; rewrite -leqn0.
+      rewrite big_nat_cond; rewrite -> eq_bigr with (F2 := fun i => 0);
+        first by rewrite big_const_seq iter_addn mul0n addn0 leqnn.
+      intro i; rewrite andbT; move => /andP [LE _].
+      by rewrite service_at_after_rt_zero;
+        [by ins | by apply leq_trans with (n := t')].
+    Qed.
 
-    End BasicLemmas.
+    Section CostAsLowerBound.
+
+      Hypothesis jobs_must_arrive_to_execute:
+        job_must_arrive_to_exec job_arrival num_cpus sched.
+      Hypothesis no_parallelism:
+        jobs_dont_execute_in_parallel sched.
+      Hypothesis rate_at_most_one :
+        forall j cpu, rate j cpu <= 1.
     
-  End ResponseTimeBound.
+      Lemma response_time_ge_cost : R >= job_cost j.
+      Proof.
+        rename response_time_bound into BOUND.
+        unfold is_a_valid_response_time_bound, job_has_completed_by, completed,
+               completed_job_doesnt_exec in *.
+      
+        specialize (BOUND j H_job_of_task).
+        move: BOUND => /eqP BOUND; rewrite -BOUND.
+        apply leq_trans with (n := service_during num_cpus rate sched j (job_arrival j)
+                                                  (job_arrival j + R)).
+        unfold service; rewrite -> big_cat_nat with (n := job_arrival j);
+          [by rewrite (sum_service_before_arrival job_arrival) // leqnn | by ins | by apply leq_addr].
+        unfold service_during.
+        apply leq_trans with (n := \sum_(job_arrival j <= t < job_arrival j + R) 1);
+          last by rewrite big_const_nat iter_addn mul1n addn0 addnC -addnBA // subnn addn0 leqnn.
+        by apply leq_sum; ins; by apply service_at_le_max_rate.
+      Qed.
+      
+    End CostAsLowerBound.
+
+  End BasicLemmas.
 
   Section LowerBoundOfResponseTimeBound.
 
     Context {Job: eqType}.
-
     Variable job_task: Job -> sporadic_task.
-  
-    Variable num_cpus: nat.
-    Variable rate: Job -> processor -> nat.
-    Variable schedule_of_platform: schedule Job -> Prop.
+    Variable job_arrival: Job -> nat.
+    Variable job_cost: Job -> nat.
 
-    Hypothesis rate_at_most_one:
-      forall (j: Job) (cpu: processor), rate j cpu <= 1.
+    Variable is_a_valid_schedule: schedule Job -> Prop.
 
+    (* Assume a task with at least one job that arrives in this set. *)
     Variable tsk: sporadic_task.
     Hypothesis job_of_tsk_exists:
       exists j: Job, job_task j == tsk.
+    
+    (* And assume any valid schedule...*)
+    Variable num_cpus : nat.
+    Variable sched: schedule Job.
+    Variable rate: Job -> processor -> nat.
+    Hypothesis H_is_a_valid_schedule: is_a_valid_schedule sched.
 
-    Variable response_time_bound: time.
-    Hypothesis is_response_time_bound:
-      response_time_ub_task job_task num_cpus rate
-                            schedule_of_platform tsk response_time_bound.
-      
-    Lemma response_time_ub_ge_cost: response_time_bound >= task_cost tsk.
+    (*... that satisfies the following properties: *)
+    Hypothesis jobs_must_arrive_to_execute:
+      job_must_arrive_to_exec job_arrival num_cpus sched.
+    Hypothesis completed_jobs_dont_execute:
+      completed_job_doesnt_exec job_cost num_cpus rate sched.
+    Hypothesis no_parallelism:
+      jobs_dont_execute_in_parallel sched.
+    Hypothesis rate_at_most_one:
+      forall (j: Job) (cpu: processor), rate j cpu <= 1.
+
+    (* ..., and assume that, for any job cost function, R is a
+            response-time bound of tsk in this schedule. *)
+    Variable R: time.
+    Hypothesis response_time_bound:
+      forall job_cost,
+        is_a_valid_response_time_bound job_task job_arrival job_cost tsk num_cpus rate sched R.
+
+    (* Then, R cannot be less than the cost of tsk. *)
+    Lemma response_time_ub_ge_task_cost: R >= task_cost tsk.
     Proof.
-      unfold response_time_ub_task, valid_sporadic_task,
+      unfold is_a_valid_response_time_bound, valid_sporadic_task,
              job_has_completed_by, completed in *.
-      rename job_of_tsk_exists into EX,
-             is_response_time_bound into BOUND,
-             response_time_bound into R; des.
+      rename job_of_tsk_exists into EX; des.
 
-      set myarr := fun (j': Job) =>
-                     if j' == j then 0
-                     else task_cost tsk + 1.
-      
-      set mysched :=
-        fun (cpu: processor) (t: time) =>
-          if cpu == 0 then
-            (if t < task_cost (job_task j) then Some j else None)
-          else None.
-
-      set mycost := fun (j: Job) => task_cost (job_task j).
-
-      assert (PLAT: schedule_of_platform mysched). admit.
-
-      specialize (BOUND myarr mycost mysched j EX PLAT).
-      move: EX => /eqP EX.
-      move: BOUND; rewrite eqn_leq; move => /andP [_ LE].
-        
-      apply leq_trans with (n := service num_cpus rate mysched j (myarr j + R));
-        first by unfold mycost in LE; rewrite EX in LE.
-
-      unfold service, service_at, myarr, mysched; rewrite eq_refl.
-      rewrite exchange_big_nat /=.
-      destruct num_cpus; first by rewrite big_geq //.
-      rewrite big_nat_recl // /=.
-      rewrite -> eq_big_nat with (n := n) (F2 := fun i => 0);
-        last by ins; rewrite -> eq_big_nat with (F2 := fun i => 0);
-          by ins; rewrite big_const_nat iter_addn mul0n addn0.
-      rewrite big_const_nat iter_addn mul0n 2!addn0.
-      apply leq_trans with (n := \sum_(0 <= i < 0 + R) 1);
-        last by rewrite big_const_nat iter_addn subn0 add0n mul1n addn0 leqnn.
-      apply leq_sum; ins.
-      rewrite -[1]muln1; apply leq_mul; [by apply leq_b1 | by apply rate_at_most_one].
+      set new_cost := fun (j': Job) => task_cost (job_task j').
+      specialize (response_time_bound new_cost).
+      apply leq_trans with (n := new_cost j);
+        last by apply (response_time_ge_cost job_task job_arrival new_cost tsk num_cpus sched rate R).
+      by unfold new_cost; move: EX => /eqP EX; rewrite EX.
     Qed.
 
   End LowerBoundOfResponseTimeBound.
     
 End ResponseTime.
 
-Section bla. 
+
+(*Section bla. 
 
   Variable Job: eqType.
   Variable job_arrival: Job -> time.
@@ -387,7 +393,7 @@ Section bla3.
     
   End Schedule.
   
-End bla3.
+End bla3.*)
 
 
 

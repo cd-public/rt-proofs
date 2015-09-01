@@ -180,10 +180,10 @@ Module Schedule.
 
     (* Whether a job is scheduled at time t *)
     Definition scheduled (t: time) :=
-      [exists cpu in 'I_(num_cpus), (sched cpu t == Some j)].
+      [exists cpu in 'I_(num_cpus), sched cpu t == Some j].
 
     Definition service_at (t: time) :=
-      \sum_(0 <= cpu < num_cpus) (sched cpu t == Some j) * (rate j cpu).
+      \sum_(0 <= cpu < num_cpus | sched cpu t == Some j) rate j cpu.
 
     (* Cumulative service received during [0, t') *)
     Definition service (t': time) := \sum_(0 <= t < t') service_at t.
@@ -272,9 +272,6 @@ Module Schedule.
         forall t, service_at num_cpus rate sched j t <= max_rate.
       Proof.
         unfold service_at, jobs_dont_execute_in_parallel in *; ins.
-        rewrite -> eq_bigr with (F2 := fun cpu => if sched cpu t == Some j then rate j cpu else 0);
-          last by ins; rewrite mulnbl.
-        rewrite -big_mkcond /=.
         destruct (scheduled num_cpus sched j t) eqn:SCHED; unfold scheduled in SCHED.
         {
           move: SCHED => /(exists_inP_nat num_cpus (fun cpu => sched cpu t == Some j)) SCHED; des.
@@ -325,9 +322,6 @@ Module Schedule.
 
       Hypothesis jobs_must_arrive:
         job_must_arrive_to_exec job_arrival num_cpus sched.
-      (*Hypothesis arrival_times_valid:
-        arrival_times_match job_arrival sched.
-      Hypothesis no_multiple_job_arrivals: no_multiple_arrivals sched.*)
 
       Lemma service_before_arrival_zero :
         forall t0 (LT: t0 < job_arrival j),
@@ -335,17 +329,18 @@ Module Schedule.
       Proof.
         rename jobs_must_arrive into ARR; red in ARR; ins.
         specialize (ARR j t0).
-        apply contra with (c := scheduled num_cpus sched j t0) (b := has_arrived job_arrival j t0) in ARR; last by rewrite -ltnNge.
+        apply contra with (c := scheduled num_cpus sched j t0)
+                          (b := has_arrived job_arrival j t0) in ARR;
+          last by rewrite -ltnNge.
         apply/eqP; rewrite -leqn0; unfold service_at.
-        apply leq_trans with (n := \sum_(0 <= cpu < num_cpus) 0);
-          last by rewrite big_const_nat iter_addn mul0n addn0 leqnn.
-        rewrite big_nat_cond [\sum_(_ <= _ < _) 0]big_nat_cond.
-        apply leq_sum; intro i; rewrite andbT; move => /andP [_ LTcpus].
-        rewrite leqn0 muln_eq0; apply/orP; left.
+        rewrite big_nat_cond.
+        rewrite -> eq_bigr with (F2 := fun cpu => 0);
+          first by rewrite big_const_seq iter_addn mul0n addn0.
+        intro i; move => /andP [/andP [_ LTcpus] SCHED].
         unfold scheduled in ARR.
         rewrite negb_exists_in in ARR.
         move: ARR => /(forall_inP_nat num_cpus (fun x => sched x t0 != Some j)) ARR.
-        apply/eqP; specialize (ARR i LTcpus).
+        specialize (ARR i LTcpus).
         by destruct (sched i t0 == Some j).
       Qed.
 

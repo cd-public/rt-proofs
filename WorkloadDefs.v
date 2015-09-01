@@ -58,13 +58,11 @@ Module Workload.
     Proof.
       unfold workload, workload_joblist, service_during.
       rewrite [\sum_(j <- jobs_scheduled_between _ _ | _) _]exchange_big /=.
-      rewrite -> eq_big_nat with (F2 := fun j =>
-                \sum_(i <- jobs_scheduled_between t1 t2 | job_task i == tsk)
-                  service_at num_cpus rate sched i j); first by ins.
-      intros t LEt; rewrite exchange_big /=.
-      rewrite -> eq_big_nat with (F2 := fun j =>
-              \sum_(i0 <- jobs_scheduled_between t1 t2 | job_task i0 == tsk)
-                    (sched j t == Some i0) * rate i0 j); first by ins.
+      apply eq_big_nat; unfold service_at; intros t LEt.
+      rewrite [\sum_(i <- jobs_scheduled_between _ _ | _) _](eq_bigr (fun i =>
+                          \sum_(0 <= cpu < num_cpus) (sched cpu t == Some i) * rate i cpu));
+        last by ins; rewrite big_mkcond; apply eq_big_nat; ins; rewrite mulnbl.
+      rewrite exchange_big /=; apply eq_big_nat.
       intros cpu LEcpu; rewrite -big_filter.
       destruct (sched cpu t) eqn:SCHED; simpl; last first.
         by rewrite -> eq_bigr with (F2 := fun i => 0);
@@ -165,8 +163,9 @@ Module Workload.
 
     (* Before starting the proof, let's give simpler names to the definitions. *)
     Definition response_time_bound_of (tsk: sporadic_task) (R: time) :=
-      response_time_ub_task job_arrival job_cost job_task num_cpus rate
-                            schedule_of_platform tsk R.
+      forall job_cost,
+        is_a_valid_response_time_bound job_task job_arrival job_cost tsk num_cpus
+                                       rate sched R.
     Definition no_deadline_misses_by (tsk: sporadic_task) (t: time) :=
       task_misses_no_deadline_before job_arrival job_cost job_deadline job_task
                                      num_cpus rate sched tsk t.
@@ -196,7 +195,6 @@ Module Workload.
        schedule of this processor platform is also given. *)
     Variable R_tsk: time.
     Hypothesis response_time_bound: response_time_bound_of tsk R_tsk.
-    Hypothesis response_time_bound_ge_cost: R_tsk >= task_cost tsk.
     
     (* Consider an interval [t1, t1 + delta), with no deadline misses. *)
     Variable t1 delta: time.
@@ -305,6 +303,14 @@ Module Workload.
       move: FST => /andP FST; des; move: FST => /eqP FST.
       rename FST0 into FSTin, FST into FSTtask, FST1 into FSTserv.
 
+      (* Since there is at least one job of the task, we show that R_tsk >= cost tsk. *)
+      assert (GEcost: R_tsk >= task_cost tsk).
+      {
+        apply (response_time_ub_ge_task_cost job_task job_arrival)
+                                   with (num_cpus := num_cpus) (sched := sched) (rate := rate); ins.
+        by exists (nth elem sorted_jobs 0); rewrite FSTtask eq_refl.
+      }
+                                
       (* Now we show that the bound holds for a singleton set of interfering jobs. *)
       destruct n.
       {
@@ -344,10 +350,9 @@ Module Workload.
       {
         rewrite leqNgt; apply /negP; unfold not; intro LTt1.
         move: INfst1 => /eqP INfst1; apply INfst1.
-        by apply (sum_service_after_rt_zero job_arrival job_cost job_task)
-                 with (response_time_bound := R_tsk) (tsk := tsk)
-                      (schedule_of_platform := schedule_of_platform);
-           last by apply ltnW.
+        by apply (sum_service_after_rt_zero job_task job_arrival job_cost
+                                         tsk num_cpus sched rate) with (R := R_tsk);
+         last by apply ltnW.
       }
       assert (BEFOREt2: job_arrival j_lst < t2).
       {
@@ -383,10 +388,9 @@ Module Workload.
             rewrite -> big_cat_nat with (n := job_arrival j_fst + R_tsk); [| by ins | by ins].
             rewrite -{2}[\sum_(_ <= _ < _) _]addn0 /=.
             rewrite leq_add2l leqn0; apply/eqP.
-            by apply (sum_service_after_rt_zero job_arrival job_cost job_task)
-                      with (response_time_bound := R_tsk) (tsk := tsk)
-                           (schedule_of_platform := schedule_of_platform);
-              last by apply leqnn.
+            by apply (sum_service_after_rt_zero job_task job_arrival job_cost
+                                             tsk num_cpus sched rate) with (R := R_tsk);
+              last by apply leqnn. 
           }
         }
         {
