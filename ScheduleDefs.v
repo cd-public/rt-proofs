@@ -5,47 +5,72 @@ Definition time := nat.
 
 Module ArrivalSequence.
 
-  (*
   Section ArrivalSequenceDef.
 
     Variable Job: eqType. (* Assume any job type with decidable equality *)
-    Variable job_arrival: Job -> nat. (* that has a job_arrival *)
 
     Definition arrival_sequence := time -> seq Job.
 
   End ArrivalSequenceDef.
 
+  Section JobInArrivalSequence.
+
+    Context {Job: eqType}.
+
+    (* Whether a job arrives in a sequence at time t *)
+    Definition arrives_at (j: Job) (arr: arrival_sequence Job) (t: time) := j \in arr t.
+
+    (* Define a job that arrives in a specific arrival sequence.
+       It holds an arrival time and a proof that it arrives at that
+       particular instant. *)
+    Record JobIn (arr_seq: arrival_sequence Job) : Type :=
+    {
+      _jobin_job: Job;
+      _jobin_arrival_time: time;
+      _: arrives_at _jobin_job arr_seq _jobin_arrival_time
+    }.
+
+    (* Define a coercion that stating that every JobIn is a Job. *)
+    Coercion JobIn_is_Job {arr_seq: arrival_sequence Job} (j: JobIn arr_seq) :=
+      _jobin_job arr_seq j.
+
+    (* Define job arrival time as that time that the job arrives. *)
+    Definition job_arrival {arr_seq: arrival_sequence Job} (j: JobIn arr_seq) :=
+      _jobin_arrival_time arr_seq j.
+
+    (* Assume a decidable equality for JobIn. *)
+    Definition f (arr_seq: arrival_sequence Job) :=
+      (fun j1 j2: JobIn arr_seq => (JobIn_is_Job j1) == (JobIn_is_Job j2)).
+    Axiom eqn_jobin : forall arr_seq, Equality.axiom (f arr_seq).
+    Canonical jobin_eqMixin arr_seq := EqMixin (eqn_jobin arr_seq).
+    Canonical jobin_eqType arr_seq := Eval hnf in EqType (JobIn arr_seq) (jobin_eqMixin arr_seq).
+
+  End JobInArrivalSequence.
+
   Section ArrivalSequenceProperties.
 
     Context {Job: eqType}.
-    Variable job_arrival: Job -> nat.
-    Variable arr: arrival_sequence Job.
-
-    (* The arrival time parameter of a job matches the time it arrives.*)
-    Definition arrival_times_match :=
-      forall j t, j \in arr t <-> job_arrival j = t.
-
-    (* If job j arrives at two times, then they must be the same time. *)
+    Variable arr_seq: arrival_sequence Job.
+    
+    (* A job j cannot arrives at two different times. *)
     Definition no_multiple_arrivals :=
-      forall j t1 t2, j \in arr t1 -> j \in arr t2 -> t1 = t2.
+      forall (j: Job) t1 t2,
+        arrives_at j arr_seq t1 -> arrives_at j arr_seq t2 -> t1 = t2.
 
-    (* No multiple jobs arrivals at the same time. *)
-    Definition arrival_sequence_is_a_set := forall t, uniq (arr t).
+    (* The sequence of arrivals at a particular time has no duplicates. *)
+    Definition arrival_sequence_is_a_set := forall t, uniq (arr_seq t).
 
     (* A valid arrival sequence satisfies the three properties above. *)
     Definition valid_arrival_sequence :=
-      no_multiple_arrivals /\ arrival_times_match /\ arrival_sequence_is_a_set.
+      no_multiple_arrivals /\ arrival_sequence_is_a_set.
 
-  End ArrivalSequenceProperties.  *)
+  End ArrivalSequenceProperties.
   
   Section ArrivingJobs.
 
     Context {Job: eqType}. (* Assume any job type with decidable equality *)
-    Variable job_arrival: Job -> nat.
-    Variable j: Job.
-
-    (* Whether a job arrives at time t. *)
-    Definition arrives_at (t: time) := job_arrival j == t.
+    Context {arr_seq: arrival_sequence Job}.
+    Variable j: JobIn arr_seq.
 
     (* A job has arrived at time t iff it arrives at some time t_0, with 0 <= t_0 <= t. *)
     Definition has_arrived (t: nat) := job_arrival j <= t.
@@ -161,22 +186,29 @@ Module Schedule.
   
   Section ScheduleDef.
 
-    Variable Job: eqType. (* Assume any job type with decidable equality. *)
+    Context {Job: eqType}. (* Assume any job type with decidable equality. *)
 
-    Definition schedule := processor -> time -> option Job.
+    Variable arr_seq: arrival_sequence Job.
+
+    (* We define a schedule of an arrival sequence as a mapping.
+       Each processor at each time has either a job from that sequence or none. *)
+    Definition schedule :=
+      processor -> time -> option (JobIn arr_seq).
 
   End ScheduleDef.
   
   Section ScheduledJobs.
 
-    Context {Job: eqType}. (* Assume a job type with decidable equality, *)
-    Variable job_arrival: Job -> nat. (* a job arrival time, *)
-    Variable job_cost: Job -> nat. (* and a cost. *)
-
+    Context {Job: eqType}. (* Assume a job type with decidable equality... *)
+    Context {arr_seq: arrival_sequence Job}.
+    
+    Variable job_cost: Job -> nat. (* ...and a cost function. *)
+    
     Variable num_cpus: nat.
     Variable rate: Job -> processor -> nat.
-    Variable sched: schedule Job.
-    Variable j: Job.
+    Variable sched: schedule arr_seq.
+
+    Variable j: JobIn arr_seq.
 
     (* Whether a job is scheduled at time t *)
     Definition scheduled (t: time) :=
@@ -195,37 +227,38 @@ Module Schedule.
     Definition completed (t: time) := service t == job_cost j.
 
     (* A pending job has arrived but has not completed. *)
-    Definition pending (t: time) := (has_arrived job_arrival) j t && ~~completed t.
+    Definition pending (t: time) := has_arrived j t && ~~completed t.
 
     (* Whether a job is pending and not scheduled at time t *)
     Definition backlogged (t: time) := pending t && ~~scheduled t.
 
     (* A carried-in job in [t1,t2) arrives before t1 and is not completed at time t1 *)
-    Definition carried_in (t1: time) := (arrived_before job_arrival) j t1 && ~~ completed t1.
+    Definition carried_in (t1: time) := arrived_before j t1 && ~~ completed t1.
 
     (* A carried-out job in [t1,t2) arrives after t1 and is not completed at time t2 *)
-    Definition carried_out (t1 t2: time) := (arrived_between job_arrival) j t1 t2 && ~~ completed t2.
+    Definition carried_out (t1 t2: time) := arrived_between j t1 t2 && ~~ completed t2.
 
   End ScheduledJobs.
 
   Section ValidSchedules.
 
     Context {Job: eqType}. (* Assume a job type with decidable equality *)
-    Variable job_arrival: Job -> nat.
-    Variable job_cost: Job -> nat. (* and that has a cost function. *)
+    Context {arr_seq: arrival_sequence Job}.
+
+    Variable job_cost: Job -> nat. (* and a cost function. *)
 
     Variable num_cpus: nat.
     Variable rate: Job -> processor -> nat.
-    Variable sched: schedule Job.
+    Variable sched: schedule arr_seq.
 
     (* Whether job parallelism is disallowed *)
     Definition jobs_dont_execute_in_parallel :=
       forall j t cpu1 cpu2,
         sched cpu1 t == Some j -> sched cpu2 t == Some j -> cpu1 = cpu2.
-    
+
     (* Whether a job can only be scheduled if it has arrived *)
     Definition job_must_arrive_to_exec :=
-      forall j t, scheduled num_cpus sched j t -> has_arrived job_arrival j t.
+      forall j t, scheduled num_cpus sched j t -> has_arrived j t.
 
     (* Whether a job can be scheduled after it completes *)
     Definition completed_job_doesnt_exec :=
@@ -239,13 +272,14 @@ Module Schedule.
   Section ServiceProperties.
 
     Context {Job: eqType}.
-    Variable job_arrival: Job -> nat.
+    Context {arr_seq: arrival_sequence Job}.
+    
     Variable job_cost: Job -> nat.
 
     Variable num_cpus: nat.
     Variable rate: Job -> processor -> nat.
-    Variable sched: schedule Job.
-    Variable j: Job.
+    Variable sched: schedule arr_seq.
+    Variable j: JobIn arr_seq.
 
     Section Basic.
 
@@ -321,7 +355,7 @@ Module Schedule.
     Section Arrival.
 
       Hypothesis jobs_must_arrive:
-        job_must_arrive_to_exec job_arrival num_cpus sched.
+        job_must_arrive_to_exec num_cpus sched.
 
       Lemma service_before_arrival_zero :
         forall t0 (LT: t0 < job_arrival j),
@@ -330,7 +364,7 @@ Module Schedule.
         rename jobs_must_arrive into ARR; red in ARR; ins.
         specialize (ARR j t0).
         apply contra with (c := scheduled num_cpus sched j t0)
-                          (b := has_arrived job_arrival j t0) in ARR;
+                            (b := has_arrived j t0) in ARR;
           last by rewrite -ltnNge.
         apply/eqP; rewrite -leqn0; unfold service_at.
         rewrite big_nat_cond.
@@ -363,7 +397,6 @@ Module Schedule.
 
 End Schedule.
 
-(* Specific definitions for schedules of sporadic tasks *)
 Module ScheduleOfSporadicTask.
 
   Import SporadicTask.
@@ -371,27 +404,25 @@ Module ScheduleOfSporadicTask.
 
   Section EarlierJobs.
 
-    Variable Job: eqType.
-    Variable job_arrival: Job -> nat.
+    Context {Job: eqType}.
+    Context {arr_seq: arrival_sequence Job}.
+    
     Variable job_cost: Job -> nat.
     Variable job_task: Job -> sporadic_task.
 
     Variable num_cpus: nat.
     Variable rate: Job -> processor -> time.
-    Variable sched: schedule Job.
+    Variable sched: schedule arr_seq.
 
-    (* Whether job j1 arrives earlier than j2 (same task) *)
-    Definition earlier_job (j1 j2: Job) :=
+    Definition earlier_job_from_same_task (j1 j2: JobIn arr_seq) :=
       job_task j1 = job_task j2 /\
-      exists arr1 arr2, arrives_at job_arrival j1 arr1 /\
-                        arrives_at job_arrival j2 arr2 /\
-                        arr1 < arr2.
+      job_arrival j1 < job_arrival j2.
 
-    Definition exists_earlier_job (t: time) (jlow: Job) :=
-      exists j0, earlier_job j0 jlow /\
-                 (pending job_arrival job_cost num_cpus rate) sched j0 t.
-
-    (* TODO: How do we avoid passing so many parameters? *)
+    Definition job_is_pending :=
+      pending job_cost num_cpus rate sched.
+    
+    Definition exists_earlier_job (t: time) (jlow: JobIn arr_seq) :=
+      exists j0, job_is_pending j0 t /\ earlier_job_from_same_task j0 jlow.
     
 End EarlierJobs.
 
