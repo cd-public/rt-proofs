@@ -1,6 +1,6 @@
 Require Import Vbase JobDefs TaskDefs ScheduleDefs TaskArrivalDefs ResponseTimeDefs
         SchedulabilityDefs divround helper
-        ssreflect ssrbool eqtype ssrnat seq div fintype bigop path ssromega.
+        ssreflect ssrbool eqtype ssrnat seq div fintype bigop path.
 
 Module Workload.
 
@@ -10,17 +10,19 @@ Module Workload.
     
     Context {Job: eqType}.
     Variable job_task: Job -> sporadic_task.
+    Context {arr_seq: arrival_sequence Job}.
     
-    Variable rate: Job -> processor -> nat.
-    Variable num_cpus: nat.
-    Variable sched: schedule Job.
+    Context {num_cpus: nat}.
+    Variable rate: Job -> processor num_cpus -> nat.
+    Variable sched: schedule num_cpus arr_seq.
 
     (* Consider some task *)
     Variable tsk: sporadic_task.
 
     (* First, we define a function that returns the amount of service
        received by this task in a particular processor. *)
-    Definition service_of_task (cpu: processor) (j: option Job) : nat :=
+    Definition service_of_task (cpu: processor num_cpus)
+                               (j: option (JobIn arr_seq)) :=
       match j with
         | Some j' => (job_task j' == tsk) * (rate j' cpu)
         | None => 0
@@ -30,28 +32,25 @@ Module Workload.
        the task in the interval [t1,t2). *)
     Definition workload (t1 t2: time) :=
       \sum_(t1 <= t < t2)
-        \sum_(0 <= cpu < num_cpus)
+        \sum_(cpu < num_cpus)
           service_of_task cpu (sched cpu t).
 
     (* We provide an alternative definition for workload,
        which is more suitable for our proof.
        It requires computing the list of jobs that are scheduled
        between t1 and t2 (without duplicates). *)
-    Definition jobs_scheduled_between (t1 t2: time) : list Job :=
+    Definition jobs_scheduled_between (t1 t2: time) :=
       undup (\cat_(t1 <= t < t2)
-               \cat_(0 <= cpu < num_cpus)
-                 match (sched cpu t) with
-                 | Some j => [::j]
-                 | None => [::]
-                 end).
-
+               \cat_(cpu < num_cpus)
+                 make_sequence (sched cpu t)).
+    
     (* Now, we define workload by summing up the cumulative service
        during [t1,t2) of the scheduled jobs, but only those spawned
        by the task that we care about. *)
     Definition workload_joblist (t1 t2: time) :=
       \sum_(j <- jobs_scheduled_between t1 t2 | job_task j == tsk)
-        service_during num_cpus rate sched j t1 t2.
-
+        service_during rate sched j t1 t2.
+    
     (* Next, we show that the two definitions are equivalent. *)
     Lemma workload_eq_workload_joblist (t1 t2: time) :
       workload t1 t2 = workload_joblist t1 t2.
@@ -60,29 +59,29 @@ Module Workload.
       rewrite [\sum_(j <- jobs_scheduled_between _ _ | _) _]exchange_big /=.
       apply eq_big_nat; unfold service_at; intros t LEt.
       rewrite [\sum_(i <- jobs_scheduled_between _ _ | _) _](eq_bigr (fun i =>
-                          \sum_(0 <= cpu < num_cpus) (sched cpu t == Some i) * rate i cpu));
-        last by ins; rewrite big_mkcond; apply eq_big_nat; ins; rewrite mulnbl.
-      rewrite exchange_big /=; apply eq_big_nat.
+               \sum_(cpu < num_cpus) (sched cpu t == Some i) * rate i cpu));
+        last by ins; rewrite big_mkcond; apply eq_bigr; ins; rewrite mulnbl.
+      rewrite exchange_big /=; apply eq_bigr.
       intros cpu LEcpu; rewrite -big_filter.
       destruct (sched cpu t) eqn:SCHED; simpl; last first.
         by rewrite -> eq_bigr with (F2 := fun i => 0);
           [by rewrite big_const_seq iter_addn | by ins].
         {
-          rename s into j; destruct (job_task j == tsk) eqn:EQtsk;
+          destruct (job_task j == tsk) eqn:EQtsk;
             try rewrite mul1n; try rewrite mul0n.
           {  
             rewrite -> bigD1_seq with (j := j); last by rewrite filter_undup undup_uniq.
             { 
               rewrite -> eq_bigr with (F2 := fun i => 0);
                 first by rewrite big_const_seq iter_addn /= mul0n 2!addn0 eq_refl mul1n.
-                intros i NEQ; destruct (Some j == Some i) eqn:SOMEeq; last by rewrite mul0n.
+                intros i NEQ; destruct (Some j == Some i) eqn:SOMEeq; last by rewrite SOMEeq mul0n.
                 by move: SOMEeq => /eqP SOMEeq; inversion SOMEeq; subst; rewrite eq_refl in NEQ.
             }
             {
               rewrite mem_filter; apply/andP; split; first by ins.
               rewrite mem_undup.
-              apply mem_bigcat with (j := t); first by ins.
-              apply mem_bigcat with (j := cpu); first by ins.
+              apply mem_bigcat_nat with (j := t); first by ins.
+              apply mem_bigcat_ord with (j := cpu); first by apply ltn_ord.
               by rewrite SCHED inE; apply/eqP.
             }
           }
@@ -120,7 +119,6 @@ Module Workload.
   Section ProofWorkloadBound.
   
     Variable Job: eqType.
-    Variable job_arrival: Job -> nat.
     Variable job_cost: Job -> nat.
     Variable job_task: Job -> sporadic_task.
     Variable job_deadline: Job -> nat.
@@ -129,23 +127,25 @@ Module Workload.
     Hypothesis jobs_have_valid_parameters :
       forall j, valid_sporadic_task_job job_cost job_deadline job_task j.
 
+    Variable arr_seq: arrival_sequence Job.
+    
     Variable num_cpus: nat.
-    Variable rate: Job -> processor -> nat.
-    Variable schedule_of_platform: schedule Job -> Prop.
+    Variable rate: Job -> processor num_cpus -> nat.
+    Variable schedule_of_platform: schedule num_cpus arr_seq -> Prop.
 
     (* Assume any schedule of a given platform. *)
-    Variable sched: schedule Job.
+    Variable sched: schedule num_cpus arr_seq.
     Hypothesis sched_of_platform: schedule_of_platform sched.
 
     (* Assumption: jobs only execute if they arrived.
        This is used to eliminate jobs that arrive after end of the interval t1 + delta. *)
-    Hypothesis jobs_must_arrive:
-      job_must_arrive_to_exec job_arrival num_cpus sched.
+    Hypothesis H_jobs_must_arrive_to_execute:
+      jobs_must_arrive_to_execute sched.
 
     (* Assumption: jobs do not execute after they completed.
        This is used to eliminate jobs that complete before the start of the interval t1. *)
-    Hypothesis completed_jobs:
-      completed_job_doesnt_exec job_cost num_cpus rate sched.
+    Hypothesis H_completed_jobs_dont_execute:
+      completed_jobs_dont_execute job_cost rate sched.
 
     (* Assumptions:
          1) A job does not execute in parallel.
@@ -159,18 +159,17 @@ Module Workload.
     (* Assumption: sporadic task model.
        This is necessary to conclude that consecutive jobs ordered by arrival times
        are separated by at least 'period' times units. *)
-    Hypothesis sporadic_tasks: sporadic_task_model job_arrival job_task.
+    Hypothesis sporadic_tasks: sporadic_task_model arr_seq job_task.
 
     (* Before starting the proof, let's give simpler names to the definitions. *)
     Definition response_time_bound_of (tsk: sporadic_task) (R: time) :=
       forall job_cost,
-        is_a_valid_response_time_bound job_task job_arrival job_cost tsk num_cpus
-                                       rate sched R.
+        is_response_time_bound_of_task job_cost job_task tsk rate sched R.
     Definition no_deadline_misses_by (tsk: sporadic_task) (t: time) :=
-      task_misses_no_deadline_before job_arrival job_cost job_deadline job_task
-                                     num_cpus rate sched tsk t.
+      task_misses_no_deadline_before job_cost job_deadline job_task
+                                     rate sched tsk t.
     Definition workload_of (tsk: sporadic_task) (t1 t2: time) :=
-      workload job_task rate num_cpus sched tsk t1 t2.
+      workload job_task rate sched tsk t1 t2.
 
     (* Now we define the theorem. Let tsk be any task in the taskset. *)
     Variable tsk: sporadic_task.
@@ -220,17 +219,18 @@ Module Workload.
       
       (* Identify the subset of jobs that actually cause interference *)
       set interfering_jobs :=
-        filter (fun x => (job_task x == tsk) && (service_during num_cpus rate sched x t1 t2 != 0))
-                    (jobs_scheduled_between num_cpus sched t1 t2).
+        filter (fun (x: JobIn arr_seq) =>
+                  (job_task x == tsk) && (service_during rate sched x t1 t2 != 0))
+                    (jobs_scheduled_between sched t1 t2).
   
       (* Remove the elements that we don't care about from the sum *)
       assert (SIMPL:
-        \sum_(i <- jobs_scheduled_between num_cpus sched t1 t2 | job_task i == tsk)
-           service_during num_cpus rate sched i t1 t2 =
-        \sum_(i <- interfering_jobs) service_during num_cpus rate sched i t1 t2).
+        \sum_(i <- jobs_scheduled_between sched t1 t2 | job_task i == tsk)
+           service_during rate sched i t1 t2 =
+        \sum_(i <- interfering_jobs) service_during rate sched i t1 t2).
       {
         unfold interfering_jobs.
-        rewrite (bigID (fun x => service_during num_cpus rate sched x t1 t2 == 0)) /=.
+        rewrite (bigID (fun x => service_during rate sched x t1 t2 == 0)) /=.
         rewrite (eq_bigr (fun x => 0)); last by move => j_i /andP JOBi; des; apply /eqP.
         rewrite big_const_seq iter_addn mul0n add0n add0n.
         by rewrite big_filter.
@@ -238,8 +238,7 @@ Module Workload.
 
       (* Remember that for any job of tsk, service <= task_cost tsk *)
       assert (LTserv: forall j_i (INi: j_i \in interfering_jobs),
-                        service_during num_cpus rate sched j_i t1 t2 <=
-                        task_cost tsk).
+                        service_during rate sched j_i t1 t2 <= task_cost tsk).
       {
         ins; move: INi; rewrite mem_filter; move => /andP xxx; des.
         move: xxx; move => /andP JOBi; des; clear xxx0 JOBi0.
@@ -251,7 +250,7 @@ Module Workload.
 
       (* Order the sequence of interfering jobs by arrival time, so that
          we can identify the first and last jobs. *)
-      set order := fun x y => job_arrival x <= job_arrival y.
+      set order := fun (x y: JobIn arr_seq) => job_arrival x <= job_arrival y.
       set sorted_jobs := (sort order interfering_jobs).
       assert (SORT: sorted order sorted_jobs);
         first by apply sort_sorted; unfold total, order; ins; apply leq_total.
@@ -265,7 +264,7 @@ Module Workload.
       destruct (size sorted_jobs == 0) eqn:SIZE0;
         first by move: SIZE0 =>/eqP SIZE0; rewrite (size0nil SIZE0) big_nil.
       apply negbT in SIZE0; rewrite -lt0n in SIZE0.
-      assert (EX: exists elem: Job, True); des.
+      assert (EX: exists elem: JobIn arr_seq, True); des.
         destruct sorted_jobs; [by rewrite ltn0 in SIZE0 | by exists s].
       clear EX SIZE0.
 
@@ -282,7 +281,7 @@ Module Workload.
         apply leq_trans with (n := \sum_(x <- sorted_jobs) task_cost tsk);
           last by rewrite big_const_seq iter_addn addn0 mulnC leq_mul2r; apply/orP; right.
         {
-          rewrite [\sum_(_ <- _) service_during _ _ _ _ _ _]big_seq_cond.
+          rewrite [\sum_(_ <- _) service_during _ _ _ _ _]big_seq_cond.
           rewrite [\sum_(_ <- _) task_cost _]big_seq_cond.
           by apply leq_sum; intros j_i; move/andP => xxx; des; apply LTserv; rewrite INboth.
         }
@@ -295,7 +294,8 @@ Module Workload.
       (* First and last only exist if there are at least 2 jobs. Thus, we must show
          that the bound holds for the empty list. *)
       destruct (size sorted_jobs) eqn:SIZE; first by rewrite big_geq.
-
+      rewrite SIZE.
+      
       (* Let's derive some properties about the first element. *)
       exploit (mem_nth elem); last intros FST.
         by instantiate (1:= sorted_jobs); instantiate (1 := 0); rewrite SIZE.
@@ -306,8 +306,8 @@ Module Workload.
       (* Since there is at least one job of the task, we show that R_tsk >= cost tsk. *)
       assert (GEcost: R_tsk >= task_cost tsk).
       {
-        apply (response_time_ub_ge_task_cost job_task job_arrival)
-                                   with (num_cpus := num_cpus) (sched := sched) (rate := rate); ins.
+
+        apply (response_time_ub_ge_task_cost job_task) with (sched0 := sched) (rate0 := rate); ins.
         by exists (nth elem sorted_jobs 0); rewrite FSTtask eq_refl.
       }
                                 
@@ -315,7 +315,7 @@ Module Workload.
       destruct n.
       {
         destruct n_k; last by ins.
-        { 
+        {
           rewrite 2!mul0n addn0 subn0 big_nat_recl // big_geq // addn0.
           rewrite leq_min; apply/andP; split.
           {
@@ -325,7 +325,7 @@ Module Workload.
           }
           {
             rewrite -addnBA; last by ins.
-            rewrite -[service_during _ _ _ _ _ _]addn0.
+            rewrite -[service_during _ _ _ _ _]addn0.
             apply leq_add; last by ins.
             apply leq_trans with (n := \sum_(t1 <= t < t2) 1).
               by apply leq_sum; ins; apply service_at_le_max_rate.
@@ -350,8 +350,7 @@ Module Workload.
       {
         rewrite leqNgt; apply /negP; unfold not; intro LTt1.
         move: INfst1 => /eqP INfst1; apply INfst1.
-        by apply (sum_service_after_rt_zero job_task job_arrival job_cost
-                                         tsk num_cpus sched rate) with (R := R_tsk);
+        by apply (sum_service_after_rt_zero job_cost job_task tsk) with (R := R_tsk);
          last by apply ltnW.
       }
       assert (BEFOREt2: job_arrival j_lst < t2).
@@ -364,19 +363,19 @@ Module Workload.
         move: LTsize => /andP [LTsize _]; des.
         move: LTsize => /andP [_ SERV].
         move: SERV => /eqP SERV; apply SERV.
-        by unfold service_during; rewrite (sum_service_before_arrival job_arrival).
+        by unfold service_during; rewrite sum_service_before_arrival.
       }
 
       (* Next, we upper-bound the service of the first and last jobs using their arrival times. *)
-      assert (BOUNDend: service_during num_cpus rate sched j_fst t1 t2 +
-                        service_during num_cpus rate sched j_lst t1 t2 <=
+      assert (BOUNDend: service_during rate sched j_fst t1 t2 +
+                        service_during rate sched j_lst t1 t2 <=
                         (job_arrival j_fst  + R_tsk - t1) + (t2 - job_arrival j_lst)).
       {
         apply leq_add; unfold service_during.
         {
           rewrite -[_ + _ - _]mul1n -[1*_]addn0 -iter_addn -big_const_nat.
           apply leq_trans with (n := \sum_(t1 <= t < job_arrival j_fst + R_tsk)
-                                         service_at num_cpus rate sched j_fst t);
+                                         service_at rate sched j_fst t);
             last by apply leq_sum; ins; apply service_at_le_max_rate.
           destruct (job_arrival j_fst + R_tsk <= t2) eqn:LEt2; last first.
           {
@@ -388,8 +387,7 @@ Module Workload.
             rewrite -> big_cat_nat with (n := job_arrival j_fst + R_tsk); [| by ins | by ins].
             rewrite -{2}[\sum_(_ <= _ < _) _]addn0 /=.
             rewrite leq_add2l leqn0; apply/eqP.
-            by apply (sum_service_after_rt_zero job_task job_arrival job_cost
-                                             tsk num_cpus sched rate) with (R := R_tsk);
+            by apply (sum_service_after_rt_zero job_cost job_task tsk) with (R := R_tsk);
               last by apply leqnn. 
           }
         }
@@ -398,7 +396,7 @@ Module Workload.
           destruct (job_arrival j_lst <= t1) eqn:LT.
           {
             apply leq_trans with (n := \sum_(job_arrival j_lst <= t < t2)
-                                        service_at num_cpus rate sched j_lst t);
+                                        service_at rate sched j_lst t);
               first by rewrite -> big_cat_nat with (m := job_arrival j_lst) (n := t1);
                 [by apply leq_addl | by ins | by apply leq_addr].
             by apply leq_sum; ins; apply service_at_le_max_rate.
@@ -407,8 +405,7 @@ Module Workload.
             apply negbT in LT; rewrite -ltnNge in LT.
             rewrite -> big_cat_nat with (n := job_arrival j_lst); [|by apply ltnW| by apply ltnW].
             rewrite /= -[\sum_(_ <= _ < _) 1]add0n; apply leq_add.
-            rewrite (sum_service_before_arrival job_arrival);
-              [by apply leqnn | by ins | by apply leqnn].
+            rewrite sum_service_before_arrival; [by apply leqnn | by ins | by apply leqnn].
             by apply leq_sum; ins; apply service_at_le_max_rate.
           }
         }
@@ -431,7 +428,7 @@ Module Workload.
 
       (* Now we upper-bound the service of the middle jobs. *)
       assert (BOUNDmid: \sum_(0 <= i < n)
-                         service_during num_cpus rate sched (nth elem sorted_jobs i.+1) t1 t2 <=
+                         service_during rate sched (nth elem sorted_jobs i.+1) t1 t2 <=
                            n * task_cost tsk).
       {
         apply leq_trans with (n := n * task_cost tsk);
@@ -520,7 +517,7 @@ Module Workload.
             [rewrite leq_add2r leq_add2l; apply restricted_deadline | apply DISTmax].
         {
           (* Show that j_fst doesn't execute d_k units after its arrival. *)
-          unfold t2; rewrite leq_add2r; rename completed_jobs into EXEC.
+          unfold t2; rewrite leq_add2r; rename H_completed_jobs_dont_execute into EXEC.
           unfold task_misses_no_deadline_before, job_misses_no_deadline, completed in *; des.
           exploit (no_dl_misses j_fst INfst); last intros COMP.
           { 
@@ -543,7 +540,7 @@ Module Workload.
             unfold service_during; apply/eqP; rewrite -leqn0.
             rewrite <- leq_add2l with (p := job_cost j_fst); rewrite addn0.
             move: COMP => /eqP COMP; unfold service in COMP; rewrite -{1}COMP.
-            apply leq_trans with (n := service num_cpus rate sched j_fst t2); last by apply EXEC.
+            apply leq_trans with (n := service rate sched j_fst t2); last by apply EXEC.
             unfold service; rewrite -> big_cat_nat with (m := 0) (p := t2) (n := t1);
               [rewrite leq_add2r /= | by ins | by apply leq_addr].
             rewrite -> big_cat_nat with (p := t1) (n := job_arrival j_fst + job_deadline j_fst);

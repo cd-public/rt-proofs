@@ -182,18 +182,20 @@ Module Schedule.
 
   Export ArrivalSequence.
 
-  Definition processor := nat.
+  (* Processor is defined as a bounded natural number. *)
+  Definition processor num_cpus := 'I_num_cpus.
   
   Section ScheduleDef.
 
-    Context {Job: eqType}. (* Assume any job type with decidable equality. *)
-
+    Context {Job: eqType}.
+    
+    Variable num_cpus: nat.
     Variable arr_seq: arrival_sequence Job.
 
     (* We define a schedule of an arrival sequence as a mapping.
-       Each processor at each time has either a job from that sequence or none. *)
+       Each processor at each time has either a job from the sequence or none. *)
     Definition schedule :=
-      processor -> time -> option (JobIn arr_seq).
+      processor num_cpus -> time -> option (JobIn arr_seq).
 
   End ScheduleDef.
   
@@ -204,9 +206,9 @@ Module Schedule.
     
     Variable job_cost: Job -> nat. (* ...and a cost function. *)
     
-    Variable num_cpus: nat.
-    Variable rate: Job -> processor -> nat.
-    Variable sched: schedule arr_seq.
+    Context {num_cpus: nat}.
+    Variable rate: Job -> processor num_cpus -> nat.
+    Variable sched: schedule num_cpus arr_seq.
 
     Variable j: JobIn arr_seq.
 
@@ -215,7 +217,7 @@ Module Schedule.
       [exists cpu in 'I_(num_cpus), sched cpu t == Some j].
 
     Definition service_at (t: time) :=
-      \sum_(0 <= cpu < num_cpus | sched cpu t == Some j) rate j cpu.
+      \sum_(cpu < num_cpus | sched cpu t == Some j) rate j cpu.
 
     (* Cumulative service received during [0, t') *)
     Definition service (t': time) := \sum_(0 <= t < t') service_at t.
@@ -244,12 +246,12 @@ Module Schedule.
 
     Context {Job: eqType}. (* Assume a job type with decidable equality *)
     Context {arr_seq: arrival_sequence Job}.
-
+    Context {num_cpus: nat}.
+    
     Variable job_cost: Job -> nat. (* and a cost function. *)
 
-    Variable num_cpus: nat.
-    Variable rate: Job -> processor -> nat.
-    Variable sched: schedule arr_seq.
+    Variable rate: Job -> processor num_cpus -> nat.
+    Variable sched: schedule num_cpus arr_seq.
 
     (* Whether job parallelism is disallowed *)
     Definition jobs_dont_execute_in_parallel :=
@@ -257,15 +259,15 @@ Module Schedule.
         sched cpu1 t == Some j -> sched cpu2 t == Some j -> cpu1 = cpu2.
 
     (* Whether a job can only be scheduled if it has arrived *)
-    Definition job_must_arrive_to_exec :=
-      forall j t, scheduled num_cpus sched j t -> has_arrived j t.
+    Definition jobs_must_arrive_to_execute :=
+      forall j t, scheduled sched j t -> has_arrived j t.
 
     (* Whether a job can be scheduled after it completes *)
-    Definition completed_job_doesnt_exec :=
-      forall j t, service num_cpus rate sched j t <= job_cost j.
+    Definition completed_jobs_dont_execute :=
+      forall j t, service rate sched j t <= job_cost j.
 
     Definition valid_sporadic_schedule :=
-      job_must_arrive_to_exec /\ completed_job_doesnt_exec.
+      jobs_must_arrive_to_execute /\ completed_jobs_dont_execute.
 
   End ValidSchedules.
 
@@ -277,15 +279,15 @@ Module Schedule.
     Variable job_cost: Job -> nat.
 
     Variable num_cpus: nat.
-    Variable rate: Job -> processor -> nat.
-    Variable sched: schedule arr_seq.
+    Variable rate: Job -> processor num_cpus -> nat.
+    Variable sched: schedule num_cpus arr_seq.
     Variable j: JobIn arr_seq.
 
     Section Basic.
 
       Lemma service_monotonic :
         forall t t', t <= t' ->
-           service num_cpus rate sched j t <= service num_cpus rate sched j t'.
+           service rate sched j t <= service rate sched j t'.
       Proof.
         unfold service; ins; rewrite -> big_cat_nat with (p := t') (n := t);
           by  [apply leq_addr | by ins | by ins].
@@ -303,16 +305,17 @@ Module Schedule.
         jobs_dont_execute_in_parallel sched.
 
       Lemma service_at_le_max_rate :
-        forall t, service_at num_cpus rate sched j t <= max_rate.
+        forall t, service_at rate sched j t <= max_rate.
       Proof.
         unfold service_at, jobs_dont_execute_in_parallel in *; ins.
-        destruct (scheduled num_cpus sched j t) eqn:SCHED; unfold scheduled in SCHED.
+        destruct (scheduled sched j t) eqn:SCHED; unfold scheduled in SCHED.
         {
-          move: SCHED => /(exists_inP_nat num_cpus (fun cpu => sched cpu t == Some j)) SCHED; des.
+          move: SCHED => /exists_inP SCHED; des.
           rewrite -big_filter.
-          rewrite (bigD1_seq x); [simpl | | by rewrite filter_uniq // iota_uniq];
-            last by rewrite mem_filter; apply/andP; split;
-              [by ins | by rewrite mem_iota; apply/andP; split; [by ins | by rewrite subn0 add0n]].
+          rewrite (bigD1_seq x);
+            [simpl | | by rewrite filter_index_enum enum_uniq];
+              last by rewrite mem_filter; apply/andP; split;
+                [by ins | by rewrite mem_index_enum].
           rewrite -big_filter -filter_predI big_filter.
           rewrite -> eq_bigr with (F2 := fun cpu => 0);
             first by rewrite big_const_seq iter_addn /= mul0n 2!addn0 there_is_max_rate.
@@ -321,9 +324,8 @@ Module Schedule.
         }
         {
           apply negbT in SCHED; rewrite negb_exists_in in SCHED.
-          move: SCHED => /(forall_inP_nat num_cpus (fun cpu => sched cpu t != Some j)) SCHED.
-          rewrite big_nat_cond big_pred0 //; red; ins; apply/negP; move => /andP [LT EQ].
-          by specialize (SCHED x LT); move: EQ => /eqP EQ; rewrite EQ eq_refl in SCHED.
+          move: SCHED => /forall_inP SCHED.
+          by rewrite big_pred0; red; ins; apply negbTE, SCHED.
         }
       Qed.
         
@@ -332,19 +334,19 @@ Module Schedule.
     Section Completion.
 
       Hypothesis completed_jobs:
-        completed_job_doesnt_exec job_cost num_cpus rate sched.
+        completed_jobs_dont_execute job_cost rate sched.
       Hypothesis max_service_one:
-        forall j' t, service_at num_cpus rate sched j' t <= 1.
+        forall j' t, service_at rate sched j' t <= 1.
 
       Lemma service_interval_le_cost :
         forall t t',
-          service_during num_cpus rate sched j t t' <= job_cost j.
+          service_during rate sched j t t' <= job_cost j.
       Proof.
         unfold service_during; rename completed_jobs into COMP; red in COMP; ins.
         destruct (t > t') eqn:GT.
           by rewrite big_geq // -ltnS; apply ltn_trans with (n := t); ins.
           apply leq_trans with
-              (n := \sum_(0 <= t0 < t') service_at num_cpus rate sched j t0);
+              (n := \sum_(0 <= t0 < t') service_at rate sched j t0);
             last by apply COMP.
           rewrite -> big_cat_nat with (m := 0) (n := t);
             [by apply leq_addl | by ins | by rewrite leqNgt negbT //].
@@ -355,32 +357,27 @@ Module Schedule.
     Section Arrival.
 
       Hypothesis jobs_must_arrive:
-        job_must_arrive_to_exec num_cpus sched.
+        jobs_must_arrive_to_execute sched.
 
       Lemma service_before_arrival_zero :
         forall t0 (LT: t0 < job_arrival j),
-          service_at num_cpus rate sched j t0 = 0.
+          service_at rate sched j t0 = 0.
       Proof.
         rename jobs_must_arrive into ARR; red in ARR; ins.
         specialize (ARR j t0).
-        apply contra with (c := scheduled num_cpus sched j t0)
+        apply contra with (c := scheduled sched j t0)
                             (b := has_arrived j t0) in ARR;
           last by rewrite -ltnNge.
         apply/eqP; rewrite -leqn0; unfold service_at.
-        rewrite big_nat_cond.
         rewrite -> eq_bigr with (F2 := fun cpu => 0);
           first by rewrite big_const_seq iter_addn mul0n addn0.
-        intro i; move => /andP [/andP [_ LTcpus] SCHED].
-        unfold scheduled in ARR.
-        rewrite negb_exists_in in ARR.
-        move: ARR => /(forall_inP_nat num_cpus (fun x => sched x t0 != Some j)) ARR.
-        specialize (ARR i LTcpus).
-        by destruct (sched i t0 == Some j).
+        intros i SCHED; move: ARR; rewrite negb_exists_in; move => /forall_inP ARR.
+        by exploit (ARR i); [by ins | ins]; destruct (sched i t0 == Some j).
       Qed.
 
       Lemma sum_service_before_arrival :
         forall t1 t2 (LT: t2 <= job_arrival j),
-          \sum_(t1 <= i < t2) service_at num_cpus rate sched j i = 0.
+          \sum_(t1 <= i < t2) service_at rate sched j i = 0.
       Proof.
         ins; apply/eqP; rewrite -leqn0.
         apply leq_trans with (n := \sum_(t1 <= i < t2) 0);
@@ -411,15 +408,15 @@ Module ScheduleOfSporadicTask.
     Variable job_task: Job -> sporadic_task.
 
     Variable num_cpus: nat.
-    Variable rate: Job -> processor -> time.
-    Variable sched: schedule arr_seq.
+    Variable rate: Job -> processor num_cpus -> time.
+    Variable sched: schedule num_cpus arr_seq.
 
     Definition earlier_job_from_same_task (j1 j2: JobIn arr_seq) :=
       job_task j1 = job_task j2 /\
       job_arrival j1 < job_arrival j2.
 
     Definition job_is_pending :=
-      pending job_cost num_cpus rate sched.
+      pending job_cost rate sched.
     
     Definition exists_earlier_job (t: time) (jlow: JobIn arr_seq) :=
       exists j0, job_is_pending j0 t /\ earlier_job_from_same_task j0 jlow.

@@ -4,38 +4,32 @@ Require Import Vbase TaskDefs JobDefs TaskArrivalDefs ScheduleDefs PlatformDefs 
 Module ResponseTime.
 
   Import Schedule SporadicTaskset SporadicTaskArrival.
-
+                                    
   Section ResponseTimeBound.
     
     Context {Job: eqType}.
-    Variable job_task: Job -> sporadic_task.
-    Variable job_arrival: Job -> nat.
+    Context {arr_seq: arrival_sequence Job}.
     Variable job_cost: Job -> nat.
-
-    (* A response-time bound always applies with regard to some set of
-    considered schedules, e.g., "all global EDF schedules".  This
-    Prop checks whether a schedule is valid with regard to the
-    considered class. *)
-    Variable is_a_valid_schedule: processor -> (Job -> processor -> nat) -> schedule Job -> Prop.
+    Variable job_task: Job -> sporadic_task.
 
     (* Given a task ...*)
     Variable tsk: sporadic_task.
-    
-    (*...and some valid schedule,...*)
-    Variable num_cpus : nat.
-    Variable rate: Job -> processor -> nat.
-    Variable sched: schedule Job.
-    Hypothesis H_is_a_valid_schedule: is_a_valid_schedule num_cpus rate sched.
 
-    (* ...R is a response-time bound of tsk in this schedule... *)
+    (* ... and a particular schedule, ...*)
+    Context {num_cpus : nat}.
+    Variable rate: Job -> processor num_cpus -> nat.
+    Variable sched: schedule num_cpus arr_seq.
+
+    (* ... R is a response-time bound of tsk in this schedule ... *)
     Variable R: time.
 
     Definition job_has_completed_by :=
-      completed job_cost num_cpus rate sched.
+      completed job_cost rate sched.
 
-    (* ... iff any j job of tsk has completed by (job_arrival j + R). *)
-    Definition is_a_valid_response_time_bound :=
-      forall j,
+    (* ... iff any job j of tsk in this arrival sequence has
+       completed by (job_arrival j + R). *)
+    Definition is_response_time_bound_of_task :=
+      forall (j: JobIn arr_seq),
         job_task j == tsk ->
         job_has_completed_by j (job_arrival j + R).
         
@@ -44,46 +38,44 @@ Module ResponseTime.
   Section BasicLemmas.
 
     Context {Job: eqType}.
-    Variable job_task: Job -> sporadic_task.
-    Variable job_arrival: Job -> nat.
     Variable job_cost: Job -> nat.
+    Variable job_task: Job -> sporadic_task.
 
-    Variable is_a_valid_schedule: schedule Job -> Prop.
+    Context {arr_seq: arrival_sequence Job}.
 
     (* Assume a task ...*)
     Variable tsk: sporadic_task.
     
     (*...any valid schedule,...*)
-    Variable num_cpus : nat.
-    Variable sched: schedule Job.
-    Variable rate: Job -> processor -> nat.
-    Hypothesis H_is_a_valid_schedule: is_a_valid_schedule sched.
+    Context {num_cpus : nat}.
+    Variable sched: schedule num_cpus arr_seq.
+    Variable rate: Job -> processor num_cpus -> nat.
 
-    Hypothesis comp_jobs_dont_exec:
-      completed_job_doesnt_exec job_cost num_cpus rate sched.
+    Hypothesis H_completed_jobs_dont_execute:
+      completed_jobs_dont_execute job_cost rate sched.
 
     (* ...and that R is a response-time bound of tsk in this schedule. *)
     Variable R: time.
     Hypothesis response_time_bound:
-      is_a_valid_response_time_bound job_task job_arrival job_cost tsk num_cpus rate sched R.
+      is_response_time_bound_of_task job_cost job_task tsk rate sched R.
 
-    Variable j: Job.
+    Variable j: JobIn arr_seq.
     Hypothesis H_job_of_task: job_task j == tsk.
     
     Lemma service_at_after_rt_zero :
       forall t',
         t' >= job_arrival j + R ->
-        service_at num_cpus rate sched j t' = 0.
+        service_at rate sched j t' = 0.
     Proof.
       rename response_time_bound into RT,
-             comp_jobs_dont_exec into EXEC; ins.
-      unfold is_a_valid_response_time_bound, completed,
-             completed_job_doesnt_exec in *.
+             H_completed_jobs_dont_execute into EXEC; ins.
+      unfold is_response_time_bound_of_task, completed,
+             completed_jobs_dont_execute in *.
       specialize (RT j H_job_of_task).
       apply/eqP; rewrite -leqn0.
       rewrite <- leq_add2l with (p := job_cost j).
       move: RT => /eqP RT; rewrite -{1}RT addn0.
-      apply leq_trans with (n := service num_cpus rate sched j t'.+1);
+      apply leq_trans with (n := service rate sched j t'.+1);
         last by apply EXEC.
       unfold service; rewrite -> big_cat_nat with
                                  (p := t'.+1) (n := job_arrival j + R);
@@ -94,7 +86,7 @@ Module ResponseTime.
     Lemma sum_service_after_rt_zero :
       forall t' t'',
         t' >= job_arrival j + R ->
-        \sum_(t' <= t < t'') service_at num_cpus rate sched j t = 0.
+        \sum_(t' <= t < t'') service_at rate sched j t = 0.
     Proof.
       ins; apply/eqP; rewrite -leqn0.
       rewrite big_nat_cond; rewrite -> eq_bigr with (F2 := fun i => 0);
@@ -106,25 +98,25 @@ Module ResponseTime.
 
     Section CostAsLowerBound.
 
-      Hypothesis jobs_must_arrive_to_execute:
-        job_must_arrive_to_exec job_arrival num_cpus sched.
-      Hypothesis no_parallelism:
+      Hypothesis H_jobs_must_arrive_to_execute:
+        jobs_must_arrive_to_execute sched.
+      Hypothesis H_no_parallelism:
         jobs_dont_execute_in_parallel sched.
-      Hypothesis rate_at_most_one :
+      Hypothesis H_rate_at_most_one :
         forall j cpu, rate j cpu <= 1.
     
       Lemma response_time_ge_cost : R >= job_cost j.
       Proof.
         rename response_time_bound into BOUND.
-        unfold is_a_valid_response_time_bound, job_has_completed_by, completed,
-               completed_job_doesnt_exec in *.
+        unfold is_response_time_bound_of_task, job_has_completed_by, completed,
+               jobs_must_arrive_to_execute in *.
       
         specialize (BOUND j H_job_of_task).
         move: BOUND => /eqP BOUND; rewrite -BOUND.
-        apply leq_trans with (n := service_during num_cpus rate sched j (job_arrival j)
-                                                  (job_arrival j + R)).
+        apply leq_trans with (n := service_during rate sched j
+                                  (job_arrival j) (job_arrival j + R)).
         unfold service; rewrite -> big_cat_nat with (n := job_arrival j);
-          [by rewrite (sum_service_before_arrival job_arrival) // leqnn | by ins | by apply leq_addr].
+          [by rewrite sum_service_before_arrival // leqnn | by ins | by apply leq_addr].
         unfold service_during.
         apply leq_trans with (n := \sum_(job_arrival j <= t < job_arrival j + R) 1);
           last by rewrite big_const_nat iter_addn mul1n addn0 addnC -addnBA // subnn addn0 leqnn.
@@ -138,52 +130,48 @@ Module ResponseTime.
   Section LowerBoundOfResponseTimeBound.
 
     Context {Job: eqType}.
-    Variable job_task: Job -> sporadic_task.
-    Variable job_arrival: Job -> nat.
     Variable job_cost: Job -> nat.
-
-    Variable is_a_valid_schedule: schedule Job -> Prop.
-
+    Variable job_task: Job -> sporadic_task.
+    Context {arr_seq: arrival_sequence Job}.
+    
     (* Assume a task with at least one job that arrives in this set. *)
     Variable tsk: sporadic_task.
     Hypothesis job_of_tsk_exists:
-      exists j: Job, job_task j == tsk.
-    
+      exists j: JobIn arr_seq, job_task j == tsk.
+
     (* And assume any valid schedule...*)
-    Variable num_cpus : nat.
-    Variable sched: schedule Job.
-    Variable rate: Job -> processor -> nat.
-    Hypothesis H_is_a_valid_schedule: is_a_valid_schedule sched.
+    Context {num_cpus : nat}.
+    Variable sched: schedule num_cpus arr_seq.
+    Variable rate: Job -> processor num_cpus -> nat.
 
     (*... that satisfies the following properties: *)
-    Hypothesis jobs_must_arrive_to_execute:
-      job_must_arrive_to_exec job_arrival num_cpus sched.
-    Hypothesis completed_jobs_dont_execute:
-      completed_job_doesnt_exec job_cost num_cpus rate sched.
-    Hypothesis no_parallelism:
+    Hypothesis H_jobs_must_arrive_to_execute:
+      jobs_must_arrive_to_execute sched.
+    Hypothesis H_completed_jobs_dont_execute:
+      completed_jobs_dont_execute job_cost rate sched.
+    Hypothesis H_no_parallelism:
       jobs_dont_execute_in_parallel sched.
-    Hypothesis rate_at_most_one:
-      forall (j: Job) (cpu: processor), rate j cpu <= 1.
+    Hypothesis H_rate_at_most_one:
+      forall j cpu, rate j cpu <= 1.
 
     (* ..., and assume that, for any job cost function, R is a
             response-time bound of tsk in this schedule. *)
     Variable R: time.
     Hypothesis response_time_bound:
       forall job_cost,
-        is_a_valid_response_time_bound job_task job_arrival job_cost tsk num_cpus rate sched R.
+        is_response_time_bound_of_task job_cost job_task tsk rate sched R.
 
     (* Then, R cannot be less than the cost of tsk. *)
-    Lemma response_time_ub_ge_task_cost: R >= task_cost tsk.
+    Lemma response_time_ub_ge_task_cost:
+      R >= task_cost tsk.
     Proof.
-      unfold is_a_valid_response_time_bound, valid_sporadic_task,
-             job_has_completed_by, completed in *.
+      unfold valid_sporadic_task, job_has_completed_by, completed in *.
       rename job_of_tsk_exists into EX; des.
-
       set new_cost := fun (j': Job) => task_cost (job_task j').
-      specialize (response_time_bound new_cost).
       apply leq_trans with (n := new_cost j);
-        last by apply (response_time_ge_cost job_task job_arrival new_cost tsk num_cpus sched rate R).
-      by unfold new_cost; move: EX => /eqP EX; rewrite EX.
+        first by unfold new_cost; move: EX => /eqP EX; rewrite EX.
+      by exploit (response_time_ge_cost new_cost job_task tsk sched rate R);
+        by ins; apply EX.
     Qed.
 
   End LowerBoundOfResponseTimeBound.
@@ -191,155 +179,8 @@ Module ResponseTime.
 End ResponseTime.
 
 
-(*Section bla. 
 
-  Variable Job: eqType.
-  Variable job_arrival: Job -> time.
-
-  Variable arrival_seq: time -> seq Job.
-
-  Hypothesis arrival_sequence_equiv_job_arrival :
-    forall j t, j \in (arrival_seq t) <-> job_arrival j == t.
-
-  Hypothesis arrival_sequence_is_set :
-    forall t, uniq (arrival_seq t).
-
-  (* Given a job set, this allows:
-     1) define an arrival sequence and job_arrival functions
-        for the jobs in Job.
-     2) doesn't allow creating a new arrival sequence *)
-
-End bla.
-
-Section bla2.
-
-  Import SporadicTask.
-  
-  Variable Job: eqType. (* Job universe *)
-  Variable job_task: Job -> sporadic_task.
-
-  Definition arrival_sequence := time -> seq Job.
-
-  Definition arrives_in (j: Job) (arr: arrival_sequence) :=
-    exists t, j \in arr t.
-
-  Definition equiv_arrival_seq (job_arrival: Job -> time)
-                               (arr: arrival_sequence) :=
-    forall j,
-      arrives_in j arr ->
-      (forall t, j \in arr t <-> job_arrival j == t).
-
-  Definition sporadic_task_model (job_arrival: Job -> time)
-                                 (arr: arrival_sequence) :=
-    forall j j',
-           j <> j' -> (* Given two different jobs j and j' such that *)
-           arrives_in j arr -> (* j arrives *)
-           arrives_in j' arr -> (* j' arrives *)
-           job_task j = job_task j' -> (* they are from the same task *)
-           job_arrival j <= job_arrival j' -> (* and j arrives before j' *)
-      (* then they are separated by the period. *)
-      job_arrival j' >= job_arrival j + task_period (job_task j).
-
-
-  Variable j: Job.
-  Lemma bla : exists arrival_sequence job_arrival,
-                arrives_in j arrival_sequence /\
-                job_arrival j = 0 /\
-                equiv_arrival_seq job_arrival arrival_sequence.
-  Proof.
-    set arr := fun t => if t == 0 then [::j] else [::].
-    set job_arrival := fun (j: Job) => 0.
-    exists arr, job_arrival; split;
-      first by unfold arrives_in,arr; exists 0; rewrite eq_refl mem_seq1 eq_refl.
-    split; first by unfold job_arrival.
-    unfold equiv_arrival_seq; ins.
-    unfold job_arrival, arr, arrives_in in *; des.
-    rewrite [0 == t]eq_sym; split; ins;
-    destruct (t == 0); destruct (t0 == 0); eauto.
-    by rewrite in_nil in H.
-  Qed.
-
-  Variable job_arrival: Job -> time.
-  Variable arr: arrival_sequence.
-  Hypothesis equivalence: equiv_arrival_seq job_arrival arr.
-  Hypothesis sporadic: sporadic_task_model job_arrival arr.  
-
-End bla2.
-
-Section bla3.
-
-  Import SporadicTask.
-  
-  Variable Job: eqType. (* Job universe *)
-  Variable job_cost: Job -> nat.
-  Variable job_deadline: Job -> nat.
-  Variable job_task: Job -> sporadic_task.
-
-  Record JobIn (arr_seq: arrival_sequence Job) : Type :=
-  {
-    JobIn_job: Job;
-    JobIn_arrival_time: time;
-    JobIn_proof_of_arrival: JobIn_job \in arr_seq JobIn_arrival_time
-  }.
-  
-  Coercion job_of {arr: arrival_sequence Job} (j: JobIn arr) :=
-    JobIn_job arr j.
-
-  Definition job_arrival {arr: arrival_sequence Job} (j: JobIn arr) :=
-    JobIn_arrival_time arr j.
-
-  Section Test1.
-
-    Variable arr: arrival_sequence Job.
-    Variable j1 j2 j3: JobIn arr.
-    Variable random_job: Job.
-  
-    Check (job_arrival j1).
-    Check (job_cost j1).
-    Check (job_cost random_job).
-    Fail (job_arrival random_job).
-
-    Check (arr 0).
-    Check ((job_of j1) \in (arr 0)).
-    (* Check (j1 \in arr 0). *)
-
-  End Test1.
-  
-  Section Test2.
-
-    Variable arr: arrival_sequence Job.
-    Variable j: JobIn arr.
-
-    Definition arrived_between t1 t2 := t1 <= job_arrival j <= t2.
-    
-  End Test2.
-
-  Section ArrivalProperties.
-
-    Import SporadicTaskset.
-    
-    Variable ts: sporadic_taskset.
-    Variable arr_seq: arrival_sequence Job.
-
-    Definition all_jobs_from_taskset :=
-      forall (j: JobIn arr_seq), job_task j \in ts.
-
-    Definition synchronous_release :=
-      all_jobs_from_taskset /\
-      forall (tsk: sporadic_task),
-        tsk \in ts ->
-          exists !(j: JobIn arr_seq), job_arrival j = 0.
-
-    Lemma test : synchronous_release -> True.
-    Proof.
-      intro SYNC.
-      unfold synchronous_release in SYNC; des.
-      unfold unique in SYNC0.
-    Admitted.
-
-  End ArrivalProperties.
-
-  Section Schedule.
+  (*Section Schedule.
 
     Require Import ScheduleDefs.
     Import SporadicTaskset Schedule.
@@ -380,20 +221,7 @@ Section bla3.
       else if j == j2 then 10
       else 0.
 
-    Definition my_task (j: my_Job) :=
-      
-               
-    
-    cost_deadline_task
-    iota 0 (size my_ts).
-
-    Definition my
-    
-    Check (map (fun tsk => 1)).
-    
-  End Schedule.
-  
-End bla3.*)
+    End bla3.*)
 
 
 

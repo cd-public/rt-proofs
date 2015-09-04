@@ -26,9 +26,15 @@ Reserved Notation "\cat_ ( m <= i < n ) F"
 Notation "\cat_ ( m <= i < n ) F" :=
   (\big[cat/[::]]_(m <= i < n) F%N) : nat_scope.
 
+Reserved Notation "\cat_ ( i < n ) F"
+  (at level 41, F at level 41, i, n at level 50,
+   format "'[' \cat_ ( i < n ) '/ ' F ']'").
 
-Lemma mem_bigcat:
-  forall (T: eqType) x m n j (f: nat -> list T)
+Notation "\cat_ ( i < n ) F" :=
+  (\big[cat/[::]]_(i < n) F%N) : nat_scope.
+
+Lemma mem_bigcat_nat:
+  forall (T: eqType) x m n j (f: _ -> list T)
          (LE: m <= j < n) (IN: x \in (f j)),
   x \in \cat_(m <= i < n) (f i).
 Proof.
@@ -39,7 +45,52 @@ Proof.
   rewrite big_nat_recl; last by ins.
   by rewrite mem_cat; apply/orP; left.
 Qed.
-  
+
+Definition fun_ord_to_nat {n} {T} (x0: T) (f: 'I_n -> T) : nat -> T.
+(* if x < n, return the Ordinal time x: 'I_n, else return default x0. *)
+  intro x; destruct (x < n) eqn:LT;
+    [by apply (f (Ordinal LT)) | by apply x0].
+Defined.
+
+(* For all x: 'I_n (i.e., x < n), the conversion preserves equality. *)
+Lemma eq_fun_ord_to_nat :
+  forall n T x0 (f: 'I_n -> T) (x: 'I_n),
+    (fun_ord_to_nat x0 f) x = f x.
+Proof.
+  unfold fun_ord_to_nat; ins.
+  have LT := ltn_ord x.
+  Require Import Coq.Program.Equality.
+Admitted.
+
+Lemma eq_bigr_ord T n op idx r (P : pred 'I_n)
+                  (F1: nat -> T) (F2: 'I_n -> T) :
+  (forall i, P i -> F1 i = F2 i) ->
+  \big[op/idx]_(i <- r | P i) F1 i = \big[op/idx]_(i <- r | P i) F2 i.
+Proof.
+  induction r; ins; first by rewrite 2!big_nil.
+  rewrite 2!big_cons; destruct (P a) eqn:EQ;
+    by rewrite IHr; ins; rewrite H; ins.
+Qed.
+
+Lemma big_mkord_ord {T} {n} {op} {idx} x0 (P : pred 'I_n) (F: 'I_n -> T) :
+  \big[op/idx]_(i < n | P i) F i =
+    \big[op/idx]_(i < n | P i) (fun_ord_to_nat x0 F) i.
+Proof.
+  have EQ := eq_bigr_ord T n op idx _ _ (fun_ord_to_nat x0 F) F.
+  rewrite EQ; [by ins | by ins; rewrite eq_fun_ord_to_nat].
+Qed.
+
+Lemma mem_bigcat_ord:
+  forall (T: eqType) x n (j: 'I_n) (f: 'I_n -> list T)
+         (LE: j < n) (IN: x \in (f j)),
+    x \in \cat_(i < n) (f i).
+Proof.
+  ins; rewrite (big_mkord_ord nil).
+  rewrite -(big_mkord (fun x => true)).
+  apply mem_bigcat_nat with (j := j);
+    [by apply/andP; split | by rewrite eq_fun_ord_to_nat].
+Qed.
+
 Lemma exists_inP_nat t (P: nat -> bool):
   reflect (exists x, x < t /\ P x) [exists (x | x \in 'I_t), P x].
 Proof.
@@ -168,3 +219,9 @@ Proof.
   rewrite addmovl; last by rewrite big_nat_recr // -{1}[\sum_(_ <= _ < _) _]addn0; apply leq_add.
   by rewrite addnC -big_nat_recr.
 Qed.
+
+Definition make_sequence {T: Type} (opt: option T) :=
+  match opt with
+    | Some j => [:: j]
+    | None => [::]
+  end.

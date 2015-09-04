@@ -8,26 +8,20 @@ Module Schedulability.
   Section SchedulableDefs.
     
     Context {Job: eqType}.
-    Variable job_arrival: Job -> nat.
+    Context {arr_seq: arrival_sequence Job}.
     Variable job_cost: Job -> nat.
     Variable job_deadline: Job -> nat.
   
     Section SingleSchedule.
 
-      Variable num_cpus: nat.
-      Variable rate: Job -> processor -> nat.
-      Variable schedule_from_platform: schedule Job -> Prop.
-      Variable sched: schedule Job.
-    
-      Hypothesis sched_platform: schedule_from_platform sched.
+      Context {num_cpus: nat}.
+      Variable rate: Job -> processor num_cpus -> nat.
+      Variable sched: schedule num_cpus arr_seq.
 
-      Definition job_misses_no_deadline (j: Job) :=
-        completed job_cost num_cpus rate sched j (job_arrival j + job_deadline j).
+      Variable j: JobIn arr_seq.
 
-      Definition no_deadline_misses_in :=
-        forall j arr,
-          arrives_at job_arrival j arr ->
-          completed job_cost num_cpus rate sched j (arr + job_deadline j).
+      Definition job_misses_no_deadline :=
+        completed job_cost rate sched j (job_arrival j + job_deadline j).
 
     End SingleSchedule.
 
@@ -35,38 +29,26 @@ Module Schedulability.
 
       Variable job_task: Job -> sporadic_task.
     
-      Variable num_cpus: nat.
-      Variable rate: Job -> processor -> nat.
-      Variable schedule_from_platform: schedule Job -> Prop.
-      Variable sched: schedule Job.
-    
-      Hypothesis sched_platform: schedule_from_platform sched.
+      Context {num_cpus: nat}.
+      Variable rate: Job -> processor num_cpus -> nat.
+      Variable sched: schedule num_cpus arr_seq.
 
       Variable ts: sporadic_taskset.
       Variable tsk: sporadic_task.
-      Hypothesis task_in_taskset : tsk \in ts.
 
       Definition task_misses_no_deadline :=
-        forall j,
+        forall (j: JobIn arr_seq),
           job_task j == tsk ->
-          job_misses_no_deadline num_cpus rate sched j.
+          job_misses_no_deadline rate sched j.
 
       Definition task_misses_no_deadline_before (t': time) :=
-        forall j,
+        forall (j: JobIn arr_seq),
           job_task j == tsk ->
           job_arrival j + job_deadline j <= t' ->
-          job_misses_no_deadline num_cpus rate sched j.
+          job_misses_no_deadline rate sched j.
 
     End SingleScheduleTasks.
 
   End SchedulableDefs.
 
 End Schedulability.
-
-
-  (*Definition schedulable_task (ts: taskset) (tsk: sporadic_task) :=
-  forall sched (PLAT: platform sched), task_misses_no_dl sched ts tsk.
-
-Definition schedulable_taskset (ts: taskset) :=
-  forall sched (PLAT: platform sched) (ARRts: ts_arrival_sequence ts sched)
-         tsk (IN: tsk \in ts), task_misses_no_dl sched ts tsk.*)
