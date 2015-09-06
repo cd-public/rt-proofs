@@ -47,19 +47,17 @@ Proof.
 Qed.
 
 Definition fun_ord_to_nat {n} {T} (x0: T) (f: 'I_n -> T) : nat -> T.
-(* if x < n, return the Ordinal time x: 'I_n, else return default x0. *)
+(* if x < n, apply the function f in the (Ordinal x: 'I_n), else return default x0. *)
   intro x; destruct (x < n) eqn:LT;
     [by apply (f (Ordinal LT)) | by apply x0].
 Defined.
 
 (* For all x: 'I_n (i.e., x < n), the conversion preserves equality. *)
 Lemma eq_fun_ord_to_nat :
-  forall n T x0 (f: 'I_n -> T) (x: 'I_n),
+  forall n {T: eqType} x0 (f: 'I_n -> T) (x: 'I_n),
     (fun_ord_to_nat x0 f) x = f x.
 Proof.
-  unfold fun_ord_to_nat; ins.
-  have LT := ltn_ord x.
-  Require Import Coq.Program.Equality.
+  
 Admitted.
 
 Lemma eq_bigr_ord T n op idx r (P : pred 'I_n)
