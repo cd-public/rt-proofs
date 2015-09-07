@@ -7,22 +7,47 @@ Module ResponseTimeAnalysis.
 
   Import SporadicTaskset Schedule Workload Schedulability ResponseTime.
 
-  Section Interference.
+  Section InterferenceBound.
 
     Variable ts: sporadic_taskset.
     Variable tsk: sporadic_task.
 
+    (* Given a known response-time bound for each interfering task ... *)
+    Variable R: sporadic_task -> time.
+    (* ... and an interval length delta, ... *)
     Variable delta: time.
-    
-    (* Interference caused by tsk due to tsk_other *)
-    Definition interference_incurred_by (tsk tsk_other: sporadic_task) :=
-      delta.
-          
-    Definition total_interference :=
-      \sum_(tsk_other <- ts)
-         (interference_incurred_by tsk) tsk_other.
 
-  End Interference.
+    Definition workload_bound (tsk_other: sporadic_task) :=
+      W tsk_other (R tsk_other) delta.
+    
+    (* the interference incurred by tsk due to tsk_other is bounded by the
+       workload of tsk_other. *)
+    Definition interference_caused_by (tsk_other: sporadic_task) :=
+      workload_bound tsk_other.
+
+    (* Then, Bertogna and Cirinei define two interference bounds: one for FP and another
+       for JLFP scheduling. *)
+    Section InterferenceFP.
+
+      (* Under FP scheduling, only the higher-priority tasks cause interference.
+         The total interference incurred by tsk is bounded by: *)
+      Definition total_interference_fp :=
+        \sum_(tsk_other <- ts | true)
+           interference_caused_by tsk_other.
+  
+    End InterferenceFP.
+
+    Section InterferenceJLFP.
+
+      (* Under JLFP scheduling, every task other than tsk can cause interference.
+         The total interference incurred by tsk is bounded by: *)
+      Definition total_interference_jlfp :=
+        \sum_(tsk_other <- ts | tsk_other != tsk)
+           interference_caused_by tsk_other.
+
+    End InterferenceJLFP.
+
+  End InterferenceBound.
   
   Section ResponseTimeBound.
     
