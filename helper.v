@@ -53,12 +53,25 @@ Definition fun_ord_to_nat {n} {T} (x0: T) (f: 'I_n -> T) : nat -> T.
 Defined.
 
 (* For all x: 'I_n (i.e., x < n), the conversion preserves equality. *)
-Lemma eq_fun_ord_to_nat :
-  forall n {T: eqType} x0 (f: 'I_n -> T) (x: 'I_n),
-    (fun_ord_to_nat x0 f) x = f x.
-Proof.
-  
-Admitted.
+Program Definition eq_fun_ord_to_nat :
+  forall n {T: Type} x0 (f: 'I_n -> T) (x: 'I_n),
+    (fun_ord_to_nat x0 f) x = f x :=
+  fun n T x0 f x =>
+    match ltn_ord x in eq _ b return
+          ( 
+            (if b as b' return b = b' -> T then
+               fun (H : b = true) => f (@Ordinal n x ( H))
+             else fun _ => x0) Logic.eq_refl = f x
+          )
+          -> fun_ord_to_nat x0 f x = f x
+    with
+      | Logic.eq_refl => _
+    end (Logic.eq_refl (f x)).
+Next Obligation.
+  destruct x; simpl.
+  f_equal; f_equal.
+  exact: bool_irrelevance.
+Qed.
 
 Lemma eq_bigr_ord T n op idx r (P : pred 'I_n)
                   (F1: nat -> T) (F2: 'I_n -> T) :
