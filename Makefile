@@ -89,6 +89,7 @@ VFILES:=apa.v\
   PlatformDefs.v\
   PriorityDefs.v\
   ResponseTimeDefs.v\
+  BertognaResponseTimeDefs.v\
   SchedulabilityDefs.v\
   ScheduleDefs.v\
   TaskArrivalDefs.v\

@@ -1,11 +1,11 @@
 Require Import Vbase TaskDefs JobDefs TaskArrivalDefs ScheduleDefs
-               PlatformDefs WorkloadDefs SchedulabilityDefs
+               PlatformDefs WorkloadDefs SchedulabilityDefs PriorityDefs
                ResponseTimeDefs divround helper
                ssreflect ssrbool eqtype ssrnat seq fintype bigop.
 
 Module ResponseTimeAnalysis.
 
-  Import SporadicTaskset Schedule Workload Schedulability ResponseTime.
+  Import SporadicTaskset Schedule Workload Schedulability ResponseTime Priority.
 
   Section InterferenceBound.
 
@@ -13,36 +13,43 @@ Module ResponseTimeAnalysis.
     Variable tsk: sporadic_task.
 
     (* Given a known response-time bound for each interfering task ... *)
-    Variable R: sporadic_task -> time.
+    Variable R_other: sporadic_task -> time.
     (* ... and an interval length delta, ... *)
     Variable delta: time.
 
     Definition workload_bound (tsk_other: sporadic_task) :=
-      W tsk_other (R tsk_other) delta.
+      W tsk_other (R_other tsk_other) delta.
     
     (* the interference incurred by tsk due to tsk_other is bounded by the
        workload of tsk_other. *)
     Definition interference_caused_by (tsk_other: sporadic_task) :=
-      workload_bound tsk_other.
-
+      if tsk_other != tsk then
+        workload_bound tsk_other
+      else 0.
+    
     (* Then, Bertogna and Cirinei define two interference bounds: one for FP and another
        for JLFP scheduling. *)
     Section InterferenceFP.
 
+      Variable higher_eq_priority: fp_policy.
+
+      Definition is_interfering_task :=
+        fun tsk_other => higher_eq_priority tsk_other tsk.
+      
       (* Under FP scheduling, only the higher-priority tasks cause interference.
          The total interference incurred by tsk is bounded by: *)
       Definition total_interference_fp :=
-        \sum_(tsk_other <- ts | true)
+        \sum_(tsk_other <- ts | is_interfering_task tsk_other)
            interference_caused_by tsk_other.
   
     End InterferenceFP.
 
     Section InterferenceJLFP.
-
+      
       (* Under JLFP scheduling, every task other than tsk can cause interference.
          The total interference incurred by tsk is bounded by: *)
       Definition total_interference_jlfp :=
-        \sum_(tsk_other <- ts | tsk_other != tsk)
+        \sum_(tsk_other <- ts)
            interference_caused_by tsk_other.
 
     End InterferenceJLFP.
@@ -66,25 +73,51 @@ Module ResponseTimeAnalysis.
     Variable tsk: sporadic_task.
     Hypothesis task_in_ts: tsk \in ts.
 
-    (* Bertogna and Cirinei's response-time bound recurrence *)
-    Definition response_time_recurrence R :=
-      R <= task_cost tsk + div_floor
-                             (total_interference ts tsk R)
-                             num_cpus.
-
+    Variable R_other: sporadic_task -> time.
+    
     Definition no_deadline_is_missed_by_tsk (tsk: sporadic_task) :=
       task_misses_no_deadline job_cost job_deadline job_task rate sched tsk.
 
     Definition response_time_bounded_by :=
       is_response_time_bound_of_task job_cost job_task tsk rate sched.
-    
-    Theorem bertogna_cirinei_response_time_bound :
-      forall R,
-        response_time_recurrence R ->
-        R <= task_deadline tsk ->
-        response_time_bounded_by R.
-    Proof.
+
+    Section UnderFPScheduling.
+
+      Variable higher_eq_priority: fp_policy.
+      
+      (* Bertogna and Cirinei's response-time bound recurrence *)
+      Definition response_time_recurrence_fp R :=
+        R <= task_cost tsk + div_floor
+                             (total_interference_fp ts tsk R_other R higher_eq_priority)
+                             num_cpus.
+
+      Theorem bertogna_cirinei_response_time_bound_fp :
+        forall R,
+          response_time_recurrence_fp R ->
+          R <= task_deadline tsk ->
+          response_time_bounded_by R.
+      Proof.
       Admitted.
+
+    End UnderFPScheduling.
+
+    Section UnderJLFPScheduling.
+
+      (* Bertogna and Cirinei's response-time bound recurrence *)
+      Definition response_time_recurrence_jlfp R :=
+        R <= task_cost tsk + div_floor
+                             (total_interference_jlfp ts tsk R_other R)
+                             num_cpus.
+
+      Theorem bertogna_cirinei_response_time_bound :
+        forall R,
+          response_time_recurrence_jlfp R ->
+          R <= task_deadline tsk ->
+          response_time_bounded_by R.
+      Proof.
+      Admitted.
+      
+    End UnderJLFPScheduling.
     
   End ResponseTimeBound.
   
