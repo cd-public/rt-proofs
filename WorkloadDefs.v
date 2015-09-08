@@ -107,7 +107,7 @@ Module Workload.
     Definition max_jobs :=
       div_floor (delta + R_tsk - task_cost tsk) (task_period tsk).
 
-    (* Bertogna and Ciritnei's bound on the workload of a task in an interval of length delta *)
+    (* Bertogna and Cirinei's bound on the workload of a task in an interval of length delta *)
     Definition W :=
       let e_k := (task_cost tsk) in
       let d_k := (task_deadline tsk) in
@@ -123,11 +123,12 @@ Module Workload.
     Variable job_task: Job -> sporadic_task.
     Variable job_deadline: Job -> nat.
 
+    Variable arr_seq: arrival_sequence Job.
+
     (* Assume that all jobs have valid parameters *)
     Hypothesis jobs_have_valid_parameters :
-      forall j, valid_sporadic_task_job job_cost job_deadline job_task j.
-
-    Variable arr_seq: arrival_sequence Job.
+      forall (j: JobIn arr_seq),
+        valid_sporadic_task_job job_cost job_deadline job_task j.
     
     Variable num_cpus: nat.
     Variable rate: Job -> processor num_cpus -> nat.
@@ -200,7 +201,7 @@ Module Workload.
     Hypothesis no_deadline_misses_during_interval: no_deadline_misses_by tsk (t1 + delta).
 
     (* Then the workload of the task in the interval is bounded by W. *)
-    Theorem workload_bound :
+    Theorem workload_bounded_by_W :
       workload_of tsk t1 (t1 + delta) <= W tsk R_tsk delta.
     Proof.
       rename jobs_have_valid_parameters into job_properties,

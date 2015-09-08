@@ -388,6 +388,15 @@ Module Schedule.
         by apply leq_trans with (n := t2); ins.
       Qed.
 
+      Lemma service_before_arrival_eq_service_during :
+        forall t0 t (LT: t0 <= job_arrival j),
+          \sum_(t0 <= t < job_arrival j + t) service_at rate sched j t =
+          \sum_(job_arrival j <= t < job_arrival j + t) service_at rate sched j t.
+      Proof.
+        ins; rewrite -> big_cat_nat with (n := job_arrival j); [| by ins | by apply leq_addr].
+        by rewrite /= sum_service_before_arrival; [by rewrite add0n | by apply leqnn].
+      Qed.
+      
     End Arrival.
 
   End ServiceProperties.
