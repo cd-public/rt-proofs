@@ -312,7 +312,7 @@ Module ResponseTimeAnalysis.
         (* Now we start the proof. *)
         rewrite eqn_leq; apply/andP; split; first by apply COMP.
 
-        (* Rephrase the service in terms of backlogged time. *)
+        (* Rephrase service in terms of backlogged time. *)
         rewrite service_before_arrival_eq_service_during // EQinterf.
         set X := total_interference job_cost rate sched j 
                                     (job_arrival j) (job_arrival j + R).
@@ -385,6 +385,11 @@ Module ResponseTimeAnalysis.
                             (\sum_(k <- ts) minn (x k) (R-task_cost tsk+1))
                             num_cpus).
         {
+          apply leq_trans with (n := div_floor X num_cpus). admit.
+          apply leq_div2r.
+          apply leq_trans with (n := R - task_cost tsk + 1).
+          unfold X.
+          rewrite {2}REC.
           admit.
         }
 
