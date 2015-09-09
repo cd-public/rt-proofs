@@ -162,6 +162,16 @@ Proof.
   by rewrite subh1 // -addnBA // subnn addn0.
 Qed.
 
+Lemma subh4: forall m n p (LE1: m <= n) (LE2: p <= n),
+             (m == n - p) = (p == n - m).
+  intros.
+  apply/eqP.
+  destruct (p == n - m) eqn:EQ.
+    by move: EQ => /eqP EQ; rewrite EQ subKn.
+    by apply negbT in EQ; unfold not; intro BUG;
+      rewrite BUG subKn ?eq_refl in EQ.
+Qed.
+
 Lemma addmovr: forall m n p (GE: m >= n), m - n = p <-> m = p + n.
 Proof.
   split; ins; ssromega.

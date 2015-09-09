@@ -293,6 +293,21 @@ Module Schedule.
           by  [apply leq_addr | by ins | by ins].
       Qed.
 
+      Lemma not_scheduled_no_service :
+        forall t,
+          ~~ scheduled sched j t -> service_at rate sched j t = 0.
+      Proof.
+        unfold scheduled, service_at; intros t NOTSCHED.
+        rewrite negb_exists_in in NOTSCHED.
+        move: NOTSCHED => /forall_inP NOTSCHED.
+        rewrite big_seq_cond.
+        rewrite -> eq_bigr with (F2 := fun i => 0);
+          first by rewrite big_const_seq iter_addn mul0n addn0.
+        move => cpu /andP [_ SCHED].
+        exploit (NOTSCHED cpu); [by ins | clear NOTSCHED].
+        by move: SCHED => /eqP SCHED; rewrite SCHED eq_refl.
+      Qed.
+
     End Basic.
     
     Section MaxRate.
