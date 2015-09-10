@@ -293,7 +293,7 @@ Module ResponseTimeAnalysis.
                H_valid_job_parameters into PARAMS,
                H_valid_task_parameters into TASK_PARAMS,
                H_restricted_deadlines into RESTR,
-               H_response_time_of_interfering_tasks_is_known into RESP_OTHER,
+               H_response_time_of_interfering_tasks_is_known into RESP,
                H_interfering_tasks_miss_no_deadlines into NOMISS,
                H_rate_equals_one into RATE.
         intros j JOBtsk.
@@ -311,12 +311,15 @@ Module ResponseTimeAnalysis.
         
         (* Now we start the proof. *)
         rewrite eqn_leq; apply/andP; split; first by apply COMP.
-
+        
         (* Rephrase service in terms of backlogged time. *)
         rewrite service_before_arrival_eq_service_during // EQinterf.
         set X := total_interference job_cost rate sched j 
                                     (job_arrival j) (job_arrival j + R).
 
+        apply leq_trans with (n := task_cost tsk);
+          first by specialize (PARAMS j); des; rewrite -JOBtsk; apply PARAMS0.
+        
         (* Reorder the inequality. *)
         rewrite -(leq_add2l X).
         rewrite addnBA; last first.
@@ -325,11 +328,16 @@ Module ResponseTimeAnalysis.
           apply total_interference_le_delta.
         }
         rewrite [X + R]addnC -addnBA // subnn addn0.
-
-
+        
         (* Bound the backlogged time using Bertogna's interference bound. *)
-        rewrite REC addnC; apply leq_add;
-          first by specialize (PARAMS j); des; rewrite -JOBtsk; apply PARAMS0.
+        rewrite REC addnC leq_add2l.
+
+        apply leq_trans with (n := R - task_cost tsk + 1).
+        rewrite addnC. rewrite -leq_subLR.
+        rewrite -(leq_add2r (task_cost tsk)).
+        rewrite [R - _ + _]subh1; last by admit.
+        rewrite -addnBA // subnn addn0.
+        rewrite subh1; last by admit. 
                 
         set x := fun tsk_other =>
           if higher_eq_priority tsk_other tsk && (tsk_other != tsk) then
