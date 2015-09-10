@@ -1,4 +1,4 @@
-Require Import Vbase ssreflect ssrbool eqtype ssrnat seq fintype bigop ssromega.
+Require Import Vbase ssreflect ssrbool eqtype ssrnat seq fintype bigop div ssromega.
 
 Section Pair.
 
@@ -172,6 +172,15 @@ Lemma subh4: forall m n p (LE1: m <= n) (LE2: p <= n),
       rewrite BUG subKn ?eq_refl in EQ.
 Qed.
 
+Lemma ltn_div_trunc :
+  forall m n d (NONZERO: d > 0) (DIV: m %/ d < n %/ d), m < n.
+Proof.
+  ins.
+  rewrite ltn_divLR in DIV; last by ins.
+  by apply leq_trans with (n := n %/ d * d);
+    [by ins| by apply leq_trunc_div].
+Qed.
+  
 Lemma addmovr: forall m n p (GE: m >= n), m - n = p <-> m = p + n.
 Proof.
   split; ins; ssromega.
