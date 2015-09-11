@@ -437,16 +437,18 @@ Module ResponseTimeAnalysis.
           rewrite [\sum_(_ <- _ | ~~_)_](eq_big (fun i => x i < R - task_cost tsk + 1) (fun i => x i));
             [| by red; ins; rewrite ltnNge
              | by intros i COND; rewrite -ltnNge in COND; rewrite COND].
-          destruct (~~ has (fun i => R - task_cost tsk + 1 <= x i) ts) eqn:HAS.
+
+          (* Case 1 |A| = 0 *)
+          destruct (~~ has (fun i => R - task_cost tsk + 1 <= x i) ts) eqn:HASa.
           {
-            rewrite [\sum_(_ <- _ | _ <= _) _]big_hasC; last by apply HAS.
-            rewrite big_seq_cond; move: HAS => /hasPn HAS.
+            rewrite [\sum_(_ <- _ | _ <= _) _]big_hasC; last by apply HASa.
+            rewrite big_seq_cond; move: HASa => /hasPn HASa.
             rewrite add0n (eq_bigl (fun i => (i \in ts) && true));
               last by red; intros tsk_k; destruct (tsk_k \in ts) eqn:INk;
-                [by rewrite andTb ltnNge; apply HAS | by rewrite andFb].
+                [by rewrite andTb ltnNge; apply HASa | by rewrite andFb].
             by rewrite -big_seq_cond. 
-          } apply negbFE in HAS.
-
+          } apply negbFE in HASa.
+          
           set card := count (fun i => R - task_cost tsk + 1 <= x i) ts.
           destruct (card >= num_cpus) eqn:CARD.
           {
@@ -460,7 +462,119 @@ Module ResponseTimeAnalysis.
           assert (GEsum: \sum_(i <- ts | x i < R - task_cost tsk + 1) x i >=
                            (R - task_cost tsk + 1) * (num_cpus - card)).
           {
-            admit.
+            set some_interference_A := fun t =>
+              backlogged job_cost rate sched j t &&
+              has (fun tsk_k => (is_interfering_task tsk_k && ((x tsk_k) >= R - task_cost tsk + 1) && tsk_is_scheduled job_task sched tsk_k t)) ts.      
+            set total_interference_B := fun t =>
+              backlogged job_cost rate sched j t *
+              count (fun tsk_k =>
+                is_interfering_task tsk_k &&
+                ((x tsk_k) < R - task_cost tsk + 1) &&
+                tsk_is_scheduled job_task sched tsk_k t) ts.
+
+            apply leq_trans with ((\sum_(job_arrival j <= t < job_arrival j + R) some_interference_A t) * (num_cpus - card)).
+            {
+              rewrite leq_mul2r; apply/orP; right.
+              move: HASa => /hasP HASa; destruct HASa as [tsk_a INa LEa].
+              apply leq_trans with (n := x tsk_a); first by apply LEa.
+              unfold x, task_interference, some_interference_A.
+              destruct (is_interfering_task tsk_a) eqn:INTERFa; last by ins.
+              apply leq_sum; ins.
+              destruct (backlogged job_cost rate sched j i);
+                [rewrite 2!andTb | by ins].
+              destruct (tsk_is_scheduled job_task sched tsk_a i) eqn:SCHEDa;
+                [apply eq_leq; symmetry | by ins].
+              apply/eqP; rewrite eqb1.
+              apply/hasP; exists tsk_a; first by ins.
+              apply/andP; split; last by ins.
+              by apply/andP; split; ins.
+            }
+            apply leq_trans with (\sum_(job_arrival j <= t < job_arrival j + R) total_interference_B t).
+            {
+              rewrite big_distrl /=.
+              apply leq_sum; intros t _.
+              unfold some_interference_A, total_interference_B. 
+              destruct (backlogged job_cost rate sched j t) eqn:BACK;
+                [rewrite andTb mul1n | by ins].
+              destruct (has (fun tsk_k : sporadic_task =>
+                       is_interfering_task tsk_k &&
+                       (R - task_cost tsk + 1 <= x tsk_k) &&
+                       tsk_is_scheduled job_task sched tsk_k t) ts) eqn:HAS;
+                last by ins.
+              rewrite mul1n; move: HAS => /hasP HAS.
+              destruct HAS as [tsk_k INk H].
+              move: H => /andP [/andP [INTERFk LEk] SCHEDk].
+              
+              exploit INVARIANT;
+                [by apply JOBtsk | by apply BACK | intro COUNT].
+
+              unfold card.
+              set interfering_tasks_at_t :=
+                [seq tsk_k <- ts | is_interfering_task tsk_k && tsk_is_scheduled job_task sched tsk_k t].
+
+              rewrite -(count_filter (fun i => true)) in COUNT.
+              fold interfering_tasks_at_t in COUNT.
+              rewrite count_predT in COUNT.
+              apply leq_trans with (n := num_cpus - count (fun i => is_interfering_task i && (x i >= R -  task_cost tsk + 1) && tsk_is_scheduled job_task sched i t) ts).
+              {
+                apply leq_sub2l.
+                rewrite -2!sum1_count big_mkcond /=.
+                rewrite [\sum_(_ <- _ | _ <= _)_]big_mkcond /=.
+                apply leq_sum; intros i _.
+                unfold x; destruct (is_interfering_task i);
+                  [rewrite andTb | by rewrite 2!andFb].
+                destruct (tsk_is_scheduled job_task sched i t);
+                  [by rewrite andbT | by rewrite andbF].
+              }
+
+              rewrite leq_subLR.
+              rewrite -count_predUI.
+              apply leq_trans with (n :=
+                count (predU (fun i : sporadic_task =>
+                                is_interfering_task i &&
+                                (R - task_cost tsk + 1 <= x i) &&
+                                tsk_is_scheduled job_task sched i t)
+                             (fun tsk_k0 : sporadic_task =>
+                                is_interfering_task tsk_k0 &&
+                                (x tsk_k0 < R - task_cost tsk + 1) &&
+                                tsk_is_scheduled job_task sched tsk_k0 t))
+                      ts); last by apply leq_addr.
+              apply leq_trans with (n := size interfering_tasks_at_t);
+                first by rewrite COUNT.
+              unfold interfering_tasks_at_t.
+              rewrite -count_predT count_filter.
+              rewrite leq_eqVlt; apply/orP; left; apply/eqP.
+              apply eq_count; red; simpl.
+              intros i.
+              destruct (is_interfering_task i),
+                       (tsk_is_scheduled job_task sched i t);
+                rewrite 3?andTb ?andFb ?andbF ?andbT /=; try ins.
+              by rewrite leqNgt orNb. 
+            }
+            {
+              unfold x at 2, task_interference.
+              rewrite [\sum_(i <- ts | _) _](eq_bigr
+                (fun i => \sum_(job_arrival j <= t < job_arrival j + R)
+                             is_interfering_task i &&
+                             backlogged job_cost rate sched j t &&
+                             tsk_is_scheduled job_task sched i t));
+                last first.
+              {
+                ins; destruct (is_interfering_task i);
+                  first by apply eq_bigr; ins.
+                by rewrite (eq_bigr (fun i => 0));
+                  [by rewrite big_const_nat iter_addn mul0n addn0 | by ins].
+              }
+              {
+                rewrite exchange_big /=; apply leq_sum; intros t _.
+                unfold total_interference_B.
+                destruct (backlogged job_cost rate sched j t); last by ins.
+                rewrite mul1n -sum1_count.
+                rewrite big_mkcond [\sum_(i <- ts | _ < _) _]big_mkcond.
+                by apply leq_sum; ins; destruct (x i<R - task_cost tsk + 1);
+                  [by ins | by rewrite andbF andFb].
+              }
+            }
           }
           
           rewrite big_const_seq iter_addn addn0; fold card.
@@ -528,7 +642,7 @@ Module ResponseTimeAnalysis.
       (* Bertogna and Cirinei's response-time bound recurrence *)
       Definition response_time_recurrence_jlfp R :=
         R <= task_cost tsk + div_floor
-                             (total_interference_jlfp ts tsk R_other R)
+                             (total_interference_bound_jlfp ts tsk R_other R)
                              num_cpus.
 
       Variable R: time.
