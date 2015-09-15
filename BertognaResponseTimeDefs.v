@@ -358,25 +358,39 @@ Module ResponseTimeAnalysis.
                H_rate_equals_one into RATE,
                H_global_scheduling_invariant into INVARIANT.
         intros j JOBtsk.
-
-        (* Assume by contradiction that job j is not completed at
-           time (job_arrival j + R). *)
-        destruct (completed job_cost rate sched j (job_arrival j + R)) eqn:COMPLETED;
-          first by move: COMPLETED => /eqP COMPLETED; rewrite COMPLETED eq_refl.
-        apply negbT in COMPLETED; exfalso.
-
-        (* Let x denote the per-task interference under FP scheduling. *)
+        move: JOBtsk => /eqP JOBtsk.
+        
+        (* For simplicity, let x denote per-task interference under FP
+           scheduling, and let X denote the total interference. *)
         set x := fun tsk_other =>
           if is_interfering_task tsk_other then
             task_interference job_cost job_task rate sched j
                      (job_arrival j) (job_arrival j + R) tsk_other
           else 0.
+        set X := total_interference job_cost rate sched j (job_arrival j) (job_arrival j + R).
 
+        (* Let's recall the workload bound under FP scheduling. *)
         set workload_bound := fun tsk_other =>
           if is_interfering_task tsk_other then
             W tsk_other (R_other tsk_other) R
-          else 0.                        
+          else 0.                      
+        
+        (* Now we start the proof. Assume by contradiction that job j
+           is not complete at time (job_arrival j + R). *)
+        destruct (completed job_cost rate sched j (job_arrival j + R)) eqn:COMPLETED;
+          first by move: COMPLETED => /eqP COMPLETED; rewrite COMPLETED eq_refl.
+        apply negbT in COMPLETED; exfalso.
 
+        (* Since j has not completed, recall the time when it is not
+           executing is the total interference. *)
+        exploit (complement_of_interf_equals_service job_cost rate sched j (job_arrival j) (job_arrival j + R));
+          last intro EQinterf; ins; unfold has_arrived;
+          first by apply leqnn.
+        rewrite {2}[_ + R]addnC -addnBA // subnn addn0 in EQinterf.
+
+        (* In order to derive a contradiction, we first show that
+           the interference x_k of any task is no larger than the
+           workload bound W_k. *)
         assert (WORKLOAD: forall tsk_k, x tsk_k <= workload_bound tsk_k).   
         {
           intros tsk_k; unfold x, workload_bound.
@@ -409,17 +423,12 @@ Module ResponseTimeAnalysis.
             by destruct (sched cpu t);[by rewrite HAScpu mul1n RATE|by ins].
         }
 
-        (* Recall that the complement of the interference equals service.*)
-        exploit (complement_of_interf_equals_service job_cost rate sched j (job_arrival j) (job_arrival j + R));
-          last intro EQinterf; ins; unfold has_arrived;
-          first by apply leqnn.
-        rewrite {2}[_ + R]addnC -addnBA // subnn addn0 in EQinterf.
+        (* In the remaining of the proof, we show that the workload bound
+           W_k is less than the task interference x (contradiction!).
+           For that, we require a few auxiliary lemmas: *)
 
-        (* Let's call the total interference X. *)
-        set X := total_interference job_cost rate sched j (job_arrival j) (job_arrival j + R).
-
-        move: JOBtsk => /eqP JOBtsk.
-
+        (* 1) We show that the total interference X >= R - e_k + 1.
+              Otherwise, job j would have completed on time. *)
         assert (INTERF: X >= R - task_cost tsk + 1).
         {
           unfold completed in COMPLETED.
@@ -455,6 +464,10 @@ Module ResponseTimeAnalysis.
           }
         }
 
+        (* 2) Then, we prove that the sum of the interference of each
+           task is equal to the total interference multiplied by the
+           number of processors. This holds because interference only
+           occurs when all processors are busy with some task. *)
         assert(ALLBUSY: \sum_(tsk_k <- ts) x tsk_k = X * num_cpus).
         {
           unfold x, X, total_interference, task_interference.
@@ -468,7 +481,8 @@ Module ResponseTimeAnalysis.
             last by ins; destruct (is_interfering_task i); rewrite ?andTb ?andFb; ins.
           by rewrite -big_mkcond sum1_count; apply (INVARIANT j).
         }
-        
+
+        (* 3) Next, we prove the auxiliary lemma from the paper. *)
         assert (MINSERV: \sum_(tsk_k <- ts) x tsk_k >=
                          (R - task_cost tsk + 1) * num_cpus ->
                \sum_(tsk_k <- ts) minn (x tsk_k) (R - task_cost tsk + 1) >=
@@ -632,7 +646,10 @@ Module ResponseTimeAnalysis.
             last by rewrite leq_add2l.
           by rewrite -mulnDr subnKC //; apply ltnW.
         }
-          
+
+        (* 4) Now, we prove that the Bertogna's interference bound
+              is not enough to cover sum of the "minimum" term over
+              all tasks (artifact of the proof by contradiction). *)
         assert (SUM: \sum_(tsk_k <- ts)
                         minn (x tsk_k) (R - task_cost tsk + 1)
                      > total_interference_bound_fp ts tsk R_other
@@ -649,13 +666,13 @@ Module ResponseTimeAnalysis.
           by rewrite leq_mul2r; apply/orP; right; apply INTERF.
         }
 
+        (* 5) This implies that there exists a task such that
+              min (x_k, R - e_i + 1) > min (W_k, R - e_i + 1). *)
         assert (EX: has (fun tsk_k =>
                            minn (x tsk_k) (R - task_cost tsk + 1) >
                              minn (workload_bound tsk_k) (R - task_cost tsk + 1))
                         ts).
         {
-          (* This part is crappy. I'll remove the ifs from the functions
-             and try to keep it in the sum. *)
           apply/negP; unfold not; intro NOTHAS.
           move: NOTHAS => /negP /hasPn NOTHAS.
           rewrite -[_ < _]negbK in SUM.
@@ -677,6 +694,8 @@ Module ResponseTimeAnalysis.
           by rewrite leqNgt; apply NOTHAS.
         }
 
+        (* For this particular task, we show that x_k > W_k.
+           This contradicts the previous claim. *)
         move: EX => /hasP EX; destruct EX as [tsk_k INk LTmin].
         unfold task_interference, minn at 1 in LTmin.
         destruct (workload_bound tsk_k < R - task_cost tsk + 1) eqn:MIN;
