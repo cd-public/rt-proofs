@@ -1,7 +1,7 @@
 Require Import Vbase TaskDefs JobDefs TaskArrivalDefs ScheduleDefs
                PlatformDefs WorkloadDefs SchedulabilityDefs PriorityDefs
                ResponseTimeDefs divround helper
-               ssreflect ssrbool eqtype ssrnat seq fintype bigop div.
+               ssreflect ssrbool eqtype ssrnat seq fintype bigop div path.
 
 Module ResponseTimeAnalysis.
 
@@ -600,8 +600,10 @@ Module ResponseTimeAnalysis.
           by rewrite leq_mul2r; apply/orP; right; apply INTERF.
         }
 
-        assert (EX: has (fun tsk_k => minn (x tsk_k) (R - task_cost tsk + 1)
-                                  > minn (workload_bound tsk_k) (R - task_cost tsk + 1)) ts).
+        assert (EX: has (fun tsk_k =>
+                           minn (x tsk_k) (R - task_cost tsk + 1) >
+                             minn (workload_bound tsk_k) (R - task_cost tsk + 1))
+                        ts).
         {
           (* This part is crappy. I'll remove the ifs from the functions
              and try to keep it in the sum. *)
@@ -661,5 +663,45 @@ Module ResponseTimeAnalysis.
     End UnderJLFPScheduling.
     
   End ResponseTimeBound.
-  
+
+  Section ResponseTimeTaskset.
+    
+    Context {Job: eqType}.
+    Variable job_cost: Job -> nat.
+    Variable job_deadline: Job -> nat.
+    Variable job_task: Job -> sporadic_task.
+    
+    Context {arr_seq: arrival_sequence Job}.
+
+    Hypothesis sporadic_tasks: sporadic_task_model arr_seq job_task.
+    
+    Variable num_cpus: nat.
+    Variable rate: Job -> processor num_cpus -> nat.
+    Variable sched: schedule num_cpus arr_seq.
+
+    (* Assume an FP policy. *)
+    Variable higher_eq_priority: fp_policy.
+
+    Variable ts: sporadic_taskset.
+    Definition sorted_ts := sorted higher_eq_priority ts.
+
+    Definition max_steps (tsk: sporadic_task) := task_deadline tsk + 1.
+
+    Fixpoint rec (step: nat) (tsk: sporadic_task) : nat :=
+      match step with
+        | S step => task_cost tsk +
+                    div_floor
+                      (total_interference_bound_fp ts tsk
+                           (fun tsk_high => task_deadline tsk_high)
+                           (rec step tsk) higher_eq_priority) num_cpus
+      | 0 => task_cost tsk
+      end.
+
+    Definition response_time_bound (tsk: sporadic_task) :=
+      if rec (max_steps tsk) tsk <= task_deadline tsk then
+        Some (rec (max_steps tsk) tsk)
+      else None.
+    
+  End ResponseTimeTaskset.
+
 End ResponseTimeAnalysis.
