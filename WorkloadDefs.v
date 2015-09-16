@@ -128,7 +128,7 @@ Module Workload.
     (* Assume that all jobs have valid parameters *)
     Hypothesis jobs_have_valid_parameters :
       forall (j: JobIn arr_seq),
-        valid_sporadic_task_job job_cost job_deadline job_task j.
+        valid_sporadic_job job_cost job_deadline job_task j.
     
     Variable num_cpus: nat.
     Variable rate: Job -> processor num_cpus -> nat.
@@ -207,7 +207,7 @@ Module Workload.
       rename jobs_have_valid_parameters into job_properties,
              no_deadline_misses_during_interval into no_dl_misses,
              valid_task_parameters into task_properties.
-      unfold valid_sporadic_task_job, valid_realtime_job, restricted_deadline_model,
+      unfold valid_sporadic_job, valid_realtime_job, restricted_deadline_model,
              valid_sporadic_taskset, valid_sporadic_task, sporadic_task_model,
              workload_of, response_time_bound_of, no_deadline_misses_by, W in *; ins; des.
 
@@ -309,7 +309,7 @@ Module Workload.
       {
 
         apply (response_time_ub_ge_task_cost job_task) with (sched0 := sched) (rate0 := rate); ins.
-        by exists (nth elem sorted_jobs 0); rewrite FSTtask eq_refl.
+        by exists (nth elem sorted_jobs 0); rewrite FSTtask.
       }
                                 
       (* Now we show that the bound holds for a singleton set of interfering jobs. *)

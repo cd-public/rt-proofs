@@ -31,7 +31,7 @@ Module ResponseTime.
        completed by (job_arrival j + R). *)
     Definition is_response_time_bound_of_task :=
       forall (j: JobIn arr_seq),
-        job_task j == tsk ->
+        job_task j = tsk ->
         job_has_completed_by j (job_arrival j + R).
         
   End ResponseTimeBound.
@@ -61,7 +61,7 @@ Module ResponseTime.
       is_response_time_bound_of_task job_cost job_task tsk rate sched R.
 
     Variable j: JobIn arr_seq.
-    Hypothesis H_job_of_task: job_task j == tsk.
+    Hypothesis H_job_of_task: job_task j = tsk.
     
     Lemma service_at_after_rt_zero :
       forall t',
@@ -138,7 +138,7 @@ Module ResponseTime.
     (* Assume a task with at least one job that arrives in this set. *)
     Variable tsk: sporadic_task.
     Hypothesis job_of_tsk_exists:
-      exists j: JobIn arr_seq, job_task j == tsk.
+      exists j: JobIn arr_seq, job_task j = tsk.
 
     (* And assume any valid schedule...*)
     Context {num_cpus : nat}.
@@ -170,7 +170,7 @@ Module ResponseTime.
       rename job_of_tsk_exists into EX; des.
       set new_cost := fun (j': Job) => task_cost (job_task j').
       apply leq_trans with (n := new_cost j);
-        first by unfold new_cost; move: EX => /eqP EX; rewrite EX.
+        first by unfold new_cost; rewrite EX.
       by exploit (response_time_ge_cost new_cost job_task tsk sched rate R);
         by ins; apply EX.
     Qed.

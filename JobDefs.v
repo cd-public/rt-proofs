@@ -47,7 +47,7 @@ Module Job.
     Definition job_deadline_eq_task_deadline :=
       job_deadline j = task_deadline (job_task j).
 
-    Definition valid_sporadic_task_job :=
+    Definition valid_sporadic_job :=
       valid_realtime_job job_cost job_deadline j /\
       job_cost_le_task_cost /\
       job_deadline_eq_task_deadline.
