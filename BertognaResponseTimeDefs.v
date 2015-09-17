@@ -753,17 +753,22 @@ Module ResponseTimeAnalysis.
 
     Variable num_cpus: nat.
     Variable higher_eq_priority: fp_policy.
+    Hypothesis H_valid_policy: valid_fp_policy higher_eq_priority.
     
     Variable ts: sporadic_taskset.
-    Hypothesis taskset_not_empty: size ts > 0.
+    Hypothesis H_taskset_not_empty: size ts > 0.
 
-    Hypothesis unique_priorities:
+    Hypothesis H_unique_priorities:
       forall tsk1 tsk2,
         tsk1 \in ts ->
         tsk2 \in ts ->
         higher_eq_priority tsk1 tsk2 ->
         higher_eq_priority tsk2 tsk1 ->         
         tsk1 = tsk2.
+
+    Definition task_index := 'I_(size ts).
+    Definition nth_task := (tnth (in_tuple ts)).
+    Definition sorted_ts := sort higher_eq_priority ts.
     
     Definition max_steps (tsk: sporadic_task) := task_deadline tsk + 1.
 
@@ -851,7 +856,24 @@ Module ResponseTimeAnalysis.
         rename H_valid_job_parameters into JOBPARAMS,
                H_completed_jobs_dont_execute into COMP,
                H_jobs_must_arrive_to_execute into MUSTARRIVE,
-               H_global_scheduling_invariant into INVARIANT.
+               H_global_scheduling_invariant into INVARIANT,
+               H_valid_policy into VALIDhp,
+               H_taskset_not_empty into NONEMPTY.
+
+        assert (SORT: sorted higher_eq_priority sorted_ts).
+        {
+          unfold valid_fp_policy, fp_is_total in *; des.
+          by apply sort_sorted; unfold total; ins; apply/orP; apply VALIDhp1.
+        }
+        
+        rewrite -(size_sort higher_eq_priority) in NONEMPTY. 
+        intro tsk; rewrite -(mem_sort higher_eq_priority); revert tsk.
+        fold sorted_ts in *.
+        destruct sorted_ts as [|tsk0 sorted_ts]; [by rewrite ltnn in NONEMPTY | simpl in SORT].
+        induction sorted_ts as [|tsk0 sorted_ts]; [by rewrite ltnn in NONEMPTY | simpl in SORT].
+        fold sorted_ts in NONEMPTY. destruct sorted_ts.
+        simpl in SORT.
+        have: SORT => /pathP SORT.
         intros tsk INtsk j JOBtsk.
         move: JOBtsk => /eqP JOBtsk; move: H_test_passes => /allP TEST.
         generalize JOBPARAMS; specialize (JOBPARAMS j); ins; des; rewrite JOBPARAMS2 JOBtsk.
