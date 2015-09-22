@@ -255,3 +255,8 @@ Definition make_sequence {T: Type} (opt: option T) :=
     | Some j => [:: j]
     | None => [::]
   end.
+
+Lemma ltSnm : forall n m, n.+1 < m -> n < m.
+Proof.
+  by ins; apply ltn_trans with (n := n.+1); [by apply ltnSn |by ins].
+Qed.

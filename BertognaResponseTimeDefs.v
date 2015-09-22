@@ -766,37 +766,63 @@ Module ResponseTimeAnalysis.
         higher_eq_priority tsk2 tsk1 ->         
         tsk1 = tsk2.
 
-    Definition task_index := 'I_(size ts).
-    Definition nth_task := (tnth (in_tuple ts)).
-    Definition sorted_ts := sort higher_eq_priority ts.
+    Hypothesis H_sorted_ts: sorted higher_eq_priority ts.
     
-    Definition max_steps (tsk: sporadic_task) := task_deadline tsk + 1.
+    Definition task_index := 'I_(size ts).
+    Coercion nth_task (idx: task_index) := (tnth (in_tuple ts)) idx.
+    
+    Definition max_steps (tsk: task_index) :=
+      task_deadline tsk + 1.
 
-    Fixpoint rt_rec (R_other: sporadic_task -> nat) (step: nat) (tsk: sporadic_task) :=
-      match step with
-        | S step => task_cost tsk +
+    (* Given a vector of size 'idx' containing known response-time bounds
+       for the higher-priority tasks, we compute the response-time
+       bound of task 'idx' using a fixed-point iteration as follows. *)
+    Definition rt_rec (idx: task_index) (prev: idx.-tuple nat) : nat -> nat :=
+      fix f step :=
+        match step with
+        (* At step 0, return task_cost tsk. *)
+        | 0 => task_cost idx
+        (* At step t + 1, return task_cost tsk + "f(t)" *)
+        | t.+1 => task_cost idx +
                     div_floor
-                      (total_interference_bound_fp ts tsk R_other
-                           (rt_rec R_other step tsk) higher_eq_priority) num_cpus
-        | 0 => task_cost tsk
+                      (total_interference_bound_fp ts idx
+                                                   (fun tsk => task_deadline tsk) (*R_other*)
+                                                   (f t)
+                                                   higher_eq_priority)
+                      num_cpus
       end.
 
-    Fixpoint rt_bound_body (tasks_left: nat) (tsk: sporadic_task) :=
-      match tasks_left with
-        | S n => rt_rec
-                   (rt_bound_body n)
-                   (max_steps tsk) tsk
-        | _ => 0
+    (* We return a vector of size 'idx+1' containing the response-time
+       bound of all tasks 0...idx using the recursion rt_rec. *)
+    Definition R' (idx: task_index) : (idx.+1).-tuple nat :=
+      match idx with
+      | Ordinal k Hk =>
+        (fix f k :
+           forall (Hk: k < size ts), (Ordinal Hk).+1.-tuple nat :=
+          match k with
+            | 0 => fun Hk => [tuple of [:: task_cost (nth_task (Ordinal Hk))]]
+            | S k => fun Hk => [tuple of rcons (f k (ltSnm k _ Hk))
+                                               (rt_rec (Ordinal Hk) (f k (ltSnm k _ Hk))
+                                                       (max_steps (Ordinal Hk)) )]
+          end) k Hk
       end.
-    Definition R := rt_bound_body (size ts).
 
-    Definition fp_schedulability_test := all (fun tsk => R tsk <= task_deadline tsk) ts.
+    Definition R (idx: task_index) :=
+      tnth (R' idx) (Ordinal (ltnSn idx)).
+
+    (* The schedulability test returns true iff for every task
+       i: 0, ..., |ts|-1, R tsk_i <= d_i *)
+    Definition fp_schedulability_test :=
+      all (fun tsk_i => R tsk_i <= task_deadline tsk_i)
+          (ord_enum (size ts)).
     
     Section Proof.
 
       Hypothesis H_test_passes: fp_schedulability_test.
 
       Context {arr_seq: arrival_sequence Job}.
+      Hypothesis H_all_jobs_from_taskset:
+        forall (j: JobIn arr_seq), job_task j \in ts.
       Hypothesis H_sporadic_tasks: sporadic_task_model arr_seq job_task.
       Hypothesis H_valid_job_parameters:
         forall (j: JobIn arr_seq),
@@ -834,18 +860,77 @@ Module ResponseTimeAnalysis.
         task_misses_no_deadline job_cost job_deadline job_task
                                 rate sched tsk.
 
-      Lemma R_converges:
+
+      Lemma iter_fix T (F : T -> T) x k n :
+        iter k F x = iter k.+1 F x -> k <= n -> iter n F x = iter n.+1 F x.
+      Proof.
+        move => e. elim: n. rewrite leqn0. by move/eqP<-.
+        move => n IH. rewrite leq_eqVlt; case/orP; first by move/eqP<-.
+        move/IH => /= IHe. by rewrite -!IHe.
+        Qed.
+      
+      Lemma rt_rec_converges:
+        forall tsk prev,
+          rt_rec tsk prev (max_steps tsk) =
+          rt_rec tsk prev (max_steps tsk).+1.
+      Proof.
+      Admitted.
+      
+      Theorem R_converges:
         forall tsk,
-          tsk \in ts ->
           R tsk <= task_deadline tsk ->
           R tsk = task_cost tsk +
-                  div_floor (total_interference_bound_fp ts tsk R (R tsk) higher_eq_priority)
-                           num_cpus.
+                  div_floor
+                    (total_interference_bound_fp ts tsk
+                                         (fun tsk => 0) (* FIX! *)
+                                         (R tsk) higher_eq_priority)
+                    num_cpus.
       Proof.
-        intros tsk INtsk LEdeadline.
-        unfold R, rt_bound_body.
-        destruct rt_bound_body. destruct rt_bound_body.
-      Admitted.
+        rename H_sorted_ts into SORT'; move: SORT' => SORT'.
+        intros tsk LE.
+
+        unfold R in *.
+        set x := tnth (R' tsk) (Ordinal (n:=tsk.+1) (m:=tsk) (ltnSn tsk)).
+        fold x in LE.
+
+        assert (EX: exists g, x = iter (task_deadline tsk).+1 g (task_cost tsk) /\ task_cost tsk + div_floor (total_interference_bound_fp ts tsk (fun _: sporadic_task => 0) x higher_eq_priority) num_cpus = iter (task_deadline tsk).+2 g (task_cost tsk)). admit.
+        des.
+        rewrite {1}EX EX0; rewrite EX in LE; clear EX EX0.
+
+        assert (MON:
+          forall k,
+            iter k g (task_cost tsk) <= iter k.+1 g (task_cost tsk)).
+        {
+          admit.
+        }
+        
+        destruct ([exists k in 'I_(task_deadline tsk).+1, iter k g (task_cost tsk) == iter k.+1 g (task_cost tsk)]) eqn:EX.
+        {
+          move: EX => /exists_inP EX; destruct EX as [k _ ITERk].
+          move: ITERk => /eqP ITERk.
+          by apply iter_fix with (k := k);
+            [by ins | by apply ltnW, ltn_ord].
+        }
+        apply negbT in EX; rewrite negb_exists_in in EX.
+        move: EX => /forall_inP EX.
+        assert (GROWS: forall k: 'I_(task_deadline tsk).+1, iter k.+1 g (task_cost tsk) > iter k g (task_cost tsk)).
+        {
+          by intros k; rewrite ltn_neqAle; apply/andP; split;
+            [by apply EX | by apply MON].
+        }
+
+        assert (BY1: iter (task_deadline tsk).+1 g (task_cost tsk) > task_deadline tsk).
+        {
+          clear MON LE EX.
+          induction (task_deadline tsk).+1; first by ins.
+          apply leq_ltn_trans with (n := iter n g (task_cost tsk));
+            last by apply (GROWS (Ordinal (ltnSn n))).
+          apply IHn; intros k.
+          by apply (GROWS (widen_ord (leqnSn n) k)).
+        }
+        apply leq_ltn_trans with (m := iter (task_deadline tsk).+1 g (task_cost tsk)) in BY1; last by ins.
+        by rewrite ltnn in BY1.
+      Qed.  
 
       Theorem taskset_schedulable_by_fp_rta :
         forall tsk, tsk \in ts -> no_deadline_missed_by tsk.
@@ -865,12 +950,41 @@ Module ResponseTimeAnalysis.
           unfold valid_fp_policy, fp_is_total in *; des.
           by apply sort_sorted; unfold total; ins; apply/orP; apply VALIDhp1.
         }
-        
+        assert (ALLJOBS
+
         rewrite -(size_sort higher_eq_priority) in NONEMPTY. 
         intro tsk; rewrite -(mem_sort higher_eq_priority); revert tsk.
         fold sorted_ts in *.
-        destruct sorted_ts as [|tsk0 sorted_ts]; [by rewrite ltnn in NONEMPTY | simpl in SORT].
+
         induction sorted_ts as [|tsk0 sorted_ts]; [by rewrite ltnn in NONEMPTY | simpl in SORT].
+        intros tsk INtsk; move: INtsk; rewrite in_cons; move => /orP INtsk; des.
+        {
+          move: INtsk => /eqP INtsk; subst tsk.
+          (* this should be provable, since tsk0 is the highest-priority task.*)
+          admit.
+        }
+        {
+          by apply IHsorted_ts; ins; destruct sorted_ts; [by ins | | | by ins];
+            [by move: SORT => /andP SORT; des | by rewrite in_nil in INtsk].
+        }
+      Qed.
+
+        destruct sorted_ts as [|tsk0 sorted_ts]; [by rewrite ltnn in NONEMPTY | simpl in SORT].
+        intros tsk INtsk.
+        
+        {
+          move: INtsk => /eqP INtsk; subst tsk.
+          
+        }
+        generalize dependent tsk.
+        induction sorted_ts as [|tsk1 sorted_ts]; first by ins.
+        {
+          ins.
+          admit.
+        }
+        {
+
+          [by rewrite ltnn in NONEMPTY | simpl in SORT].
         fold sorted_ts in NONEMPTY. destruct sorted_ts.
         simpl in SORT.
         have: SORT => /pathP SORT.
@@ -912,7 +1026,7 @@ End ResponseTimeAnalysis.
     Definition sorted_ts := sorted higher_eq_priority ts.
 
     Fixpoint response_time_bound (ts: sporadic_taskset) (i: task_index) :=
-      match (nat_of_ord i) with
+      match i with
         | 0 => task_cost (nth_task i)
         | S i' => rec (fun _ => 0) (max_steps (nth_task i')) i'
       end.
