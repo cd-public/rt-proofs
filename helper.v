@@ -191,6 +191,11 @@ Proof.
   split; ins; ssromega.
 Qed.
 
+Lemma subndiv_eq_mod: forall n d, n - n %/ d * d = n %% d.
+Proof.
+  by ins; rewrite {1}(divn_eq n d) addnC -addnBA // subnn addn0.
+Qed.
+
 Lemma sum_diff_monotonic :
   forall n G F (ALL: forall i : nat, i < n -> G i <= F i),
     (\sum_(0 <= i < n) (G i)) <= (\sum_(0 <= i < n) (F i)).
@@ -260,3 +265,22 @@ Lemma ltSnm : forall n m, n.+1 < m -> n < m.
 Proof.
   by ins; apply ltn_trans with (n := n.+1); [by apply ltnSn |by ins].
 Qed.
+
+Lemma iter_fix T (F : T -> T) x k n :
+  iter k F x = iter k.+1 F x -> k <= n -> iter n F x = iter n.+1 F x.
+Proof.
+  move => e. elim: n. rewrite leqn0. by move/eqP<-.
+  move => n IH. rewrite leq_eqVlt; case/orP; first by move/eqP<-.
+  move/IH => /= IHe. by rewrite -!IHe.
+Qed.
+
+Lemma fun_monotonic_iter_monotonic :
+  forall k f x0
+         (MON: forall x1 x2, x1 <= x2 -> f x1  <= f x2)
+         (GE0: f 0 >= x0),
+    iter k f x0 <= iter k.+1 f x0.
+Proof.
+  induction k; ins.
+    by apply leq_trans with (n := f 0); [by ins | by apply MON].
+    by apply MON, IHk; ins.
+Qed.  
