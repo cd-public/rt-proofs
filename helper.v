@@ -283,4 +283,71 @@ Proof.
   induction k; ins.
     by apply leq_trans with (n := f 0); [by ins | by apply MON].
     by apply MON, IHk; ins.
-Qed.  
+Qed.
+
+Lemma leq_as_delta :
+  forall x1 (P: nat -> Prop),
+    (forall x2, x1 <= x2 -> P x2) <->
+    (forall delta, P (x1 + delta)).
+Proof.
+  ins; split; last by intros ALL x2 LE; rewrite -(subnK LE) addnC; apply ALL.
+  {
+    intros ALL; induction delta.
+      by rewrite addn0; apply ALL, leqnn. 
+      by apply ALL; rewrite -{1}[x1]addn0; apply leq_add; [by apply leqnn | by ins]. 
+  }
+Qed.
+
+Lemma divSn_cases :
+  forall n d (GT1: d > 1),
+    (n %/ d = n.+1 %/d /\ n %% d + 1 = n.+1 %% d) \/
+    (n %/ d + 1 = n.+1 %/ d).
+Proof.
+  ins; set x := n %/ d; set y := n %% d.
+  assert (GT0: d > 0); first by apply ltn_trans with (n := 1).
+  destruct (ltngtP y (d - 1)) as [LTN | BUG | GE]; [left | | right];
+    first 1 last.
+  {
+    exploit (@ltn_pmod n d); [by apply GT0 | intro LTd; fold y in LTd].
+    rewrite -(ltn_add2r 1) [y+1]addn1 ltnS in BUG.
+    rewrite subh1 in BUG; last by apply GT0.
+    rewrite -addnBA // subnn addn0 in BUG.
+    by apply (leq_ltn_trans BUG) in LTd; rewrite ltnn in LTd.
+  }
+
+  {
+    (* Case 1: y = d - 1*)
+    move: GE => /eqP GE; rewrite -(eqn_add2r 1) in GE.
+    rewrite subh1 in GE; last by apply GT0.
+    rewrite -addnBA // subnn addn0 in GE.
+    move: GE => /eqP GE.
+    apply f_equal with (f := fun x => x %/ d) in GE.
+    rewrite divnn GT0 /= in GE.
+    unfold x; rewrite -GE.
+    rewrite -divnMDl; last by apply GT0.
+    f_equal; rewrite addnA.
+    by rewrite -divn_eq addn1.
+  }
+  {
+    (* Case 2: y < d - 1 *)
+    rewrite -(ltn_add2r 1) in LTN.
+    rewrite subh1 in LTN; last by apply GT0.
+    rewrite -addnBA // subnn addn0 in LTN.
+    generalize LTN; apply modn_small in LTN; intro LTN'.
+    generalize LTN'; apply divn_small in LTN'; intro LTN''.
+    split.
+    {
+      unfold x; apply/eqP.
+      cut ((d == 0) || (n %/ d * d == n.+1 %/ d * d)).
+      intros OR; des; first by move: OR => /eqP OR; rewrite OR ltn0 in GT1.
+      rewrite eqn_mul2r in OR; des; last by apply OR.
+      by move: OR => /eqP OR; rewrite OR ltn0 in GT1.
+      apply/orP; right.
+      rewrite -(eqn_add2l n.+1).
+      admit.
+    }
+    {
+      admit.
+    }
+  }
+Qed.

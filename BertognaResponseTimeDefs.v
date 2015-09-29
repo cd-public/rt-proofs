@@ -915,98 +915,44 @@ Module ResponseTimeAnalysis.
         rewrite leq_min; apply/andP; split.
         {
           apply leq_trans with (n := W i (task_deadline i) x1);
-            first by apply geq_minl.
-
-            (* It only remains to show that W (t) is non-decreasing. *)
-            unfold W, minn; rewrite 2!subndiv_eq_mod.
-            set d := task_deadline i; set e := task_cost i; set p := task_period i.
-            assert (max_jobs i d x2 <= (max_jobs i d x1).+1).
-            {
-              unfold max_jobs, div_floor; fold p.
-              admit.
-            }
-            destruct (e < (x1 + d - e) %% p) eqn:LE1, (e < (x2 + d - e) %% p) eqn:LE2.
-            {
-              (* Case 1 (e, e): OK*)
-              rewrite leq_add2l leq_mul2r; apply/orP; right.
-              by unfold max_jobs, div_floor; rewrite leq_div2r // leq_sub2r // leq_add2r.
-            }
-            {
-              (* Case 2 (e, mod): ??? *)
-              unfold max_jobs, div_floor; fold e p.
-              
-              apply leq_add; last first.
-              {
-                rewrite leq_mul2r; apply/orP; right.
-                by rewrite leq_div2r // leq_sub2r // leq_add2r.
-              }
-              admit.
-            }
-            {
-              (* Case 3 (mod, e): OK*)
-              apply negbT in LE1; rewrite -leqNgt in LE1.
-              apply leq_add; first by apply LE1.
-              unfold max_jobs, div_floor; rewrite leq_mul2r; apply/orP; right.
-              by rewrite leq_div2r // leq_sub2r // leq_add2r.
-            }
-            {
-              (* Case 4 (mod, mod): ???*)
-              admit.
-            }
-            (*unfold W; apply leq_add.
-            {
-              rewrite leq_min; apply/andP; split; first by apply geq_minl.
-              apply leq_trans with (n := x1 + task_deadline i-task_cost i -
-                           max_jobs i (task_deadline i) x1 * task_period i);
-                first by apply geq_minr.
-              unfold max_jobs, div_floor; rewrite 2!subndiv_eq_mod.
-
-              (* The rest is fine, but I don't know how to prove this! *)
-              admit.
-            }
-            {
-              rewrite leq_mul2r; apply/orP; right.
-              unfold max_jobs, div_floor.
-              by rewrite leq_div2r // leq_sub2r // leq_add2r.
-            }*)
-          }
-          {
-            apply leq_trans with (n := x1 - task_cost tsk + 1);
-              first by apply geq_minr.
-            by rewrite leq_add2r leq_sub2r //.
-          }
+            [by apply geq_minl | by apply W_monotonic, LEx].
         }
-        
-        destruct ([exists k in 'I_(task_deadline tsk).+1,
-                     R k == R k.+1]) eqn:EX.
         {
-          move: EX => /exists_inP EX; destruct EX as [k _ ITERk].
-          move: ITERk => /eqP ITERk.
-          by apply iter_fix with (k := k);
-            [by ins | by apply ltnW, ltn_ord].
+          apply leq_trans with (n := x1 - task_cost tsk + 1);
+            first by apply geq_minr.
+          by rewrite leq_add2r leq_sub2r //.
         }
-        apply negbT in EX; rewrite negb_exists_in in EX.
-        move: EX => /forall_inP EX.
-        assert (GROWS: forall k: 'I_(task_deadline tsk).+1,
-                         R k < R k.+1).
-        {
-          ins; rewrite ltn_neqAle; apply/andP; split; first by apply EX.
-          by apply fun_monotonic_iter_monotonic;
-            [by apply MON | by apply leq_addr].
-        }
+      } 
+      destruct ([exists k in 'I_(task_deadline tsk).+1,
+                   R k == R k.+1]) eqn:EX.
+      {
+        move: EX => /exists_inP EX; destruct EX as [k _ ITERk].
+        move: ITERk => /eqP ITERk.
+        by apply iter_fix with (k := k);
+          [by ins | by apply ltnW, ltn_ord].
+      }
+      apply negbT in EX; rewrite negb_exists_in in EX.
+      move: EX => /forall_inP EX.
+      assert (GROWS: forall k: 'I_(task_deadline tsk).+1,
+                       R k < R k.+1).
+      {
+        ins; rewrite ltn_neqAle; apply/andP; split; first by apply EX.
+        by apply fun_monotonic_iter_monotonic;
+          [by apply MON | by apply leq_addr].
+      }
 
-        assert (BY1: R (task_deadline tsk).+1 > task_deadline tsk).
-        {
-          clear MON LE EX.
-          induction (task_deadline tsk).+1; first by ins.
-          apply leq_ltn_trans with (n := R n);
-            last by apply (GROWS (Ordinal (ltnSn n))).
-          apply IHn; intros k.
-          by apply (GROWS (widen_ord (leqnSn n) k)).
-        }
-        apply leq_ltn_trans with (m := R (task_deadline tsk).+1) in BY1; last by ins.
-        by rewrite ltnn in BY1.
-      Qed.
+      assert (BY1: R (task_deadline tsk).+1 > task_deadline tsk).
+      {
+        clear MON LE EX.
+        induction (task_deadline tsk).+1; first by ins.
+        apply leq_ltn_trans with (n := R n);
+          last by apply (GROWS (Ordinal (ltnSn n))).
+        apply IHn; intros k.
+        by apply (GROWS (widen_ord (leqnSn n) k)).
+      }
+      apply leq_ltn_trans with (m := R (task_deadline tsk).+1) in BY1; last by ins.
+      by rewrite ltnn in BY1.
+    Qed.
 
     (*Lemma taskP :
       forall (ts: sporadic_taskset) (P: sporadic_task -> Prop),
