@@ -308,12 +308,12 @@ Module ResponseTimeAnalysis.
           is_response_time_bound_of_task job_cost job_task tsk_other
                                          rate sched (R_other tsk_other).
 
-      (* Assume that no deadline is missed by any interfering task. *)
+      (* Assume that no deadline is missed by any interfering task, i.e.,
+         response-time bound R_other <= deadline. *)
       Hypothesis H_interfering_tasks_miss_no_deadlines:
         forall tsk_other,
           is_interfering_task tsk_other ->
-          task_misses_no_deadline job_cost job_deadline job_task rate
-                                  sched tsk_other.
+          R_other tsk_other <= task_deadline tsk_other.
 
       (* Assume that the schedule satisfies the global scheduling
          invariant, i.e., if any job of tsk is backlogged, all
@@ -403,29 +403,36 @@ Module ResponseTimeAnalysis.
           destruct (is_interfering_task tsk_k) eqn:INk; last by ins.
 
           apply leq_trans with (n := workload job_task rate sched tsk_k
-                                              (job_arrival j) (job_arrival j + R));
-            last first.
-            apply workload_bounded_by_W with (job_cost := job_cost)
-                                               (job_deadline := job_deadline); ins;
+                                    (job_arrival j) (job_arrival j + R)).
+          {
+            unfold task_interference, workload.
+            apply leq_sum; intros t _.
+            rewrite -mulnb -[\sum_(_ < _) _]mul1n.
+            apply leq_mul; first by apply leq_b1.
+            destruct (task_is_scheduled job_task sched tsk_k t) eqn:SCHED;
+              last by ins.
+            unfold task_is_scheduled in SCHED.
+            move: SCHED =>/exists_inP SCHED.
+            destruct SCHED as [cpu _ HAScpu].
+            rewrite -> bigD1 with (j := cpu); simpl; last by ins.
+            apply ltn_addr.
+            unfold service_of_task, schedules_job_of_tsk in *.
+            by destruct (sched cpu t);[by rewrite HAScpu mul1n RATE|by ins].
+          }       
+          {
+            apply workload_bounded_by_W with
+               (job_cost := job_cost) (job_deadline := job_deadline); ins;
               [ by rewrite RATE
               | by apply TASK_PARAMS, mem_tnth
               | by apply RESTR, mem_tnth
-              | by red; ins; red; apply RESP
-              | by red; red; ins; apply NOMISS with (tsk_other := tsk_k);
-                      repeat split].
-
-          unfold task_interference, workload.
-          apply leq_sum; intros t _.
-          rewrite -mulnb -[\sum_(_ < _) _]mul1n.
-          apply leq_mul; first by apply leq_b1.
-          destruct (task_is_scheduled job_task sched tsk_k t) eqn:SCHED;
-            last by ins.
-          unfold task_is_scheduled in SCHED.
-          move: SCHED =>/exists_inP SCHED; destruct SCHED as [cpu _ HAScpu].
-          rewrite -> bigD1 with (j := cpu); simpl; last by ins.
-          apply ltn_addr.
-          unfold service_of_task, schedules_job_of_tsk in *.
-            by destruct (sched cpu t);[by rewrite HAScpu mul1n RATE|by ins].
+              | by red; ins; red; apply RESP |].
+            red; red; move => j' /eqP JOBtsk' _.
+            unfold job_misses_no_deadline.
+            specialize (PARAMS j'); des.
+            rewrite PARAMS1 JOBtsk'.
+            apply completion_monotonic with (t := job_arrival j' + R_other tsk_k); ins;
+              [by rewrite leq_add2l; apply NOMISS | by apply RESP].
+          }
         }
 
         (* In the remaining of the proof, we show that the workload bound
@@ -996,14 +1003,16 @@ Module ResponseTimeAnalysis.
         apply TEST, mem_ord_enum.
       }
       rewrite leq_eqVlt; apply/orP; left; rewrite eq_sym.
+
+      generalize dependent job_cost.
       generalize dependent j.
       destruct tsk as [tsk_i LTi].
 
-      induction tsk_i using strong_ind.
+      induction tsk_i as [|i IH] using strong_ind.
       {
         (* Base case: no higher-priority tasks *)
         unfold sorted in SORT.
-        intros j JOBtsk.
+        intros j JOBtsk job_cost' JOBPARAMS COMP INVARIANT.
 
         set tsk0 := Ordinal (n:=size ts) (m:=0) LTi.
         have BOUND := bertogna_cirinei_response_time_bound_fp.
@@ -1011,13 +1020,74 @@ Module ResponseTimeAnalysis.
           job_has_completed_by, completed in BOUND.
         apply BOUND with (job_deadline := job_deadline) (ts := ts)
                          (job_task := job_task) (tsk := tsk0)
-                         (R_other := R) (higher_eq_priority := higher_eq_priority); try ins; clear BOUND.
-          admit. (* can be proven using the definition of interference. *)
-          admit. (* tsk_other cannot exist *)
-          by apply INVARIANT with (j := j0); by ins.
-          by apply R_converges, TEST, mem_ord_enum.
+                         (R_other := R) (higher_eq_priority := higher_eq_priority); try (by ins); clear BOUND; last first.
+        by apply R_converges, TEST, mem_ord_enum.
+        by ins; apply INVARIANT with (j := j0); ins.
+        by ins; apply TEST, mem_ord_enum.
+        {
+          intros tsk_other job_cost'' INTERF.
+          unfold is_interfering_task in INTERF.
+          move: INTERF => /andP INTERF; des.
+          admit. (* Show that tsk_other cannot exist. *)
+        }
       }
       {
+        (* Inductive Step *)
+        intros j JOBtsk job_cost' JOBPARAMS COMP INVARIANT.
+
+        set tsk_i' := Ordinal (n:=size ts) (m:=i.+1) LTi.
+        have BOUND := bertogna_cirinei_response_time_bound_fp.
+        unfold is_response_time_bound_of_task,
+          job_has_completed_by, completed in BOUND.
+        apply BOUND with (job_deadline := job_deadline) (ts := ts)
+                    (job_task := job_task) (tsk := tsk_i') (R_other := R)
+                    (higher_eq_priority := higher_eq_priority);
+          try (by ins); clear BOUND; last first.
+        by apply R_converges, TEST, mem_ord_enum.
+        by ins; apply INVARIANT with (j := j0); ins.  
+        by ins; apply TEST, mem_ord_enum.
+        {
+
+          (* ASSUMPTIONS DON"T SAY ANYTHING ABOUT JOB_COST' *)
+
+
+
+          
+          intros tsk_other job_cost'' INTERF j' JOBtsk'.
+          move: INTERF => /andP INTERF; des.
+          assert (HP: tsk_other < tsk_i').
+          {
+            admit.
+          }
+          assert (LT: tsk_other < size ts).
+            by apply ltn_trans with (n := tsk_i');
+              [by apply HP | by apply LTi].
+          specialize (IH tsk_other HP LT j').
+          exploit IH; last (clear IH; intro IH).
+            by rewrite JOBtsk'; unfold nth_task; f_equal; apply ord_inj.
+            by instantiate (1 := job_cost'); apply JOBPARAMS.
+            by apply COMP.
+            by apply INVARIANT.  move: IH => /eqP IH. rewrite IH.
+
+            unfold nth_task. f_equal. apply ord_inj.
+          simpl.  ins. simpl. 
+          destruct tsk_other. Set Printing All. idtac.
+          unfold nth_task. simpl. Unset Printing All. idtac.
+          f_equal. f_equal. ins
+          rewrite INseq.
+          tsk_other. seq_tnthP. rewrite -JOBtsk. exploit IH.
+          apply JOBtsk'. apply (ltn_trans HP) in LTi.
+          exploit (IH tsk_other HP).
+            apply JOBtsk.
+            appspecialize (IH tsk_other HP).
+          apply IH. unfold is_interfering_task in INTERF.
+          specialize (IH tsk_other).
+          ins. apply IH.
+        {
+          intros tsk_other job_cost' INTERF.
+          unfold task_misses_no_deadline, job_misses_no_deadline.
+          admit. (* Show that tsk_other cannot exist. *)
+        }
       }
 
 

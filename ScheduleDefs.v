@@ -367,6 +367,19 @@ Module Schedule.
             [by apply leq_addl | by ins | by rewrite leqNgt negbT //].
       Qed.
 
+      Lemma completion_monotonic :
+        forall t t',
+          t <= t' ->
+          completed job_cost rate sched j t ->
+          completed job_cost rate sched j t'.
+      Proof.
+        unfold completed; move => t t' LE /eqP COMPt.
+        rewrite eqn_leq; apply/andP; split;
+          first by apply service_interval_le_cost.
+        by apply leq_trans with (n := service rate sched j t);
+          [by rewrite COMPt | by apply service_monotonic].
+      Qed.
+      
     End Completion.
 
     Section Arrival.
