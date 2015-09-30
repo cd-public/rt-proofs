@@ -168,7 +168,7 @@ Module Workload.
            rewrite DIV leq_add2r leq_min; apply/andP; split;
              first by rewrite geq_minl.
            by apply leq_trans with (n := (t1 + delta + R - e) %% p);
-             [by rewrite geq_minr | by apply ltnW, DIV0].
+             [by rewrite geq_minr | by rewrite -DIV0 addn1 leqnSn].
          }
          {
            rewrite -[minn e _]add0n -addnA; apply leq_add; first by ins.

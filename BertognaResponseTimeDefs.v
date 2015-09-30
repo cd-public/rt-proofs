@@ -781,22 +781,27 @@ Module ResponseTimeAnalysis.
     Definition max_steps (tsk: task_in_ts) :=
       task_deadline tsk + 1.
 
+    Definition ext_tuple_to_fun_index {idx: task_in_ts} (hp: idx.-tuple nat) : task_in_ts -> nat.
+      intros tsk; destruct (tsk < idx) eqn:LT.
+        by apply (tnth hp (Ordinal LT)).
+        by apply 0.
+    Defined.
+    
     (* Given a vector of size 'idx' containing known response-time bounds
        for the higher-priority tasks, we compute the response-time
        bound of task 'idx' using a fixed-point iteration as follows. *)
-    Definition rt_rec (tsk_i: task_in_ts)
-                      (R_prev: tsk_i.-tuple nat) (step: nat) :=
-      iter step (fun t => task_cost tsk_i +
+    Definition rt_rec (idx: task_in_ts)
+                      (R_prev: idx.-tuple nat) (step: nat) :=
+      iter step (fun t => task_cost idx +
                        div_floor
-                         (total_interference_bound_fp ts tsk_i
-                           (fun tsk: task_in_ts => task_deadline tsk) (* CHANGE TO R_prev!*)
-                           t higher_eq_priority)
+                         (total_interference_bound_fp ts idx
+                         (ext_tuple_to_fun_index R_prev)
+                         t higher_eq_priority)
                          num_cpus)
-             (task_cost tsk_i).
+           (task_cost idx).
 
     (* We return a vector of size 'idx' containing the response-time
-       bound of the higher-priority tasks 0...idx-1 using the
-       recursion rt_rec that we just defined. *)
+       bound of the higher-priority tasks 0...idx-1 using rt_rec *)
     Definition R_hp (idx: task_in_ts) : idx.-tuple nat :=
       match idx with
       | Ordinal k Hk =>
@@ -807,14 +812,14 @@ Module ResponseTimeAnalysis.
             | S k => fun Hk =>
                         [tuple of rcons
                          (f k (ltSnm k _ Hk))
-                         (rt_rec (Ordinal Hk)
-                                 (f (S k) Hk )
+                         (rt_rec (Ordinal _)
+                                 (f k (ltSnm k _ Hk))
                                  (max_steps (Ordinal Hk)) )]
           end) k Hk
       end.
 
-    (* Then, the response-time bound R of a task idx is
-       obtained by calling rt_rec with the vector of R of the
+    (* The response-time bound R of a task idx is computed
+       by calling rt_rec with the vector R_hp of the
        higher-priority tasks. *)
     Definition R (idx: task_in_ts) :=
       rt_rec idx (R_hp idx) (max_steps idx).
@@ -868,41 +873,42 @@ Module ResponseTimeAnalysis.
     Definition no_deadline_missed_by (tsk: sporadic_task) :=
       task_misses_no_deadline job_cost job_deadline job_task
                               rate sched tsk.
-      
+
     Theorem R_converges:
       forall (tsk: task_in_ts),
         R tsk <= task_deadline tsk ->
         R tsk = task_cost tsk +
                 div_floor
                   (total_interference_bound_fp ts tsk
-                    (fun tsk: task_in_ts => task_deadline tsk) (* FIX! *)
+                    R
                     (R tsk) higher_eq_priority)
                   num_cpus.
     Proof.
+      unfold valid_sporadic_taskset, valid_sporadic_task in *.
+      rename H_valid_task_parameters into TASKPARAMS.
       rename H_sorted_ts into SORT; move: SORT => SORT.
       intros tsk LE.
 
-      unfold R, max_steps, rt_rec in *.
+      unfold R in *; unfold max_steps, rt_rec in *.
       set RHS :=  (fun t : time =>
                    task_cost tsk +
                    div_floor
                      (total_interference_bound_fp ts tsk
-                     (fun tsk0 : task_in_ts => task_deadline tsk0) t
+                     (ext_tuple_to_fun_index (R_hp tsk)) t
                      higher_eq_priority)
                    num_cpus).
       fold RHS in LE; rewrite -> addn1 in *.
-      set R := fun t => iter t RHS (task_cost tsk).
-      fold (R (task_deadline tsk).+1).
-      fold (R (task_deadline tsk).+1) in LE.
-
-      assert (NEXT: task_cost tsk +
+      set R' := fun t => iter t RHS (task_cost tsk).
+      fold (R' (task_deadline tsk).+1).
+      fold (R' (task_deadline tsk).+1) in LE.
+      Admitted.
+      (*assert (NEXT: task_cost tsk +
                   div_floor
-                    (total_interference_bound_fp ts tsk
-                      (fun tsk0: task_in_ts => task_deadline tsk0)
-                      (R (task_deadline tsk).+1) higher_eq_priority)
+                    (total_interference_bound_fp ts tsk R
+                      (R' (task_deadline tsk).+1) higher_eq_priority)
                   num_cpus =
-                    R (task_deadline tsk).+2);
-        first by unfold R; rewrite [iter _.+2 _ _]iterS.
+                    R' (task_deadline tsk).+2).
+        unfold R'. first by unfold R'; rewrite [iter _.+2 _ _]iterS.
       rewrite NEXT; clear NEXT.
 
       assert (MON: forall x1 x2, x1 <= x2 -> RHS x1 <= RHS x2).
@@ -915,7 +921,10 @@ Module ResponseTimeAnalysis.
         rewrite leq_min; apply/andP; split.
         {
           apply leq_trans with (n := W i (task_deadline i) x1);
-            [by apply geq_minl | by apply W_monotonic, LEx].
+            first by apply geq_minl.
+          exploit (TASKPARAMS (nth_task i));
+            [by rewrite mem_nth | intro PARAMS; des].
+          by apply W_monotonic.
         }
         {
           apply leq_trans with (n := x1 - task_cost tsk + 1);
@@ -950,37 +959,79 @@ Module ResponseTimeAnalysis.
         apply IHn; intros k.
         by apply (GROWS (widen_ord (leqnSn n) k)).
       }
-      apply leq_ltn_trans with (m := R (task_deadline tsk).+1) in BY1; last by ins.
-      by rewrite ltnn in BY1.
-    Qed.
+      apply leq_ltn_trans with (m := R (task_deadline tsk).+1) in BY1;
+        [by rewrite ltnn in BY1 | by ins].
+    Qed.*)
 
-    (*Lemma taskP :
-      forall (ts: sporadic_taskset) (P: sporadic_task -> Prop),
-        (forall (tsk: task_in_ts), P (nth_task tsk)) <->
-                (forall (tsk: sporadic_task), (tsk \in ts) -> P tsk).*)
-    
-      Theorem taskset_schedulable_by_fp_rta :
-        forall (tsk: task_in_ts), no_deadline_missed_by tsk.
-      Proof.
-        unfold no_deadline_missed_by, task_misses_no_deadline,
-               job_misses_no_deadline, completed,
-               valid_sporadic_job in *.
-        rename H_valid_job_parameters into JOBPARAMS,
-               H_valid_task_parameters into TASKPARAMS,
-               H_restricted_deadlines into RESTR,
-               H_completed_jobs_dont_execute into COMP,
-               H_jobs_must_arrive_to_execute into MUSTARRIVE,
-               H_global_scheduling_invariant into INVARIANT,
-               H_valid_policy into VALIDhp,
-               H_taskset_not_empty into NONEMPTY,
-               H_sorted_ts into SORT,
-               H_unique_priorities into UNIQ,
-               H_all_jobs_from_taskset into ALLJOBS.
+    Theorem taskset_schedulable_by_fp_rta :
+      forall (tsk: task_in_ts), no_deadline_missed_by tsk.
+    Proof.
+      unfold no_deadline_missed_by, task_misses_no_deadline,
+             job_misses_no_deadline, completed,
+             fp_schedulability_test,
+             valid_sporadic_job in *.
+      rename H_valid_job_parameters into JOBPARAMS,
+             H_valid_task_parameters into TASKPARAMS,
+             H_restricted_deadlines into RESTR,
+             H_completed_jobs_dont_execute into COMP,
+             H_jobs_must_arrive_to_execute into MUSTARRIVE,
+             H_global_scheduling_invariant into INVARIANT,
+             H_valid_policy into VALIDhp,
+             H_taskset_not_empty into NONEMPTY,
+             H_sorted_ts into SORT,
+             H_unique_priorities into UNIQ,
+             H_all_jobs_from_taskset into ALLJOBS,
+             H_test_passes into TEST.
+      
+      rewrite -(size_sort higher_eq_priority) in NONEMPTY. 
+      move: SORT TEST => SORT /allP TEST.
+      move => tsk j /eqP JOBtsk.
+      
+      rewrite eqn_leq; apply/andP; split;
+        first by apply service_interval_le_cost.
+      apply leq_trans with (n := service rate sched j (job_arrival j + R tsk)); last first.
+      {
+        apply service_monotonic; rewrite leq_add2l.
+        specialize (JOBPARAMS j); des; rewrite JOBPARAMS1 JOBtsk.
+        apply TEST, mem_ord_enum.
+      }
+      rewrite leq_eqVlt; apply/orP; left; rewrite eq_sym.
+      generalize dependent j.
+      destruct tsk as [tsk_i LTi].
 
-        rewrite -(size_sort higher_eq_priority) in NONEMPTY. 
-        unfold task_in_ts.
+      induction tsk_i using strong_ind.
+      {
+        (* Base case: no higher-priority tasks *)
+        unfold sorted in SORT.
+        intros j JOBtsk.
 
-        destruct tsk.
+        set tsk0 := Ordinal (n:=size ts) (m:=0) LTi.
+        have BOUND := bertogna_cirinei_response_time_bound_fp.
+        unfold is_response_time_bound_of_task,
+          job_has_completed_by, completed in BOUND.
+        apply BOUND with (job_deadline := job_deadline) (ts := ts)
+                         (job_task := job_task) (tsk := tsk0)
+                         (R_other := R) (higher_eq_priority := higher_eq_priority); try ins; clear BOUND.
+          admit. (* can be proven using the definition of interference. *)
+          admit. (* tsk_other cannot exist *)
+          by apply INVARIANT with (j := j0); by ins.
+          by apply R_converges, TEST, mem_ord_enum.
+      }
+      {
+      }
+
+
+
+
+
+
+      
+      induction (size ts). unfold task_in_ts in *.
+      intro tsk. induction (size ts).
+
+      unfold task_in_ts.
+
+      destruct tsk.
         (*
         (* Apply induction from the back. *)
         elim/last_ind.

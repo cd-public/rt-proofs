@@ -1,4 +1,4 @@
-Require Import Vbase ssreflect ssrbool eqtype ssrnat seq fintype bigop div ssromega.
+Require Import Vbase ssreflect ssrbool eqtype ssrnat seq fintype bigop tuple path div ssromega.
 
 Section Pair.
 
@@ -33,6 +33,21 @@ Reserved Notation "\cat_ ( i < n ) F"
 Notation "\cat_ ( i < n ) F" :=
   (\big[cat/[::]]_(i < n) F%N) : nat_scope.
 
+Ltac des_eqrefl2 :=
+  match goal with
+    | H: context[match ?X as id return (?X = id -> _) with _ => _ end Logic.eq_refl] |- _ =>
+    let EQ := fresh "EQ" in
+    let id' := fresh "x" in
+    revert H;
+    generalize (Logic.eq_refl X); generalize X at 2 3;
+    intros id' EQ; destruct id'; intros H
+    | |- context[match ?X as id return (?X = id -> _) with _ => _ end Logic.eq_refl] =>
+    let EQ := fresh "EQ" in
+    let id' := fresh "x" in
+    generalize (Logic.eq_refl X); generalize X at 2 3;
+    intros id' EQ; destruct id'
+  end.
+
 Lemma mem_bigcat_nat:
   forall (T: eqType) x m n j (f: _ -> list T)
          (LE: m <= j < n) (IN: x \in (f j)),
@@ -52,25 +67,14 @@ Definition fun_ord_to_nat {n} {T} (x0: T) (f: 'I_n -> T) : nat -> T.
     [by apply (f (Ordinal LT)) | by apply x0].
 Defined.
 
-(* For all x: 'I_n (i.e., x < n), the conversion preserves equality. *)
-Program Definition eq_fun_ord_to_nat :
+Lemma eq_fun_ord_to_nat :
   forall n {T: Type} x0 (f: 'I_n -> T) (x: 'I_n),
-    (fun_ord_to_nat x0 f) x = f x :=
-  fun n T x0 f x =>
-    match ltn_ord x in eq _ b return
-          ( 
-            (if b as b' return b = b' -> T then
-               fun (H : b = true) => f (@Ordinal n x ( H))
-             else fun _ => x0) Logic.eq_refl = f x
-          )
-          -> fun_ord_to_nat x0 f x = f x
-    with
-      | Logic.eq_refl => _
-    end (Logic.eq_refl (f x)).
-Next Obligation.
-  destruct x; simpl.
-  f_equal; f_equal.
-  exact: bool_irrelevance.
+    (fun_ord_to_nat x0 f) x = f x.
+Proof.
+  ins; unfold fun_ord_to_nat.
+  des_eqrefl2.
+    by f_equal; apply ord_inj.
+    by destruct x; ins; rewrite i in EQ.
 Qed.
 
 Lemma eq_bigr_ord T n op idx r (P : pred 'I_n)
@@ -102,6 +106,20 @@ Proof.
     [by apply/andP; split | by rewrite eq_fun_ord_to_nat].
 Qed.
 
+Lemma strong_ind :
+  forall (P: nat -> Prop),
+    P 0 -> (forall n, (forall k, k <= n -> P k) -> P n.+1) ->
+    forall n, P n.
+Proof.
+  intros P P0 ALL; destruct n; first by apply P0.
+  apply ALL;  generalize dependent n; induction n.
+    by intros k LE0; move: LE0; rewrite leqn0; move => /eqP LE0; subst k.
+    intros k LESn; destruct (ltngtP k n.+1) as [LT | GT | EQ].
+      by rewrite ltnS in LT; apply IHn.
+      by rewrite leqNgt GT in LESn.
+      by rewrite EQ; apply ALL, IHn.
+Qed.
+  
 Lemma exists_inP_nat t (P: nat -> bool):
   reflect (exists x, x < t /\ P x) [exists (x | x \in 'I_t), P x].
 Proof.
@@ -329,25 +347,93 @@ Proof.
     by rewrite -divn_eq addn1.
   }
   {
-    (* Case 2: y < d - 1 *)
-    rewrite -(ltn_add2r 1) in LTN.
-    rewrite subh1 in LTN; last by apply GT0.
-    rewrite -addnBA // subnn addn0 in LTN.
-    generalize LTN; apply modn_small in LTN; intro LTN'.
-    generalize LTN'; apply divn_small in LTN'; intro LTN''.
-    split.
+    assert (EQDIV: n %/ d = n.+1 %/ d).
     {
-      unfold x; apply/eqP.
-      cut ((d == 0) || (n %/ d * d == n.+1 %/ d * d)).
-      intros OR; des; first by move: OR => /eqP OR; rewrite OR ltn0 in GT1.
-      rewrite eqn_mul2r in OR; des; last by apply OR.
-      by move: OR => /eqP OR; rewrite OR ltn0 in GT1.
-      apply/orP; right.
-      rewrite -(eqn_add2l n.+1).
-      admit.
+      apply/eqP; rewrite eqn_leq; apply/andP; split;
+        first by apply leq_div2r, leqnSn.
+      rewrite leq_divRL; last by apply GT0.
+      rewrite -ltnS {2}(divn_eq n.+1 d).
+      rewrite -{1}[_ %/ d * d]addn0 ltn_add2l.
+      unfold y in *.
+      rewrite ltnNge; apply/negP; unfold not; intro BUG.
+      rewrite leqn0 in BUG; move: BUG => /eqP BUG.
+      rewrite -(modnn d) -addn1 in BUG.
+      destruct d; first by rewrite sub0n in LTN.
+      move: BUG; move/eqP; rewrite -[d.+1]addn1 eqn_modDr [d+1]addn1; move => /eqP BUG.
+      rewrite BUG -[d.+1]addn1 -addnBA // subnn addn0 in LTN.
+      by rewrite modn_small in LTN;
+        [by rewrite ltnn in LTN | by rewrite addn1 ltnSn].
     }
+    (* Case 2: y < d - 1 *)
+    split; first by rewrite -EQDIV.
     {
-      admit.
+      unfold x, y in *.
+      rewrite -2!subndiv_eq_mod.
+      rewrite subh1 ?addn1; last by apply leq_trunc_div.
+      rewrite EQDIV; apply/eqP.
+      rewrite -(eqn_add2r (n%/d*d)).
+      by rewrite subh1; last by apply leq_trunc_div.
     }
   }
 Qed.
+
+Definition antisymmetric_over_seq {T: eqType} (leT: rel T) (s: seq T) :=
+  forall x y (INx: x \in s) (INy: y \in s)
+             (LEx: leT x y) (LEy: leT y x),
+    x = y.
+
+Lemma sorted_by_index :
+  forall {T: eqType} (s: seq T) (leT: rel T)
+         (SORT: sorted leT s) (ANTI: antisymmetric_over_seq leT s)
+         (i1 i2: 'I_(size s)) (LE: i1 < i2),
+    leT (tnth (in_tuple s) i1) (tnth (in_tuple s) i2).
+Proof.
+  intros.
+  destruct s.
+  destruct i1 as [i1 LT1].
+    by remember i1 as i1'; have BUG := LT1; rewrite Heqi1' ltn0 in BUG.
+  destruct i1.
+  induction m.  simpl.
+Admitted.
+
+
+(*Program Definition fun_ord_to_nat2 {n} {T} (x0: T) (f: 'I_n -> T)
+        (x : nat) : T :=
+  match (x < n) with
+      true => (f _)
+    | false => x0
+  end.
+Next Obligation.
+  eby eapply Ordinal, Logic.eq_sym.
+Defined.
+
+Lemma eq_fun_ord_to_nat2 :
+  forall n {T: Type} x0 (f: 'I_n -> T) (x: 'I_n),
+    (fun_ord_to_nat2 x0 f) x = f x.
+Proof.
+  ins. unfold fun_ord_to_nat2.
+  des_eqrefl.
+    by f_equal; apply ord_inj.
+    by destruct x; ins; rewrite i in EQ.
+Qed.
+
+(* For all x: 'I_n (i.e., x < n), the conversion preserves equality. *)
+Program Definition eq_fun_ord_to_nat :
+  forall n {T: Type} x0 (f: 'I_n -> T) (x: 'I_n),
+    (fun_ord_to_nat x0 f) x = f x :=
+  fun n T x0 f x =>
+    match ltn_ord x in eq _ b return
+          ( 
+            (if b as b' return b = b' -> T then
+               fun (H : b = true) => f (@Ordinal n x ( H))
+             else fun _ => x0) Logic.eq_refl = f x
+          )
+          -> fun_ord_to_nat x0 f x = f x
+    with
+      | Logic.eq_refl => _
+    end (Logic.eq_refl (f x)).
+Next Obligation.
+  destruct x; simpl.
+  f_equal; f_equal.
+  exact: bool_irrelevance.
+Qed.*)
