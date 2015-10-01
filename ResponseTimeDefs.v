@@ -135,7 +135,7 @@ Module ResponseTime.
     Variable job_task: Job -> sporadic_task.
     Context {arr_seq: arrival_sequence Job}.
     
-    (* Assume a task with at least one job that arrives in this set. *)
+    (* Consider any task with at least one job that arrives in this set. *)
     Variable tsk: sporadic_task.
     Hypothesis job_of_tsk_exists:
       exists j: JobIn arr_seq, job_task j = tsk.
@@ -148,8 +148,6 @@ Module ResponseTime.
     (*... that satisfies the following properties: *)
     Hypothesis H_jobs_must_arrive_to_execute:
       jobs_must_arrive_to_execute sched.
-    Hypothesis H_completed_jobs_dont_execute:
-      completed_jobs_dont_execute job_cost rate sched.
     Hypothesis H_no_parallelism:
       jobs_dont_execute_in_parallel sched.
     Hypothesis H_rate_at_most_one:

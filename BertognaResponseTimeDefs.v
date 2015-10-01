@@ -265,6 +265,9 @@ Module ResponseTimeAnalysis.
     (* Assume that we have a task set where all tasks have valid
        parameters and restricted deadlines. *)
     Variable ts: sporadic_taskset.
+
+    (* We add a coercion from task indices to their respective tasks.
+       This removes a layer of indirection in the definitions. *)
     Let task_in_ts := 'I_(size ts).
     Local Coercion nth_task (idx: task_in_ts) := (tnth (in_tuple ts)) idx.
     Let indexed_ts := ord_enum (size ts).
@@ -338,8 +341,7 @@ Module ResponseTimeAnalysis.
       Hypothesis H_response_time_recurrence_holds :
         R = task_cost tsk +
             div_floor
-              (total_interference_bound_fp ts tsk R_other
-                                           R higher_eq_priority)
+              (total_interference_bound_fp ts tsk R_other R higher_eq_priority)
               num_cpus.
 
       (*..., and R is no larger than the deadline of tsk, ...*)
@@ -864,276 +866,214 @@ Module ResponseTimeAnalysis.
       Hypothesis H_at_least_one_cpu :
         num_cpus > 0.
 
-    Hypothesis H_valid_task_parameters: valid_sporadic_taskset ts.
-    Hypothesis H_restricted_deadlines:
-      forall tsk, tsk \in ts -> task_deadline tsk <= task_period tsk.
+      Hypothesis H_valid_task_parameters: valid_sporadic_taskset ts.
+      Hypothesis H_restricted_deadlines:
+        forall tsk, tsk \in ts -> task_deadline tsk <= task_period tsk.
 
-    Hypothesis H_global_scheduling_invariant:
-      forall (tsk: task_in_ts) (j: JobIn arr_seq) (t: time),
-        job_task j = tsk ->
-        backlogged job_cost rate sched j t ->
-        count
-          (fun tsk_other : task_in_ts =>
-             is_interfering_task ts tsk higher_eq_priority tsk_other &&
-             task_is_scheduled job_task sched tsk_other t) indexed_ts = num_cpus.
+      Hypothesis H_global_scheduling_invariant:
+        forall (tsk: task_in_ts) (j: JobIn arr_seq) (t: time),
+          job_task j = tsk ->
+          backlogged job_cost rate sched j t ->
+          count
+            (fun tsk_other : task_in_ts =>
+               is_interfering_task ts tsk higher_eq_priority tsk_other &&
+               task_is_scheduled job_task sched tsk_other t) indexed_ts = num_cpus.
 
-    Definition no_deadline_missed_by (tsk: sporadic_task) :=
-      task_misses_no_deadline job_cost job_deadline job_task
-                              rate sched tsk.
+      Definition no_deadline_missed_by (tsk: sporadic_task) :=
+        task_misses_no_deadline job_cost job_deadline job_task
+                                rate sched tsk.
 
-    Theorem R_converges:
-      forall (tsk: task_in_ts),
-        R tsk <= task_deadline tsk ->
-        R tsk = task_cost tsk +
-                div_floor
-                  (total_interference_bound_fp ts tsk
-                    R
-                    (R tsk) higher_eq_priority)
-                  num_cpus.
-    Proof.
-      unfold valid_sporadic_taskset, valid_sporadic_task in *.
-      rename H_valid_task_parameters into TASKPARAMS.
-      rename H_sorted_ts into SORT; move: SORT => SORT.
-      intros tsk LE.
-
-      unfold R in *; unfold max_steps, rt_rec in *.
-      set RHS :=  (fun t : time =>
-                   task_cost tsk +
-                   div_floor
-                     (total_interference_bound_fp ts tsk
-                     (ext_tuple_to_fun_index (R_hp tsk)) t
-                     higher_eq_priority)
-                   num_cpus).
-      fold RHS in LE; rewrite -> addn1 in *.
-      set R' := fun t => iter t RHS (task_cost tsk).
-      fold (R' (task_deadline tsk).+1).
-      fold (R' (task_deadline tsk).+1) in LE.
-      Admitted.
-      (*assert (NEXT: task_cost tsk +
+      Theorem R_converges:
+        forall (tsk: task_in_ts),
+          R tsk <= task_deadline tsk ->
+          R tsk = task_cost tsk +
                   div_floor
                     (total_interference_bound_fp ts tsk R
-                      (R' (task_deadline tsk).+1) higher_eq_priority)
-                  num_cpus =
-                    R' (task_deadline tsk).+2).
-        unfold R'. first by unfold R'; rewrite [iter _.+2 _ _]iterS.
-      rewrite NEXT; clear NEXT.
+                    (R tsk) higher_eq_priority)
+                  num_cpus.
+      Proof.
+        unfold valid_sporadic_taskset, valid_sporadic_task in *.
+        rename H_valid_task_parameters into TASKPARAMS.
+        rename H_sorted_ts into SORT; move: SORT => SORT.
+        intros tsk LE.
 
-      assert (MON: forall x1 x2, x1 <= x2 -> RHS x1 <= RHS x2).
-      {
-        intros x1 x2 LEx.
-        unfold RHS, div_floor, total_interference_bound_fp.
-        rewrite leq_add2l leq_div2r // leq_sum //; intros i _.
-        unfold interference_bound; fold (nth_task i) (nth_task tsk) in *; fold task_in_ts in i.
-        destruct (higher_eq_priority (nth_task i) tsk && (i != tsk)); last by ins.
-        rewrite leq_min; apply/andP; split.
+        unfold R in *; unfold max_steps, rt_rec in *.
+        set RHS :=  (fun t : time =>
+                     task_cost tsk +
+                     div_floor
+                       (total_interference_bound_fp ts tsk
+                       (ext_tuple_to_fun_index (R_hp tsk)) t
+                       higher_eq_priority)
+                     num_cpus).
+        fold RHS in LE; rewrite -> addn1 in *.
+        set R' := fun t => iter t RHS (task_cost tsk).
+        fold (R' (task_deadline tsk).+1).
+        fold (R' (task_deadline tsk).+1) in LE.
+        Admitted.
+        (*assert (NEXT: task_cost tsk +
+                    div_floor
+                      (total_interference_bound_fp ts tsk R
+                        (R' (task_deadline tsk).+1) higher_eq_priority)
+                    num_cpus =
+                      R' (task_deadline tsk).+2).
+          unfold R'. first by unfold R'; rewrite [iter _.+2 _ _]iterS.
+        rewrite NEXT; clear NEXT.
+
+        assert (MON: forall x1 x2, x1 <= x2 -> RHS x1 <= RHS x2).
         {
-          apply leq_trans with (n := W i (task_deadline i) x1);
-            first by apply geq_minl.
-          exploit (TASKPARAMS (nth_task i));
-            [by rewrite mem_nth | intro PARAMS; des].
-          by apply W_monotonic.
-        }
-        {
-          apply leq_trans with (n := x1 - task_cost tsk + 1);
-            first by apply geq_minr.
-          by rewrite leq_add2r leq_sub2r //.
-        }
-      } 
-      destruct ([exists k in 'I_(task_deadline tsk).+1,
-                   R k == R k.+1]) eqn:EX.
-      {
-        move: EX => /exists_inP EX; destruct EX as [k _ ITERk].
-        move: ITERk => /eqP ITERk.
-        by apply iter_fix with (k := k);
-          [by ins | by apply ltnW, ltn_ord].
-      }
-      apply negbT in EX; rewrite negb_exists_in in EX.
-      move: EX => /forall_inP EX.
-      assert (GROWS: forall k: 'I_(task_deadline tsk).+1,
-                       R k < R k.+1).
-      {
-        ins; rewrite ltn_neqAle; apply/andP; split; first by apply EX.
-        by apply fun_monotonic_iter_monotonic;
-          [by apply MON | by apply leq_addr].
-      }
-
-      assert (BY1: R (task_deadline tsk).+1 > task_deadline tsk).
-      {
-        clear MON LE EX.
-        induction (task_deadline tsk).+1; first by ins.
-        apply leq_ltn_trans with (n := R n);
-          last by apply (GROWS (Ordinal (ltnSn n))).
-        apply IHn; intros k.
-        by apply (GROWS (widen_ord (leqnSn n) k)).
-      }
-      apply leq_ltn_trans with (m := R (task_deadline tsk).+1) in BY1;
-        [by rewrite ltnn in BY1 | by ins].
-    Qed.*)
-
-    Theorem taskset_schedulable_by_fp_rta :
-      forall (tsk: task_in_ts), no_deadline_missed_by tsk.
-    Proof.
-      unfold no_deadline_missed_by, task_misses_no_deadline,
-             job_misses_no_deadline, completed,
-             fp_schedulability_test,
-             valid_sporadic_job in *.
-      rename H_valid_job_parameters into JOBPARAMS,
-             H_valid_task_parameters into TASKPARAMS,
-             H_restricted_deadlines into RESTR,
-             H_completed_jobs_dont_execute into COMP,
-             H_jobs_must_arrive_to_execute into MUSTARRIVE,
-             H_global_scheduling_invariant into INVARIANT,
-             H_valid_policy into VALIDhp,
-             H_taskset_not_empty into NONEMPTY,
-             H_sorted_ts into SORT,
-             H_unique_priorities into UNIQ,
-             H_all_jobs_from_taskset into ALLJOBS,
-             H_test_passes into TEST.
-      
-      rewrite -(size_sort higher_eq_priority) in NONEMPTY. 
-      move: SORT TEST => SORT /allP TEST.
-      move => tsk j /eqP JOBtsk.
-      
-      rewrite eqn_leq; apply/andP; split;
-        first by apply service_interval_le_cost.
-      apply leq_trans with (n := service rate sched j (job_arrival j + R tsk)); last first.
-      {
-        apply service_monotonic; rewrite leq_add2l.
-        specialize (JOBPARAMS j); des; rewrite JOBPARAMS1 JOBtsk.
-        apply TEST, mem_ord_enum.
-      }
-      rewrite leq_eqVlt; apply/orP; left; rewrite eq_sym.
-
-      generalize dependent job_cost.
-      generalize dependent j.
-      destruct tsk as [tsk_i LTi].
-
-      induction tsk_i as [|i IH] using strong_ind.
-      {
-        (* Base case: no higher-priority tasks *)
-        unfold sorted in SORT.
-        intros j JOBtsk job_cost' JOBPARAMS COMP INVARIANT.
-
-        set tsk0 := Ordinal (n:=size ts) (m:=0) LTi.
-        have BOUND := bertogna_cirinei_response_time_bound_fp.
-        unfold is_response_time_bound_of_task,
-          job_has_completed_by, completed in BOUND.
-        apply BOUND with (job_deadline := job_deadline) (ts := ts)
-                         (job_task := job_task) (tsk := tsk0)
-                         (R_other := R) (higher_eq_priority := higher_eq_priority); try (by ins); clear BOUND; last first.
-        by apply R_converges, TEST, mem_ord_enum.
-        by ins; apply INVARIANT with (j := j0); ins.
-        by ins; apply TEST, mem_ord_enum.
-        {
-          intros tsk_other job_cost'' INTERF.
-          unfold is_interfering_task in INTERF.
-          move: INTERF => /andP INTERF; des.
-          admit. (* Show that tsk_other cannot exist. *)
-        }
-      }
-      {
-        (* Inductive Step *)
-        intros j JOBtsk job_cost' JOBPARAMS COMP INVARIANT.
-
-        set tsk_i' := Ordinal (n:=size ts) (m:=i.+1) LTi.
-        have BOUND := bertogna_cirinei_response_time_bound_fp.
-        unfold is_response_time_bound_of_task,
-          job_has_completed_by, completed in BOUND.
-        apply BOUND with (job_deadline := job_deadline) (ts := ts)
-                    (job_task := job_task) (tsk := tsk_i') (R_other := R)
-                    (higher_eq_priority := higher_eq_priority);
-          try (by ins); clear BOUND; last first.
-        by apply R_converges, TEST, mem_ord_enum.
-        by ins; apply INVARIANT with (j := j0); ins.  
-        by ins; apply TEST, mem_ord_enum.
-        {
-
-          (* ASSUMPTIONS DON"T SAY ANYTHING ABOUT JOB_COST' *)
-
-
-
-          
-          intros tsk_other job_cost'' INTERF j' JOBtsk'.
-          move: INTERF => /andP INTERF; des.
-          assert (HP: tsk_other < tsk_i').
+          intros x1 x2 LEx.
+          unfold RHS, div_floor, total_interference_bound_fp.
+          rewrite leq_add2l leq_div2r // leq_sum //; intros i _.
+          unfold interference_bound; fold (nth_task i) (nth_task tsk) in *; fold task_in_ts in i.
+          destruct (higher_eq_priority (nth_task i) tsk && (i != tsk)); last by ins.
+          rewrite leq_min; apply/andP; split.
           {
+            apply leq_trans with (n := W i (task_deadline i) x1);
+              first by apply geq_minl.
+            exploit (TASKPARAMS (nth_task i));
+              [by rewrite mem_nth | intro PARAMS; des].
+            by apply W_monotonic.
+          }
+          {
+            apply leq_trans with (n := x1 - task_cost tsk + 1);
+              first by apply geq_minr.
+            by rewrite leq_add2r leq_sub2r //.
+          }
+        } 
+        destruct ([exists k in 'I_(task_deadline tsk).+1,
+                     R k == R k.+1]) eqn:EX.
+        {
+          move: EX => /exists_inP EX; destruct EX as [k _ ITERk].
+          move: ITERk => /eqP ITERk.
+          by apply iter_fix with (k := k);
+            [by ins | by apply ltnW, ltn_ord].
+        }
+        apply negbT in EX; rewrite negb_exists_in in EX.
+        move: EX => /forall_inP EX.
+        assert (GROWS: forall k: 'I_(task_deadline tsk).+1,
+                         R k < R k.+1).
+        {
+          ins; rewrite ltn_neqAle; apply/andP; split; first by apply EX.
+          by apply fun_monotonic_iter_monotonic;
+            [by apply MON | by apply leq_addr].
+        }
+
+        assert (BY1: R (task_deadline tsk).+1 > task_deadline tsk).
+        {
+          clear MON LE EX.
+          induction (task_deadline tsk).+1; first by ins.
+          apply leq_ltn_trans with (n := R n);
+            last by apply (GROWS (Ordinal (ltnSn n))).
+          apply IHn; intros k.
+          by apply (GROWS (widen_ord (leqnSn n) k)).
+        }
+        apply leq_ltn_trans with (m := R (task_deadline tsk).+1) in BY1;
+          [by rewrite ltnn in BY1 | by ins].
+      Qed.*)
+
+      Theorem taskset_schedulable_by_fp_rta :
+        forall (tsk: task_in_ts), no_deadline_missed_by tsk.
+      Proof.
+        unfold no_deadline_missed_by, task_misses_no_deadline,
+               job_misses_no_deadline, completed,
+               fp_schedulability_test,
+               valid_sporadic_job in *.
+        rename H_valid_job_parameters into JOBPARAMS,
+               H_valid_task_parameters into TASKPARAMS,
+               H_restricted_deadlines into RESTR,
+               H_completed_jobs_dont_execute into COMP,
+               H_jobs_must_arrive_to_execute into MUSTARRIVE,
+               H_global_scheduling_invariant into INVARIANT,
+               H_valid_policy into VALIDhp,
+               H_taskset_not_empty into NONEMPTY,
+               H_sorted_ts into SORT,
+               H_unique_priorities into UNIQ,
+               H_all_jobs_from_taskset into ALLJOBS,
+               H_test_passes into TEST.
+      
+        rewrite -(size_sort higher_eq_priority) in NONEMPTY. 
+        move: SORT TEST => SORT /allP TEST.
+        move => tsk j /eqP JOBtsk.
+      
+        rewrite eqn_leq; apply/andP; split;
+          first by apply service_interval_le_cost.
+        apply leq_trans with (n := service rate sched j (job_arrival j + R tsk)); last first.
+        {
+          apply service_monotonic; rewrite leq_add2l.
+          specialize (JOBPARAMS j); des; rewrite JOBPARAMS1 JOBtsk.
+          apply TEST, mem_ord_enum.
+        }
+        rewrite leq_eqVlt; apply/orP; left; rewrite eq_sym.
+
+        generalize dependent job_cost.
+        generalize dependent j.
+        destruct tsk as [tsk_i LTi].
+
+        induction tsk_i as [|i IH] using strong_ind.
+        {
+          (* Base case: no higher-priority tasks *)
+          unfold sorted in SORT.
+          intros j JOBtsk job_cost' JOBPARAMS COMP INVARIANT.
+
+          set tsk0 := Ordinal (n:=size ts) (m:=0) LTi.
+          have BOUND := bertogna_cirinei_response_time_bound_fp.
+          unfold is_response_time_bound_of_task,
+            job_has_completed_by, completed in BOUND.
+          apply BOUND with (job_deadline := job_deadline) (ts := ts)
+                           (job_task := job_task) (tsk := tsk0)
+                           (R_other := R) (higher_eq_priority := higher_eq_priority);
+            try (by ins); clear BOUND; last first.
+          by apply R_converges, TEST, mem_ord_enum.
+          by ins; apply INVARIANT with (j := j0); ins.
+          by ins; apply TEST, mem_ord_enum.
+          {
+            intros tsk_other job_cost'' INTERF.
+            unfold is_interfering_task in INTERF.
+            move: INTERF => /andP INTERF; des.
+            (* This part is simple. Since tsk0 is the first task,
+               there cannot be a higher-priority task tsk_other. *)
             admit.
           }
-          assert (LT: tsk_other < size ts).
-            by apply ltn_trans with (n := tsk_i');
-              [by apply HP | by apply LTi].
-          specialize (IH tsk_other HP LT j').
-          exploit IH; last (clear IH; intro IH).
-            by rewrite JOBtsk'; unfold nth_task; f_equal; apply ord_inj.
-            by instantiate (1 := job_cost'); apply JOBPARAMS.
-            by apply COMP.
-            by apply INVARIANT.  move: IH => /eqP IH. rewrite IH.
-
-            unfold nth_task. f_equal. apply ord_inj.
-          simpl.  ins. simpl. 
-          destruct tsk_other. Set Printing All. idtac.
-          unfold nth_task. simpl. Unset Printing All. idtac.
-          f_equal. f_equal. ins
-          rewrite INseq.
-          tsk_other. seq_tnthP. rewrite -JOBtsk. exploit IH.
-          apply JOBtsk'. apply (ltn_trans HP) in LTi.
-          exploit (IH tsk_other HP).
-            apply JOBtsk.
-            appspecialize (IH tsk_other HP).
-          apply IH. unfold is_interfering_task in INTERF.
-          specialize (IH tsk_other).
-          ins. apply IH.
-        {
-          intros tsk_other job_cost' INTERF.
-          unfold task_misses_no_deadline, job_misses_no_deadline.
-          admit. (* Show that tsk_other cannot exist. *)
-        }
-      }
-
-
-
-
-
-
-      
-      induction (size ts). unfold task_in_ts in *.
-      intro tsk. induction (size ts).
-
-      unfold task_in_ts.
-
-      destruct tsk.
-        (*
-        (* Apply induction from the back. *)
-        elim/last_ind.
-        {
-          (* Base case is trivial (empty list). *)
-          by ins.
         }
         {
-          intros hp_ts low_tsk IH.
-          intros UNIQ SORT ALLJOBS TASKPARAMS RESTR INVARIANT NONEMPTY INlow.
-          intros j JOBtsk.
-
-          have RTBOUND := bertogna_cirinei_response_time_bound_fp.
-          set R_tsk := fun_idx_to_fun_task 0 R.
-          unfold is_response_time_bound_of_task, job_has_completed_by in RTBOUND.
-          apply RTBOUND with (job_deadline := job_deadline) (job_task := job_task)
-                             (ts := rcons hp_ts low_tsk) (higher_eq_priority := higher_eq_priority)
-                             (tsk := tsk) (R_other := R_tsk);
-            [by ins|by ins|by ins|by ins|by ins|by ins|by ins|by ins| by ins | | | | |].
-
-          admit. (* true, but this needs some FIX *)
-          admit.
-          admit.
-            by ins. admit.
-            by admit.
-            by admit. ins.
-            try ins; clear RTBOUND;
-            [| | by apply INVARIANT with (j := j0) | by apply R_converges; last apply TEST].
-           
-          admit.
-        }  *)
-        admit.
+          (* Inductive Step *)
+          intros j JOBtsk job_cost' JOBPARAMS COMP INVARIANT.
+          set tsk_i' := Ordinal (n:=size ts) (m:=i.+1) LTi.
+          have BOUND := bertogna_cirinei_response_time_bound_fp.
+          unfold is_response_time_bound_of_task,
+            job_has_completed_by, completed in BOUND.
+          apply BOUND with (job_deadline := job_deadline) (ts := ts)
+                      (job_task := job_task) (tsk := tsk_i') (R_other := R)
+                      (higher_eq_priority := higher_eq_priority);
+            try (by ins); clear BOUND; last first.
+          by apply R_converges, TEST, mem_ord_enum.
+          by ins; apply INVARIANT with (j := j0); ins.  
+          by ins; apply TEST, mem_ord_enum.
+          {
+            (* Here we need to prove that *for any job cost function*,
+               R is a response-time bound for the higher-priority tasks. *)
+            intros tsk_other job_cost'' INTERF j' JOBtsk'.
+            move: INTERF => /andP INTERF; des.
+            assert (HP: tsk_other < tsk_i').
+            {
+              (*  just need to show that the index of tsk_other is less
+                  than the index of the lower priority task tsk_i'. *)
+              admit.
+            }
+            assert (LT: tsk_other < size ts).
+              by apply ltn_trans with (n := tsk_i');
+                [by apply HP | by apply LTi].
+            specialize (IH tsk_other HP LT j').
+            exploit IH; last (clear IH; intro IH).
+              by rewrite JOBtsk'; unfold nth_task; f_equal; apply ord_inj.
+              by instantiate (1 := job_cost'); apply JOBPARAMS.
+              by apply COMP.
+              by apply INVARIANT.
+              by admit.
+              (* STUCK HERE!!! We cannot prove that R upper-bounds the response
+                 time of tsk_other *for any job cost function* *)
+          } 
+        }
       Qed.
 
     End Proof.
