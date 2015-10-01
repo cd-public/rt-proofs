@@ -286,10 +286,9 @@ Module ResponseTimeAnalysis.
     Let is_response_time_bound (tsk: task_in_ts) :=
       is_response_time_bound_of_task job_cost job_task tsk rate sched.
 
-    (* Assume that we know a response-time bound for the
-       tasks that interfere with tsk. *)
+    (* Assume a known response-time bound for any interfering task *)
     Variable R_other: task_in_ts -> time.
-
+    
     (* We derive the response-time bounds for FP and EDF scheduling
        separately. *)
     Section UnderFPScheduling.
@@ -306,11 +305,16 @@ Module ResponseTimeAnalysis.
       (* Assume that for any interfering task, a response-time
          bound R_other is known. *)
       Hypothesis H_response_time_of_interfering_tasks_is_known:
-        forall tsk_other job_cost,
+        forall tsk_other,
           is_interfering_task tsk_other ->
           is_response_time_bound_of_task job_cost job_task tsk_other
                                          rate sched (R_other tsk_other).
 
+      (* Assume that the response-time bounds are larger than task costs. *)
+      Hypothesis R_other_ge_cost:
+        forall (tsk_other: task_in_ts),
+          R_other tsk_other >= task_cost tsk_other.
+      
       (* Assume that no deadline is missed by any interfering task, i.e.,
          response-time bound R_other <= deadline. *)
       Hypothesis H_interfering_tasks_miss_no_deadlines:
@@ -426,9 +430,9 @@ Module ResponseTimeAnalysis.
                (job_cost := job_cost) (job_deadline := job_deadline); ins;
               [ by rewrite RATE
               | by apply TASK_PARAMS, mem_tnth
-              | by apply RESTR, mem_tnth
-              | by red; ins; red; apply RESP |].
-            red; red; move => j' /eqP JOBtsk' _.
+              | by apply RESTR, mem_tnth 
+              | by red; red; ins; apply RESP |].
+            red; red; move => j' /eqP JOBtsk' _;
             unfold job_misses_no_deadline.
             specialize (PARAMS j'); des.
             rewrite PARAMS1 JOBtsk'.
@@ -750,10 +754,7 @@ Module ResponseTimeAnalysis.
       Hypothesis response_time_no_larger_than_deadline:
         R <= task_deadline tsk.
 
-      Theorem bertogna_cirinei_response_time_bound_jlfp :
-        is_response_time_bound tsk R.
-      Proof.
-      Admitted.
+      (* to be completed... *)
       
     End UnderJLFPScheduling.
     
@@ -777,24 +778,19 @@ Module ResponseTimeAnalysis.
 
     Hypothesis H_taskset_not_empty: size ts > 0.
 
+    (* Assume the task set has no duplicates. *)
+    Hypothesis H_ts_is_a_set: uniq ts.
+
+    (* Assume that higher_eq_priority is a total order. *)
+    Hypothesis H_reflexive: reflexive higher_eq_priority.
+    Hypothesis H_transitive: transitive higher_eq_priority.
     Hypothesis H_unique_priorities:
-      forall tsk1 tsk2,
-        tsk1 \in ts ->
-        tsk2 \in ts ->
-        higher_eq_priority tsk1 tsk2 ->
-        higher_eq_priority tsk2 tsk1 ->         
-        tsk1 = tsk2.
+      antisymmetric_over_seq higher_eq_priority ts.
 
     Hypothesis H_sorted_ts: sorted higher_eq_priority ts.
     
     Definition max_steps (tsk: task_in_ts) :=
       task_deadline tsk + 1.
-
-    Definition ext_tuple_to_fun_index {idx: task_in_ts} (hp: idx.-tuple nat) : task_in_ts -> nat.
-      intros tsk; destruct (tsk < idx) eqn:LT.
-        by apply (tnth hp (Ordinal LT)).
-        by apply 0.
-    Defined.
     
     (* Given a vector of size 'idx' containing known response-time bounds
        for the higher-priority tasks, we compute the response-time
@@ -841,8 +837,6 @@ Module ResponseTimeAnalysis.
     
     Section Proof.
 
-      Hypothesis H_test_passes: fp_schedulability_test.
-
       Context {arr_seq: arrival_sequence Job}.
       Hypothesis H_all_jobs_from_taskset:
         forall (j: JobIn arr_seq), job_task j \in ts.
@@ -883,6 +877,19 @@ Module ResponseTimeAnalysis.
         task_misses_no_deadline job_cost job_deadline job_task
                                 rate sched tsk.
 
+      (* First, we prove that R is no less than the cost of the task.
+         This is required by the workload bound. *)
+      Lemma R_ge_cost:
+        forall (tsk: task_in_ts), R tsk >= task_cost tsk.
+      Proof.
+        intros tsk.
+        unfold R, rt_rec.
+        destruct (max_steps tsk); first by apply leqnn.
+        by rewrite iterS; apply leq_addr.
+      Qed.
+
+      (* Then, we show that either the fixed-point iteration of R converges
+         or it becomes greater than the deadline. *)
       Theorem R_converges:
         forall (tsk: task_in_ts),
           R tsk <= task_deadline tsk ->
@@ -971,6 +978,10 @@ Module ResponseTimeAnalysis.
           [by rewrite ltnn in BY1 | by ins].
       Qed.*)
 
+      (* Finally, we show that if the schedulability test suceeds, ...*)
+      Hypothesis H_test_passes: fp_schedulability_test.
+
+      (*..., then no task misses its deadline. *)
       Theorem taskset_schedulable_by_fp_rta :
         forall (tsk: task_in_ts), no_deadline_missed_by tsk.
       Proof.
@@ -1026,13 +1037,17 @@ Module ResponseTimeAnalysis.
           by apply R_converges, TEST, mem_ord_enum.
           by ins; apply INVARIANT with (j := j0); ins.
           by ins; apply TEST, mem_ord_enum.
+          by ins; apply R_ge_cost. 
           {
-            intros tsk_other job_cost'' INTERF.
+            intros tsk_other INTERF.
             unfold is_interfering_task in INTERF.
             move: INTERF => /andP INTERF; des.
-            (* This part is simple. Since tsk0 is the first task,
-               there cannot be a higher-priority task tsk_other. *)
-            admit.
+            assert (LE: tsk_other < tsk0).
+            {
+              rewrite ltn_neqAle; apply/andP; split; first by ins.
+              by apply leq_ij_implies_before_ij with (leT := higher_eq_priority); try red; ins.
+            }
+            by rewrite ltn0 in LE. 
           }
         }
         {
@@ -1049,30 +1064,28 @@ Module ResponseTimeAnalysis.
           by apply R_converges, TEST, mem_ord_enum.
           by ins; apply INVARIANT with (j := j0); ins.  
           by ins; apply TEST, mem_ord_enum.
+          by ins; apply R_ge_cost.
           {
-            (* Here we need to prove that *for any job cost function*,
-               R is a response-time bound for the higher-priority tasks. *)
-            intros tsk_other job_cost'' INTERF j' JOBtsk'.
+            intros tsk_other INTERF j' JOBtsk'.
             move: INTERF => /andP INTERF; des.
             assert (HP: tsk_other < tsk_i').
             {
-              (*  just need to show that the index of tsk_other is less
-                  than the index of the lower priority task tsk_i'. *)
-              admit.
+              rewrite ltn_neqAle; apply/andP; split; first by ins.
+              by apply leq_ij_implies_before_ij with (leT := higher_eq_priority); try red; ins.
             }
             assert (LT: tsk_other < size ts).
-              by apply ltn_trans with (n := tsk_i');
-                [by apply HP | by apply LTi].
+              by apply ltn_trans with (n := tsk_i'); [by apply HP | by apply LTi].
             specialize (IH tsk_other HP LT j').
             exploit IH; last (clear IH; intro IH).
               by rewrite JOBtsk'; unfold nth_task; f_equal; apply ord_inj.
               by instantiate (1 := job_cost'); apply JOBPARAMS.
               by apply COMP.
               by apply INVARIANT.
-              by admit.
-              (* STUCK HERE!!! We cannot prove that R upper-bounds the response
-                 time of tsk_other *for any job cost function* *)
-          } 
+              {
+                move: IH => /eqP IH; rewrite -IH; apply/eqP.
+                by repeat f_equal; apply ord_inj; ins.
+              }
+          }
         }
       Qed.
 

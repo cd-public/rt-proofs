@@ -382,20 +382,67 @@ Definition antisymmetric_over_seq {T: eqType} (leT: rel T) (s: seq T) :=
              (LEx: leT x y) (LEy: leT y x),
     x = y.
 
-Lemma sorted_by_index :
+Lemma before_ij_implies_leq_ij :
   forall {T: eqType} (s: seq T) (leT: rel T)
-         (SORT: sorted leT s) (ANTI: antisymmetric_over_seq leT s)
-         (i1 i2: 'I_(size s)) (LE: i1 < i2),
-    leT (tnth (in_tuple s) i1) (tnth (in_tuple s) i2).
+         (SORT: sorted leT s) (REFL: reflexive leT)
+         (TRANS: transitive leT)
+         (i j: 'I_(size s)) (LE: i <= j),
+         leT (tnth (in_tuple s) i) (tnth (in_tuple s) j).
 Proof.
-  intros.
-  destruct s.
-  destruct i1 as [i1 LT1].
-    by remember i1 as i1'; have BUG := LT1; rewrite Heqi1' ltn0 in BUG.
-  destruct i1.
-  induction m.  simpl.
-Admitted.
+  destruct i as [i Hi], j as [j Hj]; ins.
+  destruct s; first by exfalso; rewrite ltn0 in Hi.
+  rewrite 2!(tnth_nth s) /=.
+  move: SORT => /pathP SORT.
+  assert (EQ: j = i + (j - i)); first by rewrite subnKC.
+  remember (j - i) as delta; rewrite EQ; rewrite EQ in LE Hj.
+  clear EQ Heqdelta LE.
+  induction delta; first by rewrite addn0; apply REFL.
+  {
+    unfold transitive in *.
+    apply TRANS with (y := (nth s (s :: s0) (i + delta))).
+    {
+      apply IHdelta.
+      apply ltn_trans with (n := i + delta.+1); last by apply Hj.
+      by rewrite ltn_add2l ltnSn.
+    }
+    {
+      rewrite -addn1 addnA addn1.
+      rewrite -nth_behead /=.
+      by apply SORT, leq_trans with (n := i + delta.+1);
+        [ rewrite ltn_add2l ltnSn | by ins].
+    }
+  }
+Qed.
 
+Lemma leq_ij_implies_before_ij :
+  forall {T: eqType} (s: seq T) (leT: rel T)
+         (SORT: sorted leT s)
+         (REFL: reflexive leT)
+         (TRANS: transitive leT)
+         (ANTI: antisymmetric_over_seq leT s)
+         (i j: 'I_(size s)) (UNIQ: uniq s)
+         (REL: leT (tnth (in_tuple s) i) (tnth (in_tuple s) j)),
+           i <= j.
+Proof.
+  ins; destruct i as [i Hi], j as [j Hj]; simpl.
+  destruct s; [by clear REL; rewrite ltn0 in Hi | simpl in SORT].
+  destruct (leqP i j) as [| LT]; first by ins.
+  assert (EQ: i = j + (i - j)).
+    by rewrite subnKC; [by ins | apply ltnW].
+  unfold antisymmetric_over_seq in *.
+  assert (REL': leT (tnth (in_tuple (s :: s0)) (Ordinal Hj)) (tnth (in_tuple (s :: s0)) (Ordinal Hi))).
+    by apply before_ij_implies_leq_ij; try by ins; apply ltnW.
+  apply ANTI in REL'; try (by ins); try apply mem_tnth.
+  move: REL'; rewrite 2!(tnth_nth s) /=; move/eqP.
+  rewrite nth_uniq //; move => /eqP REL'.
+  by subst; rewrite ltnn in LT.
+Qed.
+
+Definition ext_tuple_to_fun_index {T} {ts: seq T} {idx: 'I_(size ts)} (hp: idx.-tuple nat) : 'I_(size ts) -> nat.
+  intros tsk; destruct (tsk < idx) eqn:LT.
+    by apply (tnth hp (Ordinal LT)).
+    by apply 0.
+Defined.
 
 (*Program Definition fun_ord_to_nat2 {n} {T} (x0: T) (f: 'I_n -> T)
         (x : nat) : T :=

@@ -229,7 +229,7 @@ Module Workload.
 
     (* Before starting the proof, let's give simpler names to the definitions. *)
     Definition response_time_bound_of (tsk: sporadic_task) (R: time) :=
-      forall job_cost,
+      (*forall job_cost,*)
         is_response_time_bound_of_task job_cost job_task tsk rate sched R.
     Definition no_deadline_misses_by (tsk: sporadic_task) (t: time) :=
       task_misses_no_deadline_before job_cost job_deadline job_task
@@ -257,9 +257,11 @@ Module Workload.
     Hypothesis restricted_deadline: task_deadline tsk <= task_period tsk.
 
     (* Assume that a response-time bound R_tsk for that task in any
-       schedule of this processor platform is also given. *)
+       schedule of this processor platform is also given,
+       such that R_tsk >= task_cost tsk. *)
     Variable R_tsk: time.
     Hypothesis response_time_bound: response_time_bound_of tsk R_tsk.
+    Hypothesis response_time_ge_cost: R_tsk >= task_cost tsk.
     
     (* Consider an interval [t1, t1 + delta), with no deadline misses. *)
     Variable t1 delta: time.
@@ -370,12 +372,12 @@ Module Workload.
       rename FST0 into FSTin, FST into FSTtask, FST1 into FSTserv.
 
       (* Since there is at least one job of the task, we show that R_tsk >= cost tsk. *)
-      assert (GEcost: R_tsk >= task_cost tsk).
+      (*assert (GEcost: R_tsk >= task_cost tsk).
       {
 
         apply (response_time_ub_ge_task_cost job_task) with (sched0 := sched) (rate0 := rate); ins.
         by exists (nth elem sorted_jobs 0); rewrite FSTtask.
-      }
+      }*)
                                 
       (* Now we show that the bound holds for a singleton set of interfering jobs. *)
       destruct n.

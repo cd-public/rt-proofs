@@ -66,6 +66,6 @@ End Uniprocessor.
 Proof.
   unfold valid_platform, identical_multiprocessor, mp_cpus_nonzero,
   mp_scheduling_invariant; ins.
-Admitted.*)
+Qed.*)
 
 End IdenticalMultiprocessor. *)
