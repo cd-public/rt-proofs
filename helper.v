@@ -444,6 +444,21 @@ Definition ext_tuple_to_fun_index {T} {ts: seq T} {idx: 'I_(size ts)} (hp: idx.-
     by apply 0.
 Defined.
 
+Definition extend_ord {max} (y: 'I_max) (x: 'I_y) :=
+  Ordinal (ltn_trans (ltn_ord x) (ltn_ord y)).
+
+Lemma eq_ext_tuple_to_fun_index :
+  forall {T: Type} {ts: seq T} {idx: 'I_(size ts)} (tp: idx.-tuple nat) (x: 'I_idx),
+    (ext_tuple_to_fun_index tp) (extend_ord idx x) = tnth tp x.
+Proof.
+  ins; unfold ext_tuple_to_fun_index.
+  des_eqrefl2; first by f_equal; apply ord_inj.
+  {
+    move: EQ => /negP EQ; exfalso; apply EQ.
+    by simpl; apply ltn_ord.
+  }
+Qed.
+
 (*Program Definition fun_ord_to_nat2 {n} {T} (x0: T) (f: 'I_n -> T)
         (x : nat) : T :=
   match (x < n) with

@@ -916,14 +916,17 @@ Module ResponseTimeAnalysis.
         set R' := fun t => iter t RHS (task_cost tsk).
         fold (R' (task_deadline tsk).+1).
         fold (R' (task_deadline tsk).+1) in LE.
-        Admitted.
-        (*assert (NEXT: task_cost tsk +
-                    div_floor
-                      (total_interference_bound_fp ts tsk R
-                        (R' (task_deadline tsk).+1) higher_eq_priority)
-                    num_cpus =
-                      R' (task_deadline tsk).+2).
-          unfold R'. first by unfold R'; rewrite [iter _.+2 _ _]iterS.
+        assert (NEXT: task_cost tsk +
+                 div_floor
+                   (total_interference_bound_fp ts tsk
+                      (fun idx : task_in_ts =>
+                           iter (task_deadline idx + 1)
+                           (fun t : time => task_cost idx + div_floor
+                            (total_interference_bound_fp ts idx
+                 (ext_tuple_to_fun_index (R_hp idx)) t higher_eq_priority)
+              num_cpus) (task_cost idx)) (R' (task_deadline tsk).+1)
+        higher_eq_priority) num_cpus = R' (task_deadline tsk).+2). 
+        admit.
         rewrite NEXT; clear NEXT.
 
         assert (MON: forall x1 x2, x1 <= x2 -> RHS x1 <= RHS x2).
@@ -935,11 +938,13 @@ Module ResponseTimeAnalysis.
           destruct (higher_eq_priority (nth_task i) tsk && (i != tsk)); last by ins.
           rewrite leq_min; apply/andP; split.
           {
-            apply leq_trans with (n := W i (task_deadline i) x1);
+            apply leq_trans with (n := W i (ext_tuple_to_fun_index (R_hp tsk) i) x1);
               first by apply geq_minl.
             exploit (TASKPARAMS (nth_task i));
               [by rewrite mem_nth | intro PARAMS; des].
-            by apply W_monotonic.
+            apply W_monotonic; try (by ins).
+            rewrite eq_ext_tuple_to_fun_index.
+              by apply W_monotonic.
           }
           {
             apply leq_trans with (n := x1 - task_cost tsk + 1);
