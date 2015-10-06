@@ -292,17 +292,6 @@ Proof.
   move/IH => /= IHe. by rewrite -!IHe.
 Qed.
 
-Lemma fun_monotonic_iter_monotonic :
-  forall k f x0
-         (MON: forall x1 x2, x1 <= x2 -> f x1  <= f x2)
-         (GE0: f 0 >= x0),
-    iter k f x0 <= iter k.+1 f x0.
-Proof.
-  induction k; ins.
-    by apply leq_trans with (n := f 0); [by ins | by apply MON].
-    by apply MON, IHk; ins.
-Qed.
-
 Lemma leq_as_delta :
   forall x1 (P: nat -> Prop),
     (forall x2, x1 <= x2 -> P x2) <->
@@ -315,6 +304,35 @@ Proof.
       by apply ALL; rewrite -{1}[x1]addn0; apply leq_add; [by apply leqnn | by ins]. 
   }
 Qed.
+
+Lemma fun_mon_iter_mon :
+  forall (f: nat -> nat) x0 x1 x2 (LE: x1 <= x2) (MIN: f 0 >= x0)
+         (MON: forall x1 x2, x1 <= x2 -> f x1 <= f x2),
+    iter x1 f x0 <= iter x2 f x0.
+Proof.
+  ins; revert LE; revert x2; rewrite leq_as_delta; intros delta.
+  induction x1; try rewrite add0n.
+  {
+    destruct delta; first by apply leqnn.
+    apply leq_trans with (n := f 0); first by apply MIN.
+    by rewrite iterS MON.
+  }
+  {
+    rewrite iterS -addn1 -addnA [1 + delta]addnC addnA addn1 iterS.
+    by apply MON, IHx1.
+  }
+Qed.
+
+(*Lemma fun_monotonic_iter_monotonic :
+  forall k f x0
+         (MON: forall x1 x2, x1 <= x2 -> f x1  <= f x2)
+         (GE0: f 0 >= x0),
+    iter k f x0 <= iter k.+1 f x0.
+Proof.
+  induction k; ins.
+    by apply leq_trans with (n := f 0); [by ins | by apply MON].
+    by apply MON, IHk; ins.
+Qed.*)
 
 Lemma divSn_cases :
   forall n d (GT1: d > 1),
