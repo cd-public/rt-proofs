@@ -841,8 +841,16 @@ Module ResponseTimeAnalysis.
         destruct (max_steps tsk); first by apply leqnn.
         by rewrite iterS; apply leq_addr.
       Qed.
-      
-      (* Next we establish the equivalence between computing R directly
+
+      (* Next, we prove a helper lemma about the size of the vector
+         containing the previously computed bounds. *)
+      Lemma size_R_hp' :
+        forall t P, size (R_hp' t P) = t.
+      Proof.
+        by induction t; ins; rewrite size_rcons IHt.
+      Qed.
+        
+      (* Finally, we establish the equivalence between computing R directly
          and accessing an R that we previously stored in the vector. *)
       Lemma rhp_eq_R:
         forall (tsk i: task_in_ts) (LT: i < tsk),
@@ -852,8 +860,47 @@ Module ResponseTimeAnalysis.
         destruct i as [i Hi].
         unfold ext_tuple_to_fun_index; des_eqrefl2;
           [clear LT | by rewrite EQ in LT].
-        
-      Admitted.
+        destruct tsk as [t T].
+        rewrite (tnth_nth 0) /R /R_hp; simpl in *.
+        revert i EQ Hi.
+        induction t; intros => /=;
+          first by rewrite ltn0 in EQ.
+        {
+          rewrite nth_rcons size_R_hp'; simpl in *; desf; first last.
+          {
+            apply negbT in Heq0; apply negbT in Heq.
+            rewrite neq_ltn in Heq0; move: Heq0 => /orP OR; des;
+              first by rewrite OR in Heq.
+            rewrite ltnS in EQ.
+            by apply (leq_ltn_trans EQ) in OR; rewrite ltnn in OR.
+          }
+          {
+            move: Heq0 => /eqP Heq0; subst i.
+            assert (EQP:  (R_hp' t (R_hp'_obligation_3 t.+1 (ltn_ord (Ordinal (n:=size ts) (m:=t.+1) T))  t Logic.eq_refl)) = 
+             (R_hp' t (ltn_ord (Ordinal (n:=size ts) (m:=t) Hi)))).
+              by f_equal; apply proof_irrelevance.
+            rewrite EQP; clear EQP.
+            assert (EQMAX:   (max_steps
+        (Ordinal (n:=size ts) (m:=t)
+           (ltnW (m:=t.+1) (n:=size ts)
+                 (ltn_ord (Ordinal (n:=size ts) (m:=t.+1) T))))) =
+                (max_steps (Ordinal (n:=size ts) (m:=t) Hi))).
+              by f_equal; apply ord_inj; ins.
+            rewrite EQMAX; clear EQMAX.
+            assert (EQORD: ltnW (m:=t.+1) (n:=size ts)
+                      (ltn_ord (Ordinal (n:=size ts) (m:=t.+1) T)) = Hi).
+              by apply proof_irrelevance.
+            by rewrite EQORD.
+          }
+          {
+            rewrite -IHt; [by apply ltSnm | | by ins].
+            ins; f_equal.
+            assert (EQP: (R_hp'_obligation_1 t.+1 (ltn_ord (Ordinal (n:=size ts) (m:=t.+1) T)) t Logic.eq_refl) = (ltn_ord (Ordinal (n:=size ts) (m:=t) Hyp0))).
+              by apply proof_irrelevance.
+            by rewrite EQP.
+          }
+        }
+      Qed.
 
     End AuxiliaryLemmas.
     
