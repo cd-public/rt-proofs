@@ -329,7 +329,6 @@ Module ResponseTimeAnalysis.
       (* Let R be any time. *)
       Variable R: time.
 
-      Print total_interference_bound_fp.
       (* Bertogna and Cirinei's response-time analysis states that
          if R is a fixed-point of the following recurrence, ... *)
       Hypothesis H_response_time_recurrence_holds :
@@ -978,7 +977,8 @@ Module ResponseTimeAnalysis.
 
       (* Now we present the proofs of termination and correctness of
          the schedulability test. *)
-      
+
+                                            
       (*  To prove convergence of R, we first show convergence of rt_rec. *)
       Lemma rt_rec_converges:
         forall (tsk: sporadic_task) prev,
@@ -1125,34 +1125,49 @@ Module ResponseTimeAnalysis.
 
         move: TEST => /eqP TEST.
         unfold R_list in TEST.
-        clear SORT INVARIANT ALLJOBS RESTR JOBPARAMS MUSTARRIVE H_at_least_one_cpu H_sporadic_tasks H_reflexive UNIQ TASKPARAMS H_rate_equals_one H_no_parallelism COMP H_ts_is_a_set.
+        clear SORT ALLJOBS H_reflexive UNIQ H_ts_is_a_set.
 
-        induction ts as [| tsk Rhp] using seq_ind_end.
+        have CONV := rt_rec_converges.
+        
+        generalize dependent j.
+        generalize dependent tsk.
+        induction ts as [| tsk_i Rhp] using seq_ind_end.
         {
           (* Base case: empty taskset. *)
-          by rewrite in_nil in INtsk.
+          by intros tsk; rewrite in_nil.
         }
         {
           (* Inductive step: all higher-priority tasks are schedulable. *)
-          desf; have BOUND := bertogna_cirinei_response_time_bound_fp.
+          intros tsk INtsk j JOBj.
+          desf; rename l into hp_bounds.
+          have BOUND := bertogna_cirinei_response_time_bound_fp.
           unfold is_response_time_bound_of_task, job_has_completed_by in BOUND.
-          apply BOUND with (job_deadline := job_deadline) (job_task := job_task)
-                           (ts := ts) (tsk := tsk) (hp_bounds := Rhp).                    
-          set R
-          admit.
+          rewrite eqn_leq; apply/andP; split; first by apply service_interval_le_cost.
+          set R := per_task_rta tsk_i hp_bounds (max_steps tsk_i).
+          apply leq_trans with (n := service rate sched j (job_arrival j + R)); last first.
+          {
+            apply service_monotonic; rewrite leq_add2l.
+            specialize (JOBPARAMS j); des; rewrite JOBPARAMS1.
+            admit.
+          }
+          rewrite leq_eqVlt; apply/orP; left; rewrite eq_sym.
+  
+          apply BOUND with (job_deadline := job_deadline) (job_task := job_task) (tsk := tsk_i)
+            (higher_eq_priority := higher_eq_priority) (ts := tsk_i :: Rhp) (hp_bounds := hp_bounds);
+            clear BOUND; try (by ins).
+            admit. (*extra lemma *)
+            admit.
+            admit. (*extra lemma *)
+            admit. (* needs to come from IH *)
+            by ins; apply INVARIANT with (j := j0); ins; rewrite in_cons; apply/orP; left.
+            apply CONV; [by rewrite in_cons; apply/orP; left | by admit].
+            admit. (* should be easy. Comes from IH. *)
         }
+      Qed.
 
-        
         (*rewrite eqn_leq; apply/andP; split;
           first by apply service_interval_le_cost.
-        apply leq_trans with (n := service rate sched j (job_arrival j + R tsk)); last first.
-        {
-          apply service_monotonic; rewrite leq_add2l.
-          specialize (JOBPARAMS j); des; rewrite JOBPARAMS1 JOBtsk.
-          by apply TEST, mem_enum.
-        }
-        rewrite leq_eqVlt; apply/orP; left; rewrite eq_sym.
-
+        
         generalize dependent job_cost.
         generalize dependent j.
         destruct tsk as [tsk_i LTi].
