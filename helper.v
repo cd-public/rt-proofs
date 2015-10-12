@@ -26,6 +26,36 @@ Reserved Notation "\cat_ ( m <= i < n ) F"
 Notation "\cat_ ( m <= i < n ) F" :=
   (\big[cat/[::]]_(m <= i < n) F%N) : nat_scope.
 
+Reserved Notation "\sum_ ( ( m , n ) <- r ) F"
+  (at level 41, F at level 41, m, n at level 50,
+   format "'[' \sum_ ( ( m , n ) <- r ) '/ ' F ']'").
+
+Notation "\sum_ ( ( m , n ) <- r ) F" :=
+  (\sum_(i <- r) (let '(m,n) := i in F)) : nat_scope.
+
+Reserved Notation "\sum_ ( ( m , n ) <- r | P ) F"
+  (at level 41, F at level 30, P at level 41, m, n at level 50,
+   format "'[' \sum_ ( ( m , n ) <- r | P ) '/ ' F ']'").
+
+Notation "\sum_ ( ( m , n ) <- r | P ) F" :=
+  (\sum_(i <- r | (let '(m,n) := i in P))
+    (let '(m,n) := i in F)) : nat_scope.
+
+(*Reserved Notation "\big [ op / idx ]_ ( ( m , n ) <- r | P ) F"
+  (at level 36, F at level 36, op, idx at level 10, i, r at level 50,
+   format "'[' \big [ op / idx ]_ ( ( m , n ) <- r | P ) '/ ' F ']'").
+
+Notation "\big [ op / idx ]_ ( ( m , n ) <- r | P ) F" :=
+  (bigop idx op r
+         (fun i => let '(m,n) := i in P%B)
+         (fun i => let '(m,n) := i in F)) : big_scope.*)
+
+(*Variable natlist: seq nat.
+Check (\sum_(x1 <- natlist) x1).
+
+Variable tuplelist: seq (nat * nat).
+Check (\sum_( (x1,x2) <- tuplelist | x1 + x2 > 1) (x1 + x2)).*)
+
 Reserved Notation "\cat_ ( i < n ) F"
   (at level 41, F at level 41, i, n at level 50,
    format "'[' \cat_ ( i < n ) '/ ' F ']'").
@@ -475,6 +505,27 @@ Proof.
     move: EQ => /negP EQ; exfalso; apply EQ.
     by simpl; apply ltn_ord.
   }
+Qed.
+
+Definition comp_relation {T} (R: rel T) : rel T :=
+  fun x y => ~~ (R x y).
+
+Definition reverse_sorted {T: eqType} (R: rel T) (s: seq T) :=
+  sorted (comp_relation R) s. 
+
+Lemma seq_ind_end {T: Type} (P: seq T -> Type) :
+   P [::] -> (forall elem l', P l' -> P (elem :: l')) ->
+   forall (l: list T), P l. 
+Proof.
+  intros NIL NEXT; induction l; [ by apply NIL | by apply NEXT, IHl].
+Qed.
+
+Lemma leq_sum_subseq :
+  forall {I: eqType} r1 r2 (P1 P2 : pred I) F
+         (IN: forall x, P1 x -> x \in r1 -> (x \in r2 /\ P2 x)),
+    \sum_(i <- r1 | P1 i) F i <= \sum_(i <- r2 | P2 i) F i.
+Proof.
+  admit.
 Qed.
 
 (*Program Definition fun_ord_to_nat2 {n} {T} (x0: T) (f: 'I_n -> T)

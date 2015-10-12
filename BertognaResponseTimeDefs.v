@@ -169,60 +169,56 @@ Module ResponseTimeAnalysis.
   
   Section InterferenceBound.
 
-    (* Let tsk \in ts be the task to be analyzed. *)
-    Variable ts: sporadic_taskset.
-    Let task_in_ts := 'I_(size ts).
-    Local Coercion nth_task (idx: task_in_ts) := (tnth (in_tuple ts)) idx.
-    Let indexed_ts := enum task_in_ts.
-    
-    Variable tsk: task_in_ts.
+    (* Let tsk be the task to be analyzed. *)
+    Variable tsk: sporadic_task.
 
+    Definition task_with_response_time := (sporadic_task * time)%type.
+    
     (* Assume a known response-time bound for each interfering task ... *)
-    Variable R_other: task_in_ts -> time.
+    Variable R_prev: seq task_with_response_time.
+
     (* ... and an interval length delta. *)
     Variable delta: time.
 
-    (* Based on the workload bound, ... *)
-    Let workload_bound (tsk_other: task_in_ts) :=
-      W tsk_other (R_other tsk_other) delta.
+    Section PerTask.
+
+      Variable tsk_R: task_with_response_time.
+      Let tsk_other := fst tsk_R.
+      Let R_other := snd tsk_R.
     
-    (* Bertogna and Cirinei define the following interference bound
-       for a task. *)
-    Definition interference_bound (tsk_other: task_in_ts) :=
-      minn (workload_bound tsk_other) (delta - (task_cost tsk) + 1).
+      (* Based on the workload bound, Bertogna and Cirinei define the
+         following interference bound for a task. *)
+      Definition interference_bound :=
+        minn (W tsk_other R_other delta) (delta - (task_cost tsk) + 1).
 
-    Section InterferenceFP.
+    End PerTask.
 
+    Section FP.
+      
       (* Assume an FP policy. *)
       Variable higher_eq_priority: fp_policy.
 
-      (* Under FP scheduling, lower-priority tasks don't interfere. *)
-      Let interference_caused_by (tsk_other: task_in_ts) :=
-        if (higher_eq_priority tsk_other tsk) && (tsk_other != tsk) then
-          interference_bound tsk_other
-        else 0.
-          
+      Definition is_interfering_task_fp (tsk_other: sporadic_task) :=
+        higher_eq_priority tsk_other tsk && (tsk_other != tsk).
+      
       (* The total interference incurred by tsk is thus bounded by: *)
       Definition total_interference_bound_fp :=
-        \sum_(tsk_other <- indexed_ts)
-           interference_caused_by tsk_other.
-  
-    End InterferenceFP.
+        \sum_((tsk_other, R_other) <- R_prev | is_interfering_task_fp tsk_other)
+           interference_bound (tsk_other, R_other).
+      
+    End FP.
 
-    Section InterferenceJLFP.
+    Section JLFP.
 
-      (* Under JLFP scheduling, all other tasks may cause interference. *)
-      Let interference_caused_by (tsk_other: task_in_ts) :=
-        if tsk_other != tsk then
-          interference_bound tsk_other
-        else 0.
+      Let is_interfering_task_jlfp (tsk_other: sporadic_task) :=
+        tsk_other != tsk.
       
       (* The total interference incurred by tsk is thus bounded by: *)
       Definition total_interference_bound_jlfp :=
-        \sum_(tsk_other <- indexed_ts)
-           interference_caused_by tsk_other.
+        \sum_((tsk_other, R_other) <- R_prev | is_interfering_task_jlfp tsk_other)
+           interference_bound (tsk_other, R_other).
 
-    End InterferenceJLFP.
+    End JLFP.
 
   End InterferenceBound.
   
@@ -265,29 +261,21 @@ Module ResponseTimeAnalysis.
     (* Assume that we have a task set where all tasks have valid
        parameters and restricted deadlines. *)
     Variable ts: sporadic_taskset.
-
-    (* We add a coercion from task indices to their respective tasks.
-       This removes a layer of indirection in the definitions. *)
-    Let task_in_ts := 'I_(size ts).
-    Local Coercion nth_task (idx: task_in_ts) := (tnth (in_tuple ts)) idx.
-    Let indexed_ts := enum task_in_ts.
-
     Hypothesis H_valid_task_parameters: valid_sporadic_taskset ts.
     Hypothesis H_restricted_deadlines:
       forall tsk, tsk \in ts -> task_deadline tsk <= task_period tsk.
 
-    (* Next, consider some task tsk in the task set that is
-       to be analyzed. *)
-    Variable tsk: task_in_ts.
-    (*Hypothesis task_in_ts: tsk \in ts.*)
+    (* Next, consider a task tsk that is to be analyzed. *)
+    Variable tsk: sporadic_task.
+    Hypothesis task_in_ts: tsk \in ts.
 
-    Let no_deadline_is_missed_by_tsk (tsk: task_in_ts) :=
+    Let no_deadline_is_missed_by_tsk (tsk: sporadic_task) :=
       task_misses_no_deadline job_cost job_deadline job_task rate sched tsk.
-    Let is_response_time_bound (tsk: task_in_ts) :=
+    Let is_response_time_bound (tsk: sporadic_task) :=
       is_response_time_bound_of_task job_cost job_task tsk rate sched.
 
     (* Assume a known response-time bound for any interfering task *)
-    Variable R_other: task_in_ts -> time.
+    Variable hp_bounds: seq task_with_response_time.
     
     (* We derive the response-time bounds for FP and EDF scheduling
        separately. *)
@@ -296,31 +284,32 @@ Module ResponseTimeAnalysis.
       (* For FP scheduling, assume there exists a fixed task priority. *)
       Variable higher_eq_priority: fp_policy.
 
-      (* We say that tsk can be interfered with by tsk_other if
-         tsk_other is a different task from the task set that has
-         higher or equal priority. *)
-      Definition is_interfering_task (tsk_other: task_in_ts) :=
-        higher_eq_priority tsk_other tsk && (tsk_other != tsk).
-
+      Let interferes_with_tsk := is_interfering_task_fp tsk higher_eq_priority.
+      
       (* Assume that for any interfering task, a response-time
          bound R_other is known. *)
       Hypothesis H_response_time_of_interfering_tasks_is_known:
-        forall tsk_other,
-          is_interfering_task tsk_other ->
-          is_response_time_bound_of_task job_cost job_task tsk_other
-                                         rate sched (R_other tsk_other).
+        forall hp_tsk,
+          hp_tsk \in ts ->
+          interferes_with_tsk hp_tsk ->
+          exists R,
+            (hp_tsk, R) \in hp_bounds.
+      
+      Hypothesis H_response_time_of_interfering_tasks_is_known2:
+        forall hp_tsk R,
+          (hp_tsk, R) \in hp_bounds ->
+          is_response_time_bound_of_task job_cost job_task hp_tsk rate sched R.
 
       (* Assume that the response-time bounds are larger than task costs. *)
-      Hypothesis R_other_ge_cost:
-        forall (tsk_other: task_in_ts),
-          R_other tsk_other >= task_cost tsk_other.
+      Hypothesis H_response_time_bounds_ge_cost:
+        forall hp_tsk R,
+          (hp_tsk, R) \in hp_bounds -> R >= task_cost hp_tsk.
       
       (* Assume that no deadline is missed by any interfering task, i.e.,
          response-time bound R_other <= deadline. *)
       Hypothesis H_interfering_tasks_miss_no_deadlines:
-        forall tsk_other,
-          is_interfering_task tsk_other ->
-          R_other tsk_other <= task_deadline tsk_other.
+        forall hp_tsk R,
+          (hp_tsk, R) \in hp_bounds -> R <= task_deadline hp_tsk.
 
       (* Assume that the schedule satisfies the global scheduling
          invariant, i.e., if any job of tsk is backlogged, all
@@ -331,21 +320,22 @@ Module ResponseTimeAnalysis.
           job_task j = tsk ->
           backlogged job_cost rate sched j t ->
           count
-            (fun tsk_other : task_in_ts =>
-               is_interfering_task tsk_other &&
-               task_is_scheduled job_task sched tsk_other t) indexed_ts = num_cpus.
+            (fun tsk_other : sporadic_task =>
+               is_interfering_task_fp tsk higher_eq_priority tsk_other &&
+               task_is_scheduled job_task sched tsk_other t) ts = num_cpus.
 
       (* Next, we define Bertogna and Cirinei's response-time bound recurrence *)
       
       (* Let R be any time. *)
       Variable R: time.
-      
+
+      Print total_interference_bound_fp.
       (* Bertogna and Cirinei's response-time analysis states that
          if R is a fixed-point of the following recurrence, ... *)
       Hypothesis H_response_time_recurrence_holds :
         R = task_cost tsk +
             div_floor
-              (total_interference_bound_fp ts tsk R_other R higher_eq_priority)
+              (total_interference_bound_fp tsk hp_bounds R higher_eq_priority)
               num_cpus.
 
       (*..., and R is no larger than the deadline of tsk, ...*)
@@ -365,26 +355,29 @@ Module ResponseTimeAnalysis.
                H_valid_job_parameters into PARAMS,
                H_valid_task_parameters into TASK_PARAMS,
                H_restricted_deadlines into RESTR,
-               H_response_time_of_interfering_tasks_is_known into RESP,
+               H_response_time_of_interfering_tasks_is_known into ALLHP,
+               H_response_time_of_interfering_tasks_is_known2 into RESP,
                H_interfering_tasks_miss_no_deadlines into NOMISS,
                H_rate_equals_one into RATE,
-               H_global_scheduling_invariant into INVARIANT.
+               H_global_scheduling_invariant into INVARIANT,
+               H_response_time_bounds_ge_cost into GE_COST.
         intros j JOBtsk.
         
         (* For simplicity, let x denote per-task interference under FP
            scheduling, and let X denote the total interference. *)
-        set x := fun tsk_other =>
-          if is_interfering_task tsk_other then
+        set x := fun hp_tsk =>
+          if (hp_tsk \in ts) && interferes_with_tsk hp_tsk then
             task_interference job_cost job_task rate sched j
-                     (job_arrival j) (job_arrival j + R) tsk_other
+                     (job_arrival j) (job_arrival j + R) hp_tsk
           else 0.
         set X := total_interference job_cost rate sched j (job_arrival j) (job_arrival j + R).
 
         (* Let's recall the workload bound under FP scheduling. *)
-        set workload_bound := fun tsk_other =>
-          if is_interfering_task tsk_other then
-            W tsk_other (R_other tsk_other) R
-          else 0.                      
+        set workload_bound := fun (tup: task_with_response_time) =>
+          let (tsk_k, R_k) := tup in
+            if interferes_with_tsk tsk_k then
+              W tsk_k R_k R
+            else 0.  
         
         (* Now we start the proof. Assume by contradiction that job j
            is not complete at time (job_arrival j + R). *)
@@ -403,11 +396,15 @@ Module ResponseTimeAnalysis.
         (* In order to derive a contradiction, we first show that
            the interference x_k of any task is no larger than the
            workload bound W_k. *)
-        assert (WORKLOAD: forall tsk_k, x tsk_k <= workload_bound tsk_k).   
+        assert (WORKLOAD: forall tsk_k,
+                            (tsk_k \in ts) && interferes_with_tsk tsk_k ->
+                            forall R_k, 
+                              (tsk_k, R_k) \in hp_bounds ->
+                              x tsk_k <= workload_bound (tsk_k, R_k)).   
         {
-          intros tsk_k; unfold x, workload_bound.
-          destruct (is_interfering_task tsk_k) eqn:INk; last by ins.
-
+          move => tsk_k /andP [INk INTERk] R_k HPk.
+          unfold x, workload_bound; rewrite INk INTERk andbT.
+          exploit (ALLHP tsk_k); [by ins | by ins | intro INhp; des].
           apply leq_trans with (n := workload job_task rate sched tsk_k
                                     (job_arrival j) (job_arrival j + R)).
           {
@@ -415,29 +412,28 @@ Module ResponseTimeAnalysis.
             apply leq_sum; intros t _.
             rewrite -mulnb -[\sum_(_ < _) _]mul1n.
             apply leq_mul; first by apply leq_b1.
-            destruct (task_is_scheduled job_task sched tsk_k t) eqn:SCHED;
-              last by ins.
+            destruct (task_is_scheduled job_task sched tsk_k t) eqn:SCHED; last by ins.
             unfold task_is_scheduled in SCHED.
             move: SCHED =>/exists_inP SCHED.
             destruct SCHED as [cpu _ HAScpu].
             rewrite -> bigD1 with (j := cpu); simpl; last by ins.
-            apply ltn_addr.
-            unfold service_of_task, schedules_job_of_tsk in *.
+            apply ltn_addr; unfold service_of_task, schedules_job_of_tsk in *.
             by destruct (sched cpu t);[by rewrite HAScpu mul1n RATE|by ins].
-          }       
+          }
           {
             apply workload_bounded_by_W with
-               (job_cost := job_cost) (job_deadline := job_deadline); ins;
+            (job_cost := job_cost) (job_deadline := job_deadline); ins;
               [ by rewrite RATE
-              | by apply TASK_PARAMS, mem_tnth
-              | by apply RESTR, mem_tnth 
-              | by red; red; ins; apply RESP |].
+              | by apply TASK_PARAMS
+              | by apply RESTR
+              | by red; red; ins; apply (RESP tsk_k)  
+              | by apply GE_COST |].
             red; red; move => j' /eqP JOBtsk' _;
             unfold job_misses_no_deadline.
             specialize (PARAMS j'); des.
             rewrite PARAMS1 JOBtsk'.
-            apply completion_monotonic with (t := job_arrival j' + R_other tsk_k); ins;
-              [by rewrite leq_add2l; apply NOMISS | by apply RESP].
+            apply completion_monotonic with (t := job_arrival j' + R0); ins;
+              [by rewrite leq_add2l; apply NOMISS | by apply (RESP tsk_k)].
           }
         }
 
@@ -486,7 +482,7 @@ Module ResponseTimeAnalysis.
            task is equal to the total interference multiplied by the
            number of processors. This holds because interference only
            occurs when all processors are busy with some task. *)
-        assert(ALLBUSY: \sum_(tsk_k <- indexed_ts) x tsk_k = X * num_cpus).
+        assert(ALLBUSY: \sum_(tsk_k <- ts) x tsk_k = X * num_cpus).
         {
           unfold x, X, total_interference, task_interference.
           rewrite -big_mkcond -exchange_big big_distrl /=.
@@ -496,16 +492,21 @@ Module ResponseTimeAnalysis.
               [by rewrite big_const_seq iter_addn mul0n addn0 mul0n|by ins].
           rewrite big_mkcond mul1n /=.
           rewrite (eq_bigr (fun i =>
-                              (if is_interfering_task i &&
-                                  task_is_scheduled job_task sched i t then 1 else 0)));
-            last by ins; destruct (is_interfering_task i); rewrite ?andTb ?andFb; ins.
-          by rewrite -big_mkcond sum1_count; apply (INVARIANT j).
+                              (if (i \in ts) && interferes_with_tsk i &&
+                                             task_is_scheduled job_task sched i t then 1 else 0))); last first.
+          {
+            ins; destruct ((i \in ts) && interferes_with_tsk i) eqn:IN;
+              rewrite IN; [by rewrite andTb | by rewrite andFb].
+          }
+          rewrite (eq_bigr (fun i => if (i \in ts) && true then (if interferes_with_tsk i && task_is_scheduled job_task sched i t then 1 else 0) else 0));
+            last by ins; destruct (i \in ts) eqn:IN; rewrite IN ?andTb ?andFb.
+          by rewrite -big_mkcond -big_seq_cond -big_mkcond sum1_count; apply (INVARIANT j).
         }
 
         (* 3) Next, we prove the auxiliary lemma from the paper. *)
-        assert (MINSERV: \sum_(tsk_k <- indexed_ts) x tsk_k >=
+        assert (MINSERV: \sum_(tsk_k <- ts) x tsk_k >=
                          (R - task_cost tsk + 1) * num_cpus ->
-               \sum_(tsk_k <- indexed_ts) minn (x tsk_k) (R - task_cost tsk + 1) >=
+               \sum_(tsk_k <- ts) minn (x tsk_k) (R - task_cost tsk + 1) >=
                (R - task_cost tsk + 1) * num_cpus).
         {
           intro SUMLESS.
@@ -524,17 +525,17 @@ Module ResponseTimeAnalysis.
              | by intros i COND; rewrite -ltnNge in COND; rewrite COND].
 
           (* Case 1 |A| = 0 *)
-          destruct (~~ has (fun i => R - task_cost tsk + 1 <= x i) indexed_ts) eqn:HASa.
+          destruct (~~ has (fun i => R - task_cost tsk + 1 <= x i) ts) eqn:HASa.
           {
             rewrite [\sum_(_ <- _ | _ <= _) _]big_hasC; last by apply HASa.
             rewrite big_seq_cond; move: HASa => /hasPn HASa.
-            rewrite add0n (eq_bigl (fun i => (i \in indexed_ts) && true));
-              last by red; intros tsk_k; destruct (tsk_k \in indexed_ts) eqn:INk;
+            rewrite add0n (eq_bigl (fun i => (i \in ts) && true));
+              last by red; intros tsk_k; destruct (tsk_k \in ts) eqn:INk;
                 [by rewrite andTb ltnNge; apply HASa | by rewrite andFb].
-            by rewrite -big_seq_cond. 
+            by rewrite -big_seq_cond.
           } apply negbFE in HASa.
           
-          set cardA := count (fun i => R - task_cost tsk + 1 <= x i) indexed_ts.
+          set cardA := count (fun i => R - task_cost tsk + 1 <= x i) ts.
           destruct (cardA >= num_cpus) eqn:CARD.
           {
             apply leq_trans with ((R - task_cost tsk + 1) * cardA);
@@ -544,20 +545,20 @@ Module ResponseTimeAnalysis.
             by apply leq_add; [by apply leq_sum; ins; rewrite muln1|by ins].
           } apply negbT in CARD; rewrite -ltnNge in CARD.
 
-          assert (GEsum: \sum_(i <- indexed_ts | x i < R - task_cost tsk + 1) x i >=
+          assert (GEsum: \sum_(i <- ts | x i < R - task_cost tsk + 1) x i >=
                            (R - task_cost tsk + 1) * (num_cpus - cardA)).
           {
             set some_interference_A := fun t =>
               backlogged job_cost rate sched j t &&
-              has (fun tsk_k => (is_interfering_task tsk_k &&
-                                 ((x tsk_k) >= R - task_cost tsk + 1) &&
-                                 task_is_scheduled job_task sched tsk_k t)) indexed_ts.      
+              has (fun tsk_k => (interferes_with_tsk tsk_k &&
+                              ((x tsk_k) >= R - task_cost tsk + 1) &&
+                              task_is_scheduled job_task sched tsk_k t)) ts.      
             set total_interference_B := fun t =>
               backlogged job_cost rate sched j t *
               count (fun tsk_k =>
-                is_interfering_task tsk_k &&
+                interferes_with_tsk tsk_k &&
                 ((x tsk_k) < R - task_cost tsk + 1) &&
-                task_is_scheduled job_task sched tsk_k t) indexed_ts.
+                task_is_scheduled job_task sched tsk_k t) ts.
 
             apply leq_trans with ((\sum_(job_arrival j <= t < job_arrival j + R)
                                       some_interference_A t) * (num_cpus - cardA)).
@@ -566,11 +567,13 @@ Module ResponseTimeAnalysis.
               move: HASa => /hasP HASa; destruct HASa as [tsk_a INa LEa].
               apply leq_trans with (n := x tsk_a); first by apply LEa.
               unfold x, task_interference, some_interference_A.
-              destruct (is_interfering_task tsk_a) eqn:INTERFa; last by ins.
+              destruct ((tsk_a \in ts) && interferes_with_tsk tsk_a) eqn:INTERFa;
+                rewrite INTERFa; last by ins.
+              move: INTERFa => /andP INTERFa; des.
               apply leq_sum; ins.
               destruct (backlogged job_cost rate sched j i);
                 [rewrite 2!andTb | by ins].
-              destruct (task_is_scheduled job_task sched (nth_task tsk_a) i) eqn:SCHEDa;
+              destruct (task_is_scheduled job_task sched tsk_a i) eqn:SCHEDa;
                 [apply eq_leq; symmetry | by ins].
               apply/eqP; rewrite eqb1.
               apply/hasP; exists tsk_a; first by ins.
@@ -585,10 +588,10 @@ Module ResponseTimeAnalysis.
               unfold some_interference_A, total_interference_B. 
               destruct (backlogged job_cost rate sched j t) eqn:BACK;
                 [rewrite andTb mul1n | by ins].
-              destruct (has (fun tsk_k : task_in_ts =>
-                       is_interfering_task tsk_k &&
+              destruct (has (fun tsk_k : sporadic_task =>
+                       interferes_with_tsk tsk_k &&
                        (R - task_cost tsk + 1 <= x tsk_k) &&
-                       task_is_scheduled job_task sched tsk_k t) indexed_ts) eqn:HAS;
+                       task_is_scheduled job_task sched tsk_k t) ts) eqn:HAS;
                 last by ins.
               rewrite mul1n; move: HAS => /hasP HAS.
               destruct HAS as [tsk_k INk H].
@@ -599,22 +602,22 @@ Module ResponseTimeAnalysis.
 
               unfold cardA.
               set interfering_tasks_at_t :=
-                [seq tsk_k <- indexed_ts | is_interfering_task tsk_k &&
+                [seq tsk_k <- ts | interferes_with_tsk tsk_k &&
                                   task_is_scheduled job_task sched tsk_k t].
 
               rewrite -(count_filter (fun i => true)) in COUNT.
               fold interfering_tasks_at_t in COUNT.
               rewrite count_predT in COUNT.
               apply leq_trans with (n := num_cpus -
-                                      count (fun i => is_interfering_task i &&
+                                      count (fun i => interferes_with_tsk i &&
                                                     (x i >= R -  task_cost tsk + 1) &&
-                                                    task_is_scheduled job_task sched i t) indexed_ts).
+                                                    task_is_scheduled job_task sched i t) ts).
               {
                 apply leq_sub2l.
                 rewrite -2!sum1_count big_mkcond /=.
                 rewrite [\sum_(_ <- _ | _ <= _)_]big_mkcond /=.
                 apply leq_sum; intros i _.
-                unfold x; destruct (is_interfering_task i);
+                unfold x; destruct (interferes_with_tsk i);
                   [rewrite andTb | by rewrite 2!andFb].
                 destruct (task_is_scheduled job_task sched i t);
                   [by rewrite andbT | by rewrite andbF].
@@ -623,15 +626,15 @@ Module ResponseTimeAnalysis.
               rewrite leq_subLR.
               rewrite -count_predUI.
               apply leq_trans with (n :=
-                count (predU (fun i : task_in_ts =>
-                                is_interfering_task i &&
+                count (predU (fun i : sporadic_task =>
+                                interferes_with_tsk i &&
                                 (R - task_cost tsk + 1 <= x i) &&
                                 task_is_scheduled job_task sched i t)
-                             (fun tsk_k0 : task_in_ts =>
-                                is_interfering_task tsk_k0 &&
+                             (fun tsk_k0 : sporadic_task =>
+                                interferes_with_tsk tsk_k0 &&
                                 (x tsk_k0 < R - task_cost tsk + 1) &&
                                 task_is_scheduled job_task sched tsk_k0 t))
-                      indexed_ts); last by apply leq_addr.
+                      ts); last by apply leq_addr.
               apply leq_trans with (n := size interfering_tasks_at_t);
                 first by rewrite COUNT.
               unfold interfering_tasks_at_t.
@@ -639,22 +642,22 @@ Module ResponseTimeAnalysis.
               rewrite leq_eqVlt; apply/orP; left; apply/eqP.
               apply eq_count; red; simpl.
               intros i.
-              destruct (is_interfering_task i),
+              destruct (interferes_with_tsk i),
                        (task_is_scheduled job_task sched i t);
                 rewrite 3?andTb ?andFb ?andbF ?andbT /=; try ins.
               by rewrite leqNgt orNb. 
             }
             {
               unfold x at 2, task_interference.
-              rewrite [\sum_(i <- indexed_ts | _) _](eq_bigr
+              rewrite [\sum_(i <- ts | _) _](eq_bigr
                 (fun i => \sum_(job_arrival j <= t < job_arrival j + R)
-                             is_interfering_task i &&
+                             (i \in ts) && interferes_with_tsk i &&
                              backlogged job_cost rate sched j t &&
                              task_is_scheduled job_task sched i t));
                 last first.
               {
-                ins; destruct (is_interfering_task i);
-                  first by apply eq_bigr; ins.
+                ins; destruct ((i \in ts) && interferes_with_tsk i) eqn:INTERi; rewrite INTERi;
+                  first by move: INTERi => /andP [_ INTERi]; apply eq_bigr; ins; rewrite INTERi andTb.
                 by rewrite (eq_bigr (fun i => 0));
                   [by rewrite big_const_nat iter_addn mul0n addn0 | by ins].
               }
@@ -663,9 +666,9 @@ Module ResponseTimeAnalysis.
                 unfold total_interference_B.
                 destruct (backlogged job_cost rate sched j t); last by ins.
                 rewrite mul1n -sum1_count.
-                rewrite big_mkcond [\sum_(i <- indexed_ts | _ < _) _]big_mkcond.
-                by apply leq_sum; ins; destruct (x i<R - task_cost tsk + 1);
-                  [by ins | by rewrite andbF andFb].
+                rewrite big_seq_cond big_mkcond [\sum_(i <- ts | _ < _) _]big_mkcond.
+                apply leq_sum; ins; destruct (x i<R - task_cost tsk + 1);
+                  [by rewrite 2!andbT andbA | by rewrite 2!andbF].
               }
             }
           }
@@ -678,13 +681,33 @@ Module ResponseTimeAnalysis.
         }
 
         (* 4) Now, we prove that the Bertogna's interference bound
-              is not enough to cover sum of the "minimum" term over
+              is not enough to cover the sum of the "minimum" term over
               all tasks (artifact of the proof by contradiction). *)
-        assert (SUM: \sum_(tsk_k <- indexed_ts)
-                        minn (x tsk_k) (R - task_cost tsk + 1)
-                     > total_interference_bound_fp ts tsk R_other
+        assert (SUM: \sum_((tsk_k, R_k) <- hp_bounds)
+                       minn (x tsk_k) (R - task_cost tsk + 1) >
+                       total_interference_bound_fp tsk hp_bounds
                                                    R higher_eq_priority).
         {
+          apply leq_trans with (n := \sum_(tsk_k <- ts) minn (x tsk_k) (R - task_cost tsk + 1));
+            last first.
+          {
+            rewrite (eq_bigr (fun i => minn (x (fst i)) (R - task_cost tsk + 1)));
+              last by ins; destruct i.
+            rewrite (bigID (fun i => (fst i \in ts) && interferes_with_tsk (fst i))) /=.
+            rewrite -[\sum_(_ <- _) _]addn0; apply leq_add; last by ins.
+            apply leq_trans with (n := \sum_(tsk_k <- ts | interferes_with_tsk tsk_k) minn (x tsk_k) (R - task_cost tsk + 1)).
+            {
+              rewrite [\sum_(_ <- _ | interferes_with_tsk _)_]big_mkcond eq_leq //.
+              apply eq_bigr; intros i _; unfold x.
+              by destruct (interferes_with_tsk i); rewrite ?andbT ?andbF ?min0n.
+            }
+            have MAP := big_map (fun x => fst x) (fun i => (i \in ts) && interferes_with_tsk i) (fun i => minn (x i) (R - task_cost tsk + 1)).            
+            rewrite -MAP -[\sum_(_ <- [seq fst x0 | x0 <- _] | _)_]big_filter; clear MAP.
+            apply leq_sum_subseq; intros tsk_k INTERFk INk; split; last by ins.
+            rewrite mem_filter; apply/andP; split; first by apply/andP; split.
+            exploit (ALLHP tsk_k); [by ins | by ins | intro HPk; des].
+            by fold (fst (tsk_k, R0)); apply (map_f (fun i => fst i)).
+          }
           apply ltn_div_trunc with (d := num_cpus);
             first by apply H_at_least_one_cpu.
           rewrite -(ltn_add2l (task_cost tsk)) -REC.
@@ -696,63 +719,49 @@ Module ResponseTimeAnalysis.
           by rewrite leq_mul2r; apply/orP; right; apply INTERF.
         }
 
-        (* 5) This implies that there exists a task such that
-              min (x_k, R - e_i + 1) > min (W_k, R - e_i + 1). *)
-        assert (EX: has (fun tsk_k : task_in_ts =>
-                           minn (x tsk_k) (R - task_cost tsk + 1) >
-                             minn (workload_bound tsk_k) (R - task_cost tsk + 1))
-                        indexed_ts).
+        (* 5) This implies that there exists a tuple (tsk_k, R_k) such that
+              min (x_k, R - e_i + 1) > min (W_k, R - e_i + 1). *)        
+        assert (EX:  has (fun tup : task_with_response_time =>
+                            let (tsk_k, R_k) := tup in
+                              (tsk_k \in ts) &&
+                              interferes_with_tsk tsk_k &&        
+                              (minn (x tsk_k) (R - task_cost tsk + 1) >
+                              minn (workload_bound (tsk_k, snd tup)) (R - task_cost tsk + 1)))
+                         hp_bounds).
         {
           apply/negP; unfold not; intro NOTHAS.
-          move: NOTHAS => /negP /hasPn NOTHAS.
+          move: NOTHAS => /negP /hasPn ALL.
           rewrite -[_ < _]negbK in SUM.
           move: SUM => /negP SUM; apply SUM; rewrite -leqNgt.
           unfold total_interference_bound_fp.
-          rewrite [\sum_(_ <- _) if _ then _ else _]big_seq_cond.
-          rewrite [\sum_(_ <- _ | _ && _)_]big_mkcond /=.
-          apply leq_sum; intros tsk_k _.
-          unfold x, workload_bound, is_interfering_task, workload_bound in *.
-          specialize (NOTHAS tsk_k).
-          fold (nth_task tsk) (nth_task tsk_k) in *.
-          destruct (tsk_k \in indexed_ts) eqn:IN,
-                   (higher_eq_priority (nth_task tsk_k) tsk),
-                   (tsk_k != tsk);
-          rewrite ?andFb ?andTb ?andbT ?min0n IN; try apply leqnn;
-            last by rewrite mem_enum in IN.
-          specialize (NOTHAS IN).
-          rewrite 3?andbT in NOTHAS.
-          unfold interference_bound.
-          by rewrite leqNgt; apply NOTHAS.
+          rewrite [\sum_(i <- _ | let '(tsk_other, _) := i in _)_]big_mkcond.
+          rewrite big_seq_cond [\sum_(i <- _ | true) _]big_seq_cond.
+          apply leq_sum; move => tsk_k /andP [HPk _]; destruct tsk_k as [tsk_k R_k].
+          specialize (ALL (tsk_k, R_k) HPk).
+          unfold interference_bound, workload_bound, x in *.
+          fold (interferes_with_tsk); destruct (interferes_with_tsk tsk_k) eqn:INTERFk;
+            [rewrite andbT in ALL; rewrite andbT | by rewrite andbF min0n].
+          destruct (tsk_k \in ts) eqn:INk; rewrite INk; last by rewrite min0n.
+          by rewrite INk andTb -leqNgt in ALL.
         }
-
+        
         (* For this particular task, we show that x_k > W_k.
            This contradicts the previous claim. *)
-        move: EX => /hasP EX; destruct EX as [tsk_k INk LTmin].
-        unfold task_interference, minn at 1 in LTmin.
-        destruct (workload_bound tsk_k < R - task_cost tsk + 1) eqn:MIN;
-          [clear MIN | by move: LTmin; rewrite leq_min ltnn andbF].
-        move: LTmin; rewrite leq_min; move => /andP LTmin; des.
-        apply (leq_ltn_trans (WORKLOAD tsk_k)) in LTmin.
-        by rewrite ltnn in LTmin.
+        move: EX => /hasP EX; destruct EX as [tup_k HPk LTmin].
+        destruct tup_k as [tsk_k R_k]; simpl in LTmin.
+        move: LTmin => /andP [INTERFk LTmin]; move: (INTERFk) => /andP [INk INTERFk'].
+        rewrite INTERFk' in LTmin; unfold minn at 1 in LTmin.
+        destruct (W tsk_k R_k R < R - task_cost tsk + 1); rewrite leq_min in LTmin;
+          last by move: LTmin => /andP [_ BUG]; rewrite ltnn in BUG.
+        move: LTmin => /andP [BUG _]; des.
+        specialize (WORKLOAD tsk_k INTERFk R_k HPk).
+        apply leq_ltn_trans with (p := x tsk_k) in WORKLOAD; first by rewrite ltnn in WORKLOAD.
+        by unfold workload_bound; rewrite INTERFk'; apply BUG.
       Qed.
 
     End UnderFPScheduling.
 
     Section UnderJLFPScheduling.
-
-      (* Bertogna and Cirinei's response-time bound recurrence *)
-      Definition response_time_recurrence_jlfp R :=
-        R <= task_cost tsk + div_floor
-                             (total_interference_bound_jlfp ts tsk R_other R)
-                             num_cpus.
-
-      Variable R: time.
-
-      Hypothesis response_time_recurrence_holds:
-        response_time_recurrence_jlfp R.
-
-      Hypothesis response_time_no_larger_than_deadline:
-        R <= task_deadline tsk.
 
       (* to be completed... *)
       
@@ -771,65 +780,57 @@ Module ResponseTimeAnalysis.
     Variable higher_eq_priority: fp_policy.
     Hypothesis H_valid_policy: valid_fp_policy higher_eq_priority.
 
-    (* To access tasks more easily, we use indices {0,...,|ts|-1}. *)
+    (* Consider a task set ts. *)
     Variable ts: sporadic_taskset.
-    Let task_in_ts := 'I_(size ts).
-    Let indexed_ts := enum (task_in_ts).
-    
-    (* Then, we define a coercion from indices to tasks so that
-       we can access the task properties directly. *)
-    Local Coercion nth_task (idx: task_in_ts) := (tnth (in_tuple ts)) idx.
-
+    (*Load seq_nat_notation.*)
+        
     (* Next we define the fixed-point iteration for computing
-       Bertogna's response-time bound. *)
-
-    (* First, we define a known bound on the maximum number of steps.
-       Note that "deadline + 1" is pessimistic, but we don't care about
-       the precise runtime complexity here. *)
-    Definition max_steps (idx: task_in_ts) := task_deadline idx + 1.
-
-    (* Let 'idx' be the index of the task to be analyzed.
-       Given a vector of size 'idx' containing known response-time bounds
+       Bertogna's response-time bound for any task in ts. *)
+    
+    (* First, given a function containing known response-time bounds
        for the higher-priority tasks, we compute the response-time bound
-       of 'idx' by applying the following function "step" times. *)
-    Definition rt_rec (idx: task_in_ts)
-                      (R_prev: idx.-tuple nat) (step: nat) :=
+       of tsk using the following fixed-point iteration: 
+
+       R_tsk <- f^step (R_tsk),
+         where f is the response-time recurrence,
+         step is the number of iterations,
+         and f^0 = task_cost tsk. *)
+    Definition per_task_rta (tsk: sporadic_task)
+                      (R_prev: seq task_with_response_time) (step: nat) :=
       iter step
-           (fun t => task_cost idx +
-                       div_floor
-                         (total_interference_bound_fp
-                           ts idx (ext_tuple_to_fun_index R_prev) t
-                           higher_eq_priority)
-                         num_cpus)
-           (task_cost idx).
+        (fun t => task_cost tsk +
+                  div_floor
+                    (total_interference_bound_fp
+                                      tsk R_prev t higher_eq_priority)
+                    num_cpus)
+        (task_cost tsk).
 
-    (* In order to obtain the vector of size 'idx' containing response-time
-       bounds for the higher-priority tasks, we apply the same recursion
-       rt_rec that we just defined (max_steps times for each task). *)
-    Program Fixpoint R_hp' (idx: nat) (P: idx < size ts) : idx.-tuple nat :=
-      match idx with
-        | 0 => nil_tuple _ (* Task 0 has no higher-priority tasks *)
-        | S k => rcons_tuple
-                   (R_hp' k _) (* [previous Rs]*)
-                   (rt_rec (@Ordinal _ k _) (* + [current R]*)
-                           (R_hp' k _)
-                           (max_steps (@Ordinal _ k _)))
-      end.
-    Next Obligation. by apply ltSnm. Qed.
-    Next Obligation. by apply ltSnm. Qed.
-    Definition R_hp (idx: task_in_ts) := R_hp' idx (ltn_ord idx).
+    (* To ensure that the iteration converges, we will apply per_task_rta
+       a "sufficient" number of times: task_deadline tsk + 1.
+       Note that (deadline + 1) is pessimistic, but we don't care about
+       the precise runtime complexity here. *)
+    Definition max_steps (tsk: sporadic_task) := task_deadline tsk + 1.
     
-    (* The response-time bound R of a task idx is computed by calling
-       rt_rec with the vector R_hp of higher-priority tasks' bounds. *)
-    Definition R (idx: task_in_ts) :=
-      rt_rec idx (R_hp idx) (max_steps idx).
-    
-    (* To conclude, we say that the schedulability test returns true
-       iff for every task i: 0, ..., |ts|-1, R tsk_i <= d_i *)
-    Definition fp_schedulability_test :=
-      all (fun tsk_i => R tsk_i <= task_deadline tsk_i) indexed_ts.
+    (* Next, we compute the response-time bounds of the task set.
+       The function either returns a list of pairs (tsk, R_tsk) for the
+       entire taskset or None, if the analysis failed for some task.
+       Assume that the task set is sorted in increasing priority order. *)
+    Definition R_list : option (seq task_with_response_time) :=
+      (fix prev_pairs (ts: sporadic_taskset) :=
+        match ts with
+        | nil => Some nil
+        | tsk :: ts' =>
+          if (prev_pairs ts') is Some rt_bounds then
+            let R := per_task_rta tsk rt_bounds (max_steps tsk) in
+              if R <= task_deadline tsk then
+                Some ((tsk, R) :: rt_bounds)
+              else None
+          else None
+        end) ts.
 
-    Section AuxiliaryLemmas.
+    Definition fp_schedulability_test := R_list != None.
+    
+    (*Section AuxiliaryLemmas.
 
       (* First, we prove that R is no less than the cost of the task.
          This is required since the formulas use the workload bound W. *)
@@ -902,7 +903,7 @@ Module ResponseTimeAnalysis.
         }
       Qed.
 
-    End AuxiliaryLemmas.
+    End AuxiliaryLemmas. *)
     
     Section Proof.
 
@@ -922,8 +923,8 @@ Module ResponseTimeAnalysis.
       Hypothesis H_restricted_deadlines:
         forall tsk, tsk \in ts -> task_deadline tsk <= task_period tsk.
 
-      (* ...and tasks are ordered by decreasing priorities. *)
-      Hypothesis H_sorted_ts: sorted higher_eq_priority ts.
+      (* ...and tasks are ordered by increasing priorities. *)
+      Hypothesis H_sorted_ts: reverse_sorted higher_eq_priority ts.
 
       (* Next, consider any arrival sequence such that...*)
       Context {arr_seq: arrival_sequence Job}.
@@ -960,67 +961,64 @@ Module ResponseTimeAnalysis.
       Hypothesis H_no_parallelism:
         jobs_dont_execute_in_parallel sched.
 
-      (* Assume the platform satisfies the global scheduling
-         invariant. *)
+      (* Assume the platform satisfies the global scheduling invariant. *)
       Hypothesis H_global_scheduling_invariant:
-        forall (tsk: task_in_ts) (j: JobIn arr_seq) (t: time),
+        forall (tsk: sporadic_task) (j: JobIn arr_seq) (t: time),
+          tsk \in ts ->
           job_task j = tsk ->
           backlogged job_cost rate sched j t ->
           count
-            (fun tsk_other : task_in_ts =>
-               is_interfering_task ts tsk higher_eq_priority tsk_other &&
-               task_is_scheduled job_task sched tsk_other t) indexed_ts = num_cpus.
+            (fun tsk_other : _ =>
+               is_interfering_task_fp tsk higher_eq_priority tsk_other &&
+               task_is_scheduled job_task sched tsk_other t) ts = num_cpus.
 
       Definition no_deadline_missed_by (tsk: sporadic_task) :=
         task_misses_no_deadline job_cost job_deadline job_task
                                 rate sched tsk.
 
-      
       (* Now we present the proofs of termination and correctness of
          the schedulability test. *)
       
       (*  To prove convergence of R, we first show convergence of rt_rec. *)
       Lemma rt_rec_converges:
-        forall (tsk: task_in_ts),
-          rt_rec tsk (R_hp tsk) (max_steps tsk) <= task_deadline tsk ->
-          rt_rec tsk (R_hp tsk) (max_steps tsk) =
-            rt_rec tsk (R_hp tsk) (max_steps tsk).+1.
+        forall (tsk: sporadic_task) prev,
+          tsk \in ts ->
+          per_task_rta tsk prev (max_steps tsk) <= task_deadline tsk ->
+          per_task_rta tsk prev (max_steps tsk) =
+            per_task_rta tsk prev (max_steps tsk).+1.
       Proof.
         rename H_valid_task_parameters into TASKPARAMS.
         unfold valid_sporadic_taskset, valid_sporadic_task in *.
 
         (* To simplify, let's call the function f.*)
-        intros tsk LE; set (f := rt_rec tsk (R_hp tsk)); fold f in LE.
+        intros tsk prev INtsk LE; set (f := per_task_rta tsk prev); fold f in LE.
 
+        assert (INprev: forall i, i \in prev -> fst i \in ts).
+          admit.
+
+        assert (GE_COST: forall i,i \in prev -> snd i >= task_cost (fst i)).
+          admit.
+        
         (* First prove that f is monotonic.*)
         assert (MON: forall x1 x2, x1 <= x2 -> f x1 <= f x2).
         {
-          intros x1 x2 LEx; unfold f, rt_rec.
+          intros x1 x2 LEx; unfold f, per_task_rta.
           apply fun_mon_iter_mon; [by ins | by ins; apply leq_addr |].
           clear LEx x1 x2; intros x1 x2 LEx.
           
           unfold div_floor, total_interference_bound_fp.
-          rewrite leq_add2l leq_div2r // leq_sum //; intros i _; simpl in i.
-          unfold interference_bound; fold (nth_task i) (nth_task tsk) in *; fold task_in_ts in i.
-          destruct (higher_eq_priority (nth_task i) (nth_task tsk) && (i != tsk)) eqn:HP; last by ins.
+          rewrite big_seq_cond [\sum_(i <- _ | let '(tsk_other, _) := i in
+                                   _ && (tsk_other != tsk))_]big_seq_cond.
+          rewrite leq_add2l leq_div2r // leq_sum //.
+          intros i; specialize (INprev i); specialize (GE_COST i).
+          destruct i as [i R]; move => /andP [IN _].
+          unfold interference_bound; simpl.
           rewrite leq_min; apply/andP; split.
           {
-            apply leq_trans with (n := W i (ext_tuple_to_fun_index (R_hp tsk) i) x1);
+            apply leq_trans with (n := W i R x1); 
               first by apply geq_minl.            
-            exploit (TASKPARAMS (nth_task i));
-              [by rewrite mem_nth | intro PARAMS; des].
-            apply W_monotonic; try (by ins).
-            {
-              move: HP => /andP HP; des.
-              assert (LTi: i < tsk).
-              {
-                exploit (leq_ij_implies_before_ij ts higher_eq_priority);
-                  try by ins; apply HP.
-                by intros LEi; rewrite ltn_neqAle; apply/andP; split.
-              } clear HP0.
-              rewrite rhp_eq_R; last by apply LTi.
-              by apply R_ge_cost.
-            }
+            exploit (TASKPARAMS i); [by apply INprev | intro PARAMS; des].
+            by apply W_monotonic; try (by ins); apply GE_COST.
           }
           {
             apply leq_trans with (n := x1 - task_cost tsk + 1);
@@ -1036,7 +1034,6 @@ Module ResponseTimeAnalysis.
         {
           move: EX => /exists_inP EX; destruct EX as [k _ ITERk].
           move: ITERk => /eqP ITERk.
-          unfold f, rt_rec.
           by apply iter_fix with (k := k);
             [by ins | by apply ltnW, ltn_ord].
         }
@@ -1065,8 +1062,9 @@ Module ResponseTimeAnalysis.
       Qed.
 
       (* Next we show that for any task, R converges. *)
-      Theorem R_converges:
-        forall (tsk: task_in_ts),
+      (*Theorem R_converges:
+        forall tsk,
+          tsk \in ts ->
           R tsk <= task_deadline tsk ->
           R tsk = task_cost tsk +
                   div_floor
@@ -1097,14 +1095,14 @@ Module ResponseTimeAnalysis.
         } clear HP NEQ.
         unfold interference_bound; f_equal.
         by unfold W; repeat f_equal; rewrite rhp_eq_R.
-      Qed.
+      Qed.*)
 
       (* Finally, we show that if the schedulability test suceeds, ...*)
       Hypothesis H_test_passes: fp_schedulability_test.
-
+      
       (*..., then no task misses its deadline. *)
       Theorem taskset_schedulable_by_fp_rta :
-        forall (tsk: task_in_ts), no_deadline_missed_by tsk.
+        forall tsk, tsk \in ts -> no_deadline_missed_by tsk.
       Proof.
         unfold no_deadline_missed_by, task_misses_no_deadline,
                job_misses_no_deadline, completed,
@@ -1122,10 +1120,30 @@ Module ResponseTimeAnalysis.
                H_all_jobs_from_taskset into ALLJOBS,
                H_test_passes into TEST.
       
-        move: SORT TEST => SORT /allP TEST.
-        move => tsk j /eqP JOBtsk.
-      
-        rewrite eqn_leq; apply/andP; split;
+        move: SORT => SORT.
+        move => tsk INtsk j /eqP JOBtsk.
+
+        move: TEST => /eqP TEST.
+        unfold R_list in TEST.
+        clear SORT INVARIANT ALLJOBS RESTR JOBPARAMS MUSTARRIVE H_at_least_one_cpu H_sporadic_tasks H_reflexive UNIQ TASKPARAMS H_rate_equals_one H_no_parallelism COMP H_ts_is_a_set.
+
+        induction ts as [| tsk Rhp] using seq_ind_end.
+        {
+          (* Base case: empty taskset. *)
+          by rewrite in_nil in INtsk.
+        }
+        {
+          (* Inductive step: all higher-priority tasks are schedulable. *)
+          desf; have BOUND := bertogna_cirinei_response_time_bound_fp.
+          unfold is_response_time_bound_of_task, job_has_completed_by in BOUND.
+          apply BOUND with (job_deadline := job_deadline) (job_task := job_task)
+                           (ts := ts) (tsk := tsk) (hp_bounds := Rhp).                    
+          set R
+          admit.
+        }
+
+        
+        (*rewrite eqn_leq; apply/andP; split;
           first by apply service_interval_le_cost.
         apply leq_trans with (n := service rate sched j (job_arrival j + R tsk)); last first.
         {
@@ -1205,7 +1223,8 @@ Module ResponseTimeAnalysis.
                 by repeat f_equal; apply ord_inj; ins.
               }
           }
-        }
+        }*)
+        
       Qed.
 
     End Proof.
