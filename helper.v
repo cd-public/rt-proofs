@@ -425,6 +425,10 @@ Proof.
   }
 Qed.
 
+Definition total_over_seq {T: eqType} (leT: rel T) (s: seq T) :=
+  forall x y (INx: x \in s) (INy: y \in s),
+    leT x y \/ leT y x.
+
 Definition antisymmetric_over_seq {T: eqType} (leT: rel T) (s: seq T) :=
   forall x y (INx: x \in s) (INy: y \in s)
              (LEx: leT x y) (LEy: leT y x),
@@ -512,6 +516,35 @@ Definition comp_relation {T} (R: rel T) : rel T :=
 
 Definition reverse_sorted {T: eqType} (R: rel T) (s: seq T) :=
   sorted (comp_relation R) s. 
+
+Lemma revert_comp_relation:
+  forall {T: eqType} (R: rel T)
+         (ANTI: antisymmetric R)
+         (TOTAL: total R)
+         x y (DIFF: x != y),
+    ~~ R x y = R y x.
+Proof.
+  unfold comp_relation, antisymmetric, total.
+  ins; specialize (ANTI x y).
+  destruct (R x y) eqn:Rxy, (R y x) eqn:Ryx; try (by ins).
+    by exploit ANTI; ins; subst x; rewrite eq_refl in DIFF.
+    by specialize (TOTAL x y); move: TOTAL => /orP TOTAL; des; rewrite ?Rxy ?Ryx in TOTAL.
+Qed.
+
+Lemma comp_relation_trans:
+  forall {T: eqType} (R: rel T)
+         (ANTI: antisymmetric R)
+         (TOTAL: total R)
+         (TRANS: transitive R),
+    transitive (comp_relation R).
+Proof.
+  unfold comp_relation; ins; red; intros y x z XY YZ.
+  unfold transitive, total in *.
+  destruct (R x y) eqn:Rxy, (R y x) eqn:Ryx, (R x z) eqn:Rxz; try (by ins).
+    by apply TRANS with (x := y) in Rxz; [by rewrite Rxz in YZ | by ins].
+    by destruct (orP (TOTAL x y)) as [XY' | YX'];
+      [by rewrite Rxy in XY' | by rewrite Ryx in YX']. 
+Qed.
 
 Lemma leq_sum_subseq :
   forall {I: eqType} r1 r2 (P : pred I) F

@@ -905,11 +905,11 @@ Module ResponseTimeAnalysis.
     
     Section Proof.
 
-      (* Assume that higher_eq_priority is an order relation. *)
+      (* Assume that higher_eq_priority is a total order over the task set. *)
       Hypothesis H_reflexive: reflexive higher_eq_priority.
       Hypothesis H_transitive: transitive higher_eq_priority.
-      Hypothesis H_unique_priorities:
-        antisymmetric_over_seq higher_eq_priority ts.
+      Hypothesis H_unique_priorities: antisymmetric higher_eq_priority.
+      Hypothesis H_total: total higher_eq_priority.
 
       (* Assume the task set has no duplicates, ... *)
       Hypothesis H_ts_is_a_set: uniq ts.
@@ -1115,7 +1115,9 @@ Module ResponseTimeAnalysis.
                H_global_scheduling_invariant into INVARIANT,
                H_valid_policy into VALIDhp,
                H_sorted_ts into SORT,
+               H_transitive into TRANS,
                H_unique_priorities into UNIQ,
+               H_total into TOTAL,
                H_all_jobs_from_taskset into ALLJOBS,
                H_test_passes into TEST.
       
@@ -1124,15 +1126,49 @@ Module ResponseTimeAnalysis.
 
         move: TEST => /eqP TEST.
         unfold R_list in TEST.
-        clear SORT ALLJOBS H_reflexive UNIQ H_ts_is_a_set.
+        clear ALLJOBS H_reflexive H_ts_is_a_set.
 
         have CONV := rt_rec_converges.
+
+        (*generalize dependent j.
+        generalize dependent tsk.
         
+        destruct ts as [| tsk0 hp_tasks]; first by intro t; rewrite in_nil.
+        desf; rename l into hp_bounds.
+
+        set R0 := per_task_rta tsk0 hp_bounds (max_steps tsk0).
+      
+        assert (INbounds: forall hp_tsk,
+                  hp_tsk \in ts ->
+                  exists R_tsk,
+                    (hp_tsk, R_tsk) \in R_list).
+        {
+          admit.
+        }
+        
+        cut (
+          forall (hp_tsk : task_eqType) (R : nat_eqType),
+            (hp_tsk, R) \in (tsk0, R0) :: hp_bounds ->
+             forall j : JobIn arr_seq,
+             job_task j = hp_tsk ->
+             service rate sched j (job_arrival j + job_deadline j ) == job_cost j). 
+        {
+          intros CUT; ins.
+          specialize (INbounds tsk INtsk); des.
+          by apply (CUT tsk R_tsk INbounds).
+        }
+
+        induction hp_bounds as [| (tsk_i, R_i) hp_tasks'].
+        {
+          (* Base case: lowest-priority task. *)
+          intros hp_tsk R; rewrite mem_seq1; move/eqP => EQ j JOBj.
+          
+        }*)
+
         generalize dependent j.
         generalize dependent tsk.
         induction ts as [| tsk_i hp_tasks].
         {
-          (* Base case: empty taskset. *)
           by intros tsk; rewrite in_nil.
         }
         {
@@ -1140,13 +1176,25 @@ Module ResponseTimeAnalysis.
           intros tsk INtsk; rewrite in_cons in INtsk.
           move: INtsk => /orP INtsk; des; last first.
           {
-            desf; apply IHhp_tasks; last by ins.
+            desf; apply IHhp_tasks; try (by ins).
             by red; ins; apply TASKPARAMS; rewrite in_cons; apply/orP; right.
             by ins; apply RESTR; rewrite in_cons; apply/orP; right.
-            ins. simpl in INVARIANT. apply INVARIANT. rewrite count_cons. capply INVARIANT.  ins; exploit (TASKPARAMS tsk0); [ by rewrite in_cons; apply/orP; right | ins; des]. ins. apply TASKPARAMS.  admit.
-            admit.
-            admit.
-            admit.
+            {
+              intros tsk0 j t HP0 JOB0 BACK0.
+              ins; exploit (INVARIANT tsk0 j t); try (by ins);
+                [by rewrite in_cons; apply/orP; right | intro INV].
+              assert (NOINTERF: is_interfering_task_fp tsk0 higher_eq_priority tsk_i = false).
+              {
+                apply negbTE; rewrite negb_and; apply/orP; left.
+                move: SORT => SORT.
+                apply order_path_min in SORT;
+                  first by move: SORT => /allP SORT; specialize (SORT tsk0 HP0).
+                by apply comp_relation_trans.
+              }
+              by rewrite NOINTERF andFb add0n in INV.
+            }
+            by simpl in SORT; apply path_sorted in SORT.
+            by ins; apply CONV; ins; rewrite in_cons; apply/orP; right.
           }
 
           move: INtsk => /eqP INtsk; subst tsk.
