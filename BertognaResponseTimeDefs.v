@@ -826,6 +826,16 @@ Module ResponseTimeAnalysis.
           else None
         end) ts.
 
+    Definition R_list' : option (seq task_with_response_time) :=
+      foldr (fun tsk hp_pairs =>
+               if hp_pairs is Some rt_bounds then
+                 let R := per_task_rta tsk rt_bounds (max_steps tsk) in
+                   if R <= task_deadline tsk then
+                     Some (rcons rt_bounds (tsk, R))
+                   else None
+               else None)
+            (Some [::]) ts.
+
     Definition fp_schedulability_test := R_list != None.
     
     (*Section AuxiliaryLemmas.
@@ -1100,6 +1110,7 @@ Module ResponseTimeAnalysis.
       Hypothesis H_test_passes: fp_schedulability_test.
       
       (*..., then no task misses its deadline. *)
+
       Theorem taskset_schedulable_by_fp_rta :
         forall tsk, tsk \in ts -> no_deadline_missed_by tsk.
       Proof.
