@@ -294,7 +294,7 @@ Module ResponseTimeAnalysis.
           interferes_with_tsk hp_tsk ->
           exists R,
             (hp_tsk, R) \in hp_bounds.
-      
+
       Hypothesis H_response_time_of_interfering_tasks_is_known2:
         forall hp_tsk R,
           (hp_tsk, R) \in hp_bounds ->
@@ -700,12 +700,11 @@ Module ResponseTimeAnalysis.
               apply eq_bigr; intros i _; unfold x.
               by destruct (interferes_with_tsk i); rewrite ?andbT ?andbF ?min0n.
             }
-            have MAP := big_map (fun x => fst x) (fun i => (i \in ts) && interferes_with_tsk i) (fun i => minn (x i) (R - task_cost tsk + 1)).            
-            rewrite -MAP -[\sum_(_ <- [seq fst x0 | x0 <- _] | _)_]big_filter; clear MAP.
-            apply leq_sum_subseq; intros tsk_k INTERFk INk; split; last by ins.
-            rewrite mem_filter; apply/andP; split; first by apply/andP; split.
-            exploit (ALLHP tsk_k); [by ins | by ins | intro HPk; des].
-            by fold (fst (tsk_k, R0)); apply (map_f (fun i => fst i)).
+            have MAP := big_map (fun x => fst x) (fun i => (i \in ts) && interferes_with_tsk i) (fun i => minn (x i) (R - task_cost tsk + 1)).
+            rewrite -MAP -big_filter -[\sum_(_ <- [seq fst x0 | x0 <- _] | _)_]big_filter; clear MAP.
+            apply leq_sum_subseq; rewrite subseq_filter; apply/andP; split;
+              first by apply/allP; intro i; rewrite mem_filter andbC.
+            admit.
           }
           apply ltn_div_trunc with (d := num_cpus);
             first by apply H_at_least_one_cpu.
@@ -1131,37 +1130,55 @@ Module ResponseTimeAnalysis.
         
         generalize dependent j.
         generalize dependent tsk.
-        induction ts as [| tsk_i Rhp] using seq_ind_end.
+        induction ts as [| tsk_i hp_tasks].
         {
           (* Base case: empty taskset. *)
           by intros tsk; rewrite in_nil.
         }
         {
           (* Inductive step: all higher-priority tasks are schedulable. *)
-          intros tsk INtsk j JOBj.
-          desf; rename l into hp_bounds.
+          intros tsk INtsk; rewrite in_cons in INtsk.
+          move: INtsk => /orP INtsk; des; last first.
+          {
+            desf; apply IHhp_tasks; last by ins.
+            by red; ins; apply TASKPARAMS; rewrite in_cons; apply/orP; right.
+            by ins; apply RESTR; rewrite in_cons; apply/orP; right.
+            ins. simpl in INVARIANT. apply INVARIANT. rewrite count_cons. capply INVARIANT.  ins; exploit (TASKPARAMS tsk0); [ by rewrite in_cons; apply/orP; right | ins; des]. ins. apply TASKPARAMS.  admit.
+            admit.
+            admit.
+            admit.
+          }
+
+          move: INtsk => /eqP INtsk; subst tsk.
+          intros j JOBj; desf.
+          set tsk_i := job_task j; rename l into hp_bounds.
           have BOUND := bertogna_cirinei_response_time_bound_fp.
           unfold is_response_time_bound_of_task, job_has_completed_by in BOUND.
           rewrite eqn_leq; apply/andP; split; first by apply service_interval_le_cost.
           set R := per_task_rta tsk_i hp_bounds (max_steps tsk_i).
           apply leq_trans with (n := service rate sched j (job_arrival j + R)); last first.
           {
+            unfold valid_sporadic_taskset, valid_sporadic_task in *.
             apply service_monotonic; rewrite leq_add2l.
             specialize (JOBPARAMS j); des; rewrite JOBPARAMS1.
-            admit.
+            by exploit (TASKPARAMS tsk_i);
+              first by rewrite in_cons; apply/orP; left; apply/eqP.
           }
           rewrite leq_eqVlt; apply/orP; left; rewrite eq_sym.
   
           apply BOUND with (job_deadline := job_deadline) (job_task := job_task) (tsk := tsk_i)
-            (higher_eq_priority := higher_eq_priority) (ts := tsk_i :: Rhp) (hp_bounds := hp_bounds);
-            clear BOUND; try (by ins).
+                           (higher_eq_priority := higher_eq_priority) (ts := tsk_i :: hp_tasks)
+                           (hp_bounds := hp_bounds);
+            clear BOUND; try (by ins); try (by apply/eqP).
+            by rewrite in_cons; apply/orP; left.
             admit. (*extra lemma *)
-            admit.
-            admit. (*extra lemma *)
-            admit. (* needs to come from IH *)
-            by ins; apply INVARIANT with (j := j0); ins; rewrite in_cons; apply/orP; left.
-            apply CONV; [by rewrite in_cons; apply/orP; left | by admit].
-            admit. (* should be easy. Comes from IH. *)
+            {
+              admit. (* by IH *)
+            }
+            by admit. (*extra lemma*)
+            by admit. (*extra lemma*)
+            by ins; apply INVARIANT with (j0 := j0); ins; rewrite in_cons; apply/orP; left.
+            by apply CONV; [by rewrite in_cons; apply/orP; left | by apply Heq0].
         }
       Qed.
 

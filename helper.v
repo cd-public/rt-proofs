@@ -513,19 +513,14 @@ Definition comp_relation {T} (R: rel T) : rel T :=
 Definition reverse_sorted {T: eqType} (R: rel T) (s: seq T) :=
   sorted (comp_relation R) s. 
 
-Lemma seq_ind_end {T: Type} (P: seq T -> Type) :
-   P [::] -> (forall elem l', P l' -> P (elem :: l')) ->
-   forall (l: list T), P l. 
-Proof.
-  intros NIL NEXT; induction l; [ by apply NIL | by apply NEXT, IHl].
-Qed.
-
 Lemma leq_sum_subseq :
-  forall {I: eqType} r1 r2 (P1 P2 : pred I) F
-         (IN: forall x, P1 x -> x \in r1 -> (x \in r2 /\ P2 x)),
-    \sum_(i <- r1 | P1 i) F i <= \sum_(i <- r2 | P2 i) F i.
+  forall {I: eqType} r1 r2 (P : pred I) F
+         (SUB: subseq r1 r2),
+    \sum_(i <- r1 | P i) F i <= \sum_(i <- r2 | P i) F i.
 Proof.
+  ins.
   admit.
+
 Qed.
 
 (*Program Definition fun_ord_to_nat2 {n} {T} (x0: T) (f: 'I_n -> T)
