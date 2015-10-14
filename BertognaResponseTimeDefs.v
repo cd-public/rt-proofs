@@ -989,7 +989,7 @@ Module ResponseTimeAnalysis.
          the schedulability test. *)
                                             
       (*  To prove convergence of R, we first show convergence of rt_rec. *)
-      Lemma rt_rec_converges:
+      Lemma per_task_rta_converges:
         forall (tsk: sporadic_task) prev,
           tsk \in ts ->
           per_task_rta tsk prev (max_steps tsk) <= task_deadline tsk ->
@@ -1119,11 +1119,19 @@ Module ResponseTimeAnalysis.
       Proof.
       Admitted.
       
-      Lemma R_list_no_larger_than_deadline :
-        forall rt_bounds tsk R,
-          R_list = Some rt_bounds ->
+      Lemma R_list_le_deadline :
+        forall ts rt_bounds tsk R,
+          R_list' ts = Some rt_bounds ->
           (tsk, R) \in rt_bounds ->
           R <= task_deadline tsk.
+      Proof.
+      Admitted.
+
+      Lemma R_list_ge_cost :
+        forall ts rt_bounds tsk R,
+          R_list' ts = Some rt_bounds ->
+          (tsk, R) \in rt_bounds ->
+          R >= task_cost tsk.
       Proof.
       Admitted.
 
@@ -1140,7 +1148,9 @@ Module ResponseTimeAnalysis.
       Lemma R_list_rcons :
         forall ts l tsk1 tsk2 R,
           R_list' (rcons ts tsk1) = Some (rcons l (tsk2, R)) ->
-          tsk1 = tsk2 /\ R_list' ts = Some l.
+            tsk1 = tsk2 /\
+            R_list' ts = Some l /\
+            R = per_task_rta tsk1 l (max_steps tsk1) .
       Proof. Admitted.
       
       Lemma R_list_has_response_time_bounds :
@@ -1165,7 +1175,8 @@ Module ResponseTimeAnalysis.
                H_all_jobs_from_taskset into ALLJOBS,
                H_test_passes into TEST,
                H_ts_is_a_set into SET.
-        clear SET ALLJOBS INVARIANT.
+        clear SET ALLJOBS.
+        have CONV := per_task_rta_converges.
         unfold fp_schedulability_test, R_list in *.
         induction ts as [| ts' tsk_i] using last_ind.
         {
@@ -1184,7 +1195,12 @@ Module ResponseTimeAnalysis.
             by ins; red; ins; apply TASKPARAMS; rewrite mem_rcons in_cons; apply/orP; right.
             by ins; apply RESTR; rewrite mem_rcons in_cons; apply/orP; right.
             by apply rcons_sorted in SORT.
+            {
+              ins; exploit (INVARIANT tsk0).
+                rewrite mem_rcons in_cons.
+            }
             by rewrite SOME0.
+            by ins; apply CONV; [by rewrite mem_rcons in_cons; apply/orP; right | by ins].  
           }
           {
             move: LAST => /eqP LAST.
@@ -1194,22 +1210,29 @@ Module ResponseTimeAnalysis.
             have BOUND := bertogna_cirinei_response_time_bound_fp.
             unfold is_response_time_bound_of_task,
                    job_has_completed_by in BOUND.
-            apply BOUND with (job_deadline := job_deadline) (job_task := job_task) (ts := ts') (tsk := tsk_lst) (hp_bounds := hp_bounds) (higher_eq_priority := higher_eq_priority); clear BOUND; try (by ins).
-              by red; ins; apply TASKPARAMS; rewrite mem_rcons in_cons; apply/orP; right.
-              by ins; apply RESTR; rewrite mem_rcons in_cons; apply/orP; right.
-              by admit.
+            apply BOUND with (job_deadline := job_deadline) (job_task := job_task) (ts := rcons ts' tsk_lst) (tsk := tsk_lst) (hp_bounds := hp_bounds) (higher_eq_priority := higher_eq_priority); clear BOUND; try (by ins).
+              by rewrite mem_rcons in_cons; apply/orP; left.
               by admit.
               {  
                 ins; apply IHs with (rt_bounds := hp_bounds) (tsk := hp_tsk); try (by ins).
                 by red; ins; apply TASKPARAMS; rewrite mem_rcons in_cons; apply/orP; right.
                 by ins; apply RESTR; rewrite mem_rcons in_cons; apply/orP; right.
                 by apply rcons_sorted in SORT.
-                by rewrite SOME0.  
+                by admit.  
+                by rewrite SOME0.
+                by ins; apply CONV; [by rewrite mem_rcons in_cons; apply/orP; right | by ins].  
               }
-              by admit.
-              by admit.
-              by admit.
-              by admit.
+              by ins; apply R_list_ge_cost with (ts := ts') (rt_bounds := hp_bounds).
+              by ins; apply R_list_le_deadline with (ts := ts') (rt_bounds := hp_bounds).
+              {
+                ins; exploit (INVARIANT tsk_lst j0 t); try (by ins).
+                by rewrite mem_rcons in_cons; apply/orP; left.
+              }
+              {
+                rewrite SOME1; apply CONV.
+                  by rewrite mem_rcons in_cons; apply/orP; left.
+                  by admit.
+              }  
           }
         }
       Qed.
