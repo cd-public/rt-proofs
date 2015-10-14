@@ -1196,8 +1196,16 @@ Module ResponseTimeAnalysis.
             by ins; apply RESTR; rewrite mem_rcons in_cons; apply/orP; right.
             by apply rcons_sorted in SORT.
             {
-              ins; exploit (INVARIANT tsk0).
-                rewrite mem_rcons in_cons.
+              ins; exploit (INVARIANT tsk0 j0 t); try (by ins);
+                [by rewrite mem_rcons in_cons; apply/orP; right | intro INV].
+              rewrite -cats1 count_cat /= in INV.
+              unfold is_interfering_task_fp in INV.
+              assert (HP: higher_eq_priority tsk_lst tsk0 = false).
+              {
+                move: SORT => SORT.
+                admit. (* need some lemma *)
+              }
+              by rewrite HP 2!andFb 2!addn0 in INV.
             }
             by rewrite SOME0.
             by ins; apply CONV; [by rewrite mem_rcons in_cons; apply/orP; right | by ins].  
