@@ -813,7 +813,7 @@ Module ResponseTimeAnalysis.
        The function either returns a list of pairs (tsk, R_tsk) for the
        entire taskset or None, if the analysis failed for some task.
        Assume that the task set is sorted in increasing priority order. *)
-    Definition R_list : option (seq task_with_response_time) :=
+    (*Definition R_list : option (seq task_with_response_time) :=
       (fix prev_pairs (ts: sporadic_taskset) :=
         match ts with
         | nil => Some nil
@@ -824,9 +824,9 @@ Module ResponseTimeAnalysis.
                 Some ((tsk, R) :: rt_bounds)
               else None
           else None
-        end) ts.
+        end) ts.*)
 
-    Definition R_list' : option (seq task_with_response_time) :=
+    Definition R_list' (ts: sporadic_taskset) : option (seq task_with_response_time) :=
       foldr (fun tsk hp_pairs =>
                if hp_pairs is Some rt_bounds then
                  let R := per_task_rta tsk rt_bounds (max_steps tsk) in
@@ -835,6 +835,7 @@ Module ResponseTimeAnalysis.
                    else None
                else None)
             (Some [::]) ts.
+    Definition R_list := R_list' ts.
 
     Definition fp_schedulability_test := R_list != None.
     
@@ -932,7 +933,7 @@ Module ResponseTimeAnalysis.
         forall tsk, tsk \in ts -> task_deadline tsk <= task_period tsk.
 
       (* ...and tasks are ordered by increasing priorities. *)
-      Hypothesis H_sorted_ts: reverse_sorted higher_eq_priority ts.
+      Hypothesis H_sorted_ts: sorted higher_eq_priority ts.
 
       (* Next, consider any arrival sequence such that...*)
       Context {arr_seq: arrival_sequence Job}.
@@ -986,7 +987,6 @@ Module ResponseTimeAnalysis.
 
       (* Now we present the proofs of termination and correctness of
          the schedulability test. *)
-
                                             
       (*  To prove convergence of R, we first show convergence of rt_rec. *)
       Lemma rt_rec_converges:
@@ -1111,6 +1111,113 @@ Module ResponseTimeAnalysis.
       
       (*..., then no task misses its deadline. *)
 
+      Lemma R_list_contains_tasks :
+        forall ts rt_bounds tsk R,
+          R_list' ts = Some rt_bounds ->
+          (tsk, R) \in rt_bounds ->
+          tsk \in ts.
+      Proof.
+      Admitted.
+      
+      Lemma R_list_no_larger_than_deadline :
+        forall rt_bounds tsk R,
+          R_list = Some rt_bounds ->
+          (tsk, R) \in rt_bounds ->
+          R <= task_deadline tsk.
+      Proof.
+      Admitted.
+
+      Lemma rcons_sorted :
+        forall {T: eqType} (leT: rel T) s x
+               (SORT: sorted leT (rcons s x)),
+          sorted leT s.
+      Proof.
+        ins; destruct s; simpl; first by ins.
+        rewrite rcons_cons /= rcons_path in SORT.
+        by move: SORT => /andP [PATH _].
+      Qed.
+      
+      Lemma R_list_has_response_time_bounds :
+        forall rt_bounds tsk R,
+          R_list = Some rt_bounds ->
+          (tsk, R) \in rt_bounds ->
+          forall j : JobIn arr_seq,
+            job_task j = tsk ->
+            completed job_cost rate sched j (job_arrival j + R).
+      Proof.
+        rename H_valid_job_parameters into JOBPARAMS,
+               H_valid_task_parameters into TASKPARAMS,
+               H_restricted_deadlines into RESTR,
+               H_completed_jobs_dont_execute into COMP,
+               H_jobs_must_arrive_to_execute into MUSTARRIVE,
+               H_global_scheduling_invariant into INVARIANT,
+               H_valid_policy into VALIDhp,
+               H_sorted_ts into SORT,
+               H_transitive into TRANS,
+               H_unique_priorities into UNIQ,
+               H_total into TOTAL,
+               H_all_jobs_from_taskset into ALLJOBS,
+               H_test_passes into TEST,
+               H_ts_is_a_set into SET.
+        clear SET ALLJOBS.
+        unfold R_list in *.
+        
+        induction ts as [| ts' tsk_last] using last_ind.
+        {
+          intros rt_bounds tsk R SOME IN.
+          by inversion SOME; subst; rewrite in_nil in IN.
+        }
+        {
+          intros rt_bounds tsk R SOME IN j JOBj.
+
+          destruct (lastP rt_bounds) as [| rt_bounds' (tsk_lst, R_lst)].
+            by rewrite in_nil in IN.
+      
+          (*destruct rt_bounds as [| (tsk0', R0) rt_bounds'];
+            first by rewrite in_nil in IN.*)
+
+          desf; set tsk_i := job_task j; fold tsk_i in IN.
+          rewrite mem_rcons in_cons in IN; move: IN => /orP IN.
+          destruct IN as [LAST | BEGINNING]; last first.
+          {
+            apply IHs with (rt_bounds := rt_bounds') (tsk := tsk_i); try (by ins).
+              by red; ins; apply TASKPARAMS; rewrite mem_rcons in_cons; apply/orP; right.
+              by ins; apply RESTR; rewrite mem_rcons in_cons; apply/orP; right.
+              by apply rcons_sorted in SORT.
+              {
+                ins; move: SORT => SORT.
+                move: INVARIANT => INVARIANT.
+                exploit (INVARIANT tsk j0 t); try (by ins);
+                 [by rewrite mem_rcons in_cons; apply/orP; right | intro INV].
+                rewrite -cats1 count_cat /= in INV.
+                assert (NOINTERF: is_interfering_task_fp tsk higher_eq_priority tsk_last = false).
+                {
+                  apply negbTE; unfold is_interfering_task_fp.
+                  rewrite negb_and; apply/orP; left.
+                  admit. (* true, since tsk_last is the lowest-prio task. *)
+                }
+                by rewrite NOINTERF andFb 2!addn0 in INV.
+              }
+              {
+                (*weird*)
+                admit.
+              }
+          }
+          {
+            move: SORT => SORT.
+            move: LAST => /eqP LAST.
+            inversion LAST as [[EQ1 EQ2]].
+            rewrite -> EQ2 in *; rewrite -> EQ1 in *.
+            clear EQ1 EQ2 LAST tsk_i.
+
+            
+            (* tsk0 must be the highest-priority tasks. We must prove
+               manually that it completes by time R0 = task_cost tsk0. *)
+            admit.
+          }
+        }
+      Qed.
+      
       Theorem taskset_schedulable_by_fp_rta :
         forall tsk, tsk \in ts -> no_deadline_missed_by tsk.
       Proof.
@@ -1162,7 +1269,7 @@ Module ResponseTimeAnalysis.
             (hp_tsk, R) \in (tsk0, R0) :: hp_bounds ->
              forall j : JobIn arr_seq,
              job_task j = hp_tsk ->
-             service rate sched j (job_arrival j + job_deadline j ) == job_cost j). 
+             service rate sched j (job_arrival j + R ) == job_cost j). 
         {
           intros CUT; ins.
           specialize (INbounds tsk INtsk); des.
