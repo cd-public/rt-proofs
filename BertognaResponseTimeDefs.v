@@ -831,7 +831,7 @@ Module ResponseTimeAnalysis.
                if hp_pairs is Some rt_bounds then
                  let R := per_task_rta tsk rt_bounds (max_steps tsk) in
                    if R <= task_deadline tsk then
-                     Some (rcons rt_bounds (tsk, R))
+                     Some ((tsk, R) :: rt_bounds)
                    else None
                else None)
             (Some [::]) ts.
@@ -1136,6 +1136,12 @@ Module ResponseTimeAnalysis.
         rewrite rcons_cons /= rcons_path in SORT.
         by move: SORT => /andP [PATH _].
       Qed.
+
+      Lemma R_list_rcons :
+        forall ts l tsk1 tsk2 R,
+          R_list' (rcons ts tsk1) = Some (rcons l (tsk2, R)) ->
+          tsk1 = tsk2 /\ R_list' ts = Some l.
+      Proof. Admitted.
       
       Lemma R_list_has_response_time_bounds :
         forall rt_bounds tsk R,
@@ -1159,61 +1165,51 @@ Module ResponseTimeAnalysis.
                H_all_jobs_from_taskset into ALLJOBS,
                H_test_passes into TEST,
                H_ts_is_a_set into SET.
-        clear SET ALLJOBS.
-        unfold R_list in *.
-        
-        induction ts as [| ts' tsk_last] using last_ind.
+        clear SET ALLJOBS INVARIANT.
+        unfold fp_schedulability_test, R_list in *.
+        induction ts as [| ts' tsk_i] using last_ind.
         {
           intros rt_bounds tsk R SOME IN.
           by inversion SOME; subst; rewrite in_nil in IN.
         }
         {
           intros rt_bounds tsk R SOME IN j JOBj.
-
-          destruct (lastP rt_bounds) as [| rt_bounds' (tsk_lst, R_lst)].
-            by rewrite in_nil in IN.
-      
-          (*destruct rt_bounds as [| (tsk0', R0) rt_bounds'];
-            first by rewrite in_nil in IN.*)
-
-          desf; set tsk_i := job_task j; fold tsk_i in IN.
+          destruct (lastP rt_bounds) as [| hp_bounds (tsk_lst, R_lst)];
+            first by rewrite in_nil in IN.
+          apply R_list_rcons in SOME; des; subst tsk_i.
           rewrite mem_rcons in_cons in IN; move: IN => /orP IN.
           destruct IN as [LAST | BEGINNING]; last first.
           {
-            apply IHs with (rt_bounds := rt_bounds') (tsk := tsk_i); try (by ins).
-              by red; ins; apply TASKPARAMS; rewrite mem_rcons in_cons; apply/orP; right.
-              by ins; apply RESTR; rewrite mem_rcons in_cons; apply/orP; right.
-              by apply rcons_sorted in SORT.
-              {
-                ins; move: SORT => SORT.
-                move: INVARIANT => INVARIANT.
-                exploit (INVARIANT tsk j0 t); try (by ins);
-                 [by rewrite mem_rcons in_cons; apply/orP; right | intro INV].
-                rewrite -cats1 count_cat /= in INV.
-                assert (NOINTERF: is_interfering_task_fp tsk higher_eq_priority tsk_last = false).
-                {
-                  apply negbTE; unfold is_interfering_task_fp.
-                  rewrite negb_and; apply/orP; left.
-                  admit. (* true, since tsk_last is the lowest-prio task. *)
-                }
-                by rewrite NOINTERF andFb 2!addn0 in INV.
-              }
-              {
-                (*weird*)
-                admit.
-              }
+            apply IHs with (rt_bounds := hp_bounds) (tsk := tsk); try (by ins).
+            by ins; red; ins; apply TASKPARAMS; rewrite mem_rcons in_cons; apply/orP; right.
+            by ins; apply RESTR; rewrite mem_rcons in_cons; apply/orP; right.
+            by apply rcons_sorted in SORT.
+            by rewrite SOME0.
           }
           {
-            move: SORT => SORT.
             move: LAST => /eqP LAST.
             inversion LAST as [[EQ1 EQ2]].
-            rewrite -> EQ2 in *; rewrite -> EQ1 in *.
-            clear EQ1 EQ2 LAST tsk_i.
-
+            rewrite -> EQ1 in *; rewrite -> EQ2 in *; clear EQ1 EQ2 LAST.
             
-            (* tsk0 must be the highest-priority tasks. We must prove
-               manually that it completes by time R0 = task_cost tsk0. *)
-            admit.
+            have BOUND := bertogna_cirinei_response_time_bound_fp.
+            unfold is_response_time_bound_of_task,
+                   job_has_completed_by in BOUND.
+            apply BOUND with (job_deadline := job_deadline) (job_task := job_task) (ts := ts') (tsk := tsk_lst) (hp_bounds := hp_bounds) (higher_eq_priority := higher_eq_priority); clear BOUND; try (by ins).
+              by red; ins; apply TASKPARAMS; rewrite mem_rcons in_cons; apply/orP; right.
+              by ins; apply RESTR; rewrite mem_rcons in_cons; apply/orP; right.
+              by admit.
+              by admit.
+              {  
+                ins; apply IHs with (rt_bounds := hp_bounds) (tsk := hp_tsk); try (by ins).
+                by red; ins; apply TASKPARAMS; rewrite mem_rcons in_cons; apply/orP; right.
+                by ins; apply RESTR; rewrite mem_rcons in_cons; apply/orP; right.
+                by apply rcons_sorted in SORT.
+                by rewrite SOME0.  
+              }
+              by admit.
+              by admit.
+              by admit.
+              by admit.
           }
         }
       Qed.
