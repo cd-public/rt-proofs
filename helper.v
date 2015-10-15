@@ -556,6 +556,32 @@ Proof.
 
 Qed.
 
+Lemma sorted_rcons_prefix :
+  forall {T: eqType} (leT: rel T) s x
+         (SORT: sorted leT (rcons s x)),
+    sorted leT s.
+Proof.
+  ins; destruct s; simpl; first by ins.
+  rewrite rcons_cons /= rcons_path in SORT.
+  by move: SORT => /andP [PATH _].
+Qed.
+
+Lemma order_sorted_rcons :
+  forall {T: eqType} (leT: rel T) (s: seq T) (x last: T)
+         (TRANS: transitive leT) (SORT: sorted leT (rcons s last))
+         (IN: x \in s),
+    leT x last.
+Proof.
+  ins; induction s; first by rewrite in_nil in IN.
+  simpl in SORT; move: IN; rewrite in_cons; move => /orP IN.
+  destruct IN as [HEAD | TAIL];
+    last by apply IHs; [by apply path_sorted in SORT| by ins].                                        
+  move: HEAD => /eqP HEAD; subst a.
+  apply order_path_min in SORT; last by ins.
+  move: SORT => /allP SORT.
+  by apply SORT; rewrite mem_rcons in_cons; apply/orP; left.
+Qed.
+
 (*Program Definition fun_ord_to_nat2 {n} {T} (x0: T) (f: 'I_n -> T)
         (x : nat) : T :=
   match (x < n) with
