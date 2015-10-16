@@ -582,6 +582,22 @@ Proof.
   by apply SORT; rewrite mem_rcons in_cons; apply/orP; left.
 Qed.
 
+Lemma exists_unzip2 :
+  forall {T1 T2: eqType} (l: seq (T1 * T2)) x (IN: x \in (unzip1 l)),
+    exists y, (x, y) \in l.
+Proof.
+  intros T1 T2 l; induction l as [| (x', y') l']; first by ins.
+  {
+    intros x IN; simpl in IN.
+    rewrite in_cons in IN; move: IN => /orP [/eqP HEAD | TAIL];
+      first by subst x'; exists y'; rewrite in_cons; apply/orP; left. 
+    {
+      specialize (IHl' x TAIL); des; exists y.
+      by rewrite in_cons; apply/orP; right.
+    }
+  }
+Qed.
+
 (*Program Definition fun_ord_to_nat2 {n} {T} (x0: T) (f: 'I_n -> T)
         (x : nat) : T :=
   match (x < n) with

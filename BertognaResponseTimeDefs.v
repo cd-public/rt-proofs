@@ -288,18 +288,27 @@ Module ResponseTimeAnalysis.
       
       (* Assume that for any interfering task, a response-time
          bound R_other is known. *)
-      Hypothesis H_response_time_of_interfering_tasks_is_known:
+      Hypothesis H_all_interfering_tasks_in_hp_bounds:
+        [seq tsk_hp <- ts | interferes_with_tsk tsk_hp] = unzip1 hp_bounds.
+
+      Lemma exists_R :
         forall hp_tsk,
           hp_tsk \in ts ->
           interferes_with_tsk hp_tsk ->
           exists R,
             (hp_tsk, R) \in hp_bounds.
+      Proof.
+        intros hp_tsk IN INTERF.
+        rewrite -[hp_bounds]zip_unzip; apply exists_unzip2.
+        by rewrite zip_unzip -H_all_interfering_tasks_in_hp_bounds mem_filter; apply/andP.
+      Qed.      
 
       Hypothesis H_response_time_of_interfering_tasks_is_known2:
         forall hp_tsk R,
           (hp_tsk, R) \in hp_bounds ->
           is_response_time_bound_of_task job_cost job_task hp_tsk rate sched R.
 
+      
       (* Assume that the response-time bounds are larger than task costs. *)
       Hypothesis H_response_time_bounds_ge_cost:
         forall hp_tsk R,
@@ -354,8 +363,8 @@ Module ResponseTimeAnalysis.
                H_valid_job_parameters into PARAMS,
                H_valid_task_parameters into TASK_PARAMS,
                H_restricted_deadlines into RESTR,
-               H_response_time_of_interfering_tasks_is_known into ALLHP,
                H_response_time_of_interfering_tasks_is_known2 into RESP,
+               H_all_interfering_tasks_in_hp_bounds into FST,
                H_interfering_tasks_miss_no_deadlines into NOMISS,
                H_rate_equals_one into RATE,
                H_global_scheduling_invariant into INVARIANT,
@@ -403,7 +412,7 @@ Module ResponseTimeAnalysis.
         {
           move => tsk_k /andP [INk INTERk] R_k HPk.
           unfold x, workload_bound; rewrite INk INTERk andbT.
-          exploit (ALLHP tsk_k); [by ins | by ins | intro INhp; des].
+          exploit (exists_R tsk_k); [by ins | by ins | intro INhp; des].
           apply leq_trans with (n := workload job_task rate sched tsk_k
                                     (job_arrival j) (job_arrival j + R)).
           {
@@ -692,19 +701,14 @@ Module ResponseTimeAnalysis.
           {
             rewrite (eq_bigr (fun i => minn (x (fst i)) (R - task_cost tsk + 1)));
               last by ins; destruct i.
-            rewrite (bigID (fun i => (fst i \in ts) && interferes_with_tsk (fst i))) /=.
-            rewrite -[\sum_(_ <- _) _]addn0; apply leq_add; last by ins.
             apply leq_trans with (n := \sum_(tsk_k <- ts | interferes_with_tsk tsk_k) minn (x tsk_k) (R - task_cost tsk + 1)).
             {
               rewrite [\sum_(_ <- _ | interferes_with_tsk _)_]big_mkcond eq_leq //.
               apply eq_bigr; intros i _; unfold x.
               by destruct (interferes_with_tsk i); rewrite ?andbT ?andbF ?min0n.
             }
-            have MAP := big_map (fun x => fst x) (fun i => (i \in ts) && interferes_with_tsk i) (fun i => minn (x i) (R - task_cost tsk + 1)).
-            rewrite -MAP -big_filter -[\sum_(_ <- [seq fst x0 | x0 <- _] | _)_]big_filter; clear MAP.
-            apply leq_sum_subseq; rewrite subseq_filter; apply/andP; split;
-              first by apply/allP; intro i; rewrite mem_filter andbC.
-            admit.
+            have MAP := big_map (fun x => fst x) (fun i => true) (fun i => minn (x i) (R - task_cost tsk + 1)).
+            by unfold unzip1 in *; rewrite -MAP -FST -big_filter.
           }
           apply ltn_div_trunc with (d := num_cpus);
             first by apply H_at_least_one_cpu.
