@@ -84,7 +84,6 @@ VFILES:=apa.v\
   BertognaResponseTimeDefs.v\
   BertognaResponseTimeFP.v\
   divround.v\
-  eqtask_dec.v\
   extralib.v\
   ExtraRelations.v\
   helper.v\

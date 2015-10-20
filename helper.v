@@ -546,16 +546,6 @@ Proof.
       [by rewrite Rxy in XY' | by rewrite Ryx in YX']. 
 Qed.
 
-Lemma leq_sum_subseq :
-  forall {I: eqType} r1 r2 (P : pred I) F
-         (SUB: subseq r1 r2),
-    \sum_(i <- r1 | P i) F i <= \sum_(i <- r2 | P i) F i.
-Proof.
-  ins.
-  admit.
-
-Qed.
-
 Lemma sorted_rcons_prefix :
   forall {T: eqType} (leT: rel T) s x
          (SORT: sorted leT (rcons s x)),
