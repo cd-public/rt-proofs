@@ -14,9 +14,6 @@ Module ResponseTimeIterationFP.
     Variable higher_eq_priority: fp_policy.
     Hypothesis H_valid_policy: valid_fp_policy higher_eq_priority.
 
-    (* Consider a task set ts. *)
-    Variable ts: sporadic_taskset.
-        
     (* Next we define the fixed-point iteration for computing
        Bertogna's response-time bound for any task in ts. *)
     
@@ -67,16 +64,19 @@ Module ResponseTimeIterationFP.
 
     (* The schedulability test simply checks if we got a list of
        response-time bounds (i.e., if the computation did not fail). *)
-    Definition fp_schedulability_test := R_list ts != None.
+    Definition fp_schedulability_test (ts: sporadic_taskset) :=
+      R_list ts != None.
     
     Section AuxiliaryLemmas.
 
       (* In this section, we prove several helper lemmas about the
          list of response-time bounds, such as:
          (1) Equality among tasks in R_list and in the task set.
-         (2) (tsk, R) \in R_list -> R <= task_deadline tsk.
-         (3) (tsk, R) \in R_list -> R >= task_cost tsk.
-         (4) per_task_rta <= deadline -> per_task_rta converges *)
+         (2) If (tsk, R) \in R_list, then R <= task_deadline tsk.
+         (3) If (tsk, R) \in R_list, then R >= task_cost tsk.
+         (4) If per_task_rta returns a bound <= deadline, then the
+             iteration reached a fixed-point. *)
+
       Lemma R_list_rcons_prefix :
         forall ts' hp_bounds tsk1 tsk2 R,
           R_list (rcons ts' tsk1) = Some (rcons hp_bounds (tsk2, R)) ->
@@ -451,7 +451,13 @@ Module ResponseTimeIterationFP.
     
     Section Proof.
 
-      (* Assume that higher_eq_priority is a total order over the task set. *)
+      (* Consider a task set ts. *)
+      Variable ts: sporadic_taskset.
+      
+      (* Assume that higher_eq_priority is a total order.
+         Actually, it just needs to be total over the task set,
+         but to weaken the assumption, I have to re-prove many lemmas
+         about ordering in ssreflect. This can be done later. *)
       Hypothesis H_reflexive: reflexive higher_eq_priority.
       Hypothesis H_transitive: transitive higher_eq_priority.
       Hypothesis H_unique_priorities: antisymmetric higher_eq_priority.
@@ -640,7 +646,7 @@ Module ResponseTimeIterationFP.
       Qed.
 
       (* Finally, we show that if the schedulability test suceeds, ...*)
-      Hypothesis H_test_passes: fp_schedulability_test.
+      Hypothesis H_test_passes: fp_schedulability_test ts.
       
       (*..., then no task misses its deadline. *)
       Theorem taskset_schedulable_by_fp_rta :
