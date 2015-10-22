@@ -430,7 +430,7 @@ Module Schedule.
   End ServiceProperties.
 
 End Schedule.
-
+  
 Module ScheduleOfSporadicTask.
 
   Import SporadicTask.
@@ -457,7 +457,35 @@ Module ScheduleOfSporadicTask.
     
     Definition exists_earlier_job (t: time) (jlow: JobIn arr_seq) :=
       exists j0, job_is_pending j0 t /\ earlier_job_from_same_task j0 jlow.
-    
-End EarlierJobs.
+ 
+  End EarlierJobs.
 
 End ScheduleOfSporadicTask.
+
+Module ScheduleOfTaskWithJitter.
+
+  Import SporadicTaskWithJitter.
+  Export Schedule.
+  
+  Section ArrivalAfterJitter.
+
+    Context {Job: eqType}.
+    Context {arr_seq: arrival_sequence Job}.
+    
+    Variable job_cost: Job -> nat.
+    Variable job_task: Job -> sporadic_task_with_jitter.
+    Variable job_jitter: Job -> nat.
+    
+    Variable num_cpus: nat.
+    Variable rate: Job -> processor num_cpus -> time.
+    Variable sched: schedule num_cpus arr_seq.
+
+    (* Whether a job can only be scheduled if it has arrived *)
+    Definition jobs_execute_after_jitter :=
+      forall j t,
+        scheduled sched j t ->
+        job_arrival j + job_jitter j <= t.
+ 
+  End ArrivalAfterJitter.
+
+End ScheduleOfTaskWithJitter.
