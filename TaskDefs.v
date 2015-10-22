@@ -1,4 +1,4 @@
-Require Import Vbase helper ssrnat.
+Require Import Vbase helper ssrnat ssrbool fintype seq.
 
 Module SporadicTask.
 
@@ -31,8 +31,24 @@ Module SporadicTask.
   
 End SporadicTask.
 
+Module SporadicTaskWithJitter.
+
+  Import SporadicTask.
+  
+  Definition sporadic_task_with_jitter := (sporadic_task * nat) % type.
+
+  Section TaskParameters.
+    Coercion task_with_jitter_is_task (tsk: sporadic_task_with_jitter) :=
+      pair_1st tsk.
+    Definition task_jitter (tsk: sporadic_task_with_jitter) := pair_2nd tsk.
+  End TaskParameters.
+
+  (* Assume decidable equality for computations involving tasks. *)
+  Load eqtaskjitter_dec.
+
+End SporadicTaskWithJitter.
+
 Module SporadicTaskset.
-  Require Import ssrbool fintype seq.
   Export SporadicTask.
   
   (* Define task set as a sequence of sporadic tasks. *)
@@ -57,3 +73,13 @@ Module SporadicTaskset.
   End TasksetProperties.
 
 End SporadicTaskset.
+
+Module SporadicTasksetWithJitter.
+
+  Export SporadicTaskWithJitter SporadicTaskset.
+
+  Definition sporadic_taskset_with_jitter := seq sporadic_task_with_jitter.
+
+  Coercion taskset_with_jitter_is_taskset (ts: sporadic_taskset_with_jitter) := map task_with_jitter_is_task ts.
+
+End SporadicTasksetWithJitter.

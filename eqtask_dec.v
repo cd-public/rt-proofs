@@ -9,7 +9,6 @@ Axiom eqn_task : Equality.axiom task_eq_dec.
 Canonical task_eqMixin := EqMixin eqn_task.
 Canonical task_eqType := Eval hnf in EqType sporadic_task task_eqMixin.
 
-
 (*Definition task_eq_dec (x y: sporadic_task) : {x = y} + {x <> y}.
   destruct x, y.
   destruct (eq_op task_id0 task_id1) eqn:Eid;
