@@ -8,9 +8,7 @@ Module Priority.
 
   Section PriorityDefs.
 
-    Context {sporadic_task: eqType}.
     Context {Job: eqType}.
-    Variable num_cpus: nat.
     Variable arr_seq: arrival_sequence Job.
 
     (* All the priority relations are non-strict, i.e., they specify that
@@ -25,6 +23,7 @@ Module Priority.
     (* FP policy is simply a relation between tasks.
        Because our model of processor platform is based on a generic JLDP policy,
        we generate a JLDP policy from an FP policy whenever required. *)
+    Variable sporadic_task: eqType.
     Definition fp_policy := sporadic_task -> sporadic_task -> bool.
 
     Section ValidJLFPPolicy.
@@ -41,9 +40,7 @@ Module Priority.
       
       (* A policy is total, since it must know the priority of any two jobs at any time. *)
       Definition jlfp_is_total :=
-        forall (sched: schedule num_cpus arr_seq)
-               (j1 j2: JobIn arr_seq) t,
-          is_higher_priority sched t j1 j2 \/ is_higher_priority sched t j2 j1.
+        forall t, total (is_higher_priority t).
 
       (* A JLDP policy is valid iff it satisfies the three properties.
          Note that, for generality, we don't enforce antisymmetry and allow multiple
@@ -61,9 +58,7 @@ Module Priority.
 
       Definition fp_is_transitive := transitive is_higher_priority.
       
-      Definition fp_is_total :=
-        forall tsk1 tsk2,
-          is_higher_priority tsk1 tsk2 \/ is_higher_priority tsk2 tsk1.
+      Definition fp_is_total := total is_higher_priority.
 
       (* We enforce the same restrictions for FP policy: reflexive, transitive, total. *)
       Definition valid_fp_policy :=
@@ -75,6 +70,10 @@ Module Priority.
   
   Section RateDeadlineMonotonic.
 
+    Context {sporadic_task: eqType}.
+    Variable task_period: sporadic_task -> nat.
+    Variable task_deadline: sporadic_task -> nat.
+    
     (* Rate-Monotonic and Deadline-Monotonic priority order *)
     Definition RM (tsk1 tsk2: sporadic_task) := task_period tsk1 <= task_period tsk2.
 
@@ -85,7 +84,7 @@ Module Priority.
       unfold valid_fp_policy, fp_is_reflexive, fp_is_transitive, RM;
         repeat (split; try red); first by ins.
       by intros x y z XY YZ; apply leq_trans with (n := task_period x).
-      by intros tsk1 tsk2; destruct (leqP (task_period tsk1) (task_period tsk2));
+      by red; intros tsk1 tsk2; apply/orP; destruct (leqP (task_period tsk1) (task_period tsk2));
         [by left | by right; apply ltnW].
     Qed.
 
@@ -94,7 +93,7 @@ Module Priority.
       unfold valid_fp_policy, fp_is_reflexive, fp_is_transitive, DM;
       repeat (split; try red); first by ins.
         by intros x y z; apply leq_trans.
-        by intros tsk1 tsk2; destruct (leqP (task_deadline tsk1) (task_deadline tsk2));
+        by red; intros tsk1 tsk2; apply/orP; destruct (leqP (task_deadline tsk1) (task_deadline tsk2));
           [by left | by right; apply ltnW].
     Qed.
 
@@ -102,13 +101,14 @@ Module Priority.
 
   Section GeneralizeFP.
 
+    Context {sporadic_task: eqType}.
     Context {Job: eqType}.
     Variable job_task: Job -> sporadic_task.
     Variable arr_seq: arrival_sequence Job.
     Variable num_cpus: nat.
     
-    Definition fp_to_jldp (task_hp: fp_policy) : jldp_policy num_cpus arr_seq :=
-      fun (sched: schedule num_cpus arr_seq) (t: time) (jhigh jlow: JobIn arr_seq) =>
+    Definition fp_to_jldp (task_hp: fp_policy sporadic_task) : jldp_policy arr_seq :=
+      fun (t: time) (jhigh jlow: JobIn arr_seq) =>
         task_hp (job_task jhigh) (job_task jlow).
 
     Lemma valid_fp_is_valid_jldp :
@@ -127,16 +127,17 @@ Module Priority.
 
   Section JLFPDefs.
 
+    Context {sporadic_task: eqType}.
     Context {Job: eqType}.
     Context {num_cpus: nat}.
     Context {arr_seq: arrival_sequence Job}.
 
-    Variable is_higher_priority: jldp_policy num_cpus arr_seq.
+    Variable is_higher_priority: jldp_policy arr_seq.
 
     (* JLFP policy is a JLDP policy where the priorities do not vary with time. *)
-    Definition is_jlfp_policy (is_higher_priority: jldp_policy num_cpus arr_seq) :=
-      forall sched j1 j2 t t',
-        is_higher_priority sched t j1 j2 -> is_higher_priority sched t' j1 j2.
+    Definition is_jlfp_policy (is_higher_priority: jldp_policy arr_seq) :=
+      forall j1 j2 t t',
+        is_higher_priority t j1 j2 -> is_higher_priority t' j1 j2.
 
     (* Lemma: every FP policy is a JLFP policy. *)
     Variable job_task: Job -> sporadic_task.
@@ -156,7 +157,7 @@ Module Priority.
     Context {arr_seq: arrival_sequence Job}.
     Variable job_deadline: Job -> nat.
       
-    Definition EDF (sched: schedule num_cpus arr_seq) (t: time) (j1 j2: JobIn arr_seq) :=
+    Definition EDF (t: time) (j1 j2: JobIn arr_seq) :=
       job_arrival j1 + job_deadline j1 <= job_arrival j2 + job_deadline j2.
 
     (* Lemma: EDF is a JLFP policy. *)
@@ -171,14 +172,14 @@ Module Priority.
       repeat (split; try red).
         by ins; apply leqnn.
         by intros sched t y x z; apply leq_trans.
-        by intros sched j1 j2 t;
+        by intros _; red; intros j1 j2; apply/orP;
           destruct (leqP (job_arrival j1 + job_deadline j1) (job_arrival j2 + job_deadline j2));
             [by left | by right; apply ltnW].
     Qed.
 
   End EDFDefs.
 
-  Section ScheduleIndependent.
+  (*Section ScheduleIndependent.
 
     Context {Job: eqType}.
     Context {num_cpus: nat}.
@@ -203,7 +204,7 @@ Module Priority.
       by unfold schedule_independent, fp_to_jldp.
     Qed.
       
-  End ScheduleIndependent.
+  End ScheduleIndependent.*)
 
 End Priority.
 
@@ -230,6 +231,3 @@ Definition num_interfering_jobs (jlow: job) :=
   count (interferes_with jlow) (all_arrivals sched t).
 
 End BasicDefinitions.*)
-
-
-  

@@ -45,33 +45,37 @@ End SporadicTask.
 Module SporadicTaskset.
   Export SporadicTask.
 
-  (* Define task set as a sequence of sporadic tasks. *)
-  Variable Task: eqType.
-  Definition sporadic_taskset := seq Task.
+  Section TasksetDefs.
+    
+    (* Define task set as a sequence of sporadic tasks. *)
+    Definition taskset_of (T: eqType) := seq T.
 
-  Section TasksetProperties.
+    Section TasksetProperties.
 
-    Variable task_cost: Task -> nat.
-    Variable task_period: Task -> nat.
-    Variable task_deadline: Task -> nat.
+      Context {Task: eqType}.
+      Variable task_cost: Task -> nat.
+      Variable task_period: Task -> nat.
+      Variable task_deadline: Task -> nat.
 
-    Variable ts: sporadic_taskset.
+      Variable ts: taskset_of Task.
 
-    Let is_valid_task :=
-      is_valid_sporadic_task task_cost task_period task_deadline.
+      Let is_valid_task :=
+        is_valid_sporadic_task task_cost task_period task_deadline.
 
-    Definition valid_sporadic_taskset :=
-      forall tsk (IN: tsk \in ts), is_valid_task tsk.
+      Definition valid_sporadic_taskset :=
+        forall tsk (IN: tsk \in ts), is_valid_task tsk.
 
-    (* Deadline models: implicit, restricted or arbitrary *)
-    Definition implicit_deadline_model :=
-      forall tsk (IN: tsk \in ts), task_deadline tsk = task_period tsk.
+      (* Deadline models: implicit, restricted or arbitrary *)
+      Definition implicit_deadline_model :=
+        forall tsk (IN: tsk \in ts), task_deadline tsk = task_period tsk.
 
-    Definition restricted_deadline_model :=
-      forall tsk (IN: tsk \in ts), task_deadline tsk <= task_period tsk.
+      Definition restricted_deadline_model :=
+        forall tsk (IN: tsk \in ts), task_deadline tsk <= task_period tsk.
 
-    Definition arbitrary_deadline_model := True.
+      Definition arbitrary_deadline_model := True.
 
-  End TasksetProperties.
+    End TasksetProperties.
+
+  End TasksetDefs.
 
 End SporadicTaskset.

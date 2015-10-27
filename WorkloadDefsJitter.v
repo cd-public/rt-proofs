@@ -4,10 +4,15 @@ Require Import Vbase JobDefs TaskDefs ScheduleDefs TaskArrivalDefs ResponseTimeD
 
 Module WorkloadWithJitter.
 
-  Import Job SporadicTasksetWithJitter ScheduleOfTaskWithJitter
+  Import Job SporadicTaskset ScheduleOfTaskWithJitter
          SporadicTaskArrival ResponseTime Schedulability Workload.
   
   Section WorkloadBoundWithJitter.
+
+    Context {sporadic_task_with_jitter: eqType}.
+    Variable task_cost: sporadic_task_with_jitter -> nat.
+    Variable task_period: sporadic_task_with_jitter -> nat.
+    Variable task_jitter: sporadic_task_with_jitter -> nat.
 
     Context {Job: eqType}.
     Variable job_task: Job -> sporadic_task_with_jitter.
@@ -29,7 +34,6 @@ Module WorkloadWithJitter.
     (* Bertogna and Cirinei's bound on the workload of a task in an interval of length delta *)
     Definition W_jitter :=
       let e_k := (task_cost tsk) in
-      let d_k := (task_deadline tsk) in
       let p_k := (task_period tsk) in
       let j_k := (task_jitter tsk) in
       minn e_k (delta + j_k + R_tsk - e_k - max_jobs_jitter * p_k) + max_jobs_jitter * e_k.
@@ -38,19 +42,26 @@ Module WorkloadWithJitter.
 
   Section BasicLemmas.
 
+    Context {sporadic_task_with_jitter: eqType}.
+    Variable task_cost: sporadic_task_with_jitter -> nat.
+    Variable task_period: sporadic_task_with_jitter -> nat.
+    Variable task_jitter: sporadic_task_with_jitter -> nat.
+    
     Variable tsk: sporadic_task_with_jitter.
     Hypothesis period_positive: task_period tsk > 0.
 
     Variable R: time.
     Hypothesis R_lower_bound: R >= task_cost tsk.
-    
-   Lemma W_monotonic :
+
+    Let workload_bound := W_jitter task_cost task_period task_jitter tsk R.
+
+    Lemma W_jitter_monotonic :
      forall t1 t2,
        t1 <= t2 ->
-       W_jitter tsk R t1 <= W_jitter tsk R t2.
+       workload_bound t1 <= workload_bound t2.
    Proof.
      intros t1 t2 LEt.
-     unfold W_jitter, max_jobs_jitter, div_floor; rewrite 2!subndiv_eq_mod.
+     unfold workload_bound, W_jitter, max_jobs_jitter, div_floor; rewrite 2!subndiv_eq_mod.
      set e := task_cost tsk; set p := task_period tsk; set j := task_jitter tsk.
    
      generalize dependent t2; rewrite leq_as_delta.
@@ -104,8 +115,14 @@ Module WorkloadWithJitter.
   End BasicLemmas.
     
   Section ProofWorkloadBoundJitter.
-  
-    Variable Job: eqType.
+
+    Context {sporadic_task_with_jitter: eqType}.
+    Variable task_cost: sporadic_task_with_jitter -> nat.
+    Variable task_period: sporadic_task_with_jitter -> nat.
+    Variable task_deadline: sporadic_task_with_jitter -> nat.
+    Variable task_jitter: sporadic_task_with_jitter -> nat.
+    
+    Context {Job: eqType}.
     Variable job_cost: Job -> nat.
     Variable job_task: Job -> sporadic_task_with_jitter.
     Variable job_deadline: Job -> nat.
@@ -116,7 +133,7 @@ Module WorkloadWithJitter.
     (* Assume that all jobs have valid parameters *)
     Hypothesis jobs_have_valid_parameters :
       forall (j: JobIn arr_seq),
-        valid_sporadic_job_with_jitter job_cost job_deadline job_task job_jitter j.
+        valid_sporadic_job_with_jitter task_cost task_deadline task_jitter job_cost job_deadline job_task job_jitter j.
     
     Variable num_cpus: nat.
     Variable rate: Job -> processor num_cpus -> nat.
@@ -148,7 +165,8 @@ Module WorkloadWithJitter.
     (* Assumption: sporadic task model.
        This is necessary to conclude that consecutive jobs ordered by arrival times
        are separated by at least 'period' times units. *)
-    Hypothesis sporadic_tasks: sporadic_task_model arr_seq job_task.
+    Hypothesis sporadic_tasks:
+      sporadic_task_model task_period arr_seq job_task.
 
     (* Before starting the proof, let's give simpler names to the definitions. *)
     Section CleanerDefinitions.
@@ -173,7 +191,8 @@ Module WorkloadWithJitter.
              jobs is at least (cost + n*period), where n is the number
              of middle jobs. If cost >> period, the claim does not hold
              for every task set. *)
-    Hypothesis valid_task_parameters: valid_sporadic_task tsk.
+    Hypothesis valid_task_parameters:
+      is_valid_sporadic_task task_cost task_period task_deadline tsk.
 
     (* Assumption: the task must have a restricted deadline.
        This is required to prove that n_k (max_jobs) from Bertogna
@@ -192,20 +211,23 @@ Module WorkloadWithJitter.
     Variable t1 delta: time.
     Hypothesis no_deadline_misses_during_interval: no_deadline_misses_by tsk (t1 + delta).
 
-    (* Then the workload of the task in the interval is bounded by W. *)
-    Theorem workload_bounded_by_W :
-      workload_of tsk t1 (t1 + delta) <= W_jitter tsk R_tsk delta.
+    (* Then the workload of the task in the interval is bounded by W_jitter. *)
+    Let workload_bound := W_jitter task_cost task_period task_jitter.
+
+    Theorem workload_bounded_by_W_jitter :
+      workload_of tsk t1 (t1 + delta) <= workload_bound tsk R_tsk delta.
     Proof.
       rename jobs_have_valid_parameters into job_properties,
              no_deadline_misses_during_interval into no_dl_misses,
-             valid_task_parameters into task_properties.
-      unfold valid_sporadic_job, valid_realtime_job, restricted_deadline_model,
-             valid_sporadic_taskset, valid_sporadic_task, sporadic_task_model,
-             workload_of, response_time_bound_of, no_deadline_misses_by, W in *; ins; des.
+             valid_task_parameters into task_properties,
+             H_jobs_must_arrive_after_jitter into ARRIVE.
+      unfold valid_sporadic_job_with_jitter, valid_sporadic_job, valid_realtime_job, restricted_deadline_model, jobs_execute_after_jitter,
+             valid_sporadic_taskset, is_valid_sporadic_task, sporadic_task_model,
+             workload_of, response_time_bound_of, no_deadline_misses_by, workload_bound, W_jitter in *; ins; des.
 
       (* Simplify names *)
       set t2 := t1 + delta.
-      set n_k := max_jobs_jitter tsk R_tsk delta.
+      set n_k := max_jobs_jitter task_cost task_period task_jitter tsk R_tsk delta.
 
       (* Use the definition of workload based on list of jobs. *)
       rewrite workload_eq_workload_joblist; unfold workload_joblist.
@@ -227,11 +249,7 @@ Module WorkloadWithJitter.
         rewrite (eq_bigr (fun x => 0)); last by move => j_i /andP JOBi; des; apply /eqP.
         rewrite big_const_seq iter_addn mul0n add0n add0n.
         by rewrite big_filter.
-      }
-      Set Printing All. idtac.
-      simpl
-
-      rewrite SIMPL. rewrite SIMPL; clear SIMPL.
+      } rewrite SIMPL; clear SIMPL.
 
       (* Remember that for any job of tsk, service <= task_cost tsk *)
       assert (LTserv: forall j_i (INi: j_i \in interfering_jobs),
@@ -326,7 +344,7 @@ Module WorkloadWithJitter.
             apply leq_add; last by ins.
             apply leq_trans with (n := \sum_(t1 <= t < t2) 1).
               by apply leq_sum; ins; apply service_at_le_max_rate.
-              by unfold t2; rewrite big_const_nat iter_addn mul1n addn0 addnC -addnBA // subnn addn0.
+              by unfold t2; rewrite big_const_nat iter_addn mul1n addn0 addnC -addnBA // subnn addn0 leq_addr.
           }
         }
       } rewrite [nth]lock /= -lock in ALL.
@@ -360,13 +378,14 @@ Module WorkloadWithJitter.
         move: LTsize => /andP [LTsize _]; des.
         move: LTsize => /andP [_ SERV].
         move: SERV => /eqP SERV; apply SERV.
-        by unfold service_during; rewrite sum_service_before_arrival.
+        unfold service_during; rewrite sum_service_before_arrival; try (by ins).
+        by apply arrival_before_jitter with (job_jitter0 := job_jitter).
       }
 
       (* Next, we upper-bound the service of the first and last jobs using their arrival times. *)
       assert (BOUNDend: service_during rate sched j_fst t1 t2 +
                         service_during rate sched j_lst t1 t2 <=
-                        (job_arrival j_fst  + R_tsk - t1) + (t2 - job_arrival j_lst)).
+                        (job_arrival j_fst + R_tsk - t1) + (t2 - job_arrival j_lst)).
       {
         apply leq_add; unfold service_during.
         {
@@ -402,7 +421,10 @@ Module WorkloadWithJitter.
             apply negbT in LT; rewrite -ltnNge in LT.
             rewrite -> big_cat_nat with (n := job_arrival j_lst); [|by apply ltnW| by apply ltnW].
             rewrite /= -[\sum_(_ <= _ < _) 1]add0n; apply leq_add.
-            rewrite sum_service_before_arrival; [by apply leqnn | by ins | by apply leqnn].
+            {
+              rewrite sum_service_before_arrival; [by ins| |by apply leqnn].
+                by apply arrival_before_jitter with (job_jitter0 := job_jitter).
+            }
             by apply leq_sum; ins; apply service_at_le_max_rate.
           }
         }
@@ -495,8 +517,8 @@ Module WorkloadWithJitter.
           apply leq_trans with (n := n_k.+2 * task_period tsk).
           {
             rewrite -addn1 mulnDl mul1n leq_add2r.
-            apply leq_trans with (n := delta + R_tsk - task_cost tsk);
-              first by rewrite -addnBA //; apply leq_addr.
+            apply leq_trans with (n := delta + task_jitter tsk + R_tsk - task_cost tsk);
+              first by rewrite -addnBA // -addnA; apply leq_addr.
             by apply ltnW, ltn_ceil, task_properties0.
           }
           by apply leq_trans with (n.+1 * task_period tsk); 
@@ -524,7 +546,7 @@ Module WorkloadWithJitter.
             rewrite -addnA leq_add2l -[job_deadline _]addn0.
             apply leq_add; last by ins.
             specialize (job_properties j_fst); des.
-            by rewrite job_properties1 FSTtask restricted_deadline.
+            by rewrite job_properties2 FSTtask restricted_deadline.
           }
           rewrite leqNgt; apply/negP; unfold not; intro LTt1.
           (* Now we assume that (job_arrival j_fst + d_k < t1) and reach a contradiction.
@@ -541,11 +563,10 @@ Module WorkloadWithJitter.
             unfold service; rewrite -> big_cat_nat with (m := 0) (p := t2) (n := t1);
               [rewrite leq_add2r /= | by ins | by apply leq_addr].
             rewrite -> big_cat_nat with (p := t1) (n := job_arrival j_fst + job_deadline j_fst);
-               [| by ins | by apply ltnW; specialize (job_properties j_fst); des;
-                           rewrite job_properties1 FSTtask].
+              [| by ins | by apply ltnW; specialize (job_properties j_fst); des; rewrite job_properties2 FSTtask].
             by rewrite /= -{1}[\sum_(_ <= _ < _) _]addn0 leq_add2l.
           }
-        }    
+        }
       }
 
       (* With the facts that we derived, we can now prove the workload bound.  
@@ -563,28 +584,35 @@ Module WorkloadWithJitter.
         {
           rewrite subnAC subnK; last first.
           {
-            assert (TMP: delta + R_tsk = task_cost tsk + (delta + R_tsk - task_cost tsk));
+            assert (TMP: delta + task_jitter tsk + R_tsk = task_cost tsk + (delta + task_jitter tsk + R_tsk - task_cost tsk));
               first by rewrite subnKC; [by ins | by rewrite -[task_cost _]add0n; apply leq_add].
             rewrite TMP; clear TMP.
             rewrite -{1}[task_cost _]addn0 -addnBA NK; [by apply leq_add | by apply leq_trunc_div].
           }
           apply leq_trans with (delta + R_tsk - (job_arrival j_lst - job_arrival j_fst));
             first by rewrite addnC; apply BOUNDend.
-          by apply leq_sub2l, DIST.
+          apply leq_trans with (delta + R_tsk - n.+1 * task_period tsk);
+            first by apply leq_sub2l, DIST.
+          by rewrite leq_sub2r // leq_add2r leq_addr.
         }
       }
       {
         (* Case 2: n_k = n, where n is the number of middle jobs. *)
         move: NK => /eqP NK; rewrite -NK.
         apply leq_add; [clear BOUNDmid | by apply BOUNDmid].
-        apply leq_trans with (delta + R_tsk - (job_arrival j_lst - job_arrival j_fst));
-          first by rewrite addnC; apply BOUNDend.
+        apply leq_trans with (delta + task_jitter tsk + R_tsk - (job_arrival j_lst - job_arrival j_fst)).
+        {
+          apply leq_trans with (delta + R_tsk - (job_arrival j_lst - job_arrival j_fst));
+            first by rewrite addnC BOUNDend.
+          by rewrite leq_sub2r // leq_add2r leq_addr.
+        }
+         
         rewrite leq_min; apply/andP; split.
         {
           rewrite leq_subLR [_ + task_cost _]addnC -leq_subLR.
           apply leq_trans with (n.+1 * task_period tsk); last by apply DIST.
           rewrite NK ltnW // -ltn_divLR; last by apply task_properties0.
-          by unfold n_k, max_jobs, div_floor.
+          by unfold n_k, max_jobs_jitter, div_floor.
         }
         {
           rewrite -subnDA; apply leq_sub2l.
@@ -592,8 +620,7 @@ Module WorkloadWithJitter.
           rewrite -addn1 addnC mulnDl mul1n.
           rewrite leq_add2l; last by apply task_properties3.
         }
-      }*)
-      admit.
+      }
     Qed.
 
   End ProofWorkloadBoundJitter.

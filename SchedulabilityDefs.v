@@ -12,7 +12,7 @@ Module Schedulability.
     Variable job_cost: Job -> nat.
     Variable job_deadline: Job -> nat.
   
-    Section SingleSchedule.
+    Section ScheduleOfJobs.
 
       Context {num_cpus: nat}.
       Variable rate: Job -> processor num_cpus -> nat.
@@ -23,17 +23,18 @@ Module Schedulability.
       Definition job_misses_no_deadline :=
         completed job_cost rate sched j (job_arrival j + job_deadline j).
 
-    End SingleSchedule.
+    End ScheduleOfJobs.
 
-    Section SingleScheduleTasks.
+    Section ScheduleOfTasks.
 
+      Context {sporadic_task: eqType}.
       Variable job_task: Job -> sporadic_task.
     
       Context {num_cpus: nat}.
       Variable rate: Job -> processor num_cpus -> nat.
       Variable sched: schedule num_cpus arr_seq.
 
-      Variable ts: sporadic_taskset.
+      Variable ts: taskset_of sporadic_task.
       Variable tsk: sporadic_task.
 
       Definition task_misses_no_deadline :=
@@ -47,7 +48,7 @@ Module Schedulability.
           job_arrival j + job_deadline j <= t' ->
           job_misses_no_deadline rate sched j.
 
-    End SingleScheduleTasks.
+    End ScheduleOfTasks.
 
   End SchedulableDefs.
 

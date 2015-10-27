@@ -7,7 +7,8 @@ Module Workload.
   Import Job SporadicTaskset Schedule SporadicTaskArrival ResponseTime Schedulability.
   
   Section WorkloadDef.
-    
+
+    Context {sporadic_task: eqType}.
     Context {Job: eqType}.
     Variable job_task: Job -> sporadic_task.
     Context {arr_seq: arrival_sequence Job}.
@@ -99,6 +100,10 @@ Module Workload.
 
   Section WorkloadBound.
 
+    Context {sporadic_task: eqType}.
+    Variable task_cost: sporadic_task -> nat.
+    Variable task_period: sporadic_task -> nat.
+    
     Variable tsk: sporadic_task.
     Variable R_tsk: time. (* Known response-time bound for the task *)
     Variable delta: time. (* Length of the interval *)
@@ -110,7 +115,6 @@ Module Workload.
     (* Bertogna and Cirinei's bound on the workload of a task in an interval of length delta *)
     Definition W :=
       let e_k := (task_cost tsk) in
-      let d_k := (task_deadline tsk) in
       let p_k := (task_period tsk) in            
         minn e_k (delta + R_tsk - e_k - max_jobs * p_k) + max_jobs * e_k.
 
@@ -118,18 +122,26 @@ Module Workload.
 
   Section BasicLemmas.
 
+    Context {sporadic_task: eqType}.
+    Variable task_cost: sporadic_task -> nat.
+    Variable task_period: sporadic_task -> nat.
+
     Variable tsk: sporadic_task.
     Hypothesis period_positive: task_period tsk > 0.
 
     Variable R: time.
     Hypothesis R_lower_bound: R >= task_cost tsk.
-    
-   Lemma W_monotonic :
-     forall t1 t2, t1 <= t2 -> W tsk R t1 <= W tsk R t2.
-   Proof.
-     intros t1 t2 LEt.
-     unfold W, max_jobs, div_floor; rewrite 2!subndiv_eq_mod.
-     set e := task_cost tsk; set p := task_period tsk.
+
+    Let workload_bound := W task_cost task_period tsk R.
+
+    Lemma W_monotonic :
+      forall t1 t2,
+        t1 <= t2 ->
+        workload_bound t1 <= workload_bound t2.
+    Proof.
+      intros t1 t2 LEt.
+      unfold workload_bound, W, max_jobs, div_floor; rewrite 2!subndiv_eq_mod.
+      set e := task_cost tsk; set p := task_period tsk.
      
      generalize dependent t2; rewrite leq_as_delta.
      induction delta;
@@ -182,8 +194,13 @@ Module Workload.
   End BasicLemmas.
     
   Section ProofWorkloadBound.
-  
-    Variable Job: eqType.
+
+    Context {sporadic_task: eqType}.
+    Variable task_cost: sporadic_task -> nat.
+    Variable task_period: sporadic_task -> nat.
+    Variable task_deadline: sporadic_task -> nat.
+    
+    Context {Job: eqType}.
     Variable job_cost: Job -> nat.
     Variable job_task: Job -> sporadic_task.
     Variable job_deadline: Job -> nat.
@@ -193,7 +210,7 @@ Module Workload.
     (* Assume that all jobs have valid parameters *)
     Hypothesis jobs_have_valid_parameters :
       forall (j: JobIn arr_seq),
-        valid_sporadic_job job_cost job_deadline job_task j.
+        valid_sporadic_job task_cost task_deadline job_cost job_deadline job_task j.
     
     Variable num_cpus: nat.
     Variable rate: Job -> processor num_cpus -> nat.
@@ -225,7 +242,7 @@ Module Workload.
     (* Assumption: sporadic task model.
        This is necessary to conclude that consecutive jobs ordered by arrival times
        are separated by at least 'period' times units. *)
-    Hypothesis sporadic_tasks: sporadic_task_model arr_seq job_task.
+    Hypothesis sporadic_tasks: sporadic_task_model task_period arr_seq job_task.
 
     (* Before starting the proof, let's give simpler names to the definitions. *)
     Definition response_time_bound_of (tsk: sporadic_task) (R: time) :=
@@ -248,7 +265,8 @@ Module Workload.
              jobs is at least (cost + n*period), where n is the number
              of middle jobs. If cost >> period, the claim does not hold
              for every task set. *)
-    Hypothesis valid_task_parameters: valid_sporadic_task tsk.
+    Hypothesis valid_task_parameters:
+      is_valid_sporadic_task task_cost task_period task_deadline tsk.
 
     (* Assumption: the task must have a restricted deadline.
        This is required to prove that n_k (max_jobs) from Bertogna
@@ -268,19 +286,22 @@ Module Workload.
     Hypothesis no_deadline_misses_during_interval: no_deadline_misses_by tsk (t1 + delta).
 
     (* Then the workload of the task in the interval is bounded by W. *)
+
+    Let workload_bound := W task_cost task_period.
+    
     Theorem workload_bounded_by_W :
-      workload_of tsk t1 (t1 + delta) <= W tsk R_tsk delta.
+      workload_of tsk t1 (t1 + delta) <= workload_bound tsk R_tsk delta.
     Proof.
       rename jobs_have_valid_parameters into job_properties,
              no_deadline_misses_during_interval into no_dl_misses,
              valid_task_parameters into task_properties.
       unfold valid_sporadic_job, valid_realtime_job, restricted_deadline_model,
-             valid_sporadic_taskset, valid_sporadic_task, sporadic_task_model,
-             workload_of, response_time_bound_of, no_deadline_misses_by, W in *; ins; des.
+             valid_sporadic_taskset, is_valid_sporadic_task, sporadic_task_model,
+             workload_of, response_time_bound_of, no_deadline_misses_by, workload_bound, W in *; ins; des.
 
       (* Simplify names *)
       set t2 := t1 + delta.
-      set n_k := max_jobs tsk R_tsk delta.
+      set n_k := max_jobs task_cost task_period tsk R_tsk delta.
 
       (* Use the definition of workload based on list of jobs. *)
       rewrite workload_eq_workload_joblist; unfold workload_joblist.

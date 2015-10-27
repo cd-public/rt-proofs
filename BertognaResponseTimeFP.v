@@ -4,14 +4,23 @@ Require Import Vbase ScheduleDefs BertognaResponseTimeDefs divround helper
 Module ResponseTimeIterationFP.
 
   Import Schedule ResponseTimeAnalysis.
-  
+
+  Section Analysis.
+    
+    Context {sporadic_task: eqType}.
+    Variable task_cost: sporadic_task -> nat.
+    Variable task_period: sporadic_task -> nat.
+    Variable task_deadline: sporadic_task -> nat.
+    
+    Let task_with_response_time := (sporadic_task * nat)%type.
+    
     Context {Job: eqType}.
     Variable job_cost: Job -> nat.
     Variable job_deadline: Job -> nat.
     Variable job_task: Job -> sporadic_task.
 
     Variable num_cpus: nat.
-    Variable higher_eq_priority: fp_policy.
+    Variable higher_eq_priority: fp_policy sporadic_task.
     Hypothesis H_valid_policy: valid_fp_policy higher_eq_priority.
 
     (* Next we define the fixed-point iteration for computing
@@ -30,8 +39,8 @@ Module ResponseTimeIterationFP.
       iter step
         (fun t => task_cost tsk +
                   div_floor
-                    (total_interference_bound_fp
-                                      tsk R_prev t higher_eq_priority)
+                    (total_interference_bound_fp task_cost task_period tsk
+                                                R_prev t higher_eq_priority)
                     num_cpus)
         (task_cost tsk).
 
@@ -59,12 +68,12 @@ Module ResponseTimeIterationFP.
 
     (* To return the complete list of response-time bounds for any task set,
        we just apply foldl (reduce) using the function above. *)
-    Definition R_list (ts: sporadic_taskset) : option (seq task_with_response_time) :=
+    Definition R_list (ts: taskset_of sporadic_task) : option (seq task_with_response_time) :=
       foldl R_list_helper (Some [::]) ts.
 
     (* The schedulability test simply checks if we got a list of
        response-time bounds (i.e., if the computation did not fail). *)
-    Definition fp_schedulable (ts: sporadic_taskset) :=
+    Definition fp_schedulable (ts: taskset_of sporadic_task) :=
       R_list ts != None.
     
     Section AuxiliaryLemmas.
@@ -268,19 +277,18 @@ Module ResponseTimeIterationFP.
         }
       Qed.
 
-      (*  To prove convergence of R, we first show convergence of rt_rec. *)
-      Lemma per_task_rta_converges:
+      (*  To prove convergence of R, we first show convergence of rt_rec. *)      Lemma per_task_rta_converges:
         forall ts' tsk rt_bounds,
-          valid_sporadic_taskset ts' ->
+          valid_sporadic_taskset task_cost task_period task_deadline ts' ->
           R_list ts' = Some rt_bounds ->
           per_task_rta tsk rt_bounds (max_steps tsk) <= task_deadline tsk ->
             per_task_rta tsk rt_bounds (max_steps tsk) =
               per_task_rta tsk rt_bounds (max_steps tsk).+1.
       Proof.
-        unfold valid_sporadic_taskset, valid_sporadic_task in *.
-
+        unfold valid_sporadic_taskset, is_valid_sporadic_task in *.
+        
         (* To simplify, let's call the function f.*)
-        intros ts tsk rt_bounds VALID SOME LE;
+        intros ts' tsk rt_bounds VALID SOME LE;
           set (f := per_task_rta tsk rt_bounds); fold f in LE.
 
         (* First prove that f is monotonic.*)
@@ -298,13 +306,13 @@ Module ResponseTimeIterationFP.
           intros i; destruct (i \in rt_bounds) eqn:HP;
             last by rewrite andFb.
           destruct i as [i R]; intros _.
-          have GE_COST := (R_list_ge_cost ts rt_bounds i R).
-          have INts := (R_list_non_empty ts rt_bounds i SOME).
+          have GE_COST := (R_list_ge_cost ts' rt_bounds i R).
+          have INts := (R_list_non_empty ts' rt_bounds i SOME).
           destruct INts as [_ EX]; exploit EX; [by exists R | intro IN].
           unfold interference_bound; simpl.
           rewrite leq_min; apply/andP; split.
           {
-            apply leq_trans with (n := W i R x1); 
+            apply leq_trans with (n := W task_cost task_period i R x1); 
               first by apply geq_minl.            
             specialize (VALID i IN); des.
             by apply W_monotonic; try (by ins); apply GE_COST.          
@@ -349,11 +357,11 @@ Module ResponseTimeIterationFP.
         by apply leq_ltn_trans with (m := f (task_deadline tsk).+1) in BY1;
           [by rewrite ltnn in BY1 | by ins].
       Qed.
-      
+
       Lemma per_task_rta_fold :
         forall tsk rt_bounds,
           task_cost tsk +
-           div_floor (total_interference_bound_fp tsk rt_bounds
+           div_floor (total_interference_bound_fp task_cost task_period tsk rt_bounds
                      (per_task_rta tsk rt_bounds (max_steps tsk)) higher_eq_priority) num_cpus
           = per_task_rta tsk rt_bounds (max_steps tsk).+1.
       Proof.
@@ -452,7 +460,7 @@ Module ResponseTimeIterationFP.
     Section Proof.
 
       (* Consider a task set ts. *)
-      Variable ts: sporadic_taskset.
+      Variable ts: taskset_of sporadic_task.
       
       (* Assume that higher_eq_priority is a total order.
          Actually, it just needs to be total over the task set,
@@ -467,7 +475,8 @@ Module ResponseTimeIterationFP.
       Hypothesis H_ts_is_a_set: uniq ts.
 
       (* ...all tasks have valid parameters, ... *)
-      Hypothesis H_valid_task_parameters: valid_sporadic_taskset ts.
+      Hypothesis H_valid_task_parameters:
+        valid_sporadic_taskset task_cost task_period task_deadline ts.
 
       (* ...restricted deadlines, ...*)
       Hypothesis H_restricted_deadlines:
@@ -486,10 +495,11 @@ Module ResponseTimeIterationFP.
       (* ...they have valid parameters,...*)
       Hypothesis H_valid_job_parameters:
         forall (j: JobIn arr_seq),
-          valid_sporadic_job job_cost job_deadline job_task j.
+          valid_sporadic_job task_cost task_deadline job_cost job_deadline job_task j.
       
       (* ... and satisfy the sporadic task model.*)
-      Hypothesis H_sporadic_tasks: sporadic_task_model arr_seq job_task.
+      Hypothesis H_sporadic_tasks:
+        sporadic_task_model task_period arr_seq job_task.
       
       (* Then, consider any platform with at least one CPU and unit
          unit execution rate, where...*)
@@ -554,7 +564,7 @@ Module ResponseTimeIterationFP.
           clear ALLJOBS.
         
           unfold fp_schedulable, R_list in *.
-          induction ts as [| ts' tsk_i] using last_ind.
+          induction ts as [| ts' tsk_i IH] using last_ind.
           {
             intros rt_bounds tsk R SOME IN.
             by inversion SOME; subst; rewrite in_nil in IN.
@@ -566,7 +576,7 @@ Module ResponseTimeIterationFP.
             rewrite mem_rcons in_cons in IN; move: IN => /orP IN.
             destruct IN as [LAST | BEGINNING]; last first.
             {
-              apply IHs with (rt_bounds := hp_bounds) (tsk := tsk); try (by ins).
+              apply IH with (rt_bounds := hp_bounds) (tsk := tsk); try (by ins).
               by rewrite rcons_uniq in SET; move: SET => /andP [_ SET].
               by ins; red; ins; apply TASKPARAMS; rewrite mem_rcons in_cons; apply/orP; right.
               by ins; apply RESTR; rewrite mem_rcons in_cons; apply/orP; right.
@@ -597,13 +607,13 @@ Module ResponseTimeIterationFP.
               generalize SOME; apply R_list_rcons_prefix in SOME; intro SOME'.
               have BOUND := bertogna_cirinei_response_time_bound_fp.
               unfold is_response_time_bound_of_task, job_has_completed_by in BOUND.
-              apply BOUND with (job_deadline := job_deadline) (job_task := job_task) (tsk := tsk_lst)
+              apply BOUND with (task_cost := task_cost) (task_period := task_period) (task_deadline := task_deadline) (job_deadline := job_deadline) (job_task := job_task) (tsk := tsk_lst)
                                (ts := rcons ts' tsk_lst) (hp_bounds := hp_bounds)
                                (higher_eq_priority := higher_eq_priority); clear BOUND; try (by ins).
               by apply R_list_unzip1 with (R := R_lst).
               {
                 intros hp_tsk R0 HP j0 JOB0.
-                apply IHs with (rt_bounds := hp_bounds) (tsk := hp_tsk); try (by ins).
+                apply IH with (rt_bounds := hp_bounds) (tsk := hp_tsk); try (by ins).
                 by rewrite rcons_uniq in SET; move: SET => /andP [_ SET].
                 by red; ins; apply TASKPARAMS; rewrite mem_rcons in_cons; apply/orP; right.
                 by ins; apply RESTR; rewrite mem_rcons in_cons; apply/orP; right.
@@ -688,7 +698,7 @@ Module ResponseTimeIterationFP.
         rewrite eqn_leq; apply/andP; split; first by apply service_interval_le_cost.
         apply leq_trans with (n := service rate sched j (job_arrival j + R)); last first.
         {
-          unfold valid_sporadic_taskset, valid_sporadic_task in *.
+          unfold valid_sporadic_taskset, is_valid_sporadic_task in *.
           apply service_monotonic; rewrite leq_add2l.
           specialize (JOBPARAMS j); des; rewrite JOBPARAMS1.
           by rewrite JOBtsk.
@@ -736,4 +746,6 @@ Module ResponseTimeIterationFP.
       
     End Proof.
 
-  End ResponseTimeIterationFP.
+  End Analysis.
+
+End ResponseTimeIterationFP.

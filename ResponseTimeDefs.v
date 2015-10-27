@@ -7,7 +7,8 @@ Module ResponseTime.
   Import Schedule SporadicTaskset SporadicTaskArrival.
                                     
   Section ResponseTimeBound.
-    
+
+    Context {sporadic_task: eqType}.
     Context {Job: eqType}.
     Context {arr_seq: arrival_sequence Job}.
     Variable job_cost: Job -> nat.
@@ -38,6 +39,7 @@ Module ResponseTime.
 
   Section BasicLemmas.
 
+    Context {sporadic_task: eqType}.
     Context {Job: eqType}.
     Variable job_cost: Job -> nat.
     Variable job_task: Job -> sporadic_task.
@@ -130,6 +132,9 @@ Module ResponseTime.
 
   Section LowerBoundOfResponseTimeBound.
 
+    Context {sporadic_task: eqType}.
+    Variable task_cost: sporadic_task -> nat.
+    
     Context {Job: eqType}.
     Variable job_cost: Job -> nat.
     Variable job_task: Job -> sporadic_task.
@@ -164,7 +169,7 @@ Module ResponseTime.
     Lemma response_time_ub_ge_task_cost:
       R >= task_cost tsk.
     Proof.
-      unfold valid_sporadic_task, job_has_completed_by, completed in *.
+      unfold job_has_completed_by, completed in *.
       rename job_of_tsk_exists into EX; des.
       set new_cost := fun (j': Job) => task_cost (job_task j').
       apply leq_trans with (n := new_cost j);

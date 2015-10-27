@@ -392,6 +392,21 @@ Module ScheduleOfTaskWithJitter.
       forall j t,
         scheduled sched j t ->
         job_arrival j + job_jitter j <= t.
+
+    Section BasicLemmas.
+
+      Lemma arrival_before_jitter :
+        jobs_execute_after_jitter ->
+        jobs_must_arrive_to_execute sched.
+      Proof.
+        unfold jobs_execute_after_jitter, jobs_must_arrive_to_execute.
+        intros ARRIVE j t SCHED; unfold has_arrived.
+        rewrite -(leq_add2r (job_jitter j)).
+        by apply leq_trans with (n := t);
+          [by apply ARRIVE | by apply leq_addr].
+      Qed.
+      
+    End BasicLemmas.
  
   End ArrivalAfterJitter.
 
