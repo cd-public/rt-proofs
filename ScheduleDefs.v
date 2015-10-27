@@ -83,99 +83,6 @@ Module ArrivalSequence.
 
   End ArrivingJobs.
 
-  (*Section SetOfArrivals.
-
-    Variable JobType: eqType.
-    Variable arr: arrival_sequence JobType.
-
-    (* List of jobs that arrived before t', defined by concatenation. *)
-    Definition prev_arrivals (t': time) :=  \cat_(0 <= t < t') arr t.
-
-    (* List of jobs that arrived up to time t (inclusive) *)
-    Definition all_arrivals (t': time) := \cat_(0 <= t < t'.+1) arr t.
-
-    (* Prove that any job is in the list of arrivals iff it has arrived. *)
-    Lemma in_all_arrivals_iff_has_arrived :
-      forall t' j, (j \in all_arrivals t') = (has_arrived arr j t').
-    Proof.
-      unfold all_arrivals, has_arrived; ins.
-      induction t'.
-      {
-        rewrite big_nat_recr // big_geq // /=.
-        destruct (j \in arr 0) eqn:IN; symmetry.
-          by apply/exists_inP_nat; unfold arrives_at; exists 0; split.
-          {
-            apply negbTE; rewrite negb_exists_in.
-            apply/(forall_inP_nat 1 (fun x => ~~ arrives_at arr j x)); ins.
-            move: LT; rewrite ltnS leqn0; move => /eqP LT; subst.
-            by unfold arrives_at; apply negbT.
-          }
-      }
-      {
-        rewrite big_nat_recr // mem_cat IHt'.
-        destruct ([exists t_0 in 'I_t'.+1, arrives_at arr j t_0] || (j \in arr t'.+1)) eqn:OR.
-        {
-          move: OR => /orP OR; des.
-          {
-            rewrite OR orTb; symmetry; apply/exists_inP_nat.
-            move: OR => /exists_inP_nat OR; des.
-            exists x; split; [by apply (ltn_trans OR); ins | by ins].
-          }
-          {
-            rewrite OR orbT; symmetry; apply/exists_inP_nat.
-            exists t'.+1; split; [by apply ltnSn | by ins].
-          }
-        }
-        {
-          rewrite OR; symmetry.
-          apply negbT in OR; rewrite negb_or in OR.
-          move: OR => /andP OR; des.
-          rewrite negb_exists_in in OR.
-          move: OR => /(forall_inP_nat t'.+1 (fun x => ~~ arrives_at arr j x)) OR.
-          apply negbTE; rewrite negb_exists_in.
-          apply/(forall_inP_nat t'.+2 (fun x => ~~ arrives_at arr j x)); ins.
-          rewrite ltnS in LT; unfold arrives_at in *.
-          move: LT; rewrite leq_eqVlt; move => /orP LT; des.
-            by move: LT => /eqP LT; subst.
-            by apply OR.
-        }
-      }
-    Qed.
-
-    (* Prove that any job is in the list of jobs that arrived before t' it arrived before t'.*)
-    Lemma in_prev_arrivals_iff_arrived_before :
-      forall t' j, j \in (prev_arrivals t') = (arrived_before arr j t').
-    Proof.
-      unfold prev_arrivals, arrived_before; ins.
-      destruct t'; last by rewrite in_all_arrivals_iff_has_arrived.
-      rewrite big_geq // in_nil; symmetry.
-      apply negbTE; rewrite negb_exists_in. apply/forall_inP; ins.
-      by have BUG := ltn_ord x.
-    Qed.
-
-    Section UniqueArrivals.
-
-      Hypothesis no_multiple_job_arrivals: no_multiple_arrivals arr.
-      Hypothesis arr_seq_uniq: arrival_sequence_unique arr.
-
-      (* Prove that the list of jobs arrivals is unique. *)
-      Lemma uniq_prev_arrivals : forall t, uniq (prev_arrivals t).
-      Proof.
-        unfold arrival_sequence_unique, no_multiple_arrivals in *;
-        rename arr_seq_uniq into UNIQ, no_multiple_job_arrivals into NOMULT.
-        induction t; first by unfold prev_arrivals; rewrite -/prev_arrivals big_geq //.
-        unfold prev_arrivals; rewrite big_nat_recr // /=.
-        rewrite cat_uniq; apply/and3P; split; [by ins | | by apply UNIQ].
-        apply/hasP; unfold not; intro HAS; destruct HAS as [x IN MEM];
-          rewrite -unfold_in mem_mem in MEM.
-        rewrite in_prev_arrivals_iff_arrived_before in MEM; move: MEM => /exists_inP_nat MEM; des.
-        by apply (NOMULT x t x0) in MEM0; [by subst; rewrite ltnn in MEM | by ins].
-      Qed.
-
-    End UniqueArrivals.
-    
-  End SetOfArrivals.*)
-  
 End ArrivalSequence.
 
 Module Schedule.
@@ -431,7 +338,7 @@ Module Schedule.
 
 End Schedule.
   
-Module ScheduleOfSporadicTask.
+(*Module ScheduleOfSporadicTask.
 
   Import SporadicTask.
   Export Schedule.
@@ -460,20 +367,20 @@ Module ScheduleOfSporadicTask.
  
   End EarlierJobs.
 
-End ScheduleOfSporadicTask.
+End ScheduleOfSporadicTask.*)
 
 Module ScheduleOfTaskWithJitter.
 
-  Import SporadicTaskWithJitter.
   Export Schedule.
   
   Section ArrivalAfterJitter.
 
+    Context {sporadic_task: eqType}.
     Context {Job: eqType}.
     Context {arr_seq: arrival_sequence Job}.
     
     Variable job_cost: Job -> nat.
-    Variable job_task: Job -> sporadic_task_with_jitter.
+    Variable job_task: Job -> sporadic_task.
     Variable job_jitter: Job -> nat.
     
     Variable num_cpus: nat.

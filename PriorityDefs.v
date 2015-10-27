@@ -8,6 +8,7 @@ Module Priority.
 
   Section PriorityDefs.
 
+    Context {sporadic_task: eqType}.
     Context {Job: eqType}.
     Variable num_cpus: nat.
     Variable arr_seq: arrival_sequence Job.
@@ -19,8 +20,7 @@ Module Priority.
     (* JLDP policy is a generic relation between two jobs of an arrival sequence.
        To ensure they can be defined arbitrarily, jldp_policy is parameterized
        by schedule and time. *)
-    Definition jldp_policy := schedule num_cpus arr_seq -> time ->
-                              JobIn arr_seq -> JobIn arr_seq -> bool.
+    Definition jldp_policy := time -> JobIn arr_seq -> JobIn arr_seq -> bool.
 
     (* FP policy is simply a relation between tasks.
        Because our model of processor platform is based on a generic JLDP policy,
@@ -33,13 +33,11 @@ Module Priority.
 
       (* A policy is reflexive, since a job has the same priority as itself. *)
       Definition jlfp_is_reflexive :=
-        forall (sched: schedule num_cpus arr_seq) t,
-          reflexive (is_higher_priority sched t).
+        forall t, reflexive (is_higher_priority t).
 
       (* A policy is transitive. *)
       Definition jlfp_is_transitive :=
-        forall (sched: schedule num_cpus arr_seq) t,
-          transitive (is_higher_priority sched t).
+        forall t, transitive (is_higher_priority t).
       
       (* A policy is total, since it must know the priority of any two jobs at any time. *)
       Definition jlfp_is_total :=

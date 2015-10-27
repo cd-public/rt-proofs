@@ -33,7 +33,9 @@ Module Job.
 
   Section ValidSporadicTaskJob.
 
-    Import SporadicTask.
+    Context {sporadic_task: eqType}.
+    Variable task_cost: sporadic_task -> nat.
+    Variable task_deadline: sporadic_task -> nat.
     
     Context {Job: eqType}.
     Variable job_cost: Job -> nat.
@@ -56,12 +58,15 @@ Module Job.
 
   Section ValidSporadicTaskJobWithJitter.
 
-    Import SporadicTaskWithJitter.
+    Context {sporadic_task: eqType}.
+    Variable task_cost: sporadic_task -> nat.
+    Variable task_deadline: sporadic_task -> nat.
+    Variable task_jitter: sporadic_task -> nat.
     
     Context {Job: eqType}.
     Variable job_cost: Job -> nat.
     Variable job_deadline: Job -> nat.
-    Variable job_task: Job -> sporadic_task_with_jitter.
+    Variable job_task: Job -> sporadic_task.
     Variable job_jitter: Job -> nat.
     
     Variable j: Job.
@@ -69,9 +74,11 @@ Module Job.
     Definition job_jitter_leq_task_jitter :=
       job_jitter j <= task_jitter (job_task j).
 
+    Let j_is_valid_job :=
+      valid_sporadic_job task_cost task_deadline job_cost job_deadline job_task j.
+
     Definition valid_sporadic_job_with_jitter :=
-      valid_sporadic_job job_cost job_deadline job_task j /\
-      job_jitter_leq_task_jitter.
+      j_is_valid_job /\ job_jitter_leq_task_jitter.
 
   End ValidSporadicTaskJobWithJitter.
 

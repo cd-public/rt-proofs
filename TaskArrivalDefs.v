@@ -7,6 +7,9 @@ Import SporadicTaskset Schedule.
   
   Section ArrivalModels.
 
+    Context {sporadic_task: eqType}.
+    Variable task_period: sporadic_task -> nat.
+    
     Context {Job: eqType}.
     Variable arr_seq: arrival_sequence Job.
     Variable job_task: Job -> sporadic_task.
