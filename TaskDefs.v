@@ -57,20 +57,23 @@ Module SporadicTaskset.
       Variable task_period: Task -> nat.
       Variable task_deadline: Task -> nat.
 
-      Variable ts: taskset_of Task.
-
       Let is_valid_task :=
         is_valid_sporadic_task task_cost task_period task_deadline.
 
+      Variable ts: taskset_of Task.
+
       Definition valid_sporadic_taskset :=
-        forall tsk (IN: tsk \in ts), is_valid_task tsk.
+        forall tsk,
+          tsk \in ts -> is_valid_task tsk.
 
       (* Deadline models: implicit, restricted or arbitrary *)
       Definition implicit_deadline_model :=
-        forall tsk (IN: tsk \in ts), task_deadline tsk = task_period tsk.
+        forall tsk,
+          tsk \in ts -> task_deadline tsk = task_period tsk.
 
       Definition restricted_deadline_model :=
-        forall tsk (IN: tsk \in ts), task_deadline tsk <= task_period tsk.
+        forall tsk,
+          tsk \in ts -> task_deadline tsk <= task_period tsk.
 
       Definition arbitrary_deadline_model := True.
 
