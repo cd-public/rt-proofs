@@ -146,7 +146,7 @@ Module WorkloadWithJitter.
     (* Assumption: jobs only execute if they arrived.
        This is used to eliminate jobs that arrive after end of the interval t1 + delta. *)
     Hypothesis H_jobs_must_arrive_after_jitter:
-      jobs_execute_after_jitter job_jitter num_cpus sched.
+      jobs_execute_after_jitter job_jitter sched.
 
     (* Assumption: jobs do not execute after they completed.
        This is used to eliminate jobs that complete before the start of the interval t1. *)

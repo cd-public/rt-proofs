@@ -376,15 +376,13 @@ Module ScheduleOfTaskWithJitter.
   Section ArrivalAfterJitter.
 
     Context {sporadic_task: eqType}.
-    Context {Job: eqType}.
-    Context {arr_seq: arrival_sequence Job}.
-    
+    Context {Job: eqType}.    
     Variable job_cost: Job -> nat.
     Variable job_task: Job -> sporadic_task.
     Variable job_jitter: Job -> nat.
-    
-    Variable num_cpus: nat.
-    Variable rate: Job -> processor num_cpus -> time.
+
+    Context {arr_seq: arrival_sequence Job}.
+    Context {num_cpus: nat}.
     Variable sched: schedule num_cpus arr_seq.
 
     (* Whether a job can only be scheduled if it has arrived *)
