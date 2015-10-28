@@ -25,18 +25,18 @@ Module ArrivalSequence.
        particular instant. *)
     Record JobIn (arr_seq: arrival_sequence Job) : Type :=
     {
-      _jobin_job: Job;
-      _jobin_arrival_time: time;
-      _: arrives_at _jobin_job arr_seq _jobin_arrival_time
+      _job_in: Job;
+      _arrival_time: time;
+      _: arrives_at _job_in arr_seq _arrival_time
     }.
 
     (* Define a coercion that stating that every JobIn is a Job. *)
     Coercion JobIn_is_Job {arr_seq: arrival_sequence Job} (j: JobIn arr_seq) :=
-      _jobin_job arr_seq j.
+      _job_in arr_seq j.
 
     (* Define job arrival time as that time that the job arrives. *)
     Definition job_arrival {arr_seq: arrival_sequence Job} (j: JobIn arr_seq) :=
-      _jobin_arrival_time arr_seq j.
+      _arrival_time arr_seq j.
 
     (* Assume a decidable equality for JobIn. *)
     Definition f (arr_seq: arrival_sequence Job) :=
