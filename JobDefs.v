@@ -27,7 +27,7 @@ Module Job.
     Definition valid_realtime_job :=
       job_cost_positive job_cost j /\
       job_cost_le_deadline /\
-      job_dl_positive.
+      job_deadline_positive.
 
   End ValidRealtimeJob.
 
