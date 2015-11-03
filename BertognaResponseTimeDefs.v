@@ -115,9 +115,9 @@ Module ResponseTimeAnalysis.
         assert (SERVICE_ONE: forall j t, service_at rate sched j t <= 1).
           by ins; apply service_at_le_max_rate; ins; rewrite RATE.
 
-        (* Reorder terms... *)  
+        (* Reorder terms... *)
         apply/eqP; rewrite subh4; first last.
-        {  
+        {
           rewrite -[t2 - t1]mul1n -[1*_]addn0 -iter_addn -big_const_nat.
           by apply leq_sum; ins; apply leq_b1.
         }
@@ -149,20 +149,19 @@ Module ResponseTimeAnalysis.
           move: SCHED => /exists_inP SCHED; destruct SCHED as [cpu INcpu SCHEDcpu].
           rewrite andbF; apply/eqP.
           rewrite -(eqn_add2r (service_at rate sched j t)) add0n.
-          rewrite subh1; last by ins; apply SERVICE_ONE.
+          rewrite subh1; last by apply SERVICE_ONE.
           rewrite -addnBA // subnn addn0.
           rewrite eqn_leq; apply/andP; split; first by apply SERVICE_ONE.
-          unfold service_at; rewrite big_mkcond /= (bigD1 cpu) // /= SCHEDcpu.
-          by rewrite ltn_addr // RATE.
+          unfold service_at; rewrite (bigD1 cpu) /=; last by apply SCHEDcpu.
+          apply leq_trans with (n := rate j cpu);
+            [by rewrite RATE | by apply leq_addr].
         }
         apply not_scheduled_no_service with (rate0 := rate) in SCHED.
         rewrite SCHED subn0 andbT; apply/eqP; rewrite eqb1.
         apply/andP; split; first by apply leq_trans with (n := t1).
-        rewrite neq_ltn; apply/orP; left.
-        apply leq_ltn_trans with (n := service rate sched j t2);
-          first by apply service_monotonic, ltnW.
-        rewrite ltn_neqAle; apply/andP; split;
-           [by apply NOTCOMP | by apply COMP].
+        apply/negP; unfold not; intro BUG.
+        apply completion_monotonic with (t' := t2) in BUG; [ | by ins | by apply ltnW].
+        by rewrite BUG in NOTCOMP.
       Qed.
       
     End CorrespondenceWithService.
