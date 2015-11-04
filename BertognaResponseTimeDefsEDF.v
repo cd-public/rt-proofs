@@ -71,60 +71,56 @@ Module ResponseTimeAnalysisEDF.
     Let task_with_response_time := (sporadic_task * time)%type.
     Variable hp_bounds: seq task_with_response_time.
     
-    (* We derive the response-time bounds for FP and EDF scheduling
-       separately. *)
-    Section UnderFPScheduling.
+    (* For FP scheduling, assume there exists a fixed task priority. *)
+    Variable higher_eq_priority: fp_policy sporadic_task.
 
-      (* For FP scheduling, assume there exists a fixed task priority. *)
-      Variable higher_eq_priority: fp_policy sporadic_task.
-
-      Let interferes_with_tsk := is_interfering_task_jlfp tsk higher_eq_priority.
+    Let interferes_with_tsk := is_interfering_task_jlfp tsk.
       
-      (* Assume that for any interfering task, a response-time
-         bound R_other is known. *)
-      (*Hypothesis H_all_interfering_tasks_in_hp_bounds:
-        [seq tsk_hp <- ts | interferes_with_tsk tsk_hp] = unzip1 hp_bounds.*)
+    (* Assume that for any interfering task, a response-time
+       bound R_other is known. *)
+    (*Hypothesis H_all_interfering_tasks_in_hp_bounds:
+      [seq tsk_hp <- ts | interferes_with_tsk tsk_hp] = unzip1 hp_bounds.*)
 
-      Lemma exists_R :
-        forall hp_tsk,
-          hp_tsk \in ts ->
-          interferes_with_tsk hp_tsk ->
-          exists R,
-            (hp_tsk, R) \in hp_bounds.
-      Proof.
-        intros hp_tsk IN INTERF.
-        rewrite -[hp_bounds]zip_unzip; apply exists_unzip2.
-        by rewrite zip_unzip -H_all_interfering_tasks_in_hp_bounds mem_filter; apply/andP.
-      Qed.      
+    (*Lemma exists_R :
+      forall hp_tsk,
+      hp_tsk \in ts ->
+        interferes_with_tsk hp_tsk ->
+        exists R,
+          (hp_tsk, R) \in hp_bounds.
+    Proof.
+      intros hp_tsk IN INTERF.
+      rewrite -[hp_bounds]zip_unzip; apply exists_unzip2.
+      by rewrite zip_unzip -H_all_interfering_tasks_in_hp_bounds mem_filter; apply/andP.
+    Qed.*)      
 
-      Hypothesis H_response_time_of_interfering_tasks_is_known2:
-        forall hp_tsk R,
-          (hp_tsk, R) \in hp_bounds ->
-          is_response_time_bound_of_task job_cost job_task hp_tsk rate sched R.
+    Hypothesis H_response_time_of_interfering_tasks_is_known2:
+      forall hp_tsk R,
+        (hp_tsk, R) \in hp_bounds ->
+        is_response_time_bound_of_task job_cost job_task hp_tsk rate sched R.
 
       
-      (* Assume that the response-time bounds are larger than task costs. *)
-      Hypothesis H_response_time_bounds_ge_cost:
-        forall hp_tsk R,
-          (hp_tsk, R) \in hp_bounds -> R >= task_cost hp_tsk.
+    (* Assume that the response-time bounds are larger than task costs. *)
+    Hypothesis H_response_time_bounds_ge_cost:
+      forall hp_tsk R,
+        (hp_tsk, R) \in hp_bounds -> R >= task_cost hp_tsk.
       
-      (* Assume that no deadline is missed by any interfering task, i.e.,
-         response-time bound R_other <= deadline. *)
-      Hypothesis H_interfering_tasks_miss_no_deadlines:
-        forall hp_tsk R,
-          (hp_tsk, R) \in hp_bounds -> R <= task_deadline hp_tsk.
+    (* Assume that no deadline is missed by any interfering task, i.e.,
+       response-time bound R_other <= deadline. *)
+    Hypothesis H_interfering_tasks_miss_no_deadlines:
+      forall hp_tsk R,
+        (hp_tsk, R) \in hp_bounds -> R <= task_deadline hp_tsk.
 
-      (* Assume that the schedule satisfies the global scheduling
-         invariant, i.e., if any job of tsk is backlogged, all
-         the processors must be busy with jobs of equal or higher
-         priority. *)
-      Hypothesis H_global_scheduling_invariant:
-        forall (j: JobIn arr_seq) (t: time),
-          job_task j = tsk ->
-          backlogged job_cost rate sched j t ->
-          count
-            (fun tsk_other : sporadic_task =>
-               is_interfering_task_fp tsk higher_eq_priority tsk_other &&
+    (* Assume that the schedule satisfies the global scheduling
+       invariant, i.e., if any job of tsk is backlogged, all
+       the processors must be busy with jobs of equal or higher
+       priority. *)
+    Hypothesis H_global_scheduling_invariant:
+      forall (j: JobIn arr_seq) (t: time),
+        job_task j = tsk ->
+        backlogged job_cost rate sched j t ->
+        count
+          (fun tsk_other : sporadic_task =>
+             is_interfering_task_jlfp tsk tsk_other &&
                task_is_scheduled job_task sched tsk_other t) ts = num_cpus.
 
       (* Next, we define Bertogna and Cirinei's response-time bound recurrence *)
@@ -137,7 +133,7 @@ Module ResponseTimeAnalysisEDF.
       Hypothesis H_response_time_recurrence_holds :
         R = task_cost tsk +
             div_floor
-              (total_interference_bound_jlfp task_cost task_period tsk hp_bounds R higher_eq_priority)
+              (total_interference_bound_jlfp task_cost task_period tsk hp_bounds R)
               num_cpus.
 
       (*..., and R is no larger than the deadline of tsk, ...*)
@@ -158,13 +154,13 @@ Module ResponseTimeAnalysisEDF.
                H_valid_task_parameters into TASK_PARAMS,
                H_restricted_deadlines into RESTR,
                H_response_time_of_interfering_tasks_is_known2 into RESP,
-               H_all_interfering_tasks_in_hp_bounds into FST,
+               (*H_all_interfering_tasks_in_hp_bounds into FST,*)
                H_interfering_tasks_miss_no_deadlines into NOMISS,
                H_rate_equals_one into RATE,
                H_global_scheduling_invariant into INVARIANT,
                H_response_time_bounds_ge_cost into GE_COST.
         intros j JOBtsk.
-        
+
         (* For simplicity, let x denote per-task interference under FP
            scheduling, and let X denote the total interference. *)
         set x := fun hp_tsk =>
@@ -174,7 +170,7 @@ Module ResponseTimeAnalysisEDF.
           else 0.
         set X := total_interference job_cost rate sched j (job_arrival j) (job_arrival j + R).
 
-        (* Let's recall the workload bound under FP scheduling. *)
+        (* Let's recall the workload bound under EDF scheduling. *)
         set workload_bound := fun (tup: task_with_response_time) =>
           let (tsk_k, R_k) := tup in
             if interferes_with_tsk tsk_k then
@@ -195,6 +191,9 @@ Module ResponseTimeAnalysisEDF.
           first by apply leqnn.
         rewrite {2}[_ + R]addnC -addnBA // subnn addn0 in EQinterf.
 
+        admit.
+        
+        (*
         (* In order to derive a contradiction, we first show that
            the interference x_k of any task is no larger than the
            workload bound W_k. *)
@@ -486,8 +485,7 @@ Module ResponseTimeAnalysisEDF.
               all tasks (artifact of the proof by contradiction). *)
         assert (SUM: \sum_((tsk_k, R_k) <- hp_bounds)
                        minn (x tsk_k) (R - task_cost tsk + 1) >
-                       total_interference_bound_fp task_cost task_period tsk hp_bounds
-                                                   R higher_eq_priority).
+                       total_interference_bound_jlfp task_cost task_period tsk hp_bounds R).
         {
           apply leq_trans with (n := \sum_(tsk_k <- ts) minn (x tsk_k) (R - task_cost tsk + 1));
             last first.
@@ -528,7 +526,7 @@ Module ResponseTimeAnalysisEDF.
           move: NOTHAS => /negP /hasPn ALL.
           rewrite -[_ < _]negbK in SUM.
           move: SUM => /negP SUM; apply SUM; rewrite -leqNgt.
-          unfold total_interference_bound_fp.
+          unfold total_interference_bound_jlfp.
           rewrite [\sum_(i <- _ | let '(tsk_other, _) := i in _)_]big_mkcond.
           rewrite big_seq_cond [\sum_(i <- _ | true) _]big_seq_cond.
           apply leq_sum; move => tsk_k /andP [HPk _]; destruct tsk_k as [tsk_k R_k].
@@ -552,16 +550,9 @@ Module ResponseTimeAnalysisEDF.
         specialize (WORKLOAD tsk_k INTERFk R_k HPk).
         apply leq_ltn_trans with (p := x tsk_k) in WORKLOAD; first by rewrite ltnn in WORKLOAD.
         by unfold workload_bound; rewrite INTERFk'; apply BUG.
+        *)     
       Qed.
 
-    End UnderFPScheduling.
-
-    Section UnderJLFPScheduling.
-
-      (* to be completed... *)
-      
-    End UnderJLFPScheduling.
-    
   End ResponseTimeBound.
 
-End ResponseTimeAnalysis.
+End ResponseTimeAnalysisEDF.

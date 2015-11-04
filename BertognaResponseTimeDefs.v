@@ -216,7 +216,7 @@ Module ResponseTimeAnalysis.
 
     Section JLFP.
 
-      Let is_interfering_task_jlfp (tsk_other: sporadic_task) :=
+      Definition is_interfering_task_jlfp (tsk_other: sporadic_task) :=
         tsk_other != tsk.
       
       (* The total interference incurred by tsk is thus bounded by: *)
