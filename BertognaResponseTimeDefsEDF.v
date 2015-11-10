@@ -71,11 +71,23 @@ Module ResponseTimeAnalysisEDF.
     Let task_with_response_time := (sporadic_task * time)%type.
     Variable hp_bounds: seq task_with_response_time.
     
-    (* For FP scheduling, assume there exists a fixed task priority. *)
-    Variable higher_eq_priority: fp_policy sporadic_task.
-
     Let interferes_with_tsk := is_interfering_task_jlfp tsk.
-      
+
+    (*Computation of EDF on list of pairs (T,R)*)
+    Let initial_list := map (fun t => (t, task_cost t)) ts.
+    
+    Let max_deadline_of_taskset := \max_(tsk <- ts) task_deadline tsk.
+
+    Let I := total_interference_bound_jlfp task_cost task_period tsk hp_bounds.
+
+    Definition edf_rta_iteration (pair: task_with_response_time) :=
+      let (tsk, R) := pair in (tsk, I R).
+    
+    Definition R_list_edf :=
+      iter max_deadline_of_taskset 
+           (map edf_rta_iteration)
+           initial_list. 
+                                
     (* Assume that for any interfering task, a response-time
        bound R_other is known. *)
     (*Hypothesis H_all_interfering_tasks_in_hp_bounds:
