@@ -58,10 +58,6 @@ Module ResponseTimeAnalysisEDF.
     Hypothesis H_restricted_deadlines:
       forall tsk, tsk \in ts -> task_deadline tsk <= task_period tsk.
 
-    (* Next, consider a task tsk that is to be analyzed. *)
-    Variable tsk: sporadic_task.
-    Hypothesis task_in_ts: tsk \in ts.
-
     Let no_deadline_is_missed_by_tsk (tsk: sporadic_task) :=
       task_misses_no_deadline job_cost job_deadline job_task rate sched tsk.
     Let is_response_time_bound (tsk: sporadic_task) :=
@@ -69,65 +65,35 @@ Module ResponseTimeAnalysisEDF.
 
     (* Assume a known response-time bound for any interfering task *)
     Let task_with_response_time := (sporadic_task * time)%type.
-    Variable hp_bounds: seq task_with_response_time.
+    Variable rt_bounds: seq task_with_response_time.
+
+    (* Assume that the response-time bounds are a fixed-point of the
+       response-time recurrence. *)
+    Hypothesis H_response_time_is_fixed_point :
+      forall tsk R,
+        (tsk, R) \in rt_bounds ->
+        R = task_cost tsk +
+            div_floor
+              (total_interference_bound_jlfp task_cost task_period tsk rt_bounds R)
+              num_cpus.
     
-    Let interferes_with_tsk := is_interfering_task_jlfp tsk.
-
-    (*Computation of EDF on list of pairs (T,R)*)
-    Let initial_list := map (fun t => (t, task_cost t)) ts.
-    
-    Let max_deadline_of_taskset := \max_(tsk <- ts) task_deadline tsk.
-
-    Let I := total_interference_bound_jlfp task_cost task_period tsk hp_bounds.
-
-    Definition edf_rta_iteration (pair: task_with_response_time) :=
-      let (tsk, R) := pair in (tsk, I R).
-    
-    Definition R_list_edf :=
-      iter max_deadline_of_taskset 
-           (map edf_rta_iteration)
-           initial_list. 
-                                
-    (* Assume that for any interfering task, a response-time
-       bound R_other is known. *)
-    (*Hypothesis H_all_interfering_tasks_in_hp_bounds:
-      [seq tsk_hp <- ts | interferes_with_tsk tsk_hp] = unzip1 hp_bounds.*)
-
-    (*Lemma exists_R :
-      forall hp_tsk,
-      hp_tsk \in ts ->
-        interferes_with_tsk hp_tsk ->
-        exists R,
-          (hp_tsk, R) \in hp_bounds.
-    Proof.
-      intros hp_tsk IN INTERF.
-      rewrite -[hp_bounds]zip_unzip; apply exists_unzip2.
-      by rewrite zip_unzip -H_all_interfering_tasks_in_hp_bounds mem_filter; apply/andP.
-    Qed.*)      
-
-    Hypothesis H_response_time_of_interfering_tasks_is_known2:
-      forall hp_tsk R,
-        (hp_tsk, R) \in hp_bounds ->
-        is_response_time_bound_of_task job_cost job_task hp_tsk rate sched R.
-
-      
     (* Assume that the response-time bounds are larger than task costs. *)
     Hypothesis H_response_time_bounds_ge_cost:
-      forall hp_tsk R,
-        (hp_tsk, R) \in hp_bounds -> R >= task_cost hp_tsk.
+      forall tsk_other R,
+        (tsk_other, R) \in rt_bounds -> R >= task_cost tsk_other.
       
     (* Assume that no deadline is missed by any interfering task, i.e.,
        response-time bound R_other <= deadline. *)
     Hypothesis H_interfering_tasks_miss_no_deadlines:
-      forall hp_tsk R,
-        (hp_tsk, R) \in hp_bounds -> R <= task_deadline hp_tsk.
+      forall tsk_other R,
+        (tsk_other, R) \in rt_bounds -> R <= task_deadline tsk_other.
 
     (* Assume that the schedule satisfies the global scheduling
        invariant, i.e., if any job of tsk is backlogged, all
        the processors must be busy with jobs of equal or higher
        priority. *)
     Hypothesis H_global_scheduling_invariant:
-      forall (j: JobIn arr_seq) (t: time),
+      forall (tsk: sporadic_task) (j: JobIn arr_seq) (t: time),
         job_task j = tsk ->
         backlogged job_cost rate sched j t ->
         count
@@ -135,37 +101,24 @@ Module ResponseTimeAnalysisEDF.
              is_interfering_task_jlfp tsk tsk_other &&
                task_is_scheduled job_task sched tsk_other t) ts = num_cpus.
 
-      (* Next, we define Bertogna and Cirinei's response-time bound recurrence *)
+    (* Next, we define Bertogna and Cirinei's response-time bound recurrence *)
       
-      (* Let R be any time. *)
-      Variable R: time.
-
-      (* Bertogna and Cirinei's response-time analysis states that
-         if R is a fixed-point of the following recurrence, ... *)
-      Hypothesis H_response_time_recurrence_holds :
-        R = task_cost tsk +
-            div_floor
-              (total_interference_bound_jlfp task_cost task_period tsk hp_bounds R)
-              num_cpus.
-
-      (*..., and R is no larger than the deadline of tsk, ...*)
-      Hypothesis H_response_time_no_larger_than_deadline:
-        R <= task_deadline tsk.
-
-      (* ..., then R bounds the response time of tsk in any schedule. *)
-      Theorem bertogna_cirinei_response_time_bound_edf :
-        is_response_time_bound tsk R.
-      Proof.
+    Variable tsk: sporadic_task.
+    Variable R: time.
+    Hypothesis tsk_R_in_rt_bounds: (tsk, R) \in rt_bounds.
+      
+    (* ..., then R bounds the response time of tsk in any schedule. *)
+    Theorem bertogna_cirinei_response_time_bound_edf :
+      is_response_time_bound tsk R.
+    Proof.
         unfold is_response_time_bound, is_response_time_bound_of_task,
                job_has_completed_by, completed,
                completed_jobs_dont_execute,
                valid_sporadic_job in *.
         rename H_completed_jobs_dont_execute into COMP,
-               H_response_time_recurrence_holds into REC,
                H_valid_job_parameters into PARAMS,
                H_valid_task_parameters into TASK_PARAMS,
                H_restricted_deadlines into RESTR,
-               H_response_time_of_interfering_tasks_is_known2 into RESP,
                (*H_all_interfering_tasks_in_hp_bounds into FST,*)
                H_interfering_tasks_miss_no_deadlines into NOMISS,
                H_rate_equals_one into RATE,
@@ -176,7 +129,7 @@ Module ResponseTimeAnalysisEDF.
         (* For simplicity, let x denote per-task interference under FP
            scheduling, and let X denote the total interference. *)
         set x := fun hp_tsk =>
-          if (hp_tsk \in ts) && interferes_with_tsk hp_tsk then
+          if (hp_tsk \in ts) && is_interfering_task_jlfp tsk hp_tsk then
             task_interference job_cost job_task rate sched j
                      (job_arrival j) (job_arrival j + R) hp_tsk
           else 0.
@@ -185,7 +138,7 @@ Module ResponseTimeAnalysisEDF.
         (* Let's recall the workload bound under EDF scheduling. *)
         set workload_bound := fun (tup: task_with_response_time) =>
           let (tsk_k, R_k) := tup in
-            if interferes_with_tsk tsk_k then
+            if is_interfering_task_jlfp tsk tsk_k then
               W task_cost task_period tsk_k R_k R
             else 0.  
         
