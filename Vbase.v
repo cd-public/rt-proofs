@@ -489,8 +489,8 @@ Ltac autos   := clarsimp; auto with vlib.
 
 Definition NW A (P: unit -> A) : A := P tt.
 
-Notation "<< x : t >>" := (NW (fun x => t)) (at level 80, x ident, no associativity).
-Notation "<< t >>" := (NW (fun _ => t)) (at level 79, no associativity).
+(*Notation "<< x : t >>" := (NW (fun x => t)) (at level 80, x ident, no associativity).
+Notation "<< t >>" := (NW (fun _ => t)) (at level 79, no associativity).*)
 
 Ltac unnw := unfold NW in *.
 Ltac rednw := red; unnw.
