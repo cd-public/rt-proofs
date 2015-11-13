@@ -156,8 +156,26 @@ Module ResponseTimeIterationEDF.
             R_list_edf ts = Some rt_bounds ->
             (tsk, R) \in rt_bounds ->
             R >= task_cost tsk.
-        Proof.
+        Proof. (*to be checked*)
+          intros rt_bounds tsk R SOME PAIR.
+          unfold R_list_edf in SOME.
+          destruct (all R_le_deadline (iter (max_steps ts) edf_rta_iteration (initial_state ts)));
+            last by ins.
+          inversion SOME as [EQ]; clear SOME.
+          destruct (max_steps ts); simpl in *.
+          {
+            subst; unfold initial_state in PAIR.
+            
+            
+          exploit R_list_converges.
+          unfold R_list_edf.
+            rewrite SOME. by ins. admit. (*NONE = Some ???*)
+          rewrite pair. by ins.
+          intros H. (*use H with R and then a <= a + b (b positive)*)
           admit.
+          *)
+          
+          
         Qed.
         
         Lemma R_list_le_deadline :
@@ -166,7 +184,15 @@ Module ResponseTimeIterationEDF.
             (tsk, R) \in rt_bounds ->
             R <= task_deadline tsk.
         Proof.
-          admit.
+          intros rt_bounds tsk R SOME PAIR.
+          unfold R_list_edf in SOME.
+          destruct (all R_le_deadline
+             (iter (max_steps ts) edf_rta_iteration (initial_state ts)))
+                   eqn:DEADLINE.
+          move: DEADLINE => /allP DEADLINE.
+          inversion SOME as [EQ]; rewrite -EQ in PAIR.
+          by specialize (DEADLINE (tsk, R) PAIR).
+          by inversion SOME.          
         Qed.
 
         Lemma R_list_has_tasks :
