@@ -41,20 +41,25 @@ Notation "\sum_ ( ( m , n ) <- r | P ) F" :=
   (\sum_(i <- r | (let '(m,n) := i in P))
     (let '(m,n) := i in F)) : nat_scope.
 
-(*Reserved Notation "\big [ op / idx ]_ ( ( m , n ) <- r | P ) F"
-  (at level 36, F at level 36, op, idx at level 10, i, r at level 50,
-   format "'[' \big [ op / idx ]_ ( ( m , n ) <- r | P ) '/ ' F ']'").
+Reserved Notation "\max_ ( ( m , n ) <- r ) F"
+  (at level 41, F at level 41, m, n at level 50,
+   format "'[' \max_ ( ( m , n ) <- r ) '/ ' F ']'").
 
-Notation "\big [ op / idx ]_ ( ( m , n ) <- r | P ) F" :=
-  (bigop idx op r
-         (fun i => let '(m,n) := i in P%B)
-         (fun i => let '(m,n) := i in F)) : big_scope.*)
+Notation "\max_ ( ( m , n ) <- r ) F" :=
+  (\max_(i <- r) (let '(m,n) := i in F)) : nat_scope.
 
-(*Variable natlist: seq nat.
-Check (\sum_(x1 <- natlist) x1).
+Reserved Notation "\max_ ( ( m , n ) <- r | P ) F"
+  (at level 41, F at level 30, P at level 41, m, n at level 50,
+   format "'[' \max_ ( ( m , n ) <- r | P ) '/ ' F ']'").
 
-Variable tuplelist: seq (nat * nat).
-Check (\sum_( (x1,x2) <- tuplelist | x1 + x2 > 1) (x1 + x2)).*)
+Notation "\max_ ( ( m , n ) <- r | P ) F" :=
+  (\max_(i <- r | (let '(m,n) := i in P))
+    (let '(m,n) := i in F)) : nat_scope.
+
+Notation "[ 'seq' ( x , y ) <- s | C ]" :=
+  (filter (fun i => let '(x,y) := i in C%B) s)
+ (at level 0, x at level 99,
+  format "[ '[hv' 'seq' ( x , y ) <- s '/ ' | C ] ']'") : seq_scope.
 
 Reserved Notation "\cat_ ( i < n ) F"
   (at level 41, F at level 41, i, n at level 50,
@@ -587,6 +592,14 @@ Proof.
     }
   }
 Qed.
+
+(* Based on https://www.ps.uni-saarland.de/formalizations/fset/html/libs.fset.html *)
+Definition powerset {T: eqType} (l: seq T) : seq (seq T) :=
+  let mT := ((size l).-tuple bool) in
+    (map (fun m : mT => (mask m l)) (enum {: mT})).
+
+Definition no_intersection {T: eqType} (l1 l2: seq T) :=
+  ~~ has (mem l1) l2.
 
 (*Program Definition fun_ord_to_nat2 {n} {T} (x0: T) (f: 'I_n -> T)
         (x : nat) : T :=

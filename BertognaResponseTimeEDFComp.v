@@ -38,12 +38,14 @@ Module ResponseTimeIterationEDF.
     
     Let initial_state (ts: taskset_of sporadic_task) :=
       map (fun t => (t, task_cost t)) ts.
-    
+
+    Definition update_R (rt_bounds: seq task_with_response_time)
+                        (pair : task_with_response_time) :=
+      let (tsk, R) := pair in
+        (tsk, response_time_bound tsk rt_bounds R).
+
     Definition edf_rta_iteration (rt_bounds: seq task_with_response_time) :=
-      map (fun pair : task_with_response_time =>
-             let (tsk, R) := pair in
-               (tsk, response_time_bound tsk rt_bounds R))
-          rt_bounds.
+      map (update_R rt_bounds) rt_bounds.
 
     Definition R_le_deadline (pair: task_with_response_time) :=
       let (tsk, R) := pair in
@@ -148,7 +150,7 @@ Module ResponseTimeIterationEDF.
         Proof.
           admit.
         Qed.
-        
+
         (* The following lemma states that the response-time bounds
            computed using R_list are valid. *)
         Lemma R_list_ge_cost :
@@ -156,26 +158,43 @@ Module ResponseTimeIterationEDF.
             R_list_edf ts = Some rt_bounds ->
             (tsk, R) \in rt_bounds ->
             R >= task_cost tsk.
-        Proof. (*to be checked*)
+        Proof.
           intros rt_bounds tsk R SOME PAIR.
           unfold R_list_edf in SOME.
           destruct (all R_le_deadline (iter (max_steps ts) edf_rta_iteration (initial_state ts)));
             last by ins.
-          inversion SOME as [EQ]; clear SOME.
-          destruct (max_steps ts); simpl in *.
+          inversion SOME as [EQ]; clear SOME; subst.
+          generalize dependent R.
+          induction (max_steps ts) as [| step]; simpl in *.
           {
-            subst; unfold initial_state in PAIR.
+            intros R IN; unfold initial_state in IN.
+            assert (ALL: all (fun p => task_cost (fst p) <= snd p)
+                             (map (fun t => (t, task_cost t)) ts)).
+            {
+              by rewrite all_map; apply/allP; ins.
+            }
+            by move: ALL => /allP ALL; apply ALL in IN.
+          }
+          {
+            intros R IN.
+            set prev_state := iter step edf_rta_iteration (initial_state ts).
+            fold prev_state in IN, IHstep.
+            unfold edf_rta_iteration at 1 in IN.
+            move: IN => /mapP IN; destruct IN as [(tsk',R') IN EQ].
+            inversion EQ as [[xxx EQ']]; subst tsk'; rewrite -EQ'.
+            apply leq_trans with (n := R'); [by apply IHstep | subst R; clear EQ].
+            assert (SUBST: R' = iter 0 (response_time_bound tsk prev_state) R');
+              [by done | rewrite SUBST -iterS; clear SUBST].
+            apply fun_mon_iter_mon. [by ins | |].
+            unfold response_time_bound.
             
+            Check iter.
             
-          exploit R_list_converges.
-          unfold R_list_edf.
-            rewrite SOME. by ins. admit. (*NONE = Some ???*)
-          rewrite pair. by ins.
-          intros H. (*use H with R and then a <= a + b (b positive)*)
-          admit.
-          *)
-          
-          
+            fold (iter 0 (response_time_bound tsk prev_state)).
+            unfold response_time_bound.
+            Check iter.
+            
+          }          
         Qed.
         
         Lemma R_list_le_deadline :
