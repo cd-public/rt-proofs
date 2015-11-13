@@ -1,9 +1,9 @@
-Require Import Vbase ScheduleDefs BertognaResponseTimeDefs divround helper
+Require Import Vbase ScheduleDefs BertognaResponseTimeDefsEDF divround helper
                ssreflect ssrbool eqtype ssrnat seq fintype bigop div path tuple.
 
 Module ResponseTimeIterationEDF.
 
-  Import Schedule ResponseTimeAnalysis.
+  Import Schedule ResponseTimeAnalysisEDF.
 
   Section Analysis.
     
@@ -136,9 +136,119 @@ Module ResponseTimeIterationEDF.
         job_misses_no_deadline job_cost job_deadline rate sched.
 
       Section HelperLemma.
+
+        Lemma R_list_converges : (* this is harder! Check FP file. *)
+          forall tsk R rt_bounds,
+            R_list_edf ts = Some rt_bounds ->
+            (tsk, R) \in rt_bounds ->
+            R = task_cost tsk +
+                div_floor
+                 (total_interference_bound_jlfp task_cost task_period tsk rt_bounds R)
+                 num_cpus.
+        Proof.
+          admit.
+        Qed.
         
         (* The following lemma states that the response-time bounds
            computed using R_list are valid. *)
+        Lemma R_list_ge_cost :
+          forall rt_bounds tsk R,
+            R_list_edf ts = Some rt_bounds ->
+            (tsk, R) \in rt_bounds ->
+            R >= task_cost tsk.
+        Proof.
+          admit.
+        Qed.
+        
+        Lemma R_list_le_deadline :
+          forall rt_bounds tsk R,
+            R_list_edf ts = Some rt_bounds ->
+            (tsk, R) \in rt_bounds ->
+            R <= task_deadline tsk.
+        Proof.
+          admit.
+        Qed.
+
+        Lemma R_list_has_tasks :
+          forall rt_bounds tsk R,
+            R_list_edf ts = Some rt_bounds ->
+            ((tsk, R) \in rt_bounds <-> tsk \in ts).
+        Proof.
+          admit.
+        Qed.
+
+        Lemma R_list_has_R_for_every_tsk :
+          forall rt_bounds tsk,
+            R_list_edf ts = Some rt_bounds ->
+            tsk \in ts ->
+            exists R,
+              (tsk, R) \in rt_bounds.
+        Proof.
+          intros rt_bounds tsk SOME IN.
+          unfold R_list_edf in SOME.
+          destruct (all R_le_deadline (iter (max_steps ts) edf_rta_iteration (initial_state ts)));
+            last by ins.
+          inversion SOME as [EQ].
+          generalize dependent tsk.
+          induction (max_steps ts) as [|]; simpl in *.
+          {
+            ins; unfold initial_state.
+            exists (task_cost tsk).
+            rewrite mem_map; first by ins.
+            by red; intros x1 x2 TUP; inversion TUP.
+          }
+          {
+            intros tsk IN.
+            exploit IHn; [admit | admit | apply IN | intro EX; des].
+
+
+            
+            set myfun := fun p: task_with_response_time => let (tsk0, R0) := p in (tsk0, response_time_bound tsk0 (iter n edf_rta_iteration (initial_state ts)) R0).
+            
+            have MAP := @mem_map _ _ myfun
+                                 _ (iter n edf_rta_iteration (initial_state ts)) (tsk, R).
+            exploit MAP. red.
+            intros tup1 tup2.
+            unfold myfun.
+            destruct tup1, tup2; intro TUP; f_equal; inversion TUP.
+              by ins.
+              destruct (s0 == s2) eqn:EQ02.
+                by move: EQ02 => /eqP EQ02. rewrite ins.
+            rewrite MAP; first by ins.
+            unfold myfun.
+            red; intros x1 x2 TUP. ; unfold myfun in *; inversion TUP.
+            simpl in *. ins.
+            exploit (IHn)
+            simpl in MAP. destruct 
+            rewrite MAP. rewrite iterSr.
+            unfold edf_rta_iteration in *.
+            rewrite <- mem_map with (T2 := task_with_response_time)
+                                      (f := edf_rta_iteration) in EX.
+            -(mem_map) in EX.
+            exists (ed
+              admit.
+              admit.
+              exists 9.
+            unfold edf_rta_iteration.
+           
+            rewrite mem_map.
+            unfold edf_rta_iteration.
+            exploit IHn.
+            destruct rt_bounds. admit. simpl.
+            f_equal.  rewrite -EQ. simpl in *.
+          destruct (max_steps ts).
+          {
+            simpl in *.
+            admit.
+          }
+          {
+            simpl in *.
+          }
+          unfold iter.
+          admit.
+        Qed.
+
+        
         Lemma R_list_has_response_time_bounds :
           forall rt_bounds tsk R,
             R_list_edf ts = Some rt_bounds ->
@@ -153,35 +263,24 @@ Module ResponseTimeIterationEDF.
                  H_completed_jobs_dont_execute into COMP,
                  H_jobs_must_arrive_to_execute into MUSTARRIVE,
                  H_global_scheduling_invariant into INVARIANT,
-                 (*H_transitive into TRANS,
-                 H_unique_priorities into UNIQ,
-                 H_total into TOTAL,*)
                  H_all_jobs_from_taskset into ALLJOBS,
                  H_ts_is_a_set into SET.
           clear ALLJOBS.
 
           intros rt_bounds tsk R SOME IN j JOBj.
-          unfold R_list_edf, edf_rta_iteration in *.
-          assert (FIXED: forall tsk R,
-                           (tsk, R) \in rt_bounds ->
-                           R = task_cost tsk + response_time_bound tsk rt_bounds R).
-          {
-            admit.
-          }
-          generalize dependent j.
-          generalize dependent R.
-          generalize dependent tsk.
+          unfold edf_rta_iteration in *.
 
-          cut ((forall tsk R, (tsk, R) \in rt_bounds -> R = task_cost tsk + response_time_bound tsk rt_bounds R) -> (forall tsk R (j: JobIn arr_seq), (tsk, R) \in rt_bounds -> job_task j = tsk -> completed job_cost rate sched j (job_arrival j + R))).
-          {
-            by intro ASSUMP; ins; apply ASSUMP with (tsk := tsk).
-          }
-          {
-            ins.
-            admit.
-          }
+          have BOUND := bertogna_cirinei_response_time_bound_edf.
+          unfold is_response_time_bound_of_task, job_has_completed_by in *.
+          apply BOUND with (task_cost := task_cost) (task_period := task_period)
+             (task_deadline := task_deadline) (job_deadline := job_deadline)
+             (job_task := job_task) (ts := ts) (tsk := tsk) (rt_bounds := rt_bounds); try (by ins).
+            by ins; apply R_list_converges.
+            by ins; apply R_list_ge_cost with (rt_bounds := rt_bounds).
+            by ins; apply R_list_le_deadline with (rt_bounds := rt_bounds).
+        Qed.
 
-          (*
+        (*
           ins. 
           unfold edf_schedulable, R_list_edf in *.
 
@@ -280,7 +379,6 @@ Module ResponseTimeIterationEDF.
               }
             }
           }*)
-        Qed.
 
       End HelperLemma.
       
@@ -301,25 +399,19 @@ Module ResponseTimeIterationEDF.
                H_completed_jobs_dont_execute into COMP,
                H_jobs_must_arrive_to_execute into MUSTARRIVE,
                H_global_scheduling_invariant into INVARIANT,
-               (*H_sorted_ts into SORT,
-               H_transitive into TRANS,
-               H_unique_priorities into UNIQ,
-               H_total into TOTAL,*)
                H_all_jobs_from_taskset into ALLJOBS,
                H_test_succeeds into TEST.
-
-        admit.
         
-        (*move => tsk INtsk j /eqP JOBtsk.
+        move => tsk INtsk j /eqP JOBtsk.
         have RLIST := (R_list_has_response_time_bounds).
-        have NONEMPTY := (R_list_non_empty ts).
-        have DL := (R_list_le_deadline ts).
-
-        destruct (R_list ts) as [rt_bounds |]; last by ins.
-        exploit (NONEMPTY rt_bounds tsk); [by ins | intros [EX _]; specialize (EX INtsk); des].
-        exploit (RLIST rt_bounds tsk R); [by ins | by ins | by apply JOBtsk | intro COMPLETED].
-        exploit (DL rt_bounds tsk R); [by ins | by ins | clear DL; intro DL].
+        have DL := (R_list_le_deadline).
+        have HAS := (R_list_has_R_for_every_tsk).
         
+        destruct (R_list_edf ts) as [rt_bounds |]; last by ins.
+        exploit (HAS rt_bounds tsk); [by ins | by ins | clear HAS; intro HAS; des].
+        exploit (RLIST rt_bounds tsk R); [by ins | by ins | by apply JOBtsk | intro COMPLETED ].
+        exploit (DL rt_bounds tsk R); [by ins | by ins | clear DL; intro DL].
+   
         rewrite eqn_leq; apply/andP; split; first by apply service_interval_le_cost.
         apply leq_trans with (n := service rate sched j (job_arrival j + R)); last first.
         {
@@ -329,12 +421,12 @@ Module ResponseTimeIterationEDF.
           by rewrite JOBtsk.
         }
         rewrite leq_eqVlt; apply/orP; left; rewrite eq_sym.
-        by apply COMPLETED.*)
+        by apply COMPLETED.
       Qed.
 
       (* ..., and the schedulability test yields safe response-time
          bounds for each task. *)
-      Theorem fp_schedulability_test_yields_response_time_bounds :
+      Theorem edf_schedulability_test_yields_response_time_bounds :
         forall tsk,
           tsk \in ts ->
           exists R,
@@ -344,17 +436,18 @@ Module ResponseTimeIterationEDF.
               completed job_cost rate sched j (job_arrival j + R).
       Proof.
         intros tsk IN.
-        admit.
-      (*unfold edf_schedulable in *.
-        have TASKS := R_list_non_empty ts.
+        unfold edf_schedulable in *.
+        have TASKS := R_list_has_tasks.
         have BOUNDS := (R_list_has_response_time_bounds).
-        have DL := (R_list_le_deadline ts).
-        destruct (R_list ts) as [rt_bounds |]; last by ins.
-        exploit (TASKS rt_bounds tsk); [by ins | clear TASKS; intro EX].
-        destruct EX as [EX _]; specialize (EX IN); des.
+        have DL := (R_list_le_deadline).
+        have HAS := (R_list_has_R_for_every_tsk).
+        
+        destruct (R_list_edf ts) as [rt_bounds |]; last by ins.
+        exploit (HAS rt_bounds tsk); [by ins | by ins | clear HAS; intro HAS; des].
+        exploit (TASKS rt_bounds tsk R); [by ins | clear TASKS; intro EX].
         exists R; split.
           by apply DL with (rt_bounds0 := rt_bounds).
-          by ins; apply (BOUNDS rt_bounds tsk). *)
+          by ins; apply (BOUNDS rt_bounds tsk).
       Qed.
 
       (* For completeness, since all jobs of the arrival sequence

@@ -94,6 +94,7 @@ Module ResponseTimeAnalysisEDF.
        priority. *)
     Hypothesis H_global_scheduling_invariant:
       forall (tsk: sporadic_task) (j: JobIn arr_seq) (t: time),
+        tsk \in ts ->
         job_task j = tsk ->
         backlogged job_cost rate sched j t ->
         count
