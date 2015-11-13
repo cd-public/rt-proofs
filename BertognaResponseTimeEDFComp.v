@@ -39,13 +39,13 @@ Module ResponseTimeIterationEDF.
     Let initial_state (ts: taskset_of sporadic_task) :=
       map (fun t => (t, task_cost t)) ts.
 
-    Definition update_R (rt_bounds: seq task_with_response_time)
+    Definition update_bound (rt_bounds: seq task_with_response_time)
                         (pair : task_with_response_time) :=
       let (tsk, R) := pair in
         (tsk, response_time_bound tsk rt_bounds R).
 
     Definition edf_rta_iteration (rt_bounds: seq task_with_response_time) :=
-      map (update_R rt_bounds) rt_bounds.
+      map (update_bound rt_bounds) rt_bounds.
 
     Definition R_le_deadline (pair: task_with_response_time) :=
       let (tsk, R) := pair in
@@ -188,23 +188,13 @@ Module ResponseTimeIterationEDF.
             (tsk, R) \in rt_bounds ->
             R <= task_deadline tsk.
         Proof.
-          intros rt_bounds tsk R SOME PAIR.
-          unfold R_list_edf in SOME.
-          destruct (all R_le_deadline
-             (iter (max_steps ts) edf_rta_iteration (initial_state ts)))
-                   eqn:DEADLINE.
+          intros rt_bounds tsk R SOME PAIR; unfold R_list_edf in SOME.
+          destruct (all R_le_deadline (iter (max_steps ts)
+                                            edf_rta_iteration (initial_state ts))) eqn:DEADLINE;
+            last by done.
           move: DEADLINE => /allP DEADLINE.
           inversion SOME as [EQ]; rewrite -EQ in PAIR.
           by specialize (DEADLINE (tsk, R) PAIR).
-          by inversion SOME.          
-        Qed.
-
-        Lemma R_list_has_tasks :
-          forall rt_bounds tsk R,
-            R_list_edf ts = Some rt_bounds ->
-            ((tsk, R) \in rt_bounds <-> tsk \in ts).
-        Proof.
-          admit.
         Qed.
 
         Lemma R_list_has_R_for_every_tsk :
@@ -217,67 +207,24 @@ Module ResponseTimeIterationEDF.
           intros rt_bounds tsk SOME IN.
           unfold R_list_edf in SOME.
           destruct (all R_le_deadline (iter (max_steps ts) edf_rta_iteration (initial_state ts)));
-            last by ins.
-          inversion SOME as [EQ].
+            last by done.
+          inversion SOME as [EQ]; clear SOME EQ.
           generalize dependent tsk.
-          induction (max_steps ts) as [|]; simpl in *.
+          induction (max_steps ts) as [| step]; simpl in *.
           {
-            ins; unfold initial_state.
+            intros tsk IN; unfold initial_state.
             exists (task_cost tsk).
-            rewrite mem_map; first by ins.
-            by red; intros x1 x2 TUP; inversion TUP.
+            by apply/mapP; exists tsk.
           }
           {
             intros tsk IN.
-            exploit IHn; [admit | admit | apply IN | intro EX; des].
-
-
-            
-            set myfun := fun p: task_with_response_time => let (tsk0, R0) := p in (tsk0, response_time_bound tsk0 (iter n edf_rta_iteration (initial_state ts)) R0).
-            
-            have MAP := @mem_map _ _ myfun
-                                 _ (iter n edf_rta_iteration (initial_state ts)) (tsk, R).
-            exploit MAP. red.
-            intros tup1 tup2.
-            unfold myfun.
-            destruct tup1, tup2; intro TUP; f_equal; inversion TUP.
-              by ins.
-              destruct (s0 == s2) eqn:EQ02.
-                by move: EQ02 => /eqP EQ02. rewrite ins.
-            rewrite MAP; first by ins.
-            unfold myfun.
-            red; intros x1 x2 TUP. ; unfold myfun in *; inversion TUP.
-            simpl in *. ins.
-            exploit (IHn)
-            simpl in MAP. destruct 
-            rewrite MAP. rewrite iterSr.
-            unfold edf_rta_iteration in *.
-            rewrite <- mem_map with (T2 := task_with_response_time)
-                                      (f := edf_rta_iteration) in EX.
-            -(mem_map) in EX.
-            exists (ed
-              admit.
-              admit.
-              exists 9.
-            unfold edf_rta_iteration.
-           
-            rewrite mem_map.
-            unfold edf_rta_iteration.
-            exploit IHn.
-            destruct rt_bounds. admit. simpl.
-            f_equal.  rewrite -EQ. simpl in *.
-          destruct (max_steps ts).
-          {
-            simpl in *.
-            admit.
+            set prev_state := iter step edf_rta_iteration (initial_state ts).
+            fold prev_state in IN, IHstep.
+            specialize (IHstep tsk IN); des.
+            exists (response_time_bound tsk prev_state R).
+            by apply/mapP; exists (tsk, R); [by done | by f_equal].
           }
-          {
-            simpl in *.
-          }
-          unfold iter.
-          admit.
         Qed.
-
         
         Lemma R_list_has_response_time_bounds :
           forall rt_bounds tsk R,
@@ -287,19 +234,8 @@ Module ResponseTimeIterationEDF.
               job_task j = tsk ->
               completed job_cost rate sched j (job_arrival j + R).
         Proof.
-          rename H_valid_job_parameters into JOBPARAMS,
-                 H_valid_task_parameters into TASKPARAMS,
-                 H_restricted_deadlines into RESTR,
-                 H_completed_jobs_dont_execute into COMP,
-                 H_jobs_must_arrive_to_execute into MUSTARRIVE,
-                 H_global_scheduling_invariant into INVARIANT,
-                 H_all_jobs_from_taskset into ALLJOBS,
-                 H_ts_is_a_set into SET.
-          clear ALLJOBS.
-
           intros rt_bounds tsk R SOME IN j JOBj.
           unfold edf_rta_iteration in *.
-
           have BOUND := bertogna_cirinei_response_time_bound_edf.
           unfold is_response_time_bound_of_task, job_has_completed_by in *.
           apply BOUND with (task_cost := task_cost) (task_period := task_period)
@@ -309,106 +245,6 @@ Module ResponseTimeIterationEDF.
             by ins; apply R_list_ge_cost with (rt_bounds := rt_bounds).
             by ins; apply R_list_le_deadline with (rt_bounds := rt_bounds).
         Qed.
-
-        (*
-          ins. 
-          unfold edf_schedulable, R_list_edf in *.
-
-
-          ins. 
-          induction ts as [| ts' tsk_i IH] using last_ind.
-          {
-            intros rt_bounds tsk R SOME IN.
-            by inversion SOME; subst; rewrite in_nil in IN.
-          }
-          {
-           intros rt_bounds tsk R SOME IN j JOBj.
-             destruct (lastP rt_bounds) as [| hp_bounds (tsk_lst, R_lst)];
-              first by rewrite in_nil in IN.
-            rewrite mem_rcons in_cons in IN; move: IN => /orP IN.
-            destruct IN as [LAST | BEGINNING]; last first.
-            {
-              apply IH with (rt_bounds := hp_bounds) (tsk := tsk); try (by ins).
-              by rewrite rcons_uniq in SET; move: SET => /andP [_ SET].
-              by ins; red; ins; apply TASKPARAMS; rewrite mem_rcons in_cons; apply/orP; right.
-              by ins; apply RESTR; rewrite mem_rcons in_cons; apply/orP; right.
-              by apply sorted_rcons_prefix in SORT.
-              {
-                intros tsk0 j0 t IN0 JOB0 BACK0.
-                exploit (INVARIANT tsk0 j0 t); try (by ins);
-                  [by rewrite mem_rcons in_cons; apply/orP; right | intro INV].
-                rewrite -cats1 count_cat /= in INV.
-                unfold is_interfering_task_fp in INV.
-                generalize SOME; apply R_list_rcons_task in SOME; subst tsk_i; intro SOME.
-                assert (HP: higher_eq_priority tsk_lst tsk0 = false).
-                {
-                  apply order_sorted_rcons with (x := tsk0) in SORT; [|by ins | by ins].
-                  apply negbTE; apply/negP; unfold not; intro BUG.
-                  exploit UNIQ; [by apply/andP; split; [by apply SORT | by ins] | intro EQ].
-                  by rewrite rcons_uniq -EQ IN0 in SET.
-                }              
-                by rewrite HP 2!andFb 2!addn0 in INV.
-              }
-              by apply R_list_rcons_prefix in SOME.
-            }
-            {
-              move: LAST => /eqP LAST.
-              inversion LAST as [[EQ1 EQ2]].
-              rewrite -> EQ1 in *; rewrite -> EQ2 in *; clear EQ1 EQ2 LAST.
-              generalize SOME; apply R_list_rcons_task in SOME; subst tsk_i; intro SOME.
-              generalize SOME; apply R_list_rcons_prefix in SOME; intro SOME'.
-              have BOUND := bertogna_cirinei_response_time_bound_fp.
-              unfold is_response_time_bound_of_task, job_has_completed_by in BOUND.
-              apply BOUND with (task_cost := task_cost) (task_period := task_period) (task_deadline := task_deadline) (job_deadline := job_deadline) (job_task := job_task) (tsk := tsk_lst)
-                               (ts := rcons ts' tsk_lst) (hp_bounds := hp_bounds)
-                               (higher_eq_priority := higher_eq_priority); clear BOUND; try (by ins).
-              by apply R_list_unzip1 with (R := R_lst).
-              {
-                intros hp_tsk R0 HP j0 JOB0.
-                apply IH with (rt_bounds := hp_bounds) (tsk := hp_tsk); try (by ins).
-                by rewrite rcons_uniq in SET; move: SET => /andP [_ SET].
-                by red; ins; apply TASKPARAMS; rewrite mem_rcons in_cons; apply/orP; right.
-                by ins; apply RESTR; rewrite mem_rcons in_cons; apply/orP; right.
-                by apply sorted_rcons_prefix in SORT.
-                {
-                  intros tsk0 j1 t IN0 JOB1 BACK0.
-                  exploit (INVARIANT tsk0 j1 t); try (by ins);
-                    [by rewrite mem_rcons in_cons; apply/orP; right | intro INV].
-                  rewrite -cats1 count_cat /= addn0 in INV.
-                  unfold is_interfering_task_fp in INV.
-                  assert (NOINTERF: higher_eq_priority tsk_lst tsk0 = false).
-                  {
-                    apply order_sorted_rcons with (x := tsk0) in SORT; [|by ins | by ins].
-                    apply negbTE; apply/negP; unfold not; intro BUG.
-                    exploit UNIQ; [by apply/andP; split; [by apply BUG | by ins] | intro EQ].
-                    by rewrite rcons_uniq EQ IN0 in SET.
-                  }
-                  by rewrite NOINTERF 2!andFb addn0 in INV.
-                }
-              }
-              by ins; apply R_list_ge_cost with (ts' := ts') (rt_bounds := hp_bounds).
-              by ins; apply R_list_le_deadline with (ts' := ts') (rt_bounds := hp_bounds).
-              {
-                ins; exploit (INVARIANT tsk_lst j0 t); try (by ins).
-                by rewrite mem_rcons in_cons; apply/orP; left.
-              }
-              {
-                rewrite [R_lst](R_list_rcons_response_time ts' hp_bounds tsk_lst); last by ins.
-                rewrite per_task_rta_fold.
-                apply per_task_rta_converges with (ts' := ts'); try (by ins).
-                {
-                  red; ins; apply TASKPARAMS.
-                  by rewrite mem_rcons in_cons; apply/orP; right.
-                }
-                apply R_list_le_deadline with (ts' := rcons ts' tsk_lst)
-                                            (rt_bounds := rcons hp_bounds (tsk_lst, R_lst));
-                  first by apply SOME'.
-                rewrite mem_rcons in_cons; apply/orP; left; apply/eqP.
-                f_equal; symmetry.
-                by apply R_list_rcons_response_time with (ts' := ts'). 
-              }
-            }
-          }*)
 
       End HelperLemma.
       
@@ -467,14 +303,11 @@ Module ResponseTimeIterationEDF.
       Proof.
         intros tsk IN.
         unfold edf_schedulable in *.
-        have TASKS := R_list_has_tasks.
         have BOUNDS := (R_list_has_response_time_bounds).
         have DL := (R_list_le_deadline).
         have HAS := (R_list_has_R_for_every_tsk).
-        
         destruct (R_list_edf ts) as [rt_bounds |]; last by ins.
-        exploit (HAS rt_bounds tsk); [by ins | by ins | clear HAS; intro HAS; des].
-        exploit (TASKS rt_bounds tsk R); [by ins | clear TASKS; intro EX].
+        exploit (HAS rt_bounds tsk); [by ins | by ins | clear HAS; intro HAS; des].        
         exists R; split.
           by apply DL with (rt_bounds0 := rt_bounds).
           by ins; apply (BOUNDS rt_bounds tsk).
