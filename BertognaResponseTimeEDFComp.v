@@ -168,12 +168,8 @@ Module ResponseTimeIterationEDF.
           induction (max_steps ts) as [| step]; simpl in *.
           {
             intros R IN; unfold initial_state in IN.
-            assert (ALL: all (fun p => task_cost (fst p) <= snd p)
-                             (map (fun t => (t, task_cost t)) ts)).
-            {
-              by rewrite all_map; apply/allP; ins.
-            }
-            by move: ALL => /allP ALL; apply ALL in IN.
+            move: IN => /mapP IN; destruct IN as [tsk' IN EQ]; inversion EQ; subst.
+            by apply leqnn.
           }
           {
             intros R IN.
@@ -181,20 +177,9 @@ Module ResponseTimeIterationEDF.
             fold prev_state in IN, IHstep.
             unfold edf_rta_iteration at 1 in IN.
             move: IN => /mapP IN; destruct IN as [(tsk',R') IN EQ].
-            inversion EQ as [[xxx EQ']]; subst tsk'; rewrite -EQ'.
-            apply leq_trans with (n := R'); [by apply IHstep | subst R; clear EQ].
-            assert (SUBST: R' = iter 0 (response_time_bound tsk prev_state) R');
-              [by done | rewrite SUBST -iterS; clear SUBST].
-            apply fun_mon_iter_mon. [by ins | |].
-            unfold response_time_bound.
-            
-            Check iter.
-            
-            fold (iter 0 (response_time_bound tsk prev_state)).
-            unfold response_time_bound.
-            Check iter.
-            
-          }          
+            inversion EQ as [[xxx EQ']]; subst.
+            by apply leq_addr.
+          }      
         Qed.
         
         Lemma R_list_le_deadline :
