@@ -29,12 +29,13 @@ Module ResponseTimeIterationEDF.
     Let max_steps (ts: taskset_of sporadic_task) :=
       \max_(tsk <- ts) task_deadline tsk.
 
-    Let response_time_bound (tsk: sporadic_task) (rt_bounds: seq task_with_response_time)
-                            (delta: time) :=
-      task_cost tsk +
-      div_floor
-       (total_interference_bound_jlfp task_cost task_period tsk rt_bounds delta)
-       num_cpus.
+    Let I (rt_bounds: seq task_with_response_time)
+          (tsk: sporadic_task) (delta: time) :=
+      total_interference_bound_edf task_cost task_period task_deadline tsk rt_bounds delta.
+    
+    Let response_time_bound (rt_bounds: seq task_with_response_time)
+                            (tsk: sporadic_task) (delta: time) :=
+      task_cost tsk + div_floor (I rt_bounds tsk delta) num_cpus.
     
     Let initial_state (ts: taskset_of sporadic_task) :=
       map (fun t => (t, task_cost t)) ts.
@@ -42,7 +43,7 @@ Module ResponseTimeIterationEDF.
     Definition update_bound (rt_bounds: seq task_with_response_time)
                         (pair : task_with_response_time) :=
       let (tsk, R) := pair in
-        (tsk, response_time_bound tsk rt_bounds R).
+        (tsk, response_time_bound rt_bounds tsk R).
 
     Definition edf_rta_iteration (rt_bounds: seq task_with_response_time) :=
       map (update_bound rt_bounds) rt_bounds.
@@ -143,10 +144,7 @@ Module ResponseTimeIterationEDF.
           forall tsk R rt_bounds,
             R_list_edf ts = Some rt_bounds ->
             (tsk, R) \in rt_bounds ->
-            R = task_cost tsk +
-                div_floor
-                 (total_interference_bound_jlfp task_cost task_period tsk rt_bounds R)
-                 num_cpus.
+            R = task_cost tsk + div_floor (I rt_bounds tsk R) num_cpus.
         Proof.
           admit.
         Qed.
@@ -221,7 +219,7 @@ Module ResponseTimeIterationEDF.
             set prev_state := iter step edf_rta_iteration (initial_state ts).
             fold prev_state in IN, IHstep.
             specialize (IHstep tsk IN); des.
-            exists (response_time_bound tsk prev_state R).
+            exists (response_time_bound prev_state tsk R).
             by apply/mapP; exists (tsk, R); [by done | by f_equal].
           }
         Qed.

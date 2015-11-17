@@ -7,6 +7,61 @@ Module ResponseTimeAnalysisEDF.
 
   Export Job SporadicTaskset Schedule Workload Schedulability ResponseTime Priority SporadicTaskArrival ResponseTimeAnalysis.
 
+  Section InterferenceBoundEDF.
+
+    Context {sporadic_task: eqType}.
+    Variable task_cost: sporadic_task -> nat.
+    Variable task_period: sporadic_task -> nat.
+    Variable task_deadline: sporadic_task -> nat.
+    
+    (* Let tsk be the task to be analyzed. *)
+    Variable tsk: sporadic_task.
+
+    Let task_with_response_time := (sporadic_task * time)%type.
+    
+    (* Assume a known response-time bound for each interfering task ... *)
+    Variable R_prev: seq task_with_response_time.
+
+    (* ... and an interval length delta. *)
+    Variable delta: time.
+
+    Section PerTask.
+
+      Variable tsk_R: task_with_response_time.
+      Let tsk_other := fst tsk_R.
+      Let R_other := snd tsk_R.
+
+      Definition workload_bound_edf :=
+        let d_tsk := task_deadline tsk in
+        let e_other := task_cost tsk_other in
+        let p_other := task_period tsk_other in
+        let d_other := task_deadline tsk_other in
+          (div_floor d_tsk p_other) * e_other +
+          minn e_other ((d_tsk %% p_other) - d_other + R_other).
+      
+      Let basic_interference_bound := interference_bound task_cost task_period tsk delta tsk_R.
+      
+      (* Based on the workload bound, Bertogna and Cirinei define the
+         following interference bound for a task. *)
+      Definition interference_bound_edf :=
+        minn basic_interference_bound workload_bound_edf.
+
+    End PerTask.
+
+    Section AllTasks.
+
+      Definition is_interfering_task_jlfp (tsk_other: sporadic_task) :=
+        tsk_other != tsk.
+
+      (* The total interference incurred by tsk is thus bounded by: *)
+      Definition total_interference_bound_edf :=
+        \sum_((tsk_other, R_other) <- R_prev | is_interfering_task_jlfp tsk_other)
+           interference_bound_edf (tsk_other, R_other).
+
+    End AllTasks.
+
+  End InterferenceBoundEDF.
+
   Section ResponseTimeBound.
 
     Context {sporadic_task: eqType}.
@@ -69,13 +124,13 @@ Module ResponseTimeAnalysisEDF.
 
     (* Assume that the response-time bounds are a fixed-point of the
        response-time recurrence. *)
+    Let I (tsk: sporadic_task) (delta: time) :=
+      total_interference_bound_edf task_cost task_period task_deadline tsk rt_bounds delta.
+    
     Hypothesis H_response_time_is_fixed_point :
       forall tsk R,
         (tsk, R) \in rt_bounds ->
-        R = task_cost tsk +
-            div_floor
-              (total_interference_bound_jlfp task_cost task_period tsk rt_bounds R)
-              num_cpus.
+        R = task_cost tsk + div_floor (I tsk R) num_cpus.
     
     (* Assume that the response-time bounds are larger than task costs. *)
     Hypothesis H_response_time_bounds_ge_cost:
