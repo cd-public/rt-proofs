@@ -119,7 +119,7 @@ Module Workload.
         minn e_k (delta + R_tsk - e_k - max_jobs * p_k) + max_jobs * e_k.
 
   End WorkloadBound.
-
+  
   Section BasicLemmas.
 
     Context {sporadic_task: eqType}.
@@ -190,9 +190,160 @@ Module Workload.
        }
      }
    Qed.
-      
+
   End BasicLemmas.
+
+  Section WorkloadBoundCarry.
+
+    Context {sporadic_task: eqType}.
+    Variable task_cost: sporadic_task -> nat.
+    Variable task_period: sporadic_task -> nat.
     
+    Variable tsk: sporadic_task.
+    Variable R_tsk: time. (* Known response-time bound for the task *)
+    Variable delta: time. (* Length of the interval *)
+
+    Let e := task_cost tsk.
+    Let p := task_period tsk.
+    
+    Definition max_jobs_NC := div_floor delta p.
+    Definition max_jobs_CI := div_floor (delta - e) p.
+    
+    Definition W_NC :=
+        max_jobs_NC * e + minn (delta %% p) e.
+
+    Definition W_CI :=
+        max_jobs_CI * e + e +
+          minn (e - 1) ((delta - e) %% p - (p - R_tsk)).
+    
+  End WorkloadBoundCarry.
+
+  Section BasicLemmasCarry.
+
+    Context {sporadic_task: eqType}.
+    Variable task_cost: sporadic_task -> nat.
+    Variable task_period: sporadic_task -> nat.
+
+    Variable tsk: sporadic_task.
+    Hypothesis period_positive: task_period tsk > 0.
+
+    Variable R: time.
+
+    Let workload_bound_NC := W_NC task_cost task_period tsk.
+    Let workload_bound_CI := W_CI task_cost task_period tsk R.
+
+    Lemma W_NC_monotonic :
+      forall t1 t2,
+        t1 <= t2 ->
+        workload_bound_NC t1 <= workload_bound_NC t2.
+    Proof.
+      intros t1 t2 LEt.
+      unfold workload_bound_NC, W_NC, max_jobs_NC, div_floor.
+      set e := task_cost tsk; set p := task_period tsk.
+     
+      generalize dependent t2; rewrite leq_as_delta.
+      induction delta; first by rewrite addn0 leqnn.
+      {
+        apply (leq_trans IHdelta).
+
+        (* Prove special case for p <= 1. *)
+        destruct (leqP p 1) as [LTp | GTp].
+        {
+          rewrite leq_eqVlt in LTp; move: LTp => /orP LTp; des;
+            last by rewrite ltnS in LTp; apply (leq_trans period_positive) in LTp. 
+          {
+            move: LTp => /eqP LTp; rewrite LTp 2!modn1 2!divn1.
+            rewrite min0n leq_add2r leq_mul2r; apply/orP; right.
+            by rewrite -addn1 addnA leq_addr.
+          }
+        }
+        (* Harder case: p > 1. *)
+        {
+          assert (EQ: t1 + delta.+1 = (t1 + delta).+1).
+          {
+            by rewrite -addn1 addnA addn1.
+          } rewrite -> EQ in *; clear EQ.
+         
+          have DIV := divSn_cases (t1 + delta) p GTp; des.
+          {
+            rewrite DIV leq_add2l -DIV0 leq_min; apply/andP; split;
+              last by apply geq_minr.
+            by apply ltnW; rewrite addn1 ltnS; apply geq_minl.           
+          }
+          {
+            rewrite -DIV mulnDl mul1n; unfold minn at 2.
+            destruct ((t1 + delta).+1 %% p < e) eqn:MIN;
+              first by rewrite -[_ + _]addn0 leq_add // leq_add2l geq_minr.
+            rewrite -addnA leq_add2l.
+            by apply leq_trans with (n := e);
+              [by apply geq_minr | by apply leq_addr].
+          }
+        }
+      }
+    Qed.
+
+   Lemma W_CI_monotonic :
+     forall t1 t2,
+       t1 <= t2 ->
+       workload_bound_CI t1 <= workload_bound_CI t2.
+   Proof.
+     intros t1 t2 LEt.
+     unfold workload_bound_CI, W_CI, max_jobs_CI, div_floor.
+     set e := task_cost tsk; set p := task_period tsk.
+     rewrite 2![_ + e]addnC; rewrite -2!addnA leq_add2l.
+     generalize dependent t2; rewrite leq_as_delta.
+     induction delta; first by rewrite addn0 leqnn.
+     {
+       apply (leq_trans IHdelta).
+
+       (* Prove special case for p <= 1. *)
+       destruct (leqP p 1) as [LTp | GTp].
+       {
+         rewrite leq_eqVlt in LTp; move: LTp => /orP LTp; des;
+           last by rewrite ltnS in LTp; apply (leq_trans period_positive) in LTp. 
+         move: LTp => /eqP LTp; rewrite LTp 2!modn1 2!divn1.
+         rewrite sub0n minn0 2!addn0 leq_mul2r; apply/orP; right.
+         by rewrite leq_sub2r // -addn1 addnA leq_addr.
+       }
+       (* Harder case: p > 1. *)
+       {
+         destruct (e >= t1 + delta) eqn:CMPt1.
+         {
+           unfold leq in CMPt1; move: CMPt1 => /eqP CMPt1.
+           by rewrite CMPt1 div0n mul0n add0n mod0n sub0n minn0.
+         }
+         apply negbT in CMPt1; rewrite -ltnNge in CMPt1.
+         
+         assert (EQ: t1 + delta.+1 - e = (t1 + delta - e).+1).
+         {
+           rewrite -[(t1 + delta - e).+1]addn1.
+           rewrite [_+1]addnC addnBA; last by apply ltnW.
+           by rewrite [1 + _]addnC -addnA addn1.
+         } rewrite -> EQ in *; clear EQ CMPt1.
+         
+         have DIV := divSn_cases (t1 + delta - e) p GTp; des.
+         {
+           rewrite DIV leq_add2l -DIV0 leq_min; apply/andP; split;
+             first by apply geq_minl.
+           apply leq_trans with (n := (t1 + delta - e) %%p - (p - R));
+             first by apply geq_minr.
+           by rewrite leq_sub2r // addn1.
+         }
+         {
+           rewrite -DIV mulnDl mul1n -addnA leq_add2l; unfold minn at 2.
+           destruct (e - 1 < (t1 + delta - e).+1 %% p - (p - R)) eqn:MIN;
+             first by rewrite -[minn _ _]add0n leq_add // geq_minl.
+           destruct e; first by rewrite sub0n min0n.
+           rewrite -addn1 -addnBA // subnn addn0.
+           by apply leq_trans with (n := e);
+             [by apply geq_minl | by rewrite -addnA leq_addr].
+         }
+       }
+     }
+  Qed.
+
+  End BasicLemmasCarry.
+
   Section ProofWorkloadBound.
 
     Context {sporadic_task: eqType}.
@@ -688,5 +839,123 @@ Module Workload.
     Qed.
 
   End ProofWorkloadBound.
+  
+  Section ProofWorkloadBoundCarry.
+
+    Context {sporadic_task: eqType}.
+    Variable task_cost: sporadic_task -> nat.
+    Variable task_period: sporadic_task -> nat.
+    Variable task_deadline: sporadic_task -> nat.
+    
+    Context {Job: eqType}.
+    Variable job_cost: Job -> nat.
+    Variable job_task: Job -> sporadic_task.
+    Variable job_deadline: Job -> nat.
+
+    Variable arr_seq: arrival_sequence Job.
+
+    (* Assume that all jobs have valid parameters *)
+    Hypothesis jobs_have_valid_parameters :
+      forall (j: JobIn arr_seq),
+        valid_sporadic_job task_cost task_deadline job_cost job_deadline job_task j.
+    
+    Variable num_cpus: nat.
+    Variable rate: Job -> processor num_cpus -> nat.
+    Variable schedule_of_platform: schedule num_cpus arr_seq -> Prop.
+
+    (* Assume any schedule of a given platform. *)
+    Variable sched: schedule num_cpus arr_seq.
+    Hypothesis sched_of_platform: schedule_of_platform sched.
+
+    (* Assumption: jobs only execute if they arrived.
+       This is used to eliminate jobs that arrive after end of the interval t1 + delta. *)
+    Hypothesis H_jobs_must_arrive_to_execute:
+      jobs_must_arrive_to_execute sched.
+
+    (* Assumption: jobs do not execute after they completed.
+       This is used to eliminate jobs that complete before the start of the interval t1. *)
+    Hypothesis H_completed_jobs_dont_execute:
+      completed_jobs_dont_execute job_cost rate sched.
+
+    (* Assumptions:
+         1) A job does not execute in parallel.
+         2) The service rate of the platform is at most 1.
+       This is required to use interval lengths as a measure of service. *)
+    Hypothesis no_parallelism:
+      jobs_dont_execute_in_parallel sched.
+    Hypothesis rate_at_most_one :
+      forall j cpu, rate j cpu <= 1.
+
+    (* Assumption: sporadic task model.
+       This is necessary to conclude that consecutive jobs ordered by arrival times
+       are separated by at least 'period' times units. *)
+    Hypothesis sporadic_tasks: sporadic_task_model task_period arr_seq job_task.
+
+    (* Before starting the proof, let's give simpler names to the definitions. *)
+    Let response_time_bound_of (tsk: sporadic_task) (R: time) :=
+      (*forall job_cost,*)
+        is_response_time_bound_of_task job_cost job_task tsk rate sched R.
+    Let no_deadline_misses_by (tsk: sporadic_task) (t: time) :=
+      task_misses_no_deadline_before job_cost job_deadline job_task
+                                     rate sched tsk t.
+    Let workload_of (tsk: sporadic_task) (t1 t2: time) :=
+      workload job_task rate sched tsk t1 t2.
+
+    (* Now we define the theorem. Let tsk be any task in the taskset. *)
+    Variable tsk: sporadic_task.
+
+    (* Assumption: the task must have valid parameters:
+         a) period > 0 (used in divisions)
+         b) deadline of the jobs = deadline of the task
+         c) cost <= period
+            (used to prove that the distance between the first and last
+             jobs is at least (cost + n*period), where n is the number
+             of middle jobs. If cost >> period, the claim does not hold
+             for every task set. *)
+    Hypothesis valid_task_parameters:
+      is_valid_sporadic_task task_cost task_period task_deadline tsk.
+
+    (* Assumption: the task must have a restricted deadline.
+       This is required to prove that n_k (max_jobs) from Bertogna
+       and Cirinei's formula accounts for at least the number of
+       middle jobs (i.e., number of jobs - 2 in the worst case). *)
+    Hypothesis restricted_deadline: task_deadline tsk <= task_period tsk.
+
+    (* Assume that a response-time bound R_tsk for that task in any
+       schedule of this processor platform is also given,
+       such that R_tsk >= task_cost tsk. *)
+    Variable R_tsk: time.
+    Hypothesis response_time_bound: response_time_bound_of tsk R_tsk.
+    Hypothesis response_time_ge_cost: R_tsk >= task_cost tsk.
+    
+    (* Consider an interval [t1, t1 + delta), with no deadline misses. *)
+    Variable t1 delta: time.
+    Hypothesis no_deadline_misses_during_interval: no_deadline_misses_by tsk (t1 + delta).
+
+    Section NoCarry.
+      
+      Let workload_bound := W_NC task_cost task_period.
+    
+      Theorem workload_bounded_by_W_NC :
+        workload_of tsk t1 (t1 + delta) <= workload_bound tsk delta.
+      Proof.
+        admit.
+      Qed.
+
+    End NoCarry.
+
+    Section Carry.
+
+      Let workload_bound := W_CI task_cost task_period.
+    
+      Theorem workload_bounded_by_W_CI :
+        workload_of tsk t1 (t1 + delta) <= workload_bound tsk R_tsk delta.
+      Proof.
+        admit.
+      Qed.
+
+    End Carry.
+
+  End ProofWorkloadBoundCarry.
   
 End Workload.
