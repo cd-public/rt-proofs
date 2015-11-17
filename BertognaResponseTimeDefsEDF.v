@@ -31,20 +31,24 @@ Module ResponseTimeAnalysisEDF.
       Let tsk_other := fst tsk_R.
       Let R_other := snd tsk_R.
 
-      Definition workload_bound_edf :=
+      (* By combining Bertogna's interference bound for a work-conserving
+         scheduler ... *)
+      Let basic_interference_bound := interference_bound task_cost task_period tsk delta tsk_R.
+
+      (* ... with and EDF-specific interference bound, ... *)
+      Definition edf_specific_bound :=
         let d_tsk := task_deadline tsk in
         let e_other := task_cost tsk_other in
         let p_other := task_period tsk_other in
         let d_other := task_deadline tsk_other in
           (div_floor d_tsk p_other) * e_other +
           minn e_other ((d_tsk %% p_other) - d_other + R_other).
+
       
-      Let basic_interference_bound := interference_bound task_cost task_period tsk delta tsk_R.
-      
-      (* Based on the workload bound, Bertogna and Cirinei define the
-         following interference bound for a task. *)
+      (* Bertogna and Cirinei define the following interference bound
+         under EDF scheduling. *)
       Definition interference_bound_edf :=
-        minn basic_interference_bound workload_bound_edf.
+        minn basic_interference_bound edf_specific_bound.
 
     End PerTask.
 
@@ -60,6 +64,12 @@ Module ResponseTimeAnalysisEDF.
 
     End AllTasks.
 
+    Section Proofs.
+
+      (* The proof that edf_specific_bound works should go here...*)
+      
+    End Proofs.
+    
   End InterferenceBoundEDF.
 
   Section ResponseTimeBound.
