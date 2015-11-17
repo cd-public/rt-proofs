@@ -168,7 +168,7 @@ Module ResponseTimeAnalysis.
 
   End Interference.
   
-  Section InterferenceBound.
+  Section InterferenceBoundFP.
 
     Context {sporadic_task: eqType}.
     Variable task_cost: sporadic_task -> nat.
@@ -199,7 +199,7 @@ Module ResponseTimeAnalysis.
 
     End PerTask.
 
-    Section FP.
+    Section AllTasks.
       
       (* Assume an FP policy. *)
       Variable higher_eq_priority: fp_policy sporadic_task.
@@ -212,21 +212,9 @@ Module ResponseTimeAnalysis.
         \sum_((tsk_other, R_other) <- R_prev | is_interfering_task_fp tsk_other)
            interference_bound (tsk_other, R_other).
       
-    End FP.
+    End AllTasks.
 
-    Section JLFP.
-
-      Definition is_interfering_task_jlfp (tsk_other: sporadic_task) :=
-        tsk_other != tsk.
-      
-      (* The total interference incurred by tsk is thus bounded by: *)
-      Definition total_interference_bound_jlfp :=
-        \sum_((tsk_other, R_other) <- R_prev | is_interfering_task_jlfp tsk_other)
-           interference_bound (tsk_other, R_other).
-
-    End JLFP.
-
-  End InterferenceBound.
+  End InterferenceBoundFP.
   
   Section ResponseTimeBound.
 
