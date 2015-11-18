@@ -47,17 +47,28 @@ Module ResponseTimeAnalysisGuan.
                                             (size CI <= num_cpus - 1)].
     End TasksetPartition.
 
-    (* Based on Bertogna and Cirinei's interference bound, ... *)
-    Let I := interference_bound task_cost task_period tsk delta.
+    Section InterferenceBoundCarry.
 
+      Variable tsk_R: task_with_response_time.
+      Let tsk_other := fst tsk_R.
+      Let R_other := snd tsk_R.
+    
+      Definition interference_bound_NC :=
+        minn (W_NC task_cost task_period tsk_other delta) (delta - task_cost tsk + 1).
+
+      Definition interference_bound_CI :=
+        minn (W_CI task_cost task_period tsk_other R_other delta) (delta - task_cost tsk + 1).
+
+    End InterferenceBoundCarry.
+    
     (* Guan et al.'s analysis defines an interference bound based on the maximum interference
        across all partitions of (NC, CI), i.e., non-carried-in and carried-in tasks.
        For the sake of simplicity, we compute the maximum by enumeration, instead of using
        a linear-time algorithm. *)
     Definition guan_interference_bound :=
       \max_((NC, CI) <- valid_NC_CI_partitions)
-       (\sum_((tsk_other, R) <- NC) I (tsk_other,R) +
-         \sum_((tsk_other, R) <- CI) I (tsk_other,R)).
+       (\sum_((tsk_other, R) <- NC) interference_bound_NC (tsk_other,R) +
+         \sum_((tsk_other, R) <- CI) interference_bound_CI (tsk_other,R)).
 
   End InterferenceBoundGuan.
 
@@ -125,36 +136,20 @@ Module ResponseTimeAnalysisGuan.
     Let task_with_response_time := (sporadic_task * time)%type.
     Variable hp_bounds: seq task_with_response_time.
     
-    (* We derive the response-time bounds for FP and EDF scheduling
-       separately. *)
-    Section UnderFPScheduling.
+    (* Assume there exists a fixed task priority. *)
+    Variable higher_eq_priority: fp_policy sporadic_task.
 
-      (* For FP scheduling, assume there exists a fixed task priority. *)
-      Variable higher_eq_priority: fp_policy sporadic_task.
-
-      Let interferes_with_tsk := is_interfering_task_fp tsk higher_eq_priority.
+    Let interferes_with_tsk := is_interfering_task_fp tsk higher_eq_priority.
       
-      (* Assume that for any interfering task, a response-time
-         bound R_other is known. *)
-      Hypothesis H_all_interfering_tasks_in_hp_bounds:
-        [seq tsk_hp <- ts | interferes_with_tsk tsk_hp] = unzip1 hp_bounds.
+    (* Assume that hp_bounds has exactly the tasks that interfere with tsk,... *)
+    Hypothesis H_hp_bounds_has_interfering_tasks:
+      [seq tsk_hp <- ts | interferes_with_tsk tsk_hp] = unzip1 hp_bounds.
 
-      Lemma exists_R :
-        forall hp_tsk,
-          hp_tsk \in ts ->
-          interferes_with_tsk hp_tsk ->
-          exists R,
-            (hp_tsk, R) \in hp_bounds.
-      Proof.
-        intros hp_tsk IN INTERF.
-        rewrite -[hp_bounds]zip_unzip; apply exists_unzip2.
-        by rewrite zip_unzip -H_all_interfering_tasks_in_hp_bounds mem_filter; apply/andP.
-      Qed.      
-
-      Hypothesis H_response_time_of_interfering_tasks_is_known2:
-        forall hp_tsk R,
-          (hp_tsk, R) \in hp_bounds ->
-          is_response_time_bound_of_task job_cost job_task hp_tsk rate sched R.
+    (* ...and that all values in the pairs contain valid response-time bounds *)
+    Hypothesis H_response_time_of_interfering_tasks_is_known2:
+      forall hp_tsk R,
+        (hp_tsk, R) \in hp_bounds ->
+        is_response_time_bound_of_task job_cost job_task hp_tsk rate sched R.
       
       (* Assume that the response-time bounds are larger than task costs. *)
       Hypothesis H_response_time_bounds_ge_cost:
@@ -184,11 +179,11 @@ Module ResponseTimeAnalysisGuan.
       
       (* Let R be any time. *)
       Variable R: time.
-      
-      (* Bertogna and Cirinei's response-time analysis states that
+
+      (* Guan et al.'s response-time analysis states that
          if R is a fixed-point of the following recurrence, ... *)
-      Let I := total_interference_bound_fp task_cost task_period
-                             tsk hp_bounds R higher_eq_priority.
+      Let I := guan_interference_bound task_cost task_period num_cpus
+                             higher_eq_priority tsk hp_bounds R.
       Hypothesis H_response_time_recurrence_holds :
         R = task_cost tsk + (div_floor I num_cpus).
 
@@ -197,7 +192,7 @@ Module ResponseTimeAnalysisGuan.
         R <= task_deadline tsk.
 
       (* ..., then R bounds the response time of tsk. *)
-      Theorem bertogna_cirinei_response_time_bound_fp_with_jitter :
+      Theorem guan_response_time_bound_fp :
         is_response_time_bound tsk R.
       Proof.
         unfold is_response_time_bound, is_response_time_bound_of_task,
@@ -211,7 +206,7 @@ Module ResponseTimeAnalysisGuan.
                H_valid_task_parameters into TASK_PARAMS,
                H_restricted_deadlines into RESTR,
                H_response_time_of_interfering_tasks_is_known2 into RESP,
-               H_all_interfering_tasks_in_hp_bounds into FST,
+               H_hp_bounds_has_interfering_tasks into HAS,
                H_interfering_tasks_miss_no_deadlines into NOMISS,
                H_rate_equals_one into RATE,
                H_global_scheduling_invariant into INVARIANT,
@@ -227,7 +222,9 @@ Module ResponseTimeAnalysisGuan.
           else 0.
         set X := total_interference job_cost rate sched j (job_arrival j) (job_arrival j + R).
 
-        (* Let's recall the workload bound under FP scheduling. *)
+        admit.
+
+        (*(* Let's recall the workload bound under FP scheduling. *)
         set workload_bound := fun (tup: task_with_response_time) =>
           let (tsk_k, R_k) := tup in
             if interferes_with_tsk tsk_k then
@@ -269,6 +266,18 @@ Module ResponseTimeAnalysisGuan.
         {
           move => tsk_k /andP [INk INTERk] R_k HPk.
           unfold x, workload_bound; rewrite INk INTERk andbT.
+                Lemma exists_R :
+        forall hp_tsk,
+          hp_tsk \in ts ->
+          interferes_with_tsk hp_tsk ->
+          exists R,
+            (hp_tsk, R) \in hp_bounds.
+      Proof.
+        intros hp_tsk IN INTERF.
+        rewrite -[hp_bounds]zip_unzip; apply exists_unzip2.
+        by rewrite zip_unzip -H_all_interfering_tasks_in_hp_bounds mem_filter; apply/andP.
+      Qed.      
+
           exploit (exists_R tsk_k); [by ins | by ins | intro INhp; des].
           apply leq_trans with (n := workload job_task rate sched tsk_k
                                     (job_arrival j) (job_arrival j + R)).
@@ -563,7 +572,7 @@ Module ResponseTimeAnalysisGuan.
               by destruct (interferes_with_tsk i); rewrite ?andbT ?andbF ?min0n.
             }
             have MAP := big_map (fun x => fst x) (fun i => true) (fun i => minn (x i) (R - task_cost tsk + 1)).
-            by unfold unzip1 in *; rewrite -MAP -FST -big_filter.
+            by unfold unzip1 in *; rewrite -MAP -HAS -big_filter.
           }
           apply ltn_div_trunc with (d := num_cpus);
             first by apply H_at_least_one_cpu.
@@ -614,16 +623,9 @@ Module ResponseTimeAnalysisGuan.
         specialize (WORKLOAD tsk_k INTERFk R_k HPk).
         apply leq_ltn_trans with (p := x tsk_k) in WORKLOAD; first by rewrite ltnn in WORKLOAD.
         by unfold workload_bound; rewrite INTERFk'; apply BUG.
+         *)
       Qed.
 
-    End UnderFPScheduling.
-
-    Section UnderJLFPScheduling.
-
-      (* to be completed... *)
-      
-    End UnderJLFPScheduling.
-    
   End ResponseTimeBound.
 
 End ResponseTimeAnalysisJitter.
