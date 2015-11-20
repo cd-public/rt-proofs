@@ -598,8 +598,33 @@ Definition powerset {T: eqType} (l: seq T) : seq (seq T) :=
   let mT := ((size l).-tuple bool) in
     (map (fun m : mT => (mask m l)) (enum {: mT})).
 
+Lemma mem_powerset {T: eqType} (x: seq T) y :
+  y \in (powerset x) -> {subset y <= x}.          
+Proof.
+  intros POW; red; intros z IN; unfold powerset in POW.
+  move: POW => /mapP POW; destruct POW as [pair POW EQ]; subst.
+  by apply mem_mask with (m := pair).
+Qed.
+
+Lemma in_powerset {T: eqType} (x: seq T) y :
+  y \in (powerset x) -> {subset y <= x}.
+Proof.
+  intros POW; red; intros z IN; unfold powerset in POW.
+  move: POW => /mapP POW; destruct POW as [pair POW EQ]; subst.
+  by apply mem_mask with (m := pair).
+Qed.
+
 Definition no_intersection {T: eqType} (l1 l2: seq T) :=
   ~~ has (mem l1) l2.
+
+Lemma leq_big_max I r (P : pred I) (E1 E2 : I -> nat) :
+  (forall i, P i -> E1 i <= E2 i) ->
+    \max_(i <- r | P i) E1 i <= \max_(i <- r | P i) E2 i.
+Proof.
+  move => leE12; elim/big_ind2 : _ => // m1 m2 n1 n2.
+  intros LE1 LE2; rewrite leq_max; unfold maxn.
+  by destruct (m2 < n2) eqn:LT; [by apply/orP; right | by apply/orP; left].
+Qed.
 
 (*Program Definition fun_ord_to_nat2 {n} {T} (x0: T) (f: 'I_n -> T)
         (x : nat) : T :=

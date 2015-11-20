@@ -1,36 +1,33 @@
-Require Import Vbase JobDefs TaskDefs ScheduleDefs TaskArrivalDefs PriorityDefs WorkloadDefsJitter BertognaResponseTimeDefsJitter divround helper
+Require Import Vbase JobDefs TaskDefs ScheduleDefs TaskArrivalDefs PriorityDefs WorkloadDefsJitter GuanDefs divround helper
                ssreflect ssrbool eqtype ssrnat seq fintype bigop div path tuple.
 
-Module ResponseTimeIterationFPWithJitter.
+Module ResponseTimeIterationFPGuan.
 
-  Import Job ScheduleOfTaskWithJitter SporadicTaskset SporadicTaskArrival Priority WorkloadWithJitter ResponseTimeAnalysisJitter.
+  Import Job ScheduleOfTaskWithJitter SporadicTaskset SporadicTaskArrival Priority WorkloadWithJitter ResponseTimeAnalysisGuan.
 
   Section Analysis.
     
-    Context {sporadic_task_with_jitter: eqType}.
-    Variable task_cost: sporadic_task_with_jitter -> nat.
-    Variable task_period: sporadic_task_with_jitter -> nat.
-    Variable task_deadline: sporadic_task_with_jitter -> nat.
-    Variable task_jitter: sporadic_task_with_jitter -> nat.
+    Context {sporadic_task: eqType}.
+    Variable task_cost: sporadic_task -> nat.
+    Variable task_period: sporadic_task -> nat.
+    Variable task_deadline: sporadic_task -> nat.
     
-    Let task_with_response_time := (sporadic_task_with_jitter * nat)%type.
+    Let task_with_response_time := (sporadic_task * nat)%type.
     
     Context {Job: eqType}.
     Variable job_cost: Job -> nat.
     Variable job_deadline: Job -> nat.
-    Variable job_task: Job -> sporadic_task_with_jitter.
-    Variable job_jitter: Job -> nat.
+    Variable job_task: Job -> sporadic_task.
 
     Variable num_cpus: nat.
-    Variable higher_eq_priority: fp_policy sporadic_task_with_jitter.
+    Variable higher_eq_priority: fp_policy sporadic_task.
 
     (* Next we define the fixed-point iteration for computing
        Bertogna's response-time bound for any task in ts. *)
 
-    Let I (tsk: sporadic_task_with_jitter)
-          (R_prev: seq task_with_response_time) (delta: time) :=
-      total_interference_bound_fp_jitter task_cost task_period task_jitter
-                                       tsk R_prev delta higher_eq_priority.
+    Let I (tsk: sporadic_task) (R_prev: seq task_with_response_time) :=
+      guan_interference_bound task_cost task_period num_cpus
+                      higher_eq_priority tsk R_prev.
     
     (* First, given a sequence of pairs R_prev = [..., (tsk_hp, R_hp)] of
        response-time bounds for the higher-priority tasks, we compute
@@ -40,19 +37,18 @@ Module ResponseTimeIterationFPWithJitter.
          where f is the response-time recurrence,
          step is the number of iterations,
          and f^0 = task_cost tsk. *)    
-    Definition per_task_rta (tsk: sporadic_task_with_jitter)
-                      (R_prev: seq task_with_response_time) (step: nat) :=
+    Definition per_task_rta (tsk: sporadic_task)
+                        (R_prev: seq task_with_response_time) (step: nat) :=
       iter step
            (fun t => task_cost tsk +
                      div_floor (I tsk R_prev t) num_cpus)
            (task_cost tsk).
 
     (* To ensure that the iteration converges, we will apply per_task_rta
-       a "sufficient" number of times: task_deadline tsk + 1.
+       a "sufficient" number of times: task_deadline tsk.
        Note that (deadline + 1) is a pessimistic bound on the number of
        steps, but we don't care about precise runtime complexity here. *)
-    Let max_steps (tsk: sporadic_task_with_jitter) :=
-      task_deadline tsk + 1.
+    Let max_steps (tsk: sporadic_task) := task_deadline tsk.
     
     (* Next we compute the response-time bounds for the entire task set.
        Since high-priority tasks may not be schedulable, we allow the
@@ -62,23 +58,22 @@ Module ResponseTimeIterationFPWithJitter.
            to the list of pairs, or,
        (b) return None if the response-time analysis failed. *)
     Definition R_list_helper (hp_pairs: option (seq task_with_response_time))
-                             (tsk: sporadic_task_with_jitter) :=
+                             (tsk: sporadic_task) :=
       if hp_pairs is Some rt_bounds then
         let R := per_task_rta tsk rt_bounds (max_steps tsk) in
-          let R' := R + task_jitter tsk in
-            if R' <= task_deadline tsk then
-              Some (rcons rt_bounds (tsk, R'))
+            if R <= task_deadline tsk then
+              Some (rcons rt_bounds (tsk, R))
             else None
       else None.
 
     (* To return the complete list of response-time bounds for any task set,
        we just apply foldl (reduce) using the function above. *)
-    Definition R_list (ts: taskset_of sporadic_task_with_jitter) : option (seq task_with_response_time) :=
+    Definition R_list (ts: taskset_of sporadic_task) : option (seq task_with_response_time) :=
       foldl R_list_helper (Some [::]) ts.
 
     (* The schedulability test simply checks if we got a list of
        response-time bounds (i.e., if the computation did not fail). *)
-    Definition fp_schedulable (ts: taskset_of sporadic_task_with_jitter) :=
+    Definition guan_fp_schedulable (ts: taskset_of sporadic_task) :=
       R_list ts != None.
     
     Section AuxiliaryLemmas.
@@ -130,7 +125,7 @@ Module ResponseTimeIterationFPWithJitter.
       Lemma R_list_rcons_response_time :
         forall ts' hp_bounds tsk R,
           R_list (rcons ts' tsk) = Some (rcons hp_bounds (tsk, R)) ->
-            R = per_task_rta tsk hp_bounds (max_steps tsk) + task_jitter tsk. 
+            R = per_task_rta tsk hp_bounds (max_steps tsk). 
       Proof.
         intros ts hp_bounds tsk R SOME.
         rewrite -cats1 in SOME.
@@ -211,7 +206,7 @@ Module ResponseTimeIterationFPWithJitter.
             move: EQ => /andP [_ /eqP EQ].
             inversion EQ; subst.
             by destruct (max_steps tsk_lst');
-              [by apply leq_addr | by rewrite -addnA leq_addr].
+              [by apply leqnn | by apply leq_addr].
           }
           {
             apply IHts with (rt_bounds := rt_bounds); last by ins.
@@ -284,7 +279,7 @@ Module ResponseTimeIterationFPWithJitter.
 
       (*  To prove convergence of R, we first show convergence of rt_rec. *)      Lemma per_task_rta_converges:
         forall ts' tsk rt_bounds,
-          valid_sporadic_taskset task_cost task_period task_deadline ts' ->
+          valid_sporadic_taskset task_cost task_period task_deadline (rcons ts' tsk) ->
           R_list ts' = Some rt_bounds ->
           per_task_rta tsk rt_bounds (max_steps tsk) <= task_deadline tsk ->
             per_task_rta tsk rt_bounds (max_steps tsk) =
@@ -303,35 +298,73 @@ Module ResponseTimeIterationFPWithJitter.
           apply fun_mon_iter_mon; [by ins | by ins; apply leq_addr |].
           clear LEx x1 x2; intros x1 x2 LEx.
           
-          unfold div_floor, I, total_interference_bound_fp_jitter.
-          rewrite big_seq_cond [\sum_(i <- _ | let '(tsk_other, _) := i in
-                                   _ && (tsk_other != tsk))_]big_seq_cond.
-          rewrite leq_add2l leq_div2r // leq_sum //.
-
-          intros i; destruct (i \in rt_bounds) eqn:HP;
+          unfold div_floor, I, guan_interference_bound.
+          rewrite big_seq_cond [\max_(i <- _ | true) _]big_seq_cond.
+          rewrite leq_add2l leq_div2r // leq_big_max //.
+          intros i; destruct (i \in valid_NC_CI_partitions num_cpus
+                                 higher_eq_priority tsk rt_bounds) eqn:IN;
             last by rewrite andFb.
-          destruct i as [i R]; intros _.
-          have GE_COST := (R_list_ge_cost ts' rt_bounds i R).
-          have INts := (R_list_non_empty ts' rt_bounds i SOME).
-          destruct INts as [_ EX]; exploit EX; [by exists R | intro IN].
-          unfold interference_bound_jitter; simpl.
-          rewrite leq_min; apply/andP; split.
+          unfold valid_NC_CI_partitions in IN.
+          rewrite mem_filter in IN; move: IN => /andP [_ IN].
+          destruct i as [NC CI]; intros _.
+          move: IN => /allpairsP IN; des.
+          destruct p as [X Y]; destruct IN as [IN_NC IN_CI SUBST].
+          inversion SUBST; subst X Y; clear SUBST; simpl in *.
+          unfold time in *.
+          set interfering_tasks :=
+            [seq i <- rt_bounds | let '(tsk_other, _) := i in
+                 is_interfering_task_fp tsk higher_eq_priority tsk_other].
+          fold interfering_tasks in IN_CI, IN_NC.
+          apply mem_powerset with (x := interfering_tasks) in IN_CI.
+          apply mem_powerset with (x := interfering_tasks) in IN_NC.
+          rewrite 4![\sum_(_ <- _ | true)_]big_seq_cond.
+          apply leq_add; apply leq_sum; intros p; rewrite andbT;
+          intro IN; destruct p as [i R]; red in IN_NC; red in IN_CI.
           {
-            apply leq_trans with (n := W_jitter task_cost task_period task_jitter i R x1); 
-              first by apply geq_minl.            
-            specialize (VALID i IN); des.
-            by apply W_jitter_monotonic; try (by ins); apply GE_COST.          
+            apply IN_NC in IN; rewrite mem_filter in IN.
+            move: IN => /andP [INTERF IN].
+            have GE_COST := (R_list_ge_cost ts' rt_bounds i R SOME IN).
+            have INts := (R_list_non_empty ts' rt_bounds i SOME).
+            destruct INts as [_ EX]; exploit EX; [by exists R|intro INts'].
+            unfold interference_bound_NC; simpl.
+            rewrite leq_min; apply/andP; split.
+            {
+              apply leq_trans with (n := W_NC task_cost task_period i x1); 
+                first by apply geq_minl.
+              exploit (VALID i); first by rewrite mem_rcons in_cons INts' orbT.
+              clear VALID; intro VALID; des.
+              by apply W_NC_monotonic; try (by ins); apply GE_COST.                     }
+            {
+              apply leq_trans with (n := x1 - task_cost tsk + 1);
+                first by apply geq_minr.
+              by rewrite leq_add2r leq_sub2r //.
+            }
           }
           {
-            apply leq_trans with (n := x1 - task_cost tsk + 1);
-              first by apply geq_minr.
-            by rewrite leq_add2r leq_sub2r //.
+            apply IN_CI in IN; rewrite mem_filter in IN.
+            move: IN => /andP [INTERF IN].
+            have GE_COST := (R_list_ge_cost ts' rt_bounds i R SOME IN).
+            have INts := (R_list_non_empty ts' rt_bounds i SOME).
+            destruct INts as [_ EX]; exploit EX; [by exists R|intro INts'].
+            unfold interference_bound_CI; simpl.
+            rewrite leq_min; apply/andP; split.
+            {
+              apply leq_trans with (n:=W_CI task_cost task_period i R x1); 
+                first by apply geq_minl.
+              exploit (VALID i); first by rewrite mem_rcons in_cons INts' orbT.
+              clear VALID; intro VALID; des.
+              by apply W_CI_monotonic; try (by ins); apply GE_COST.                     }
+            {
+              apply leq_trans with (n := x1 - task_cost tsk + 1);
+                first by apply geq_minr.
+              by rewrite leq_add2r leq_sub2r //.
+            }
           }
         }
 
         (* Either f converges by the deadline or not. *)
-        unfold max_steps in *; rewrite -> addn1 in *.
-        destruct ([exists k in 'I_(task_deadline tsk).+1,
+        unfold max_steps in *.
+        destruct ([exists k in 'I_((task_deadline tsk)),
                      f k == f k.+1]) eqn:EX.
         {
           move: EX => /exists_inP EX; destruct EX as [k _ ITERk].
@@ -341,25 +374,29 @@ Module ResponseTimeIterationFPWithJitter.
         }
         apply negbT in EX; rewrite negb_exists_in in EX.
         move: EX => /forall_inP EX.
-        assert (GROWS: forall k: 'I_(task_deadline tsk).+1,
-                         f k < f k.+1).
+        assert (GROWS: forall k: 'I_(task_deadline tsk), f k < f k.+1).
         {
-          intros k; rewrite ltn_neqAle; apply/andP; split; first by apply EX.
+          intros k; rewrite ltn_neqAle; apply/andP; split;
+            first by apply EX.
           apply MON, leqnSn.
         }
 
         (* If it doesn't converge, then it becomes larger than the deadline.
            But initialy we assumed otherwise. Contradiction! *)
-        assert (BY1: f (task_deadline tsk).+1 > task_deadline tsk).
+        assert (BY1: f (task_deadline tsk) > task_deadline tsk).
         {
           clear MON LE EX.
-          induction (task_deadline tsk).+1; first by ins.
+          induction ((task_deadline tsk)).
+          {
+            exploit (VALID tsk);
+              [by rewrite mem_rcons in_cons eq_refl orTb | by ins; des].
+          }
           apply leq_ltn_trans with (n := f n);
             last by apply (GROWS (Ordinal (ltnSn n))).
           apply IHn; intros k.
           by apply (GROWS (widen_ord (leqnSn n) k)).
         }
-        by apply leq_ltn_trans with (m := f (task_deadline tsk).+1) in BY1;
+        apply leq_ltn_trans with (m := f (task_deadline tsk)) in BY1;
           [by rewrite ltnn in BY1 | by ins].
       Qed.
 
@@ -464,7 +501,7 @@ Module ResponseTimeIterationFPWithJitter.
     Section Proof.
 
       (* Consider a task set ts. *)
-      Variable ts: taskset_of sporadic_task_with_jitter.
+      Variable ts: taskset_of sporadic_task.
       
       (* Assume that higher_eq_priority is a total order.
          Actually, it just needs to be total over the task set,
@@ -497,7 +534,7 @@ Module ResponseTimeIterationFPWithJitter.
       (* ...they have valid parameters,...*)
       Hypothesis H_valid_job_parameters:
         forall (j: JobIn arr_seq),
-          valid_sporadic_job_with_jitter task_cost task_deadline task_jitter job_cost job_deadline job_task job_jitter j.
+          valid_sporadic_job task_cost task_deadline job_cost job_deadline job_task j.
       
       (* ... and satisfy the sporadic task model.*)
       Hypothesis H_sporadic_tasks:
@@ -515,7 +552,7 @@ Module ResponseTimeIterationFPWithJitter.
       (* ...jobs only execute after the jitter and no longer
          than their execution costs,... *)
       Hypothesis H_jobs_execute_after_jitter:
-        jobs_execute_after_jitter job_jitter sched.
+        jobs_must_arrive_to_execute sched.
       Hypothesis H_completed_jobs_dont_execute:
         completed_jobs_dont_execute job_cost rate sched.
 
@@ -525,7 +562,7 @@ Module ResponseTimeIterationFPWithJitter.
 
       (* Assume the platform satisfies the global scheduling invariant. *)
       Hypothesis H_global_scheduling_invariant:
-        forall (tsk: sporadic_task_with_jitter) (j: JobIn arr_seq) (t: time),
+        forall (tsk: sporadic_task) (j: JobIn arr_seq) (t: time),
           tsk \in ts ->
           job_task j = tsk ->
           backlogged job_cost rate sched j t ->
@@ -534,7 +571,7 @@ Module ResponseTimeIterationFPWithJitter.
                is_interfering_task_fp tsk higher_eq_priority tsk_other &&
                task_is_scheduled job_task sched tsk_other t) ts = num_cpus.
 
-      Definition no_deadline_missed_by_task (tsk: sporadic_task_with_jitter) :=
+      Definition no_deadline_missed_by_task (tsk: sporadic_task) :=
         task_misses_no_deadline job_cost job_deadline job_task rate sched tsk.
       Definition no_deadline_missed_by_job :=
         job_misses_no_deadline job_cost job_deadline rate sched.
@@ -565,7 +602,7 @@ Module ResponseTimeIterationFPWithJitter.
                  H_ts_is_a_set into SET.
           destruct H_valid_policy as [REFL [TRANS TOTAL]]; clear ALLJOBS.
         
-          unfold fp_schedulable, R_list in *.
+          unfold guan_fp_schedulable, R_list in *.
           induction ts as [| ts' tsk_i IH] using last_ind.
           {
             intros rt_bounds tsk R SOME IN.
@@ -608,9 +645,9 @@ Module ResponseTimeIterationFPWithJitter.
               generalize SOME; apply R_list_rcons_task in SOME; subst tsk_i; intro SOME.
               generalize SOME; apply R_list_rcons_prefix in SOME; intro SOME'.
               generalize SOME'; apply R_list_rcons_response_time in SOME'; intro SOME''; rewrite SOME'.
-              have BOUND := bertogna_cirinei_response_time_bound_fp_with_jitter.
+              have BOUND := guan_response_time_bound_fp.
               unfold is_response_time_bound_of_task, job_has_completed_by in BOUND.
-              apply BOUND with (task_cost := task_cost) (task_period := task_period) (task_deadline := task_deadline) (job_deadline := job_deadline) (job_task := job_task) (tsk := tsk_lst) (job_jitter := job_jitter)
+              apply BOUND with (task_cost := task_cost) (task_period := task_period) (task_deadline := task_deadline) (job_deadline := job_deadline) (job_task := job_task) (tsk := tsk_lst)
                                (ts := rcons ts' tsk_lst) (hp_bounds := hp_bounds)
                                (higher_eq_priority := higher_eq_priority); clear BOUND; try (by ins).
               apply R_list_unzip1 with (R := R_lst); try (by ins).
@@ -646,12 +683,6 @@ Module ResponseTimeIterationFPWithJitter.
               {
                 rewrite per_task_rta_fold.
                 apply per_task_rta_converges with (ts' := ts'); try (by ins).
-                {
-                  red; ins; apply TASKPARAMS.
-                  by rewrite mem_rcons in_cons; apply/orP; right.
-                }
-                apply leq_trans with (n := per_task_rta tsk_lst hp_bounds (max_steps tsk_lst) + task_jitter tsk_lst);
-                  first by apply leq_addr.
                 rewrite -SOME'.
                 apply R_list_le_deadline with (ts' := rcons ts' tsk_lst)
                                             (rt_bounds := rcons hp_bounds (tsk_lst, R_lst)); try (by ins).
@@ -664,15 +695,15 @@ Module ResponseTimeIterationFPWithJitter.
       End HelperLemma.
       
       (* If the schedulability test suceeds, ...*)
-      Hypothesis H_test_succeeds: fp_schedulable ts.
+      Hypothesis H_test_succeeds: guan_fp_schedulable ts.
       
       (*..., then no task misses its deadline,... *)
-      Theorem taskset_with_jitter_schedulable_by_fp_rta :
+      Theorem taskset_schedulable_by_guan_fp_rta :
         forall tsk, tsk \in ts -> no_deadline_missed_by_task tsk.
       Proof.
         unfold no_deadline_missed_by_task, task_misses_no_deadline,
                job_misses_no_deadline, completed, valid_fp_policy,
-               fp_schedulable, fp_is_reflexive, fp_is_transitive,
+               guan_fp_schedulable, fp_is_reflexive, fp_is_transitive,
                fp_is_total, valid_sporadic_job_with_jitter,
                valid_sporadic_job in *.
         rename H_valid_job_parameters into JOBPARAMS,
@@ -702,7 +733,7 @@ Module ResponseTimeIterationFPWithJitter.
         {
           unfold valid_sporadic_taskset, is_valid_sporadic_task in *.
           apply service_monotonic; rewrite leq_add2l.
-          specialize (JOBPARAMS j); des; rewrite JOBPARAMS2.
+          specialize (JOBPARAMS j); des; rewrite JOBPARAMS1.
           by rewrite JOBtsk.
         }
         rewrite leq_eqVlt; apply/orP; left; rewrite eq_sym.
@@ -711,7 +742,7 @@ Module ResponseTimeIterationFPWithJitter.
 
       (* ..., and the schedulability test yields safe response-time
          bounds for each task. *)
-      Theorem fp_schedulability_test_with_jitter_yields_response_time_bounds :
+      Theorem guan_fp_schedulability_test_yields_response_time_bounds :
         forall tsk,
           tsk \in ts ->
           exists R,
@@ -721,7 +752,7 @@ Module ResponseTimeIterationFPWithJitter.
               completed job_cost rate sched j (job_arrival j + R).
       Proof.
         intros tsk IN.
-        unfold fp_schedulable in *.
+        unfold guan_fp_schedulable in *.
         have TASKS := R_list_non_empty ts.
         have BOUNDS := (R_list_has_response_time_bounds).
         have DL := (R_list_le_deadline ts).
@@ -736,11 +767,11 @@ Module ResponseTimeIterationFPWithJitter.
       (* For completeness, since all jobs of the arrival sequence
          are spawned by the task set, we conclude that no job misses
          its deadline. *)
-      Theorem jobs_with_jitter_schedulable_by_fp_rta :
+      Theorem jobs_with_jitter_schedulable_by_guan_fp_rta :
         forall (j: JobIn arr_seq), no_deadline_missed_by_job j.
       Proof.
         intros j.
-        have SCHED := taskset_with_jitter_schedulable_by_fp_rta.
+        have SCHED := taskset_schedulable_by_guan_fp_rta.
         unfold no_deadline_missed_by_task, task_misses_no_deadline in *.
         apply SCHED with (tsk := job_task j); last by rewrite eq_refl.
         by apply H_all_jobs_from_taskset.
@@ -750,4 +781,4 @@ Module ResponseTimeIterationFPWithJitter.
 
   End Analysis.
 
-End ResponseTimeIterationFPWithJitter.
+End ResponseTimeIterationFPGuan.
