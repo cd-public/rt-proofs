@@ -38,7 +38,9 @@ Module ResponseTimeAnalysisGuan.
       (* After that, we list all possible pairs of subsets of that list:
            [(subset0, subset1), (subset0, subset2), ...]*)
       Let all_combinations :=
-        zip (powerset interfering_tasks) (powerset interfering_tasks).
+        allpairs (fun S1 S2 => (S1, S2))
+                 (powerset interfering_tasks)
+                 (powerset interfering_tasks).
 
       (* Finally, we let (NC, CI) be all the pairs of subsets that are partitions
          and such that the number of carried-in tasks is at most num_cpus - 1. *)
@@ -146,7 +148,7 @@ Module ResponseTimeAnalysisGuan.
       [seq tsk_hp <- ts | interferes_with_tsk tsk_hp] = unzip1 hp_bounds.
 
     (* ...and that all values in the pairs contain valid response-time bounds *)
-    Hypothesis H_response_time_of_interfering_tasks_is_known2:
+    Hypothesis H_response_time_of_interfering_tasks_is_known:
       forall hp_tsk R,
         (hp_tsk, R) \in hp_bounds ->
         is_response_time_bound_of_task job_cost job_task hp_tsk rate sched R.
@@ -205,7 +207,7 @@ Module ResponseTimeAnalysisGuan.
                H_valid_job_parameters into PARAMS,
                H_valid_task_parameters into TASK_PARAMS,
                H_restricted_deadlines into RESTR,
-               H_response_time_of_interfering_tasks_is_known2 into RESP,
+               H_response_time_of_interfering_tasks_is_known into RESP,
                H_hp_bounds_has_interfering_tasks into HAS,
                H_interfering_tasks_miss_no_deadlines into NOMISS,
                H_rate_equals_one into RATE,
@@ -626,6 +628,6 @@ Module ResponseTimeAnalysisGuan.
          *)
       Qed.
 
-  End ResponseTimeBound.
+  End ResponseTimeBoundGuan.
 
-End ResponseTimeAnalysisJitter.
+End ResponseTimeAnalysisGuan.
