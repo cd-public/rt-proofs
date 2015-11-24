@@ -1168,18 +1168,30 @@ Module Workload.
         (* Prove that n_k is at least the number of jobs - 1 *)
         assert (NK: n_k >= n.+1).
         {
-          unfold n_k, max_jobs_NC in *.
-          rewrite ltnNge; apply/negP; unfold not; intro LEnk.
-          assert (DISTmax: job_arrival j_lst - job_arrival j_fst >= delta).
+          rewrite leqNgt; apply/negP; unfold not; intro LTnk.
+          unfold n_k, max_jobs_NC in LTnk.
+          assert (MUL: div_floor delta (task_period tsk) * task_period tsk < n.+1 * task_period tsk).
           {
-            apply leq_trans with (n := n_k.+1 * task_period tsk);
-              last by done.
+            admit.
+          }
+          apply (leq_trans MUL) in DIST.
+          apply leq_trans with (p := t1 + delta - t1) in DIST; last by admit.         rewrite addnC -addnBA // subnn addn0 in DIST.
+          unfold 
+          DIST) in MUL.
+          rewrite -(ltn_pmul2r 1) in LTnk.
+          rewrite -(leq_add2r (task_period tsk)) in DIST.
+          rewrite -{2}[task_period tsk]mul1n in DIST.
+          rewrite -mulnDl addn1 in DIST.
+          assert (DISTmax: job_arrival j_lst - job_arrival j_fst >= delta + task_period tsk).
+          {
+            apply leq_trans with (n := n_k.+1 * task_period tsk).
             {
               rewrite -addn1 mulnDl mul1n leq_add2r.
-              unfold n_k, max_jobs_NC.
-              by apply ltnW, ltn_ceil, task_properties0.
+              unfold n_k, max_jobs_NC, div_floor.
+              apply ltnW, ltn_ceil. task_properties0.
             }
-            by apply leq_trans with (n.+1 * task_period tsk); 
+            apply leq_trans with (n.+1 * task_period tsk).
+              rewrite leq_mul2r; apply/orP; right.
               [by rewrite leq_mul2r; apply/orP; right | by apply DIST].
           }
           rewrite <- leq_add2r with (p := job_arrival j_fst) in DISTmax.
@@ -1225,7 +1237,7 @@ Module Workload.
                              rewrite job_properties1 FSTtask].
               by rewrite /= -{1}[\sum_(_ <= _ < _) _]addn0 leq_add2l.
             }
-          }*)    
+          }    
         }
 
         (* If n_k = num_jobs - 1, then we just need to prove that the
