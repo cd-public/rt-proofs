@@ -1176,7 +1176,9 @@ Module Workload.
           }
           apply (leq_trans MUL) in DIST.
           apply leq_trans with (p := t1 + delta - t1) in DIST; last by admit.         rewrite addnC -addnBA // subnn addn0 in DIST.
-          unfold 
+          admit.
+        }
+          (*unfold 
           DIST) in MUL.
           rewrite -(ltn_pmul2r 1) in LTnk.
           rewrite -(leq_add2r (task_period tsk)) in DIST.
@@ -1238,7 +1240,7 @@ Module Workload.
               by rewrite /= -{1}[\sum_(_ <= _ < _) _]addn0 leq_add2l.
             }
           }    
-        }
+        }*)
 
         (* If n_k = num_jobs - 1, then we just need to prove that the
            extra term with min() suffices to bound the workload. *)
