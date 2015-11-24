@@ -27,7 +27,7 @@ Module ResponseTimeIterationEDF.
     (*Computation of EDF on list of pairs (T,R)*)
     
     Let max_steps (ts: taskset_of sporadic_task) :=
-      \max_(tsk <- ts) task_deadline tsk.
+      \sum_(tsk <- ts) task_deadline tsk.
 
     Let I (rt_bounds: seq task_with_response_time)
           (tsk: sporadic_task) (delta: time) :=
@@ -140,12 +140,194 @@ Module ResponseTimeIterationEDF.
 
       Section HelperLemma.
 
-        Lemma R_list_converges : (* this is harder! Check FP file. *)
+        Lemma R_list_converges_helper :
+          forall rt_bounds,
+            R_list_edf ts = Some rt_bounds ->
+            valid_sporadic_taskset task_cost task_period task_deadline ts ->
+            iter (max_steps ts) edf_rta_iteration (initial_state ts)
+              = iter (max_steps ts).+1 edf_rta_iteration (initial_state ts).
+        Proof.
+          intros rt_bounds SOME VALID.
+          unfold R_list_edf in SOME; desf.
+
+          set f := fun x => iter x edf_rta_iteration (initial_state ts).
+          fold (f (max_steps ts)) in *; fold (f (max_steps ts).+1).
+
+          set all_le := fun (v1 v2: list task_with_response_time) =>
+             all (fun p => (snd (fst p)) <= (snd (snd p))) (zip v1 v2).
+
+          set one_lt := fun (v1 v2: list task_with_response_time) =>
+             has (fun p => (snd (fst p)) < (snd (snd p))) (zip v1 v2).
+          
+          assert (MON: forall x1 x2, x1 <= x2 -> all_le (f x1) (f x2)).
+          {
+            admit.
+          }
+          
+          (* Either f converges by the deadline or not. *)
+          unfold max_steps in *.
+          set sum_d := \sum_(tsk <- ts) task_deadline tsk.
+          destruct ([exists k in 'I_(sum_d), f k == f k.+1]) eqn:EX.
+          {
+            move: EX => /exists_inP EX; destruct EX as [k _ ITERk].
+            move: ITERk => /eqP ITERk.
+            apply iter_fix with (k := k);
+              [by ins | by apply ltnW, ltn_ord].
+          }
+          
+          apply negbT in EX; rewrite negb_exists_in in EX.
+          move: EX => /forall_inP EX.
+
+          assert (GROWS: forall k: 'I_(sum_d), all_le (f k) (f k.+1)).
+          {
+            intros k; unfold one_lt.
+            apply/negP; unfold not at 1; intro BUG.
+            move: BUG => /negP BUG.
+            (*rewrite -all_predC in BUG; unfold predC in BUG; simpl in BUG.
+            move: BUG => /allP => BUG.
+            exploit (EX k); [by done | intro DIFF].
+            Check (f k).
+            *)
+            admit.
+          }
+
+          (* If it doesn't converge, then it becomes larger than the deadline.
+             But initialy we assumed otherwise. Contradiction! *)
+
+          unfold f.
+          unfold initial_state in *.
+          destruct (ts) as [| tsk0 ts'].
+          {
+            induction sum_d; unfold edf_rta_iteration; first by done.
+            rewrite iterS [iter sum_d.+2 _ _]iterS.
+            rewrite -IHsum_d ?IHsum_d; try (by done);
+            intros x; assert (LT: x < sum_d.+1);
+            try (ins; apply (EX (Ordinal LT)));
+            try (ins; apply (GROWS (Ordinal LT)));
+            by apply leq_trans with (n := sum_d).
+          }          
+
+          assert (BY1: has (fun x => ~~ (R_le_deadline x)) (f sum_d)).
+          {
+            clear MON EX.
+            remember sum_d as SUM_D.
+            unfold sum_d in *; clear sum_d; rename HeqSUM_D into LE.
+            move: LE => /eqP LE; rewrite eqn_leq in LE.
+            move: LE => /andP [LE _].
+            induction SUM_D.
+            {
+              admit.
+              (*unfold R_le_deadline; apply/orP; left.
+              rewrite -ltnNge.
+              rewrite leqn0 in LE. 
+              rewrite -sum_nat_eq0_nat in LE.
+              move: LE => /allP LE.
+              exploit (LE tsk0).
+                by rewrite in_cons; apply/orP; left.
+              move => /eqP EQ0; rewrite EQ0.
+              unfold valid_sporadic_taskset in VALID.
+              exploit (VALID tsk0).
+                by rewrite in_cons; apply/orP; left.
+                by unfold is_valid_sporadic_task; ins; des.*)
+            }
+            {
+              exploit IHSUM_D; try (by apply ltnW).
+              {
+                intros k; assert (LT: k < SUM_D.+1).
+                  by apply leq_trans with (n := SUM_D).
+                by apply (GROWS (Ordinal LT)).
+              }
+              {
+                move => /hasP HAS; destruct HAS as [p IN LT].
+                assert (LT': SUM_D < SUM_D.+1). by apply ltnSn.
+                specialize (GROWS (Ordinal LT')); simpl in GROWS.
+                unfold f at 2 in GROWS.
+                rewrite -iterS in GROWS.
+                fold (f SUM_D.+1) in GROWS.
+                move: GROWS => /allP GROWS.
+                generalize IN; intro IN'.
+                apply (nth_index (tsk0, 0)) in IN'.
+                set p_i := nth (tsk0,0) (f SUM_D) (index p (f SUM_D)).
+                set p_i' := nth (tsk0,0) (f SUM_D.+1) (index p (f SUM_D)).
+                assert (IN'': p_i' \in f SUM_D.+1).
+                {
+                  admit.
+                }
+                assert (SAMETSK: fst p_i = fst p_i').
+                {
+                  admit.
+                }
+                exploit (GROWS (p_i, p_i')).
+                {
+                  admit.
+                }
+                {
+                  intro LT_R; simpl in LT_R.
+                  apply/hasP; exists p_i'; first by done.
+                  unfold R_le_deadline in *; desf; rewrite -ltnNge.
+                  apply leq_trans with (n := snd p_i); last by done.
+                  unfold p_i in *; rewrite IN' ltnNge.
+                  by simpl in SAMETSK; rewrite -SAMETSK IN' /=.
+                }
+              }
+            }
+          }
+          move: BY1 => /hasP BY1; destruct BY1 as [p IN GT].
+          move: Heq => /allP DL.
+          exploit (DL p); last by intro BUG; rewrite BUG in GT.
+          {
+            admit.
+          }
+        Qed.
+        
+        Lemma R_list_converges :
           forall tsk R rt_bounds,
             R_list_edf ts = Some rt_bounds ->
             (tsk, R) \in rt_bounds ->
             R = task_cost tsk + div_floor (I rt_bounds tsk R) num_cpus.
         Proof.
+          intros tsk R rt_bounds SOME IN.
+          unfold R_list_edf in SOME; desf.
+
+          f 
+          set (f x := task_cost tsk + div_floor (I (iter x edf_rta_iteration (initial_state ts)) tsk R) num_cpus).
+          fold (f (max_steps ts)).
+
+          
+        (* First prove that f is monotonic.*)
+        assert (MON: forall x1 x2, x1 <= x2 -> f x1 <= f x2).
+        {
+          intros x1 x2 LEx; unfold f, per_task_rta.
+          apply fun_mon_iter_mon; [by ins | by ins; apply leq_addr |].
+          clear LEx x1 x2; intros x1 x2 LEx.
+          
+          unfold div_floor, total_interference_bound_fp.
+          rewrite big_seq_cond [\sum_(i <- _ | let '(tsk_other, _) := i in
+                                   _ && (tsk_other != tsk))_]big_seq_cond.
+          rewrite leq_add2l leq_div2r // leq_sum //.
+
+          intros i; destruct (i \in rt_bounds) eqn:HP;
+            last by rewrite andFb.
+          destruct i as [i R]; intros _.
+          have GE_COST := (R_list_ge_cost ts' rt_bounds i R).
+          have INts := (R_list_non_empty ts' rt_bounds i SOME).
+          destruct INts as [_ EX]; exploit EX; [by exists R | intro IN].
+          unfold interference_bound; simpl.
+          rewrite leq_min; apply/andP; split.
+          {
+            apply leq_trans with (n := W task_cost task_period i R x1); 
+              first by apply geq_minl.            
+            specialize (VALID i IN); des.
+            by apply W_monotonic; try (by ins); apply GE_COST.          
+          }
+          {
+            apply leq_trans with (n := x1 - task_cost tsk + 1);
+              first by apply geq_minr.
+            by rewrite leq_add2r leq_sub2r //.
+          }
+        }
+
+          
           admit.
         Qed.
 

@@ -626,6 +626,30 @@ Proof.
   by destruct (m2 < n2) eqn:LT; [by apply/orP; right | by apply/orP; left].
 Qed.
 
+Variable l: list nat.
+
+Lemma sum_nat_eq0_nat (T : eqType) (F : T -> nat) (r: seq T) :
+  all (fun x => F x == 0) r = (\sum_(i <- r) F i == 0).
+Proof.
+  destruct (all (fun x => F x == 0) r) eqn:ZERO.
+  {
+    move: ZERO => /allP ZERO; rewrite -leqn0.
+    rewrite big_seq_cond (eq_bigr (fun x => 0));
+      first by rewrite big_const_seq iter_addn mul0n addn0 leqnn.
+    intro i; rewrite andbT; intros IN.
+    specialize (ZERO i); rewrite IN in ZERO.
+    by move: ZERO => /implyP ZERO; apply/eqP; apply ZERO.
+  }
+  {
+    apply negbT in ZERO; rewrite -has_predC in ZERO.
+    move: ZERO => /hasP ZERO; destruct ZERO as [x IN NEQ]; simpl in NEQ.
+    rewrite (big_rem x) /=; last by done.
+    symmetry; apply negbTE; rewrite neq_ltn; apply/orP; right.
+    apply leq_trans with (n := F x); last by apply leq_addr.
+    by rewrite lt0n.
+  }
+Qed.
+
 (*Program Definition fun_ord_to_nat2 {n} {T} (x0: T) (f: 'I_n -> T)
         (x : nat) : T :=
   match (x < n) with
