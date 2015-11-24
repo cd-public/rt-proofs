@@ -161,6 +161,8 @@ Module ResponseTimeIterationEDF.
           
           assert (MON: forall x1 x2, x1 <= x2 -> all_le (f x1) (f x2)).
           {
+            intros x1 x2 LE; apply/allP.
+            intros x IN; destruct x as [p_i p_i']; simpl.
             admit.
           }
           
@@ -181,19 +183,18 @@ Module ResponseTimeIterationEDF.
           assert (GROWS: forall k: 'I_(sum_d), all_le (f k) (f k.+1)).
           {
             intros k; unfold one_lt.
-            apply/negP; unfold not at 1; intro BUG.
-            move: BUG => /negP BUG.
-            (*rewrite -all_predC in BUG; unfold predC in BUG; simpl in BUG.
-            move: BUG => /allP => BUG.
-            exploit (EX k); [by done | intro DIFF].
-            Check (f k).
-            *)
-            admit.
+            by apply MON, leqnSn.
           }
 
           (* If it doesn't converge, then it becomes larger than the deadline.
              But initialy we assumed otherwise. Contradiction! *)
 
+          assert (LE_MAX: all (fun x => task_deadline x <= sum_d) ts).
+          {
+            apply/allP; ins; unfold sum_d.
+            by rewrite (big_rem x); [by apply leq_addr | by done].
+          } 
+          
           unfold f.
           unfold initial_state in *.
           destruct (ts) as [| tsk0 ts'].
@@ -207,6 +208,16 @@ Module ResponseTimeIterationEDF.
             by apply leq_trans with (n := sum_d).
           }          
 
+          (*assert (DLZERO: sum_d <= 0 ->
+                          forall tsk, tsk \in ts -> task_deadline tsk = 0).
+          {
+            rewrite leqn0; unfold sum_d; intro ZERO.
+            rewrite -sum_nat_eq0_nat in ZERO.
+            move: ZERO => /allP ZERO.
+            by ins; apply/eqP; apply ZERO.
+          }
+          unfold sum_d in DLZERO.*)
+
           assert (BY1: has (fun x => ~~ (R_le_deadline x)) (f sum_d)).
           {
             clear MON EX.
@@ -216,19 +227,12 @@ Module ResponseTimeIterationEDF.
             move: LE => /andP [LE _].
             induction SUM_D.
             {
-              admit.
-              (*unfold R_le_deadline; apply/orP; left.
-              rewrite -ltnNge.
-              rewrite leqn0 in LE. 
-              rewrite -sum_nat_eq0_nat in LE.
-              move: LE => /allP LE.
-              exploit (LE tsk0).
-                by rewrite in_cons; apply/orP; left.
-              move => /eqP EQ0; rewrite EQ0.
-              unfold valid_sporadic_taskset in VALID.
-              exploit (VALID tsk0).
-                by rewrite in_cons; apply/orP; left.
-                by unfold is_valid_sporadic_task; ins; des.*)
+              move: LE_MAX => /andP [LE_MAX _].
+              rewrite leqn0 in LE_MAX; move: LE_MAX => /eqP LE_MAX.
+              simpl; rewrite -ltnNge LE_MAX; apply/orP; left.
+              exploit (VALID tsk0); first by rewrite in_cons eq_refl orTb.
+              unfold valid_sporadic_taskset, is_valid_sporadic_task.
+              by ins; des.
             }
             {
               exploit IHSUM_D; try (by apply ltnW).
@@ -236,6 +240,8 @@ Module ResponseTimeIterationEDF.
                 intros k; assert (LT: k < SUM_D.+1).
                   by apply leq_trans with (n := SUM_D).
                 by apply (GROWS (Ordinal LT)).
+              }
+              {
               }
               {
                 move => /hasP HAS; destruct HAS as [p IN LT].
