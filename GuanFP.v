@@ -277,7 +277,8 @@ Module ResponseTimeIterationFPGuan.
         }
       Qed.
 
-      (*  To prove convergence of R, we first show convergence of rt_rec. *)      Lemma per_task_rta_converges:
+      (*  To prove convergence of R, we first show convergence of rt_rec. *)
+      Lemma per_task_rta_converges:
         forall ts' tsk rt_bounds,
           valid_sporadic_taskset task_cost task_period task_deadline (rcons ts' tsk) ->
           R_list ts' = Some rt_bounds ->

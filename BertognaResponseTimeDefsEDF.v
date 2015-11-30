@@ -224,11 +224,10 @@ Module ResponseTimeAnalysisEDF.
 
         admit.
         
-        (*
         (* In order to derive a contradiction, we first show that
            the interference x_k of any task is no larger than the
            workload bound W_k. *)
-        assert (WORKLOAD: forall tsk_k,
+        (*assert (WORKLOAD: forall tsk_k,
                             (tsk_k \in ts) && interferes_with_tsk tsk_k ->
                             forall R_k, 
                               (tsk_k, R_k) \in hp_bounds ->

@@ -358,6 +358,57 @@ Proof.
   }
 Qed.
 
+Lemma fun_mon_iter_mon' :
+  forall (f: nat -> nat) x0 x1 x2 (LE: x1 <= x2)
+         (MIN: f x0 >= x0)
+         (MON: forall x1 x2, x1 <= x2 -> f x1 <= f x2),
+    iter x1 f x0 <= iter x2 f x0.
+Proof.
+  ins; revert LE; revert x2; rewrite leq_as_delta; intros delta.
+  induction x1; try rewrite add0n.
+  {
+    induction delta; first by apply leqnn.
+    apply leq_trans with (n := iter delta f x0); first by done.
+    clear IHdelta.
+    induction delta; first by done.
+    {
+      rewrite 2!iterS; apply MON.
+      apply IHdelta.
+    }
+  }
+  {
+    rewrite iterS -addn1 -addnA [1 + delta]addnC addnA addn1 iterS.
+    by apply MON, IHx1.
+  }
+Qed.
+
+Lemma fun_mon_iter_mon_generic :
+  forall T (f: T -> T) (le: rel T)
+         (REFL: reflexive le)
+         (TRANS: transitive le)
+         x0 x1 x2 (LE: x1 <= x2) (MIN: le x0 (f x0))
+         (MON: forall x1 x2, le x1 x2 -> le (f x1) (f x2)),
+    le (iter x1 f x0) (iter x2 f x0).
+Proof.
+  unfold reflexive, transitive in *.
+  ins; revert LE; revert x2; rewrite leq_as_delta; intros delta.
+  induction x1; try rewrite add0n.
+  {
+    induction delta; first by apply REFL.
+    apply TRANS with (y := iter delta f x0); first by done.
+    clear IHdelta.
+    induction delta; first by done.
+    {
+      rewrite 2!iterS; apply MON.
+      apply IHdelta.
+    }
+  }
+  {
+    rewrite iterS -addn1 -addnA [1 + delta]addnC addnA addn1 iterS.
+    by apply MON, IHx1.
+  }
+Qed.
+
 (*Lemma fun_monotonic_iter_monotonic :
   forall k f x0
          (MON: forall x1 x2, x1 <= x2 -> f x1  <= f x2)
@@ -612,6 +663,114 @@ Proof.
   intros POW; red; intros z IN; unfold powerset in POW.
   move: POW => /mapP POW; destruct POW as [pair POW EQ]; subst.
   by apply mem_mask with (m := pair).
+Qed.
+
+Lemma mem_zip {T: eqType} (X Y: seq T) x y :
+  (x, y) \in zip X Y ->
+   x \in X /\ y \in Y.
+Proof.
+  generalize dependent Y.
+  induction X.
+  {
+    intros Y.
+    destruct Y; first by rewrite 2!in_nil.
+    by rewrite 2!in_nil.
+  }
+  {
+    intros Y.
+    destruct Y; first by rewrite 2!in_nil.
+    simpl; rewrite 3!in_cons.
+    move => /orP [/eqP OR | OR];
+      first by inversion OR; subst; rewrite 2!eq_refl orTb.
+    by apply IHX in OR; des; rewrite OR OR0 2!orbT.
+  }
+Qed.
+
+Lemma zipP {T: eqType} (P: _ -> _ -> bool) (X Y: seq T) x0:
+  size X = size Y ->
+  reflect (forall i, i < size (zip X Y) -> P (nth x0 X i) (nth x0 Y i))
+          (all (fun p => P (fst p) (snd p)) (zip X Y)).
+Proof.
+  intro SIZE; apply/introP.
+  {
+    move => /allP ALL i LT.
+    apply (ALL (nth x0 X i,nth x0 Y i)).
+    by rewrite -nth_zip; [by apply mem_nth | by done].
+  }
+  {
+    rewrite -has_predC; unfold predC.
+    move => /hasP HAS; simpl in *; destruct HAS as [x IN NOT].
+    unfold not; intro BUG.
+    exploit (BUG (index x (zip X Y))).
+      by rewrite index_mem.
+    have NTH := @nth_zip _ _ x0 x0 X Y (index x (zip X Y)) SIZE.
+    destruct x as [x1 x2].
+    rewrite {1}nth_index in NTH; last by done.
+    clear BUG; intros BUG.
+    inversion NTH as [[NTH0 NTH1]]; rewrite -NTH0 in NTH1.
+    by rewrite -NTH0 -NTH1 in BUG; rewrite BUG in NOT.
+  }
+Qed.
+
+(*Lemma mem_unzip {T: eqType} (X Y: seq T) x y :
+  uniq X -> uniq Y ->
+  x \in X -> y \in Y ->
+  (x, y) \in (zip X Y).
+Proof.
+  intros UNIQx UNIQy INx INy.
+  generalize dependent x.
+  generalize dependent y.
+  generalize dependent Y.
+  induction X; first by ins.
+  induction Y; first by ins.
+  ins. apply IHY.
+  destruct Y; first by ins.
+  {
+    rewrite in_cons in INy.
+    move: INy => /orP [/eqP HEADy | TAILy]; subst;
+    move: INx => /orP [/eqP HEADx | TAILx]; subst.
+    {
+        by rewrite in_cons eq_refl orTb.
+    }
+    {
+      admit.
+    }
+    {
+      
+      admit.
+    }
+    {
+      simpl in *.
+    destruct (x == a) eqn:EQx, (y == a0) eqn:EQy.
+    {
+      move: EQx => /eqP EQx; subst.
+      move: EQy => /eqP EQy; subst.
+      by rewrite in_cons; apply/orP; left.
+    }
+    {
+      simpl in *.
+      rewrite in_cons in INy.
+      simpl.
+  
+Qed.*)
+
+
+Lemma index_zip1 {T: eqType} (X Y: seq T) x y :
+  uniq X ->
+  uniq Y ->
+  (x, y) \in (zip X Y) ->
+  index (x, y) (zip X Y) = index x X.
+Proof.
+  admit.
+Qed.
+
+Lemma index_zip2 {T:eqType} (X Y: seq T) x y:
+  uniq X ->
+  uniq Y ->
+  (x, y) \in (zip X Y) ->
+  index (x, y) (zip X Y) = index y Y.
+Proof.
+  admit.
 Qed.
 
 Definition no_intersection {T: eqType} (l1 l2: seq T) :=

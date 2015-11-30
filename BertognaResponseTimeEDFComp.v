@@ -158,12 +158,61 @@ Module ResponseTimeIterationEDF.
 
           set one_lt := fun (v1 v2: list task_with_response_time) =>
              has (fun p => (snd (fst p)) < (snd (snd p))) (zip v1 v2).
-          
-          assert (MON: forall x1 x2, x1 <= x2 -> all_le (f x1) (f x2)).
+
+          assert (REFL: reflexive all_le).
           {
-            intros x1 x2 LE; apply/allP.
-            intros x IN; destruct x as [p_i p_i']; simpl.
-            admit.
+            intros l; unfold all_le.
+            destruct l; first by done.
+            apply/(zipP (fun x y => snd x <= snd y)); try (by ins).
+            by ins; apply leqnn.
+          }
+
+          assert (TRANS: transitive all_le).
+          {
+            unfold transitive, all_le; intros y x z LExy LEyz.
+            move: LExy LEyz => /allP LExy /allP LEyz; apply/allP.
+            
+            admit. (* Weird cannot prove this! *)
+          }
+
+          assert (INIT: all_le (initial_state ts)
+                               (edf_rta_iteration (initial_state ts))).
+          {
+            unfold all_le.
+            exploit (@size1_zip _ _ (initial_state ts) (edf_rta_iteration (initial_state ts)));
+              [by rewrite 3!size_map | intro SIZE1].
+            destruct ts as [| tsk ts']; first by done.
+            apply/(zipP (fun x y => snd x <= snd y));
+              [by done | by rewrite 3!size_map |].
+            {
+              unfold initial_state in *; intros i LTi.
+              rewrite (nth_map tsk) /=;
+                last by rewrite /= size_map in SIZE1; rewrite -SIZE1.
+              rewrite (nth_map (tsk,num_cpus)); unfold update_bound;
+                last by simpl in *; rewrite -SIZE1.
+              desf; simpl; unfold response_time_bound.
+              assert (EQtsk: nth tsk (tsk :: ts') i = s).
+              {
+                admit. (* Should be provable *)
+              }
+              by rewrite EQtsk leq_addr.
+            }
+          }
+
+          assert (MON:forall x1 x2,
+                     all_le x1 x2 ->
+                     all_le (edf_rta_iteration x1) (edf_rta_iteration x2)).
+          {
+            intros x1 x2 LE.
+            move: LE => /(zipP (fun x y => snd x <= snd y)) LE.
+            apply/(zipP (fun x y => snd x <= snd y)). admit.
+          }
+            
+          assert (GROWS: forall k, all_le (f k) (f k.+1)).
+          {
+            intros k.
+            apply fun_mon_iter_mon_generic with (x1 := k) (x2 := k.+1);
+              try (by ins); by apply leqnSn.
           }
           
           (* Either f converges by the deadline or not. *)
@@ -180,110 +229,172 @@ Module ResponseTimeIterationEDF.
           apply negbT in EX; rewrite negb_exists_in in EX.
           move: EX => /forall_inP EX.
 
-          assert (GROWS: forall k: 'I_(sum_d), all_le (f k) (f k.+1)).
+          assert (GT: forall k: 'I_(sum_d), one_lt (f k) (f k.+1)).
           {
-            intros k; unfold one_lt.
-            by apply MON, leqnSn.
+            intros step; unfold one_lt.
+            rewrite -[has _ _]negbK; apply/negP; unfold not; intro ALL.
+            rewrite -all_predC in ALL.
+            move: ALL => /allP ALL.
+            exploit (EX step); [by done | intro DIFF].
+            assert (DUMMY: exists tsk: sporadic_task, True).
+            {
+              unfold f, edf_rta_iteration, initial_state in DIFF.
+              induction ts as [| tsk0 ts']; last by exists tsk0.
+              simpl in DIFF.
+              clear ALL EX MON VALID DIFF.
+              destruct step as [step LT].
+              by unfold sum_d in LT; rewrite big_nil in LT.
+            }
+            des; clear DUMMY.
+            move: DIFF => /eqP DIFF; apply DIFF.
+            apply eq_from_nth with (x0 := (tsk, 0));
+              first by simpl; rewrite size_map.
+            {
+              intros i LTi.
+              remember (nth (tsk, 0)(f step) i) as p_i;rewrite -Heqp_i.
+              remember (nth (tsk, 0)(f step.+1) i) as p_i';rewrite -Heqp_i'.
+              rename Heqp_i into EQ, Heqp_i' into EQ'.
+              exploit (ALL (p_i, p_i')).
+              {
+                rewrite EQ EQ'.
+                rewrite -nth_zip; last by unfold f; rewrite iterS size_map.
+                apply mem_nth; rewrite size_zip.
+                unfold f; rewrite iterS size_map.
+                by rewrite minnn.
+              }
+              unfold predC; simpl; rewrite -ltnNge; intro LTp.
+              
+              specialize (GROWS step).
+              move: GROWS => /allP GROWS.
+              exploit (GROWS (p_i, p_i')).
+              {
+                rewrite EQ EQ'.
+                rewrite -nth_zip; last by unfold f; rewrite iterS size_map.
+                apply mem_nth; rewrite size_zip.
+                unfold f; rewrite iterS size_map.
+                by rewrite minnn.
+              }
+              simpl; intros LE.
+
+              destruct p_i as [tsk_i R_i], p_i' as [tsk_i' R_i'].
+              simpl in *.
+              assert (EQtsk: tsk_i = tsk_i').
+              {
+                unfold edf_rta_iteration in EQ'.
+                rewrite (nth_map (tsk, 0)) in EQ'; last by done.
+                by unfold update_bound in EQ'; desf.
+              }
+              rewrite EQtsk; f_equal.
+              by apply/eqP; rewrite eqn_leq; apply/andP; split.
+            }
           }
-
-          (* If it doesn't converge, then it becomes larger than the deadline.
-             But initialy we assumed otherwise. Contradiction! *)
-
-          assert (LE_MAX: all (fun x => task_deadline x <= sum_d) ts).
-          {
-            apply/allP; ins; unfold sum_d.
-            by rewrite (big_rem x); [by apply leq_addr | by done].
-          } 
           
-          unfold f.
-          unfold initial_state in *.
-          destruct (ts) as [| tsk0 ts'].
+          assert (EXCEEDS: forall step: 'I_(sum_d),
+                             \sum_(p <- f step) snd p > step).
           {
-            induction sum_d; unfold edf_rta_iteration; first by done.
-            rewrite iterS [iter sum_d.+2 _ _]iterS.
-            rewrite -IHsum_d ?IHsum_d; try (by done);
-            intros x; assert (LT: x < sum_d.+1);
-            try (ins; apply (EX (Ordinal LT)));
-            try (ins; apply (GROWS (Ordinal LT)));
-            by apply leq_trans with (n := sum_d).
-          }          
-
-          (*assert (DLZERO: sum_d <= 0 ->
-                          forall tsk, tsk \in ts -> task_deadline tsk = 0).
-          {
-            rewrite leqn0; unfold sum_d; intro ZERO.
-            rewrite -sum_nat_eq0_nat in ZERO.
-            move: ZERO => /allP ZERO.
-            by ins; apply/eqP; apply ZERO.
-          }
-          unfold sum_d in DLZERO.*)
-
-          assert (BY1: has (fun x => ~~ (R_le_deadline x)) (f sum_d)).
-          {
-            clear MON EX.
-            remember sum_d as SUM_D.
-            unfold sum_d in *; clear sum_d; rename HeqSUM_D into LE.
-            move: LE => /eqP LE; rewrite eqn_leq in LE.
-            move: LE => /andP [LE _].
-            induction SUM_D.
+            intro step; destruct step as [step LT].
+            induction step.
             {
-              move: LE_MAX => /andP [LE_MAX _].
-              rewrite leqn0 in LE_MAX; move: LE_MAX => /eqP LE_MAX.
-              simpl; rewrite -ltnNge LE_MAX; apply/orP; left.
-              exploit (VALID tsk0); first by rewrite in_cons eq_refl orTb.
+              apply leq_ltn_trans with (n := \sum_(p <- initial_state ts) 0);               first by rewrite big_const_seq iter_addn mul0n addn0.
+              apply leq_trans with (n := \sum_(p <- initial_state ts) 1).
+              {
+                rewrite 2!big_const_seq 2!iter_addn mul0n mul1n 2!addn0.
+                destruct ts; last by done.
+                
+                by unfold sum_d in LT; rewrite big_nil in LT.
+              }
+              rewrite big_seq_cond [\sum_(p <- _ | true) _]big_seq_cond.
+              apply leq_sum.
+              intro p; rewrite andbT; simpl; intros IN.
+              destruct p as [tsk R]; simpl in *.
+              move: IN => /mapP IN; destruct IN as [x IN SUBST].
+              inversion SUBST; subst; clear SUBST.
+              exploit (VALID x); first by done.
               unfold valid_sporadic_taskset, is_valid_sporadic_task.
-              by ins; des.
+              by unfold task_deadline_positive; ins; des.
             }
             {
-              exploit IHSUM_D; try (by apply ltnW).
+              assert (LT': step < sum_d).
+                by apply leq_ltn_trans with (n := step.+1).
+              simpl in *; exploit IHstep; [by done | intro LE].
+              specialize (GT (Ordinal LT')).
+              simpl in *; clear LT LT' IHstep.
+              move: GT => /hasP GT; destruct GT as [p IN LTpair].
+              apply leq_trans with (n := (\sum_(p <- f step) snd p) + 1);
+                first by rewrite addn1 ltnS.
+              destruct p as [p p']; simpl in *.
+
+              rewrite (big_nth p) (big_nth p).
+              set idx := index (p,p') (zip (f step) (edf_rta_iteration (f step))).
+              rewrite -> big_cat_nat with (n := idx);
+                [simpl | by done |]; last first.
               {
-                intros k; assert (LT: k < SUM_D.+1).
-                  by apply leq_trans with (n := SUM_D).
-                by apply (GROWS (Ordinal LT)).
+                apply leq_trans with (n := size (zip (f step)
+                                        (edf_rta_iteration (f step))));
+                first by apply index_size.
+                by rewrite size_zip size_map minnn.
+              }
+              rewrite -> big_cat_nat with (n := idx)
+                                 (p := size (edf_rta_iteration (f step)));
+                [simpl | by done |]; last first.
+              {
+                apply leq_trans with (n := size (zip (f step)
+                                        (edf_rta_iteration (f step))));
+                first by apply index_size. 
+                by rewrite size_zip size_map minnn.
+              }
+              specialize (GROWS step); unfold all_le in GROWS.
+              move: GROWS => /(zipP (fun x y => snd x <= snd y)) GROWS.
+              rewrite -addnA; apply leq_add.
+              {
+                rewrite big_nat_cond
+                        [\sum_(_ <= _ < _ | true) _]big_nat_cond.
+                apply leq_sum; intro i; rewrite andbT.
+                move => /andP [_ LT].                
+                apply GROWS; first by rewrite size_map.
+                by apply (leq_trans LT), index_size.
               }
               {
-              }
-              {
-                move => /hasP HAS; destruct HAS as [p IN LT].
-                assert (LT': SUM_D < SUM_D.+1). by apply ltnSn.
-                specialize (GROWS (Ordinal LT')); simpl in GROWS.
-                unfold f at 2 in GROWS.
-                rewrite -iterS in GROWS.
-                fold (f SUM_D.+1) in GROWS.
-                move: GROWS => /allP GROWS.
-                generalize IN; intro IN'.
-                apply (nth_index (tsk0, 0)) in IN'.
-                set p_i := nth (tsk0,0) (f SUM_D) (index p (f SUM_D)).
-                set p_i' := nth (tsk0,0) (f SUM_D.+1) (index p (f SUM_D)).
-                assert (IN'': p_i' \in f SUM_D.+1).
+                rewrite size_map.
+                destruct (size (f step)) eqn:SIZE.
                 {
-                  admit.
+                  rewrite SIZE; apply size0nil in SIZE.
+                  by rewrite SIZE big_nil in LE.
+                } rewrite SIZE.
+                assert (LEidx: idx <= n).
+                {
+                  unfold idx; rewrite -ltnS -SIZE.
+                  rewrite -(@size1_zip _ _ _ (edf_rta_iteration (f step)));
+                    last by rewrite size_map leqnn.
+                  by rewrite index_mem.
                 }
-                assert (SAMETSK: fst p_i = fst p_i').
+                rewrite 2?big_nat_recl //.
+                rewrite -addnA [_ + 1]addnC addnA.
+                apply leq_add; last first.
                 {
-                  admit.
+                  rewrite big_nat_cond
+                          [\sum_(_ <= _ < _ | true) _]big_nat_cond.
+                  apply leq_sum; intro i; rewrite andbT.
+                  move => /andP [_ LT].
+                  apply GROWS; first by rewrite size_map.
+                  apply leq_ltn_trans with (n := n); first by done.
+                  apply leq_trans with (n := size (f step));
+                    first by rewrite -SIZE.
+                  rewrite -(@size1_zip _ _ _ (edf_rta_iteration (f step)));
+                    [by done | by rewrite size_map leqnn].
                 }
-                exploit (GROWS (p_i, p_i')).
                 {
-                  admit.
-                }
-                {
-                  intro LT_R; simpl in LT_R.
-                  apply/hasP; exists p_i'; first by done.
-                  unfold R_le_deadline in *; desf; rewrite -ltnNge.
-                  apply leq_trans with (n := snd p_i); last by done.
-                  unfold p_i in *; rewrite IN' ltnNge.
-                  by simpl in SAMETSK; rewrite -SAMETSK IN' /=.
+                  rewrite addn1.
+                  have NTH := @nth_index _ (p,p) (p,p') (zip (f step) (edf_rta_iteration (f step))) IN.
+                  rewrite nth_zip in NTH; last by rewrite size_map.
+                  inversion NTH.
+                  rewrite H1; rewrite H0 in H1; rewrite H0.
+                  by rewrite H0 H1.
                 }
               }
             }
           }
-          move: BY1 => /hasP BY1; destruct BY1 as [p IN GT].
-          move: Heq => /allP DL.
-          exploit (DL p); last by intro BUG; rewrite BUG in GT.
-          {
-            admit.
-          }
+          admit.
         Qed.
         
         Lemma R_list_converges :
