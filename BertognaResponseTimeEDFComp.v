@@ -140,6 +140,33 @@ Module ResponseTimeIterationEDF.
 
       Section HelperLemma.
 
+        Lemma unzip1_update_bound :
+          forall l rt_bounds,
+            unzip1 (map (update_bound rt_bounds) l) = unzip1 l.
+        Proof.
+          induction l; first by done.
+          intros rt_bounds.
+          simpl; f_equal; last by done.
+          by unfold update_bound; desf.
+        Qed.
+
+        Lemma unzip1_edf_iteration :
+          forall l k,
+            unzip1 (iter k edf_rta_iteration (initial_state l)) = l.
+        Proof.
+          intros l k; clear -k.
+          induction k; simpl.
+          {
+            unfold initial_state.
+            induction l; first by done.
+            by simpl; rewrite IHl.
+          }
+          {
+            unfold edf_rta_iteration. 
+            by rewrite unzip1_update_bound.
+          }
+        Qed.
+        
         Lemma R_list_converges_helper :
           forall rt_bounds,
             R_list_edf ts = Some rt_bounds ->
@@ -202,22 +229,14 @@ Module ResponseTimeIterationEDF.
             }
             by instantiate (1 := t); intro LE'; apply (leq_trans LE).
           }
-
-          assert (UNZIP: forall k, unzip1 (iter k edf_rta_iteration (initial_state ts)) = ts).
-          {
-            admit.
-          }
           
           assert (INIT: all_le (initial_state ts)
                                (edf_rta_iteration (initial_state ts))).
           {
-            unfold all_le; apply/andP; split.
-            {
-              assert (UNZIP0 := UNZIP 0); simpl in UNZIP0.
-              assert (UNZIP1 := UNZIP 1); simpl in UNZIP1.
-              by rewrite UNZIP0 UNZIP1.
-            }
-            specialize (UNZIP 0); simpl in UNZIP.
+            assert (UNZIP0 := unzip1_edf_iteration ts 0); simpl in UNZIP0.
+            unfold all_le; apply/andP; split;
+              first by rewrite UNZIP0 (unzip1_edf_iteration ts 1).
+            
             exploit (@size1_zip _ _ (initial_state ts) (edf_rta_iteration (initial_state ts)));
               [by rewrite 3!size_map | intro SIZE1].
             destruct ts as [| tsk ts']; first by done.
@@ -230,7 +249,6 @@ Module ResponseTimeIterationEDF.
               rewrite (nth_map (tsk,num_cpus)); unfold update_bound;
                 last by simpl in *; rewrite -SIZE1.
               desf; simpl; unfold response_time_bound.
-              unfold unzip1 in UNZIP.
               
               assert (EQtsk: nth tsk (tsk :: ts') i = s).
               {              
@@ -246,9 +264,7 @@ Module ResponseTimeIterationEDF.
           {
             move => x1 x2 /andP [/eqP ZIP LE]; unfold all_le.
             assert (UNZIP': unzip1 (edf_rta_iteration x1) = unzip1 (edf_rta_iteration x2)).
-            {
-              admit.
-            }
+              by rewrite 2!unzip1_update_bound.
             apply/andP; split; first by rewrite UNZIP'.
             apply f_equal with (B := nat) (f := fun x => size x) in UNZIP'.
             rename UNZIP' into SIZE.
@@ -301,10 +317,8 @@ Module ResponseTimeIterationEDF.
 
           assert (GT: forall k: 'I_(sum_d.+1), one_lt (f k) (f k.+1)).
           {
-            intros step; unfold one_lt; apply/andP; split.
-            {
-              admit.
-            } 
+            intros step; unfold one_lt; apply/andP; split;
+              first by rewrite 2!unzip1_edf_iteration.
             rewrite -[has _ _]negbK; apply/negP; unfold not; intro ALL.
             rewrite -all_predC in ALL.
             move: ALL => /allP ALL.
@@ -494,7 +508,16 @@ Module ResponseTimeIterationEDF.
             unfold sum_d at 2.
             move: ALL => /allP ALL.
             unfold f.
-            admit. (* should be provable*)
+            apply leq_trans with (n := \sum_(p <- iter sum_d edf_rta_iteration (initial_state (tsk0 :: ts'))) task_deadline (fst p)).
+            {
+              rewrite big_seq_cond [\sum_(_ <- _ | true) _]big_seq_cond.
+              apply leq_sum; intro p; rewrite andbT; intro IN.
+              by specialize (ALL p IN); destruct p.
+            }
+            have MAP := @big_map _ 0 addn _ _ (fun x => fst x) (f sum_d) (fun x => true) (fun x => task_deadline x).
+            rewrite -MAP; clear MAP.
+            apply eq_leq, congr_big; [| by done | by done].
+            by rewrite -(unzip1_edf_iteration (tsk0 :: ts') sum_d).
           }
           by rewrite ltnNge SUM in EXCEEDS.
         Qed.
@@ -507,45 +530,6 @@ Module ResponseTimeIterationEDF.
         Proof.
           intros tsk R rt_bounds SOME IN.
           unfold R_list_edf in SOME; desf.
-
-          f 
-          set (f x := task_cost tsk + div_floor (I (iter x edf_rta_iteration (initial_state ts)) tsk R) num_cpus).
-          fold (f (max_steps ts)).
-
-          
-        (* First prove that f is monotonic.*)
-        assert (MON: forall x1 x2, x1 <= x2 -> f x1 <= f x2).
-        {
-          intros x1 x2 LEx; unfold f, per_task_rta.
-          apply fun_mon_iter_mon; [by ins | by ins; apply leq_addr |].
-          clear LEx x1 x2; intros x1 x2 LEx.
-          
-          unfold div_floor, total_interference_bound_fp.
-          rewrite big_seq_cond [\sum_(i <- _ | let '(tsk_other, _) := i in
-                                   _ && (tsk_other != tsk))_]big_seq_cond.
-          rewrite leq_add2l leq_div2r // leq_sum //.
-
-          intros i; destruct (i \in rt_bounds) eqn:HP;
-            last by rewrite andFb.
-          destruct i as [i R]; intros _.
-          have GE_COST := (R_list_ge_cost ts' rt_bounds i R).
-          have INts := (R_list_non_empty ts' rt_bounds i SOME).
-          destruct INts as [_ EX]; exploit EX; [by exists R | intro IN].
-          unfold interference_bound; simpl.
-          rewrite leq_min; apply/andP; split.
-          {
-            apply leq_trans with (n := W task_cost task_period i R x1); 
-              first by apply geq_minl.            
-            specialize (VALID i IN); des.
-            by apply W_monotonic; try (by ins); apply GE_COST.          
-          }
-          {
-            apply leq_trans with (n := x1 - task_cost tsk + 1);
-              first by apply geq_minr.
-            by rewrite leq_add2r leq_sub2r //.
-          }
-        }
-
           
           admit.
         Qed.
