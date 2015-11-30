@@ -752,7 +752,7 @@ Proof.
       rewrite in_cons in INy.
       simpl.
   
-Qed.*)
+Qed.
 
 
 Lemma index_zip1 {T: eqType} (X Y: seq T) x y :
@@ -771,7 +771,7 @@ Lemma index_zip2 {T:eqType} (X Y: seq T) x y:
   index (x, y) (zip X Y) = index y Y.
 Proof.
   admit.
-Qed.
+Qed.*)
 
 Definition no_intersection {T: eqType} (l1 l2: seq T) :=
   ~~ has (mem l1) l2.

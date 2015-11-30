@@ -154,14 +154,16 @@ Module ResponseTimeIterationEDF.
           fold (f (max_steps ts)) in *; fold (f (max_steps ts).+1).
 
           set all_le := fun (v1 v2: list task_with_response_time) =>
-             all (fun p => (snd (fst p)) <= (snd (snd p))) (zip v1 v2).
+            (unzip1 v1 == unzip1 v2) &&
+            all (fun p => (snd (fst p)) <= (snd (snd p))) (zip v1 v2).
 
           set one_lt := fun (v1 v2: list task_with_response_time) =>
-             has (fun p => (snd (fst p)) < (snd (snd p))) (zip v1 v2).
+            (unzip1 v1 == unzip1 v2) &&
+            has (fun p => (snd (fst p)) < (snd (snd p))) (zip v1 v2).
 
           assert (REFL: reflexive all_le).
           {
-            intros l; unfold all_le.
+            intros l; unfold all_le; rewrite eq_refl andTb.
             destruct l; first by done.
             apply/(zipP (fun x y => snd x <= snd y)); try (by ins).
             by ins; apply leqnn.
@@ -169,16 +171,53 @@ Module ResponseTimeIterationEDF.
 
           assert (TRANS: transitive all_le).
           {
-            unfold transitive, all_le; intros y x z LExy LEyz.
-            move: LExy LEyz => /allP LExy /allP LEyz; apply/allP.
-            
-            admit. (* Weird cannot prove this! *)
+            unfold transitive, all_le.
+            move => y x z /andP [/eqP ZIPxy LExy] /andP [/eqP ZIPyz LEyz].
+            apply/andP; split; first by rewrite ZIPxy -ZIPyz.
+            move: LExy => /(zipP (fun x y => snd x <= snd y)) LExy.
+            move: LEyz => /(zipP (fun x y => snd x <= snd y)) LEyz.
+            assert (SIZExy: size (unzip1 x) = size (unzip1 y)).
+              by rewrite ZIPxy.
+            assert (SIZEyz: size (unzip1 y) = size (unzip1 z)).
+              by rewrite ZIPyz.
+            rewrite 2!size_map in SIZExy; rewrite 2!size_map in SIZEyz.
+            destruct y.
+            {
+              apply size0nil in SIZExy; symmetry in SIZEyz.
+              by apply size0nil in SIZEyz; subst.
+            }
+            apply/(zipP (fun x y => snd x <= snd y));
+              [by apply (t, 0) | by rewrite SIZExy -SIZEyz|]. 
+            intros i LTi.
+            exploit LExy; first by rewrite SIZExy.
+            {
+              rewrite size_zip -SIZEyz -SIZExy minnn in LTi.
+              by rewrite size_zip -SIZExy minnn; apply LTi.
+            }
+            instantiate (1 := t); intro LE.
+            exploit LEyz; first by apply SIZEyz.
+            {
+              rewrite size_zip SIZExy SIZEyz minnn in LTi.
+              by rewrite size_zip SIZEyz minnn; apply LTi.
+            }
+            by instantiate (1 := t); intro LE'; apply (leq_trans LE).
           }
 
+          assert (UNZIP: forall k, unzip1 (iter k edf_rta_iteration (initial_state ts)) = ts).
+          {
+            admit.
+          }
+          
           assert (INIT: all_le (initial_state ts)
                                (edf_rta_iteration (initial_state ts))).
           {
-            unfold all_le.
+            unfold all_le; apply/andP; split.
+            {
+              assert (UNZIP0 := UNZIP 0); simpl in UNZIP0.
+              assert (UNZIP1 := UNZIP 1); simpl in UNZIP1.
+              by rewrite UNZIP0 UNZIP1.
+            }
+            specialize (UNZIP 0); simpl in UNZIP.
             exploit (@size1_zip _ _ (initial_state ts) (edf_rta_iteration (initial_state ts)));
               [by rewrite 3!size_map | intro SIZE1].
             destruct ts as [| tsk ts']; first by done.
@@ -191,8 +230,10 @@ Module ResponseTimeIterationEDF.
               rewrite (nth_map (tsk,num_cpus)); unfold update_bound;
                 last by simpl in *; rewrite -SIZE1.
               desf; simpl; unfold response_time_bound.
+              unfold unzip1 in UNZIP.
+              
               assert (EQtsk: nth tsk (tsk :: ts') i = s).
-              {
+              {              
                 admit. (* Should be provable *)
               }
               by rewrite EQtsk leq_addr.
@@ -203,11 +244,40 @@ Module ResponseTimeIterationEDF.
                      all_le x1 x2 ->
                      all_le (edf_rta_iteration x1) (edf_rta_iteration x2)).
           {
-            intros x1 x2 LE.
+            move => x1 x2 /andP [/eqP ZIP LE]; unfold all_le.
+            assert (UNZIP': unzip1 (edf_rta_iteration x1) = unzip1 (edf_rta_iteration x2)).
+            {
+              admit.
+            }
+            apply/andP; split; first by rewrite UNZIP'.
+            apply f_equal with (B := nat) (f := fun x => size x) in UNZIP'.
+            rename UNZIP' into SIZE.
+            rewrite size_map [size (unzip1 _)]size_map in SIZE.
             move: LE => /(zipP (fun x y => snd x <= snd y)) LE.
-            apply/(zipP (fun x y => snd x <= snd y)). admit.
+            destruct x1, x2; try (by ins).
+            apply/(zipP (fun x y => snd x <= snd y));
+              [by apply (t,0) | by done |].
+            intros i LTi.
+            exploit LE; first by rewrite 2!size_map in SIZE.
+            {
+              by rewrite size_zip 2!size_map -size_zip in LTi; apply LTi.
+            }
+            rewrite 2!size_map in SIZE.
+            instantiate (1 := t); clear LE; intro LE.
+            rewrite (nth_map t);
+              last by rewrite size_zip 2!size_map -SIZE minnn in LTi.
+            rewrite (nth_map t);
+              last by rewrite size_zip 2!size_map SIZE minnn in LTi.
+            unfold update_bound, response_time_bound; desf; simpl.
+            assert (EQtsk: s = s0).
+            {
+              admit.
+            }
+            rewrite EQtsk; apply leq_add; first by done.
+            unfold I, total_interference_bound_edf; apply leq_div2r.
+            admit.
           }
-            
+
           assert (GROWS: forall k, all_le (f k) (f k.+1)).
           {
             intros k.
@@ -218,20 +288,23 @@ Module ResponseTimeIterationEDF.
           (* Either f converges by the deadline or not. *)
           unfold max_steps in *.
           set sum_d := \sum_(tsk <- ts) task_deadline tsk.
-          destruct ([exists k in 'I_(sum_d), f k == f k.+1]) eqn:EX.
+          destruct ([exists k in 'I_(sum_d.+1), f k == f k.+1]) eqn:EX.
           {
             move: EX => /exists_inP EX; destruct EX as [k _ ITERk].
             move: ITERk => /eqP ITERk.
             apply iter_fix with (k := k);
-              [by ins | by apply ltnW, ltn_ord].
+              [by ins | by rewrite -ltnS; apply ltn_ord].
           }
           
           apply negbT in EX; rewrite negb_exists_in in EX.
           move: EX => /forall_inP EX.
 
-          assert (GT: forall k: 'I_(sum_d), one_lt (f k) (f k.+1)).
+          assert (GT: forall k: 'I_(sum_d.+1), one_lt (f k) (f k.+1)).
           {
-            intros step; unfold one_lt.
+            intros step; unfold one_lt; apply/andP; split.
+            {
+              admit.
+            } 
             rewrite -[has _ _]negbK; apply/negP; unfold not; intro ALL.
             rewrite -all_predC in ALL.
             move: ALL => /allP ALL.
@@ -239,11 +312,13 @@ Module ResponseTimeIterationEDF.
             assert (DUMMY: exists tsk: sporadic_task, True).
             {
               unfold f, edf_rta_iteration, initial_state in DIFF.
-              induction ts as [| tsk0 ts']; last by exists tsk0.
-              simpl in DIFF.
-              clear ALL EX MON VALID DIFF.
-              destruct step as [step LT].
-              by unfold sum_d in LT; rewrite big_nil in LT.
+              destruct ts as [| tsk0 ts']; last by exists tsk0.
+              assert (EMPTY: forall k,
+                        iter k (fun x => [seq update_bound x i | i <- x]) [::] = [::]).
+              {
+                induction k; [by done | by rewrite iterS IHk].
+              }
+              by rewrite 2!EMPTY in DIFF.
             }
             des; clear DUMMY.
             move: DIFF => /eqP DIFF; apply DIFF.
@@ -265,7 +340,7 @@ Module ResponseTimeIterationEDF.
               unfold predC; simpl; rewrite -ltnNge; intro LTp.
               
               specialize (GROWS step).
-              move: GROWS => /allP GROWS.
+              move: GROWS => /andP [_ /allP GROWS].
               exploit (GROWS (p_i, p_i')).
               {
                 rewrite EQ EQ'.
@@ -288,38 +363,54 @@ Module ResponseTimeIterationEDF.
               by apply/eqP; rewrite eqn_leq; apply/andP; split.
             }
           }
+
+          unfold f; destruct ts as [| tsk0 ts'].
+          {
+            clear -Heq.
+            induction sum_d; first by unfold edf_rta_iteration. 
+            by rewrite [iter sum_d.+2 _ _]iterS -IHsum_d -iterS.
+          }
           
-          assert (EXCEEDS: forall step: 'I_(sum_d),
+          assert (EXCEEDS: forall step: 'I_(sum_d.+1),
                              \sum_(p <- f step) snd p > step).
           {
             intro step; destruct step as [step LT].
             induction step.
             {
-              apply leq_ltn_trans with (n := \sum_(p <- initial_state ts) 0);               first by rewrite big_const_seq iter_addn mul0n addn0.
-              apply leq_trans with (n := \sum_(p <- initial_state ts) 1).
-              {
-                rewrite 2!big_const_seq 2!iter_addn mul0n mul1n 2!addn0.
-                destruct ts; last by done.
-                
-                by unfold sum_d in LT; rewrite big_nil in LT.
-              }
+              simpl.
+              apply leq_ltn_trans with (n :=
+                 \sum_(p <- (tsk0, task_cost tsk0) :: initial_state ts') 0);                 first by rewrite big_const_seq iter_addn mul0n addn0.
+              apply leq_trans with (n :=
+                 \sum_(p <- (tsk0, task_cost tsk0) :: initial_state ts') 1);
+                first by rewrite 2!big_const_seq 2!iter_addn mul0n mul1n 2!addn0.
               rewrite big_seq_cond [\sum_(p <- _ | true) _]big_seq_cond.
               apply leq_sum.
               intro p; rewrite andbT; simpl; intros IN.
               destruct p as [tsk R]; simpl in *.
-              move: IN => /mapP IN; destruct IN as [x IN SUBST].
-              inversion SUBST; subst; clear SUBST.
-              exploit (VALID x); first by done.
-              unfold valid_sporadic_taskset, is_valid_sporadic_task.
-              by unfold task_deadline_positive; ins; des.
+              rewrite in_cons in IN; move: IN => /orP [/eqP HEAD | TAIL].
+              {
+                inversion HEAD; subst.
+                exploit (VALID tsk0);
+                  first by rewrite in_cons; apply/orP; left.
+                unfold valid_sporadic_taskset, is_valid_sporadic_task.
+                by unfold task_deadline_positive; ins; des.
+              }
+              {
+                move: TAIL => /mapP TAIL; destruct TAIL as [x IN SUBST].
+                inversion SUBST; subst; clear SUBST.
+                exploit (VALID x);
+                  first by rewrite in_cons; apply/orP; right.
+                unfold valid_sporadic_taskset, is_valid_sporadic_task.
+                by unfold task_deadline_positive; ins; des.
+              }
             }
             {
-              assert (LT': step < sum_d).
+              assert (LT': step < sum_d.+1).
                 by apply leq_ltn_trans with (n := step.+1).
               simpl in *; exploit IHstep; [by done | intro LE].
               specialize (GT (Ordinal LT')).
               simpl in *; clear LT LT' IHstep.
-              move: GT => /hasP GT; destruct GT as [p IN LTpair].
+              move: GT => /andP [_ /hasP GT]; destruct GT as [p IN LTpair].
               apply leq_trans with (n := (\sum_(p <- f step) snd p) + 1);
                 first by rewrite addn1 ltnS.
               destruct p as [p p']; simpl in *.
@@ -344,7 +435,7 @@ Module ResponseTimeIterationEDF.
                 by rewrite size_zip size_map minnn.
               }
               specialize (GROWS step); unfold all_le in GROWS.
-              move: GROWS => /(zipP (fun x y => snd x <= snd y)) GROWS.
+              move: GROWS => /andP [_ /(zipP (fun x y => snd x <= snd y)) GROWS].
               rewrite -addnA; apply leq_add.
               {
                 rewrite big_nat_cond
@@ -394,7 +485,18 @@ Module ResponseTimeIterationEDF.
               }
             }
           }
-          admit.
+          assert (LT: sum_d < sum_d.+1); first by apply ltnSn.
+          specialize (EXCEEDS (Ordinal LT)); simpl in EXCEEDS.
+          fold sum_d in Heq; move: Heq => ALL; clear -EXCEEDS ALL.
+
+          assert (SUM: \sum_(p <- f sum_d) snd p <= sum_d).
+          {
+            unfold sum_d at 2.
+            move: ALL => /allP ALL.
+            unfold f.
+            admit. (* should be provable*)
+          }
+          by rewrite ltnNge SUM in EXCEEDS.
         Qed.
         
         Lemma R_list_converges :
