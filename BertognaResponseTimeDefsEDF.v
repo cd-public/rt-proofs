@@ -66,7 +66,16 @@ Module ResponseTimeAnalysisEDF.
 
     Section Proofs.
 
-      (* The proof that edf_specific_bound works should go here...*)
+      (* The EDF-specific bound is is monotonically increasing
+         with the size of the interval. *)
+      Lemma edf_specific_bound_monotonic :
+        forall tsk_other R R',
+          R <= R' -> 
+          edf_specific_bound (tsk_other, R) <=
+          edf_specific_bound (tsk_other, R').
+      Proof.
+        admit.
+      Qed.
       
     End Proofs.
     
@@ -521,7 +530,6 @@ Module ResponseTimeAnalysisEDF.
               is not enough to cover the sum of the "minimum" term over
               all tasks (artifact of the proof by contradiction). *)
 
-        Print interference_bound_edf.
         assert (SUM: \sum_(k <- rt_bounds | is_interfering_task_jlfp tsk (fst k))
         (minn 
           (interference_bound_edf task_cost task_period task_deadline
