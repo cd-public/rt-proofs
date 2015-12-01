@@ -127,59 +127,61 @@ Module Workload.
     Variable task_period: sporadic_task -> nat.
 
     Variable tsk: sporadic_task.
-    Hypothesis period_positive: task_period tsk > 0.
+    Hypothesis H_period_positive: task_period tsk > 0.
 
-    Variable R: time.
-    Hypothesis R_lower_bound: R >= task_cost tsk.
-
-    Let workload_bound := W task_cost task_period tsk R.
+    Variable R1 R2: time.
+    Hypothesis H_R_lower_bound: R1 >= task_cost tsk.
+    Hypothesis H_R1_le_R2: R1 <= R2.
+      
+    Let workload_bound := W task_cost task_period tsk.
 
     Lemma W_monotonic :
       forall t1 t2,
         t1 <= t2 ->
-        workload_bound t1 <= workload_bound t2.
+        workload_bound R1 t1 <= workload_bound R2 t2.
     Proof.
       intros t1 t2 LEt.
       unfold workload_bound, W, max_jobs, div_floor; rewrite 2!subndiv_eq_mod.
       set e := task_cost tsk; set p := task_period tsk.
-     
-     generalize dependent t2; rewrite leq_as_delta.
-     induction delta;
-       first by rewrite addn0 leq_add2r leq_min; apply/andP; split;
-         [by rewrite geq_minl | by rewrite geq_minr].
-     {
-       apply (leq_trans IHdelta).
+      set x1 := t1 + R1.
+      set x2 := t2 + R2.
+      set delta := x2 - x1.
+      rewrite -[x2](addKn x1) -addnBA; fold delta;
+        last by apply leq_add.
+      
+      induction delta; first by rewrite addn0 leqnn.
+      {
+         apply (leq_trans IHdelta).
 
-       (* Prove special case for p <= 1. *)
-       destruct (leqP p 1) as [LTp | GTp].
-       {
-         rewrite leq_eqVlt in LTp; move: LTp => /orP LTp; des;
-           last by rewrite ltnS in LTp; apply (leq_trans period_positive) in LTp. 
+         (* Prove special case for p <= 1. *)
+         destruct (leqP p 1) as [LTp | GTp].
          {
-           move: LTp => /eqP LTp; rewrite LTp 2!modn1 2!divn1.
-           rewrite leq_add2l leq_mul2r; apply/orP; right.
-           by rewrite leq_sub2r // leq_add2r; apply leq_add.
-         }
-       }
-       (* Harder case: p > 1. *)
-       {
-         assert (EQ: (t1 + delta.+1 + R - e) = (t1 + delta + R - e).+1).
-         {
-           rewrite -[(t1 + delta + R - e).+1]addn1.
-           rewrite [_+1]addnC addnBA; last first.
+           rewrite leq_eqVlt in LTp; move: LTp => /orP LTp; des;
+             last by rewrite ltnS in LTp; apply (leq_trans H_period_positive) in LTp. 
            {
-             apply (leq_trans R_lower_bound).
-             by rewrite addnC leq_addr.
+             move: LTp => /eqP LTp; rewrite LTp 2!modn1 2!divn1.
+             rewrite leq_add2l leq_mul2r; apply/orP; right.
+             by rewrite leq_sub2r // leq_add2l.
            }
-           rewrite addnA. rewrite [1 + _]addnC.
-           by rewrite -[t1 + delta + _]addnA addn1.
-         } rewrite -> EQ in *; clear EQ.
+         }
+         (* Harder case: p > 1. *)
+         {
+           assert (EQ: (x1 + delta.+1 - e) = (x1 + delta - e).+1).
+           {
+             rewrite -[(x1 + delta - e).+1]addn1.
+             rewrite [_+1]addnC addnBA; last first.
+             {
+               apply (leq_trans H_R_lower_bound).
+               by rewrite -addnA addnC -addnA leq_addr.
+             }
+             by rewrite [1 + _]addnC -addnA addn1.
+           } rewrite -> EQ in *; clear EQ.
          
-         have DIV := divSn_cases (t1 + delta + R - e) p GTp; des.
+         have DIV := divSn_cases (x1 + delta - e) p GTp; des.
          {
            rewrite DIV leq_add2r leq_min; apply/andP; split;
              first by rewrite geq_minl.
-           by apply leq_trans with (n := (t1 + delta + R - e) %% p);
+           by apply leq_trans with (n := (x1 + delta - e) %% p);
              [by rewrite geq_minr | by rewrite -DIV0 addn1 leqnSn].
          }
          {

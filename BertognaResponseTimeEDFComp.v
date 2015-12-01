@@ -167,14 +167,17 @@ Module ResponseTimeIterationEDF.
           }
         Qed.
 
+        
         Lemma interference_bound_edf_monotonic :
           forall tsk x1 x2 tsk_other R R',
             x1 <= x2 ->
             R <= R' ->
+            task_period tsk_other > 0 ->
+            task_cost tsk_other <= R ->
             interference_bound_edf task_cost task_period task_deadline tsk x1 (tsk_other, R) <=
             interference_bound_edf task_cost task_period task_deadline tsk x2 (tsk_other, R').
         Proof.
-          intros tsk x1 x2 tsk_other R R' LEx LEr.
+          intros tsk x1 x2 tsk_other R R' LEx LEr GEperiod LEcost.
           unfold interference_bound_edf, interference_bound.
           rewrite leq_min; apply/andP; split.
           {
@@ -185,14 +188,22 @@ Module ResponseTimeIterationEDF.
               first by apply geq_minl.
             {
               apply leq_trans with (n := W task_cost task_period (fst (tsk_other, R)) (snd (tsk_other, R)) x1);
-                first by apply geq_minl.
-              admit.
+                [by apply geq_minl | simpl].
+              by apply W_monotonic.
             }
             {
-             admit.
+              apply leq_trans with (n := minn (W task_cost task_period (fst (tsk_other, R)) (snd (tsk_other, R)) x1) (x1 - task_cost tsk + 1));
+                first by apply geq_minl.
+              apply leq_trans with (n := x1 - task_cost tsk + 1);
+                first by apply geq_minr.
+              by rewrite leq_add2r leq_sub2r.
             }
           }
-        admit.
+          {
+            apply leq_trans with (n := edf_specific_bound task_cost task_period task_deadline tsk (tsk_other, R));
+              first by apply geq_minr.
+            by apply edf_specific_bound_monotonic.
+          }
         Qed.
         
         Lemma R_list_converges_helper :
@@ -383,7 +394,8 @@ Module ResponseTimeIterationEDF.
                 simpl in LEj.
                 destruct (nth elem x1 j) as [tsk_j R_j], (nth elem x2 j) as [tsk_j' R_j'].
                 simpl in FSTeq; rewrite -FSTeq; simpl in LEj.
-                by apply interference_bound_edf_monotonic.
+                apply interference_bound_edf_monotonic; try (by ins).
+                admit. admit.
               }
             }
             destruct (is_interfering_task_jlfp s tsk0) eqn:INTERFtsk0; last by done.
@@ -391,7 +403,9 @@ Module ResponseTimeIterationEDF.
             {             
               exploit (LE (tsk0, R0)); [by rewrite /= SIZE | | intro LEj];
                 first by instantiate (1 := 0); rewrite size_zip /= -SIZE minnn.
-              by simpl in LEj; apply interference_bound_edf_monotonic.
+              simpl in LEj; apply interference_bound_edf_monotonic;
+                try (by done).
+              admit. admit.
             }
           }
 
