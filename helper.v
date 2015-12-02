@@ -698,67 +698,6 @@ Proof.
   }
 Qed.
 
-(*Lemma mem_unzip {T: eqType} (X Y: seq T) x y :
-  uniq X -> uniq Y ->
-  x \in X -> y \in Y ->
-  (x, y) \in (zip X Y).
-Proof.
-  intros UNIQx UNIQy INx INy.
-  generalize dependent x.
-  generalize dependent y.
-  generalize dependent Y.
-  induction X; first by ins.
-  induction Y; first by ins.
-  ins. apply IHY.
-  destruct Y; first by ins.
-  {
-    rewrite in_cons in INy.
-    move: INy => /orP [/eqP HEADy | TAILy]; subst;
-    move: INx => /orP [/eqP HEADx | TAILx]; subst.
-    {
-        by rewrite in_cons eq_refl orTb.
-    }
-    {
-      admit.
-    }
-    {
-      
-      admit.
-    }
-    {
-      simpl in *.
-    destruct (x == a) eqn:EQx, (y == a0) eqn:EQy.
-    {
-      move: EQx => /eqP EQx; subst.
-      move: EQy => /eqP EQy; subst.
-      by rewrite in_cons; apply/orP; left.
-    }
-    {
-      simpl in *.
-      rewrite in_cons in INy.
-      simpl.
-  
-Qed.
-
-
-Lemma index_zip1 {T: eqType} (X Y: seq T) x y :
-  uniq X ->
-  uniq Y ->
-  (x, y) \in (zip X Y) ->
-  index (x, y) (zip X Y) = index x X.
-Proof.
-  admit.
-Qed.
-
-Lemma index_zip2 {T:eqType} (X Y: seq T) x y:
-  uniq X ->
-  uniq Y ->
-  (x, y) \in (zip X Y) ->
-  index (x, y) (zip X Y) = index y Y.
-Proof.
-  admit.
-Qed.*)
-
 Definition no_intersection {T: eqType} (l1 l2: seq T) :=
   ~~ has (mem l1) l2.
 

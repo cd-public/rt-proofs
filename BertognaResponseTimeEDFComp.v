@@ -387,10 +387,10 @@ Module ResponseTimeIterationEDF.
           {
             intros x1 x2 LEinit LE.
 
-            assert (LEinit': all_le (initial_state ts) x2).
+            (*assert (LEinit': all_le (initial_state ts) x2).
             {
               by unfold transitive in TRANS; apply TRANS with (y := x1).
-            }
+            }*)
             move: LE => /andP [/eqP ZIP LE]; unfold all_le.
 
             assert (UNZIP': unzip1 (edf_rta_iteration x1) = unzip1 (edf_rta_iteration x2)).
@@ -466,11 +466,33 @@ Module ResponseTimeIterationEDF.
               rewrite -EQinit; unfold valid_sporadic_taskset.
               move => tsk /mapP IN. destruct IN as [p INinit EQ]; subst.
               by move: INinit => /mapP INinit; destruct INinit as [tsk INtsk]; subst; apply VALID.
-            } clear LEinit.
+            }
 
             assert (GE_COST: all (fun p => task_cost (fst p) <= snd p) ((tsk0, R0) :: x1')). 
             {
-              admit.
+              clear LE; move: LEinit => /andP [/eqP UNZIP' LE].
+              move: LE => /(zipP (fun x y => snd x <= snd y)) LE.
+              specialize (LE (tsk0, R0)).
+              apply/(all_nthP (tsk0,R0)).
+              intros j LTj; generalize UNZIP'; simpl; intro SIZE'.
+              have F := @f_equal _ _ size (unzip1 (initial_state ts)).
+              apply F in SIZE'; clear F; rewrite /= 3!size_map in SIZE'.
+              exploit LE; [by rewrite size_map /= | |].
+              {
+                rewrite size_zip size_map /= SIZE' minnn.
+                by simpl in LTj; apply LTj.
+              }
+              clear LE; intro LE.
+              unfold initial_state in LE.
+              have MAP := @nth_map _ tsk0 _ (tsk0,R0).
+              rewrite MAP /= in LE;
+                [clear MAP | by rewrite SIZE'; simpl in LTj].
+              apply leq_trans with (n := task_cost (nth tsk0 ts j));
+                [apply eq_leq; f_equal | by done].
+              have MAP := @nth_map _ (tsk0, R0) _ tsk0 (fun x => fst x).
+              rewrite -MAP; [clear MAP | by done].
+              unfold unzip1 in UNZIP'; rewrite -UNZIP'; f_equal.
+              clear -ts; induction ts; [by done | by simpl; f_equal].
             }
             move: GE_COST => /allP GE_COST.
             

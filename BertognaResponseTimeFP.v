@@ -315,7 +315,8 @@ Module ResponseTimeIterationFP.
             apply leq_trans with (n := W task_cost task_period i R x1); 
               first by apply geq_minl.            
             specialize (VALID i IN); des.
-            by apply W_monotonic; try (by ins); apply GE_COST.          
+            by apply W_monotonic; try (by ins);
+              [by apply GE_COST | by apply leqnn].
           }
           {
             apply leq_trans with (n := x1 - task_cost tsk + 1);
