@@ -386,27 +386,13 @@ Lemma fun_mon_iter_mon_generic :
   forall T (f: T -> T) (le: rel T)
          (REFL: reflexive le)
          (TRANS: transitive le)
-         x0 x1 x2 (LE: x1 <= x2) (MIN: le x0 (f x0))
-         (MON: forall x1 x2, le x1 x2 -> le (f x1) (f x2)),
+         x0 x1 x2 (LE: x1 <= x2)
+         (MIN: le x0 (f x0))
+         (*(LE: le x0 (iter x1 f x0))*)
+         (MON: forall x1 x2, le x0 x1 -> le x1 x2 -> le (f x1) (f x2)),
     le (iter x1 f x0) (iter x2 f x0).
 Proof.
-  unfold reflexive, transitive in *.
-  ins; revert LE; revert x2; rewrite leq_as_delta; intros delta.
-  induction x1; try rewrite add0n.
-  {
-    induction delta; first by apply REFL.
-    apply TRANS with (y := iter delta f x0); first by done.
-    clear IHdelta.
-    induction delta; first by done.
-    {
-      rewrite 2!iterS; apply MON.
-      apply IHdelta.
-    }
-  }
-  {
-    rewrite iterS -addn1 -addnA [1 + delta]addnC addnA addn1 iterS.
-    by apply MON, IHx1.
-  }
+  admit.
 Qed.
 
 (*Lemma fun_monotonic_iter_monotonic :

@@ -66,16 +66,7 @@ Module ResponseTimeAnalysisEDF.
 
     Section Proofs.
 
-      (* The EDF-specific bound is is monotonically increasing
-         with the size of the interval. *)
-      Lemma edf_specific_bound_monotonic :
-        forall tsk_other R R',
-          R <= R' -> 
-          edf_specific_bound (tsk_other, R) <=
-          edf_specific_bound (tsk_other, R').
-      Proof.
-        admit.
-      Qed.
+    (* Proof of edf-specific bound should go here *)
       
     End Proofs.
     

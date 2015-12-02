@@ -65,6 +65,151 @@ Module ResponseTimeIterationEDF.
     
     Section AuxiliaryLemmas.
 
+        Lemma unzip1_update_bound :
+          forall l rt_bounds,
+            unzip1 (map (update_bound rt_bounds) l) = unzip1 l.
+        Proof.
+          induction l; first by done.
+          intros rt_bounds.
+          simpl; f_equal; last by done.
+          by unfold update_bound; desf.
+        Qed.
+
+        
+        Lemma interference_bound_edf_monotonic :
+          forall tsk x1 x2 tsk_other R R',
+            x1 <= x2 ->
+            R <= R' ->
+            task_period tsk_other > 0 ->
+            task_cost tsk_other <= R ->
+            interference_bound_edf task_cost task_period task_deadline tsk x1 (tsk_other, R) <=
+            interference_bound_edf task_cost task_period task_deadline tsk x2 (tsk_other, R').
+        Proof.
+          intros tsk x1 x2 tsk_other R R' LEx LEr GEperiod LEcost.
+          unfold interference_bound_edf, interference_bound.
+          rewrite leq_min; apply/andP; split.
+          {
+            rewrite leq_min; apply/andP; split.
+            apply leq_trans with (n :=  (minn (W task_cost task_period (fst (tsk_other, R))
+                                                                       (snd (tsk_other, R)) x1)
+                                              (x1 - task_cost tsk + 1)));
+              first by apply geq_minl.
+            {
+              apply leq_trans with (n := W task_cost task_period (fst (tsk_other, R)) (snd (tsk_other, R)) x1);
+                [by apply geq_minl | simpl].
+              by apply W_monotonic.
+            }
+            {
+              apply leq_trans with (n := minn (W task_cost task_period (fst (tsk_other, R)) (snd (tsk_other, R)) x1) (x1 - task_cost tsk + 1));
+                first by apply geq_minl.
+              apply leq_trans with (n := x1 - task_cost tsk + 1);
+                first by apply geq_minr.
+              by rewrite leq_add2r leq_sub2r.
+            }
+          }
+          {
+            apply leq_trans with (n := edf_specific_bound task_cost task_period task_deadline tsk (tsk_other, R));
+              first by apply geq_minr.
+            unfold edf_specific_bound; simpl.
+            rewrite leq_add2l leq_min; apply/andP; split; first by apply geq_minl.
+            by apply leq_trans with (n := task_deadline tsk %% task_period tsk_other -
+                                   task_deadline tsk_other + R);
+              [by apply geq_minr | by rewrite leq_add2l].
+          }
+        Qed.
+
+      Lemma unzip1_edf_iteration :
+          forall l k,
+            unzip1 (iter k edf_rta_iteration (initial_state l)) = l.
+        Proof.
+          intros l k; clear -k.
+          induction k; simpl.
+          {
+            unfold initial_state.
+            induction l; first by done.
+            by simpl; rewrite IHl.
+          }
+          {
+            unfold edf_rta_iteration. 
+            by rewrite unzip1_update_bound.
+          }
+        Qed.
+
+         (* The following lemma states that the response-time bounds
+           computed using R_list are valid. *)
+        Lemma R_list_ge_cost :
+          forall ts rt_bounds tsk R,
+            R_list_edf ts = Some rt_bounds ->
+            (tsk, R) \in rt_bounds ->
+            R >= task_cost tsk.
+        Proof.
+          intros ts rt_bounds tsk R SOME PAIR.
+          unfold R_list_edf in SOME.
+          destruct (all R_le_deadline (iter (max_steps ts) edf_rta_iteration (initial_state ts)));
+            last by ins.
+          inversion SOME as [EQ]; clear SOME; subst.
+          generalize dependent R.
+          induction (max_steps ts) as [| step]; simpl in *.
+          {
+            intros R IN; unfold initial_state in IN.
+            move: IN => /mapP IN; destruct IN as [tsk' IN EQ]; inversion EQ; subst.
+            by apply leqnn.
+          }
+          {
+            intros R IN.
+            set prev_state := iter step edf_rta_iteration (initial_state ts).
+            fold prev_state in IN, IHstep.
+            unfold edf_rta_iteration at 1 in IN.
+            move: IN => /mapP IN; destruct IN as [(tsk',R') IN EQ].
+            inversion EQ as [[xxx EQ']]; subst.
+            by apply leq_addr.
+          }      
+        Qed.
+        
+        Lemma R_list_le_deadline :
+          forall ts rt_bounds tsk R,
+            R_list_edf ts = Some rt_bounds ->
+            (tsk, R) \in rt_bounds ->
+            R <= task_deadline tsk.
+        Proof.
+          intros ts rt_bounds tsk R SOME PAIR; unfold R_list_edf in SOME.
+          destruct (all R_le_deadline (iter (max_steps ts)
+                                            edf_rta_iteration (initial_state ts))) eqn:DEADLINE;
+            last by done.
+          move: DEADLINE => /allP DEADLINE.
+          inversion SOME as [EQ]; rewrite -EQ in PAIR.
+          by specialize (DEADLINE (tsk, R) PAIR).
+        Qed.
+
+        Lemma R_list_has_R_for_every_tsk :
+          forall ts rt_bounds tsk,
+            R_list_edf ts = Some rt_bounds ->
+            tsk \in ts ->
+            exists R,
+              (tsk, R) \in rt_bounds.
+        Proof.
+          intros ts rt_bounds tsk SOME IN.
+          unfold R_list_edf in SOME.
+          destruct (all R_le_deadline (iter (max_steps ts) edf_rta_iteration (initial_state ts)));
+            last by done.
+          inversion SOME as [EQ]; clear SOME EQ.
+          generalize dependent tsk.
+          induction (max_steps ts) as [| step]; simpl in *.
+          {
+            intros tsk IN; unfold initial_state.
+            exists (task_cost tsk).
+            by apply/mapP; exists tsk.
+          }
+          {
+            intros tsk IN.
+            set prev_state := iter step edf_rta_iteration (initial_state ts).
+            fold prev_state in IN, IHstep.
+            specialize (IHstep tsk IN); des.
+            exists (response_time_bound prev_state tsk R).
+            by apply/mapP; exists (tsk, R); [by done | by f_equal].
+          }
+        Qed.
+     
     End AuxiliaryLemmas.
     
     Section Proof.
@@ -140,72 +285,6 @@ Module ResponseTimeIterationEDF.
 
       Section HelperLemma.
 
-        Lemma unzip1_update_bound :
-          forall l rt_bounds,
-            unzip1 (map (update_bound rt_bounds) l) = unzip1 l.
-        Proof.
-          induction l; first by done.
-          intros rt_bounds.
-          simpl; f_equal; last by done.
-          by unfold update_bound; desf.
-        Qed.
-
-        Lemma unzip1_edf_iteration :
-          forall l k,
-            unzip1 (iter k edf_rta_iteration (initial_state l)) = l.
-        Proof.
-          intros l k; clear -k.
-          induction k; simpl.
-          {
-            unfold initial_state.
-            induction l; first by done.
-            by simpl; rewrite IHl.
-          }
-          {
-            unfold edf_rta_iteration. 
-            by rewrite unzip1_update_bound.
-          }
-        Qed.
-
-        
-        Lemma interference_bound_edf_monotonic :
-          forall tsk x1 x2 tsk_other R R',
-            x1 <= x2 ->
-            R <= R' ->
-            task_period tsk_other > 0 ->
-            task_cost tsk_other <= R ->
-            interference_bound_edf task_cost task_period task_deadline tsk x1 (tsk_other, R) <=
-            interference_bound_edf task_cost task_period task_deadline tsk x2 (tsk_other, R').
-        Proof.
-          intros tsk x1 x2 tsk_other R R' LEx LEr GEperiod LEcost.
-          unfold interference_bound_edf, interference_bound.
-          rewrite leq_min; apply/andP; split.
-          {
-            rewrite leq_min; apply/andP; split.
-            apply leq_trans with (n :=  (minn (W task_cost task_period (fst (tsk_other, R))
-                                                                       (snd (tsk_other, R)) x1)
-                                              (x1 - task_cost tsk + 1)));
-              first by apply geq_minl.
-            {
-              apply leq_trans with (n := W task_cost task_period (fst (tsk_other, R)) (snd (tsk_other, R)) x1);
-                [by apply geq_minl | simpl].
-              by apply W_monotonic.
-            }
-            {
-              apply leq_trans with (n := minn (W task_cost task_period (fst (tsk_other, R)) (snd (tsk_other, R)) x1) (x1 - task_cost tsk + 1));
-                first by apply geq_minl.
-              apply leq_trans with (n := x1 - task_cost tsk + 1);
-                first by apply geq_minr.
-              by rewrite leq_add2r leq_sub2r.
-            }
-          }
-          {
-            apply leq_trans with (n := edf_specific_bound task_cost task_period task_deadline tsk (tsk_other, R));
-              first by apply geq_minr.
-            by apply edf_specific_bound_monotonic.
-          }
-        Qed.
-        
         Lemma R_list_converges_helper :
           forall rt_bounds,
             R_list_edf ts = Some rt_bounds ->
@@ -300,40 +379,53 @@ Module ResponseTimeIterationEDF.
           }
 
           assert (MONiter:forall x1 x2,
+                     (*valid_sporadic_taskset task_cost task_period task_deadline (unzip1 x1) ->
+                     valid_sporadic_taskset task_cost task_period task_deadline (unzip1 x2) ->*)      
+                     all_le (initial_state ts) x1 ->
                      all_le x1 x2 ->
                      all_le (edf_rta_iteration x1) (edf_rta_iteration x2)).
           {
-            move => x1 x2 /andP [/eqP ZIP LE]; unfold all_le.
+            intros x1 x2 LEinit LE.
+
+            assert (LEinit': all_le (initial_state ts) x2).
+            {
+              by unfold transitive in TRANS; apply TRANS with (y := x1).
+            }
+            move: LE => /andP [/eqP ZIP LE]; unfold all_le.
+
             assert (UNZIP': unzip1 (edf_rta_iteration x1) = unzip1 (edf_rta_iteration x2)).
+            {
               by rewrite 2!unzip1_update_bound.
+            }
+
             apply/andP; split; first by rewrite UNZIP'.
             apply f_equal with (B := nat) (f := fun x => size x) in UNZIP'.
             rename UNZIP' into SIZE.
             rewrite size_map [size (unzip1 _)]size_map in SIZE.
             move: LE => /(zipP (fun x y => snd x <= snd y)) LE.
-            destruct x1, x2; try (by ins).
+            destruct x1 as [| p0 x1'], x2 as [| p0' x2']; try (by ins).
             apply/(zipP (fun x y => snd x <= snd y));
-              [by apply (t,0) | by done |].
+              [by apply (p0,0) | by done |].
+
             intros i LTi.
             exploit LE; first by rewrite 2!size_map in SIZE.
             {
               by rewrite size_zip 2!size_map -size_zip in LTi; apply LTi.
             }
             rewrite 2!size_map in SIZE.
-            instantiate (1 := t); intro LEi.
-            rewrite (nth_map t);
+            instantiate (1 := p0); intro LEi.
+            rewrite (nth_map p0);
               last by rewrite size_zip 2!size_map -SIZE minnn in LTi.
-            rewrite (nth_map t);
+            rewrite (nth_map p0);
               last by rewrite size_zip 2!size_map SIZE minnn in LTi.
             unfold update_bound, response_time_bound; desf; simpl.
-            assert (EQtsk: s = s0).
+            rename s into tsk_i, s0 into tsk_i', n into R_i, n0 into R_i', Heq0 into EQ,Heq1 into EQ'.
+            assert (EQtsk: tsk_i = tsk_i').
             {
-              rename s into tsk0, n into R0, Heq0 into EQ.
-              rename s0 into tsk0', n0 into R0', Heq1 into EQ'.
-              destruct t, t0; simpl in H2; subst.
-              have MAP := @nth_map _ (s0,n) _ s0 (fun x => fst x) i ((s0, n) :: x1).
-              have MAP' := @nth_map _ (s0,n) _ s0 (fun x => fst x) i ((s0, n0) :: x2).
-              assert (FSTeq: fst (nth (s0, n)((s0, n) :: x1) i) = fst (nth (s0,n) ((s0, n0) :: x2) i)).
+              destruct p0 as [tsk0 R0], p0' as [tsk0' R0']; simpl in H2; subst.
+              have MAP := @nth_map _ (tsk0',R0) _ tsk0' (fun x => fst x) i ((tsk0', R0) :: x1').
+              have MAP' := @nth_map _ (tsk0',R0) _ tsk0' (fun x => fst x) i ((tsk0', R0') :: x2').
+              assert (FSTeq: fst (nth (tsk0', R0)((tsk0', R0) :: x1') i) = fst (nth (tsk0',R0) ((tsk0', R0') :: x2') i)).
               {
                 rewrite -MAP;
                   last by simpl; rewrite size_zip 2!size_map /= -H0 minnn in LTi.
@@ -345,32 +437,46 @@ Module ResponseTimeIterationEDF.
               apply f_equal with (B := sporadic_task) (f := fun x => fst x) in EQ'.
               by rewrite FSTeq EQ' /= in EQ; rewrite EQ.
             }
-            subst s0; rewrite leq_add2l.
+            subst tsk_i'; rewrite leq_add2l.
             unfold I, total_interference_bound_edf; apply leq_div2r.
             rewrite 2!big_cons.
-            destruct t as [tsk0 R0], t0 as [tsk0' R0'].
+            destruct p0 as [tsk0 R0], p0' as [tsk0' R0'].
             simpl in H2; subst tsk0'.
-            rename n into delta, n0 into delta'.
-            rewrite Heq0 Heq1 in LEi; simpl in LEi.
-            rename H0 into SIZE, H1 into UNZIP; clear Heq0 Heq1.
+            rename R_i into delta, R_i' into delta'.
+            rewrite EQ EQ' in LEi; simpl in LEi.
+            rename H0 into SIZE, H1 into UNZIP; clear EQ EQ'.
 
             assert (SUBST: forall l delta,
                       \sum_(j <- l | let '(tsk_other, _) := j in
-                        is_interfering_task_jlfp s tsk_other)
+                        is_interfering_task_jlfp tsk_i tsk_other)
                           (let '(tsk_other, R_other) := j in
-                            interference_bound_edf task_cost task_period task_deadline s delta
+                            interference_bound_edf task_cost task_period task_deadline tsk_i delta
                               (tsk_other, R_other)) =
-                      \sum_(j <- l | is_interfering_task_jlfp s (fst j))
-                        interference_bound_edf task_cost task_period task_deadline s delta j).
+                      \sum_(j <- l | is_interfering_task_jlfp tsk_i (fst j))
+                        interference_bound_edf task_cost task_period task_deadline tsk_i delta j).
             {
               intros l x; clear -l.
               induction l; first by rewrite 2!big_nil.
               by rewrite 2!big_cons; rewrite IHl; desf; rewrite /= Heq in Heq0.
             } rewrite 2!SUBST; clear SUBST.
             
-            assert (LESUM: \sum_(j <- x1 | is_interfering_task_jlfp s (fst j))
-                          interference_bound_edf task_cost task_period task_deadline s delta j <=                                  \sum_(j <- x2 | is_interfering_task_jlfp s (fst j))
-                          interference_bound_edf task_cost task_period task_deadline s delta' j).
+            assert (VALID': valid_sporadic_taskset task_cost task_period task_deadline (unzip1 ((tsk0, R0) :: x1'))).
+            {
+              move: LEinit => /andP [/eqP EQinit _].
+              rewrite -EQinit; unfold valid_sporadic_taskset.
+              move => tsk /mapP IN. destruct IN as [p INinit EQ]; subst.
+              by move: INinit => /mapP INinit; destruct INinit as [tsk INtsk]; subst; apply VALID.
+            } clear LEinit.
+
+            assert (GE_COST: all (fun p => task_cost (fst p) <= snd p) ((tsk0, R0) :: x1')). 
+            {
+              admit.
+            }
+            move: GE_COST => /allP GE_COST.
+            
+            assert (LESUM: \sum_(j <- x1' | is_interfering_task_jlfp tsk_i (fst j))
+                          interference_bound_edf task_cost task_period task_deadline tsk_i delta j <=                                  \sum_(j <- x2' | is_interfering_task_jlfp tsk_i (fst j))
+                          interference_bound_edf task_cost task_period task_deadline tsk_i delta' j).
             {
               set elem := (tsk0, R0); rewrite 2!(big_nth elem).
               rewrite -SIZE.
@@ -378,12 +484,12 @@ Module ResponseTimeIterationEDF.
               rewrite big_seq_cond [\sum_(_ <- _ | true) _]big_seq_cond.
               apply leq_sum; intros j; rewrite andbT; intros INj.
               rewrite mem_iota add0n subn0 in INj; move: INj => /andP [_ INj].
-              assert (FSTeq: fst (nth elem x1 j) = fst (nth elem x2 j)).
+              assert (FSTeq: fst (nth elem x1' j) = fst (nth elem x2' j)).
               {
                 have MAP := @nth_map _ elem _ tsk0 (fun x => fst x).
                 by rewrite -2?MAP -?SIZE //; f_equal.
               } rewrite -FSTeq.
-              destruct (is_interfering_task_jlfp s (fst (nth elem x1 j))) eqn:INTERF;
+              destruct (is_interfering_task_jlfp tsk_i (fst (nth elem x1' j))) eqn:INTERF;
                 last by done.
               {
                 exploit (LE elem); [by rewrite /= SIZE | | intro LEj].
@@ -392,27 +498,38 @@ Module ResponseTimeIterationEDF.
                   by rewrite size_zip /= -SIZE minnn; apply (leq_ltn_trans INj).
                 }
                 simpl in LEj.
-                destruct (nth elem x1 j) as [tsk_j R_j], (nth elem x2 j) as [tsk_j' R_j'].
-                simpl in FSTeq; rewrite -FSTeq; simpl in LEj.
-                apply interference_bound_edf_monotonic; try (by ins).
-                admit. admit.
+                exploit (VALID' (fst (nth elem x1' j))); last intro VALIDj.
+                {
+                  apply/mapP; exists (nth elem x1' j); last by done.
+                  by rewrite in_cons; apply/orP; right; rewrite mem_nth.
+                }
+                exploit (GE_COST (nth elem x1' j)); last intro GE_COSTj.
+                {
+                  by rewrite in_cons; apply/orP; right; rewrite mem_nth.
+                }
+                unfold is_valid_sporadic_task in *.
+                destruct (nth elem x1' j) as [tsk_j R_j], (nth elem x2' j) as [tsk_j' R_j'].
+                simpl in FSTeq; rewrite -FSTeq; simpl in LEj; simpl in VALIDj; des.
+                by apply interference_bound_edf_monotonic.
               }
             }
-            destruct (is_interfering_task_jlfp s tsk0) eqn:INTERFtsk0; last by done.
+            destruct (is_interfering_task_jlfp tsk_i tsk0) eqn:INTERFtsk0; last by done.
             apply leq_add; last by done.
             {             
               exploit (LE (tsk0, R0)); [by rewrite /= SIZE | | intro LEj];
                 first by instantiate (1 := 0); rewrite size_zip /= -SIZE minnn.
-              simpl in LEj; apply interference_bound_edf_monotonic;
-                try (by done).
-              admit. admit.
+              exploit (VALID' tsk0); first by rewrite in_cons; apply/orP; left.
+              exploit (GE_COST (tsk0, R0)); first by rewrite in_cons eq_refl orTb.
+              unfold is_valid_sporadic_task; intros GE_COST0 VALID0; des; simpl in LEj.
+              by apply interference_bound_edf_monotonic.
             }
           }
 
           assert (GROWS: forall k, all_le (f k) (f k.+1)).
           {
+            unfold f.
             intros k; apply fun_mon_iter_mon_generic with (x1 := k) (x2 := k.+1);
-              try (by ins); by apply leqnSn.
+              try (by ins); first by apply leqnSn.
           }
           
           (* Either f converges by the deadline or not. *)
@@ -646,84 +763,25 @@ Module ResponseTimeIterationEDF.
             R = task_cost tsk + div_floor (I rt_bounds tsk R) num_cpus.
         Proof.
           intros tsk R rt_bounds SOME IN.
-          unfold R_list_edf in SOME; desf.
-          
-          admit.
-        Qed.
+          have CONV := R_list_converges_helper rt_bounds.
+          unfold R_list_edf in *; desf.
+          exploit (CONV); [by done | by done | intro ITER; clear CONV].
 
-        (* The following lemma states that the response-time bounds
-           computed using R_list are valid. *)
-        Lemma R_list_ge_cost :
-          forall rt_bounds tsk R,
-            R_list_edf ts = Some rt_bounds ->
-            (tsk, R) \in rt_bounds ->
-            R >= task_cost tsk.
-        Proof.
-          intros rt_bounds tsk R SOME PAIR.
-          unfold R_list_edf in SOME.
-          destruct (all R_le_deadline (iter (max_steps ts) edf_rta_iteration (initial_state ts)));
-            last by ins.
-          inversion SOME as [EQ]; clear SOME; subst.
-          generalize dependent R.
-          induction (max_steps ts) as [| step]; simpl in *.
+          cut (update_bound (iter (max_steps ts)
+                 edf_rta_iteration (initial_state ts)) (tsk,R) = (tsk, R)).
           {
-            intros R IN; unfold initial_state in IN.
-            move: IN => /mapP IN; destruct IN as [tsk' IN EQ]; inversion EQ; subst.
-            by apply leqnn.
+            intros EQ.
+            have F := @f_equal _ _ (fun x => snd x) _ (tsk, R).
+            by apply F in EQ; simpl in EQ.
           }
-          {
-            intros R IN.
-            set prev_state := iter step edf_rta_iteration (initial_state ts).
-            fold prev_state in IN, IHstep.
-            unfold edf_rta_iteration at 1 in IN.
-            move: IN => /mapP IN; destruct IN as [(tsk',R') IN EQ].
-            inversion EQ as [[xxx EQ']]; subst.
-            by apply leq_addr.
-          }      
-        Qed.
-        
-        Lemma R_list_le_deadline :
-          forall rt_bounds tsk R,
-            R_list_edf ts = Some rt_bounds ->
-            (tsk, R) \in rt_bounds ->
-            R <= task_deadline tsk.
-        Proof.
-          intros rt_bounds tsk R SOME PAIR; unfold R_list_edf in SOME.
-          destruct (all R_le_deadline (iter (max_steps ts)
-                                            edf_rta_iteration (initial_state ts))) eqn:DEADLINE;
-            last by done.
-          move: DEADLINE => /allP DEADLINE.
-          inversion SOME as [EQ]; rewrite -EQ in PAIR.
-          by specialize (DEADLINE (tsk, R) PAIR).
-        Qed.
-
-        Lemma R_list_has_R_for_every_tsk :
-          forall rt_bounds tsk,
-            R_list_edf ts = Some rt_bounds ->
-            tsk \in ts ->
-            exists R,
-              (tsk, R) \in rt_bounds.
-        Proof.
-          intros rt_bounds tsk SOME IN.
-          unfold R_list_edf in SOME.
-          destruct (all R_le_deadline (iter (max_steps ts) edf_rta_iteration (initial_state ts)));
-            last by done.
-          inversion SOME as [EQ]; clear SOME EQ.
-          generalize dependent tsk.
-          induction (max_steps ts) as [| step]; simpl in *.
-          {
-            intros tsk IN; unfold initial_state.
-            exists (task_cost tsk).
-            by apply/mapP; exists tsk.
-          }
-          {
-            intros tsk IN.
-            set prev_state := iter step edf_rta_iteration (initial_state ts).
-            fold prev_state in IN, IHstep.
-            specialize (IHstep tsk IN); des.
-            exists (response_time_bound prev_state tsk R).
-            by apply/mapP; exists (tsk, R); [by done | by f_equal].
-          }
+          set s := iter (max_steps ts) edf_rta_iteration (initial_state ts).
+          fold s in ITER, IN.
+          move: IN => /(nthP (tsk,0)) IN; destruct IN as [i LT EQ].
+          generalize EQ; rewrite ITER iterS in EQ; intro EQ'.
+          fold s in EQ.
+          unfold edf_rta_iteration in EQ.
+          have MAP := @nth_map _ (tsk,0) _ _ (update_bound s). 
+          by rewrite MAP // EQ' in EQ; rewrite EQ.
         Qed.
         
         Lemma R_list_has_response_time_bounds :
@@ -742,8 +800,8 @@ Module ResponseTimeIterationEDF.
              (task_deadline := task_deadline) (job_deadline := job_deadline)
              (job_task := job_task) (ts := ts) (tsk := tsk) (rt_bounds := rt_bounds); try (by ins).
             by ins; apply R_list_converges.
-            by ins; apply R_list_ge_cost with (rt_bounds := rt_bounds).
-            by ins; apply R_list_le_deadline with (rt_bounds := rt_bounds).
+            by ins; rewrite (R_list_ge_cost ts rt_bounds).
+            by ins; rewrite (R_list_le_deadline ts rt_bounds).
         Qed.
 
       End HelperLemma.
@@ -770,13 +828,15 @@ Module ResponseTimeIterationEDF.
         
         move => tsk INtsk j /eqP JOBtsk.
         have RLIST := (R_list_has_response_time_bounds).
-        have DL := (R_list_le_deadline).
-        have HAS := (R_list_has_R_for_every_tsk).
+        have DL := (R_list_le_deadline ts).
+        have HAS := (R_list_has_R_for_every_tsk ts).
         
         destruct (R_list_edf ts) as [rt_bounds |]; last by ins.
         exploit (HAS rt_bounds tsk); [by ins | by ins | clear HAS; intro HAS; des].
-        exploit (RLIST rt_bounds tsk R); [by ins | by ins | by apply JOBtsk | intro COMPLETED ].
-        exploit (DL rt_bounds tsk R); [by ins | by ins | clear DL; intro DL].
+        exploit (RLIST rt_bounds tsk R);
+          [by ins | by ins | by apply JOBtsk | intro COMPLETED ].
+        exploit (DL rt_bounds tsk R);
+          [by ins | by ins | clear DL; intro DL].
    
         rewrite eqn_leq; apply/andP; split; first by apply service_interval_le_cost.
         apply leq_trans with (n := service rate sched j (job_arrival j + R)); last first.
@@ -804,8 +864,8 @@ Module ResponseTimeIterationEDF.
         intros tsk IN.
         unfold edf_schedulable in *.
         have BOUNDS := (R_list_has_response_time_bounds).
-        have DL := (R_list_le_deadline).
-        have HAS := (R_list_has_R_for_every_tsk).
+        have DL := (R_list_le_deadline ts).
+        have HAS := (R_list_has_R_for_every_tsk ts).
         destruct (R_list_edf ts) as [rt_bounds |]; last by ins.
         exploit (HAS rt_bounds tsk); [by ins | by ins | clear HAS; intro HAS; des].        
         exists R; split.
