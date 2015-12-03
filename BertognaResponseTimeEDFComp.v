@@ -135,7 +135,16 @@ Module ResponseTimeIterationEDF.
           }
         Qed.
 
-         (* The following lemma states that the response-time bounds
+        Lemma size_edf_iteration :
+          forall l k,
+            size (iter k edf_rta_iteration (initial_state l)) = size l.
+        Proof.
+          intros l k; clear -k.
+          induction k; simpl; first by rewrite size_map.
+          by rewrite size_map.
+        Qed.
+
+        (* The following lemma states that the response-time bounds
            computed using R_list are valid. *)
         Lemma R_list_ge_cost :
           forall ts rt_bounds tsk R,
@@ -347,57 +356,20 @@ Module ResponseTimeIterationEDF.
             }
             by instantiate (1 := t); intro LE'; apply (leq_trans LE).
           }
-          
-          assert (INIT: all_le (initial_state ts)
-                               (edf_rta_iteration (initial_state ts))).
-          {
-            assert (UNZIP0 := unzip1_edf_iteration ts 0); simpl in UNZIP0.
-            unfold all_le; apply/andP; split;
-              first by rewrite UNZIP0 (unzip1_edf_iteration ts 1).
-            
-            exploit (@size1_zip _ _ (initial_state ts) (edf_rta_iteration (initial_state ts)));
-              [by rewrite 3!size_map | intro SIZE1].
-            destruct ts as [| tsk ts']; first by done.
-            apply/(zipP (fun x y => snd x <= snd y));
-              [by done | by rewrite 3!size_map |].
-            {
-              unfold initial_state in *; intros i LTi.
-              rewrite (nth_map tsk) /=;
-                last by rewrite /= size_map in SIZE1; rewrite -SIZE1.
-              rewrite (nth_map (tsk,num_cpus)); unfold update_bound;
-                last by simpl in *; rewrite -SIZE1.
-
-              desf; simpl; unfold response_time_bound.
-              rename s into tsk0, n into R0, Heq0 into EQ.
-              set elem := (tsk, num_cpus); fold elem in EQ.
-
-              have MAP := @nth_map _ tsk _ elem (fun x => (x, task_cost x)) i (tsk :: ts').
-              simpl in MAP; rewrite /= MAP in EQ;
-                last by rewrite size_zip 3!size_map minnn /= in LTi.
-              inversion EQ; apply leq_addr.
-            }
-          }
 
           assert (MONiter:forall x1 x2,
-                     (*valid_sporadic_taskset task_cost task_period task_deadline (unzip1 x1) ->
-                     valid_sporadic_taskset task_cost task_period task_deadline (unzip1 x2) ->*)      
                      all_le (initial_state ts) x1 ->
                      all_le x1 x2 ->
                      all_le (edf_rta_iteration x1) (edf_rta_iteration x2)).
           {
             intros x1 x2 LEinit LE.
-
-            (*assert (LEinit': all_le (initial_state ts) x2).
-            {
-              by unfold transitive in TRANS; apply TRANS with (y := x1).
-            }*)
             move: LE => /andP [/eqP ZIP LE]; unfold all_le.
 
             assert (UNZIP': unzip1 (edf_rta_iteration x1) = unzip1 (edf_rta_iteration x2)).
             {
               by rewrite 2!unzip1_update_bound.
             }
-
+            
             apply/andP; split; first by rewrite UNZIP'.
             apply f_equal with (B := nat) (f := fun x => size x) in UNZIP'.
             rename UNZIP' into SIZE.
@@ -547,12 +519,49 @@ Module ResponseTimeIterationEDF.
             }
           }
 
+          assert (INIT': forall step, all_le (initial_state ts) (iter step edf_rta_iteration (initial_state ts))).
+          {
+            intros step; destruct step; first by apply REFL.
+            apply/andP; split.
+            {
+              assert (UNZIP0 := unzip1_edf_iteration ts 0).
+              by simpl in UNZIP0; rewrite UNZIP0 unzip1_edf_iteration.
+            }  
+            destruct ts as [| tsk0 ts'].
+            {
+              clear -step; induction step; first by done.
+              by rewrite iterSr IHstep.
+            }
+
+            apply/(zipP (fun x y => snd x <= snd y));
+              [by apply (tsk0,0)|by rewrite size_edf_iteration size_map |].
+            
+            intros i LTi; rewrite iterS; unfold edf_rta_iteration at 1.
+            have MAP := @nth_map _ (tsk0,0) _ (tsk0,0).
+            rewrite size_zip size_edf_iteration size_map minnn in LTi.
+            rewrite MAP; clear MAP; last by rewrite size_edf_iteration.
+            destruct (nth (tsk0, 0) (initial_state (tsk0 :: ts')) i) as [tsk_i R_i] eqn:SUBST.
+            rewrite SUBST; unfold update_bound.
+            unfold initial_state in SUBST.
+            have MAP := @nth_map _ tsk0 _ (tsk0, 0).
+            rewrite ?MAP // in SUBST; inversion SUBST; clear MAP. 
+            assert (EQtsk: tsk_i = fst (nth (tsk0, 0) (iter step edf_rta_iteration (initial_state (tsk0 :: ts'))) i)).
+            {
+              have MAP := @nth_map _ (tsk0,0) _ tsk0 (fun x => fst x).
+              rewrite -MAP; clear MAP; last by rewrite size_edf_iteration.
+              have UNZIP := unzip1_edf_iteration; unfold unzip1 in UNZIP.
+              by rewrite UNZIP; symmetry. 
+            }
+            destruct (nth (tsk0, 0) (iter step edf_rta_iteration (initial_state (tsk0 :: ts')))) as [tsk_i' R_i'].
+            by simpl in EQtsk; rewrite -EQtsk; subst; apply leq_addr.
+          }
+          
           assert (GROWS: forall k, all_le (f k) (f k.+1)).
           {
-            unfold f.
-            intros k; apply fun_mon_iter_mon_generic with (x1 := k) (x2 := k.+1);
+            unfold f; intros k.
+            apply fun_mon_iter_mon_generic with (x1 := k) (x2 := k.+1);
               try (by ins); first by apply leqnSn.
-          }
+          } clear MONiter INIT' REFL TRANS.
           
           (* Either f converges by the deadline or not. *)
           unfold max_steps in *.

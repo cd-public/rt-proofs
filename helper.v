@@ -382,29 +382,31 @@ Proof.
   }
 Qed.
 
-Lemma fun_mon_iter_mon_generic :
+Lemma fun_mon_iter_mon_helper :
   forall T (f: T -> T) (le: rel T)
-         (REFL: reflexive le)
-         (TRANS: transitive le)
-         x0 x1 x2 (LE: x1 <= x2)
-         (MIN: le x0 (f x0))
-         (*(LE: le x0 (iter x1 f x0))*)
+         (REFL: reflexive le) (TRANS: transitive le)
+         x0 x1 (MIN: forall x2, le x0 (iter x2 f x0))
          (MON: forall x1 x2, le x0 x1 -> le x1 x2 -> le (f x1) (f x2)),
-    le (iter x1 f x0) (iter x2 f x0).
+    le (iter x1 f x0) (iter x1.+1 f x0).
 Proof.
-  admit.
+  ins; generalize dependent x0.
+  induction x1; first by ins; apply (MIN 1).
+  by ins; apply MON; [by apply MIN | by apply IHx1].
 Qed.
 
-(*Lemma fun_monotonic_iter_monotonic :
-  forall k f x0
-         (MON: forall x1 x2, x1 <= x2 -> f x1  <= f x2)
-         (GE0: f 0 >= x0),
-    iter k f x0 <= iter k.+1 f x0.
+Lemma fun_mon_iter_mon_generic :
+  forall T (f: T -> T) (le: rel T)
+         (REFL: reflexive le) (TRANS: transitive le)
+         x0 x1 x2 (LE: x1 <= x2)
+         (MON: forall x1 x2, le x0 x1 -> le x1 x2 -> le (f x1) (f x2))
+         (MIN: forall x2 : nat, le x0 (iter x2 f x0)),
+    le (iter x1 f x0) (iter x2 f x0).
 Proof.
-  induction k; ins.
-    by apply leq_trans with (n := f 0); [by ins | by apply MON].
-    by apply MON, IHk; ins.
-Qed.*)
+  ins; revert LE; revert x2; rewrite leq_as_delta; intros delta.
+  induction delta; first by rewrite addn0; apply REFL.
+  apply (TRANS) with (y := iter (x1 + delta) f x0); first by apply IHdelta.
+  by rewrite addnS; apply fun_mon_iter_mon_helper.
+Qed.
 
 Lemma divSn_cases :
   forall n d (GT1: d > 1),
