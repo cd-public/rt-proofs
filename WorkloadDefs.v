@@ -126,15 +126,21 @@ Module Workload.
     Variable task_cost: sporadic_task -> nat.
     Variable task_period: sporadic_task -> nat.
 
+    (* Let tsk be any task...*)
     Variable tsk: sporadic_task.
+
+    (* ...with period > 0. *)
     Hypothesis H_period_positive: task_period tsk > 0.
 
+    (* Let R1 <= R2 be two response-time bounds that
+       are larger than the cost of the tsk. *)
     Variable R1 R2: time.
     Hypothesis H_R_lower_bound: R1 >= task_cost tsk.
     Hypothesis H_R1_le_R2: R1 <= R2.
       
     Let workload_bound := W task_cost task_period tsk.
 
+    (* Then, Bertogna and Cirinei's workload bound is monotonically increasing. *) 
     Lemma W_monotonic :
       forall t1 t2,
         t1 <= t2 ->
@@ -200,14 +206,18 @@ Module Workload.
     Context {sporadic_task: eqType}.
     Variable task_cost: sporadic_task -> nat.
     Variable task_period: sporadic_task -> nat.
-    
+
+    (* Let tsk be any task with response-time bound R_tsk,
+       and consider an interval of interest with length delta. *)
     Variable tsk: sporadic_task.
-    Variable R_tsk: time. (* Known response-time bound for the task *)
-    Variable delta: time. (* Length of the interval *)
+    Variable R_tsk: time.
+    Variable delta: time.
 
     Let e := task_cost tsk.
     Let p := task_period tsk.
-    
+
+    (* Next, we define the workload bounds W_NC and W_CI
+       used in Guan et al.'s response-time analysis. *)
     Definition max_jobs_NC := div_floor delta p.
     Definition max_jobs_CI := div_floor (delta - e) p.
     
@@ -226,14 +236,17 @@ Module Workload.
     Variable task_cost: sporadic_task -> nat.
     Variable task_period: sporadic_task -> nat.
 
+    (* Let tsk be any task with period > 0. *)
     Variable tsk: sporadic_task.
     Hypothesis period_positive: task_period tsk > 0.
 
+    (* Let R be a response-time bound for tsk. *)
     Variable R: time.
 
     Let workload_bound_NC := W_NC task_cost task_period tsk.
     Let workload_bound_CI := W_CI task_cost task_period tsk R.
 
+    (* Then, both workload bounds W_NC and W_CI are monotonically increasing. *) 
     Lemma W_NC_monotonic :
       forall t1 t2,
         t1 <= t2 ->
@@ -838,12 +851,15 @@ Module Workload.
 
       Let is_carry_in_job := carried_in job_cost rate sched.
 
+      (* Assume that task tsk has no carry-in job in the interval delta. *)
       Hypothesis H_no_carry_in:
         ~ exists (j: JobIn arr_seq),
           job_task j = tsk /\ is_carry_in_job j t1.
         
       Let workload_bound := W_NC task_cost task_period.
-    
+
+      (* Then, tsk's workload is bounded by W_NC, according to Guan et al.'s
+         response-time analysis. *)
       Theorem workload_bounded_by_W_NC :
         workload_of tsk t1 (t1 + delta) <= workload_bound tsk delta.
       Proof.
@@ -853,7 +869,8 @@ Module Workload.
                H_completed_jobs_dont_execute into COMP.
         unfold valid_sporadic_job, valid_realtime_job, restricted_deadline_model,
                valid_sporadic_taskset, is_valid_sporadic_task, sporadic_task_model,
-               workload_of, response_time_bound_of, no_deadline_misses_by, workload_bound, W_NC in *; ins; des.
+               workload_of, response_time_bound_of, no_deadline_misses_by,
+               workload_bound, W_NC in *; ins; des.
 
         (* Simplify names *)
         set t2 := t1 + delta.
@@ -1043,66 +1060,6 @@ Module Workload.
           by unfold order in ALL; intro i; rewrite SIZE; apply ALL.
         }
         
-        (* Next, we upper-bound the service of the first and last jobs using their arrival times. *)
-        (*assert (BOUNDend: service_during rate sched j_fst t1 t2 +
-                          service_during rate sched j_lst t1 t2 <=
-                          (job_arrival j_fst  + R_tsk - t1) + (t2 - job_arrival j_lst)).
-        {
-          apply leq_add; unfold service_during.
-          {
-            rewrite -[_ + _ - _]mul1n -[1*_]addn0 -iter_addn -big_const_nat.
-            apply leq_trans with (n := \sum_(t1 <= t < job_arrival j_fst + R_tsk)
-                                           service_at rate sched j_fst t);
-              last by apply leq_sum; ins; apply service_at_le_max_rate.
-            destruct (job_arrival j_fst + R_tsk <= t2) eqn:LEt2; last first.
-            {
-              unfold t2; apply negbT in LEt2; rewrite -ltnNge in LEt2.
-              rewrite -> big_cat_nat with (n := t1 + delta) (p := job_arrival j_fst + R_tsk);
-                [by apply leq_addr | by apply leq_addr | by apply ltnW].
-            }
-            {
-              rewrite -> big_cat_nat with (n := job_arrival j_fst + R_tsk); [| by ins | by ins].
-              rewrite -{2}[\sum_(_ <= _ < _) _]addn0 /=.
-              rewrite leq_add2l leqn0; apply/eqP.
-              by apply (sum_service_after_rt_zero job_cost job_task tsk) with (R := R_tsk);
-                last by apply leqnn. 
-            }
-          }
-          {
-            rewrite -[_ - _]mul1n -[1 * _]addn0 -iter_addn -big_const_nat.
-            destruct (job_arrival j_lst <= t1) eqn:LT.
-            {
-              apply leq_trans with (n := \sum_(job_arrival j_lst <= t < t2)
-                                          service_at rate sched j_lst t);
-                first by rewrite -> big_cat_nat with (m := job_arrival j_lst) (n := t1);
-                  [by apply leq_addl | by ins | by apply leq_addr].
-              by apply leq_sum; ins; apply service_at_le_max_rate.
-            }
-            {
-              apply negbT in LT; rewrite -ltnNge in LT.
-              rewrite -> big_cat_nat with (n := job_arrival j_lst); [|by apply ltnW| by apply ltnW].
-              rewrite /= -[\sum_(_ <= _ < _) 1]add0n; apply leq_add.
-              rewrite sum_service_before_arrival; [by apply leqnn | by ins | by apply leqnn].
-              by apply leq_sum; ins; apply service_at_le_max_rate.
-            }
-          }
-        }*)
-
-        (* Let's simplify the expression of the bound *)
-        (*assert (SUBST: job_arrival j_fst + R_tsk - t1 + (t2 - job_arrival j_lst) =
-                       delta + R_tsk - (job_arrival j_lst - job_arrival j_fst)).
-        {
-          rewrite addnBA; last by apply ltnW.
-          rewrite subh1 // -addnBA; last by apply leq_addr.
-          rewrite addnC [job_arrival _ + _]addnC.
-          unfold t2; rewrite [t1 + _]addnC -[delta + t1 - _]subnBA // subnn subn0.
-          rewrite addnA -subnBA; first by ins.
-          {
-            unfold j_fst, j_lst; rewrite -[n.+1]add0n.
-            by apply prev_le_next; [by rewrite SIZE | by rewrite SIZE add0n ltnSn].
-          }
-        } rewrite SUBST in BOUNDend; clear SUBST.*)
-
         (* Now we upper-bound the service of the middle jobs. *)
         assert (BOUNDmid: \sum_(0 <= i < n)
                            service_during rate sched (nth elem sorted_jobs i.+1) t1 t2 <=
@@ -1172,78 +1129,17 @@ Module Workload.
         {
           rewrite leqNgt; apply/negP; unfold not; intro LTnk.
           unfold n_k, max_jobs_NC in LTnk.
-          assert (MUL: div_floor delta (task_period tsk) * task_period tsk < n.+1 * task_period tsk).
-          {
-            admit.
-          }
-          apply (leq_trans MUL) in DIST.
-          apply leq_trans with (p := t1 + delta - t1) in DIST; last by admit.         rewrite addnC -addnBA // subnn addn0 in DIST.
-          admit.
+          rewrite ltn_divLR in LTnk; last by done.
+          apply (leq_trans LTnk) in DIST.
+          move: INlst1 => /negP BUG; apply BUG.
+          unfold service_during; rewrite sum_service_before_arrival; try (by ins). 
+          unfold t2. apply leq_trans with (n := job_arrival j_fst + delta);
+            first by rewrite leq_add2r.
+          rewrite -(ltn_add2l (job_arrival j_fst)) addnBA // in DIST.
+          rewrite [_ + _ j_lst]addnC -addnBA // subnn addn0 in DIST.
+          by apply ltnW. 
         }
-          (*unfold 
-          DIST) in MUL.
-          rewrite -(ltn_pmul2r 1) in LTnk.
-          rewrite -(leq_add2r (task_period tsk)) in DIST.
-          rewrite -{2}[task_period tsk]mul1n in DIST.
-          rewrite -mulnDl addn1 in DIST.
-          assert (DISTmax: job_arrival j_lst - job_arrival j_fst >= delta + task_period tsk).
-          {
-            apply leq_trans with (n := n_k.+1 * task_period tsk).
-            {
-              rewrite -addn1 mulnDl mul1n leq_add2r.
-              unfold n_k, max_jobs_NC, div_floor.
-              apply ltnW, ltn_ceil. task_properties0.
-            }
-            apply leq_trans with (n.+1 * task_period tsk).
-              rewrite leq_mul2r; apply/orP; right.
-              [by rewrite leq_mul2r; apply/orP; right | by apply DIST].
-          }
-          rewrite <- leq_add2r with (p := job_arrival j_fst) in DISTmax.
-          rewrite addnC subh1 in DISTmax;
-            last by unfold j_fst, j_lst; rewrite -[_.+1]add0n prev_le_next // SIZE // add0n ltnS leqnn.
-          rewrite -subnBA // subnn subn0 in DISTmax.
-          rewrite [delta + task_period tsk]addnC addnA in DISTmax.
-          generalize BEFOREt2; move: BEFOREt2; rewrite {1}ltnNge; move => /negP BEFOREt2'.
-          intros BEFOREt2; apply BEFOREt2'; clear BEFOREt2'.
-          apply leq_trans with (n := job_arrival j_fst + task_deadline tsk + delta);
-            last by apply leq_trans with (n := job_arrival j_fst + task_period tsk + delta);
-              [rewrite leq_add2r leq_add2l; apply restricted_deadline | apply DISTmax].
-          {
-            (* Show that j_fst doesn't execute d_k units after its arrival. *)
-            unfold t2; rewrite leq_add2r; rename H_completed_jobs_dont_execute into EXEC.
-            unfold task_misses_no_deadline_before, job_misses_no_deadline, completed in *; des.
-            exploit (no_dl_misses j_fst INfst); last intros COMP.
-            { 
-              (* Prove that arr_fst + d_k <= t2 *)
-              apply leq_trans with (n := job_arrival j_lst); last by apply ltnW.
-              apply leq_trans with (n := job_arrival j_fst + task_period tsk + delta); last by ins.
-              rewrite -addnA leq_add2l -[job_deadline _]addn0.
-              apply leq_add; last by ins.
-              specialize (job_properties j_fst); des.
-              by rewrite job_properties1 FSTtask restricted_deadline.
-            }
-            rewrite leqNgt; apply/negP; unfold not; intro LTt1.
-            (* Now we assume that (job_arrival j_fst + d_k < t1) and reach a contradiction.
-               Since j_fst doesn't miss deadlines, then the service it receives between t1 and t2
-               equals 0, which contradicts the previous assumption that j_fst interferes in
-               the scheduling window. *)
-            clear BEFOREt2 DISTmax LTnk DIST BOUNDend BOUNDmid FSTin; move: EXEC => EXEC.
-            move: INfst1 => /eqP SERVnonzero; apply SERVnonzero.
-            {
-              unfold service_during; apply/eqP; rewrite -leqn0.
-              rewrite <- leq_add2l with (p := job_cost j_fst); rewrite addn0.
-              move: COMP => /eqP COMP; unfold service in COMP; rewrite -{1}COMP.
-              apply leq_trans with (n := service rate sched j_fst t2); last by apply EXEC.
-              unfold service; rewrite -> big_cat_nat with (m := 0) (p := t2) (n := t1);
-                [rewrite leq_add2r /= | by ins | by apply leq_addr].
-              rewrite -> big_cat_nat with (p := t1) (n := job_arrival j_fst + job_deadline j_fst);
-                 [| by ins | by apply ltnW; specialize (job_properties j_fst); des;
-                             rewrite job_properties1 FSTtask].
-              by rewrite /= -{1}[\sum_(_ <= _ < _) _]addn0 leq_add2l.
-            }
-          }    
-        }*)
-
+         
         (* If n_k = num_jobs - 1, then we just need to prove that the
            extra term with min() suffices to bound the workload. *)
         move: NK; rewrite leq_eqVlt orbC; move => /orP NK; des;
