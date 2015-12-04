@@ -1294,9 +1294,9 @@ Module Workload.
         
         (* Now we start the proof. First, we show that the workload bound
            holds if n_k is no larger than the number of interferings jobs. *)
-        destruct (size sorted_jobs <= n_k) eqn:NUM.
+        destruct (size sorted_jobs <= n_k.+1) eqn:NUM.
         {
-          rewrite -2![\sum_(_ <- _ | _) _]addn0 leq_add // leq_add //.
+          rewrite -[\sum_(_ <- _ | _) _]addn0 leq_add // addnC -mulSn.
           apply leq_trans with (n := \sum_(x <- sorted_jobs) task_cost tsk);
             last by rewrite big_const_seq iter_addn addn0 mulnC leq_mul2r; apply/orP; right.
           {
@@ -1325,12 +1325,8 @@ Module Workload.
         (* Now we show that the bound holds for a singleton set of interfering jobs. *)
         destruct n.
         {
-          destruct n_k eqn:EQnk; last by ins.
-          {
-            rewrite mul0n add0n big_nat_recl // big_geq // addn0.
-            rewrite -[service_during _ _ _ _ _]addn0 leq_add //.
-            by apply LTserv; rewrite INboth.
-          }
+          destruct n_k eqn:EQnk;
+            [by rewrite mul0n add0n big_nat_recl // | by done].
         } rewrite [nth]lock /= -lock in ALL.
         
         (*    unfold n_k, max_jobs_NC, div_floor in EQnk.
@@ -1356,12 +1352,11 @@ Module Workload.
         set j_lst := (nth elem sorted_jobs n.+1).
                        
         (* Now we infer some facts about how first and last are ordered in the timeline *)
-        assert (INlst: j_lst \in interfering_jobs).
+        assert (LST: j_lst \in interfering_jobs).
         {
             by unfold j_lst; rewrite INboth; apply mem_nth; rewrite SIZE.
         }
-        move: INlst; rewrite mem_filter.
-        move => /andP [/andP [LSTtsk LSTserv] LSTin].
+        move: LST (LST) => LST; rewrite mem_filter; move => /andP [/andP [LSTtsk LSTserv] LSTin].
 
         assert (AFTERt1: t1 <= job_arrival j_fst + R_tsk).
         {
@@ -1453,7 +1448,7 @@ Module Workload.
             set cur := nth elem sorted_jobs i.
             set next := nth elem sorted_jobs i.+1.
             clear BOUNDmid LT LTserv j_fst j_lst
-                  FSTin FSTserv FSTtsk LSTin LSTserv LSTtsk
+                  FSTin FSTserv FSTtsk LST LSTin LSTserv LSTtsk
                   BEFOREarr AFTERt1 BEFOREt2.
 
             (* Show that cur arrives earlier than next *)
@@ -1489,10 +1484,9 @@ Module Workload.
           }
         }
 
-        (* Prove that n_k is at least the number of jobs - 2 *)
-        assert (NK: n_k >= n.+2).
+        (* Prove that n_k is at least the number of jobs - 1 *)
+        assert (NK: n_k >= n).
         {
-          admit.
           (*rewrite leqNgt; apply/negP; unfold not; intro LTnk.
           unfold n_k, max_jobs_NC in LTnk.
           rewrite ltn_divLR in LTnk; last by done.
@@ -1503,70 +1497,33 @@ Module Workload.
             first by rewrite leq_add2r.
           rewrite -(ltn_add2l (job_arrival j_fst)) addnBA // in DIST.
           rewrite [_ + _ j_lst]addnC -addnBA // subnn addn0 in DIST.
-          by apply ltnW.*) 
+          by apply ltnW.*)
+          admit.
         }
-         
-        (* If n_k = num_jobs - 1, then we just need to prove that the
-           extra term with min() suffices to bound the workload. *)
-        admit.
-        (*move: NK; rewrite leq_eqVlt orbC; move => /orP NK; des;
-          first by rewrite ltnS leqNgt NK in NUM.
+
+        (* With the facts that we derived, we can now prove the workload bound.  
+           There are two cases to be analyze since n <= n_k < n + 2, where n is the number
+           of middle jobs. *)
+        rewrite ltnS ltnS in NUM.
+        assert (EQnk: n_k = n); last clear NK NUM.
+          by apply/eqP; rewrite eqn_leq; apply/andP; split.
+        rewrite EQnk addnC -addnA; apply leq_add.
         {
-          move: NK => /eqP NK; rewrite -NK.
-          rewrite -addnA addnC; apply leq_add.
-          rewrite mulSn; apply leq_add.
-          {
-            apply leq_trans with (n := job_cost (nth elem sorted_jobs 0));
-              first by apply service_interval_le_cost.
-            by rewrite -FSTtask; have PROP := job_properties (nth elem sorted_jobs 0); des.
-          }
-          {
-            rewrite mulnC -{2}[n]subn0 -[_*_]addn0 -iter_addn -big_const_nat.
-            rewrite big_nat_cond [\sum_(_ <= _ < _ | true)_]big_nat_cond.
-            apply leq_sum; intros i; rewrite andbT; move => /andP [_ LE].
-            apply leq_trans with (n := job_cost (nth elem sorted_jobs i.+1));
-              first by apply service_interval_le_cost.
-            assert (TASKnth: job_task (nth elem sorted_jobs i.+1) = tsk).
-            {
-              exploit (mem_nth elem); last intros IN.
-              instantiate (1:= sorted_jobs); instantiate (1 := i.+1);
-                by rewrite SIZE ltnS ltnW //.
-              move: IN; rewrite -INboth mem_filter.
-              by move => /andP [/andP [IN _] _]; apply/eqP.
-            }
-            by rewrite -TASKnth; have PROP := job_properties (nth elem sorted_jobs i.+1); des.
-          }
-          rewrite leq_min; apply/andP; split; last first.
-          {
-            move: INlst => /eqP INlst; rewrite -INlst.
-            apply leq_trans with (n := job_cost j_lst);
-              first by apply service_interval_le_cost.
-            by have PROP := job_properties j_lst; des.
-          }
-          {
-            unfold service_during.
-            rewrite -> big_cat_nat with (n := job_arrival j_lst); simpl;
-              try (by ins); last by apply ltnW.            
-            rewrite sum_service_before_arrival ?leqnn // add0n.
-            apply leq_trans with (n := \sum_(job_arrival j_lst <= i < t2) 1).
-            apply leq_sum; first by ins; apply service_at_le_max_rate.
-            rewrite big_const_nat iter_addn mul1n addn0.
-            rewrite -(leq_add2r (job_arrival j_lst)).
-            rewrite [t2 - _ + _]subh1; last by apply ltnW.
-            unfold t2; rewrite -addnBA // subnn addn0.
-            apply leq_trans with (n := job_arrival j_fst + delta);
-              first by rewrite leq_add2r.
-            rewrite -leq_subLR -addnBA;
-              last by rewrite -subndiv_eq_mod leq_subLR leq_addl.
-            rewrite -subndiv_eq_mod.
-            rewrite subnBA; last by apply leq_trunc_div.
-            rewrite [delta + _]addnC -addnBA // subnn addn0.
-            rewrite -(leq_add2r (job_arrival j_fst)) in DIST.
-            rewrite subh1 in DIST; last by apply BEFOREarr.
-            rewrite -addnBA // subnn addn0 addnC NK in DIST.
-            by unfold n_k, max_jobs_NC, div_floor in DIST.
-          }
-        }*)
+          apply leq_trans with (n := \sum_(0 <= i < n) task_cost tsk). 
+          rewrite big_nat_cond [\sum_(_ <= _ < _ | true) _]big_nat_cond.
+          apply leq_sum; intro i; rewrite andbT; move => /andP [_ LTi];
+            first by apply LTserv; rewrite INboth mem_nth // SIZE 2!ltnS ltnW.
+          by rewrite big_const_nat iter_addn subn0 addn0 mulnC.
+        }
+        apply leq_add; first by apply LTserv.
+        destruct (is_carry_in_job j_fst t1) eqn:CARRY.
+        {
+          admit.
+        }
+        {
+          (* Contradiction! j_fst must be the existing carry-in job. *)
+          admit.
+        }
 
       Qed.
 
