@@ -1207,11 +1207,15 @@ Module Workload.
     Section GuanCarry.
 
       Let is_carry_in_job := carried_in job_cost rate sched.
-
+      Let is_idle_at := is_idle sched.
+      
       (* Assume that task tsk has a carry-in job in the interval. *)
       Hypothesis H_has_carry_in:
         exists (j: JobIn arr_seq),
           job_task j = tsk /\ is_carry_in_job j t1.
+
+      Hypothesis H_one_processor_idle :
+        exists cpu, is_idle_at cpu t1.
 
       Let workload_bound := W_CI task_cost task_period.
 
@@ -1487,9 +1491,9 @@ Module Workload.
         (* Prove that n_k is at least the number of jobs - 1 *)
         assert (NK: n_k >= n).
         {
-          (*rewrite leqNgt; apply/negP; unfold not; intro LTnk.
+          rewrite leqNgt; apply/negP; unfold not; intro LTnk.
           unfold n_k, max_jobs_NC in LTnk.
-          rewrite ltn_divLR in LTnk; last by done.
+          (*rewrite ltn_divLR in LTnk; last by done.
           apply (leq_trans LTnk) in DIST.
           move: LSTserv => /negP BUG; apply BUG.
           unfold service_during; rewrite sum_service_before_arrival; try (by ins). 
@@ -1521,8 +1525,53 @@ Module Workload.
           admit.
         }
         {
-          (* Contradiction! j_fst must be the existing carry-in job. *)
-          admit.
+          (* CONVERT THIS TO A LEMMA: uniqueness of carry-in *)
+          
+          (* Suppose j_fst is not the carried-in job. *)
+          exfalso; destruct H_has_carry_in as [j_in [JOBin CARRY']].
+          destruct (j_fst == j_in) eqn:EQ; move: EQ => /eqP EQ;
+            first by rewrite EQ CARRY' in CARRY.
+          move: CARRY' => /andP [ARRin NOTCOMPin].
+          unfold arrived_before in ARRin.
+          move: sporadic_tasks FSTtsk => SPO /eqP FSTtsk.
+          unfold is_carry_in_job, carried_in in CARRY.
+          destruct (job_arrival j_fst <= job_arrival j_in) eqn:LEQ.
+          {
+            (* If j_fst arrives before j_in, then j_fst is also a carry-in job. Contradiction! *)
+            apply leq_ltn_trans with (p := t1) in LEQ; last by done.
+            move: CARRY => /negP CARRY; apply CARRY; clear CARRY; apply/andP; split; first by done.
+            unfold completed; apply/negP; move => /eqP EQcost.
+            move: FSTserv => /negP FSTserv; apply FSTserv.
+            rewrite -leqn0 -(leq_add2l (service rate sched j_fst t1)); rewrite addn0.
+            rewrite {2}[service _ _ _ _]EQcost.
+            by unfold service, service_during; rewrite <- big_cat_nat with (n := t1);
+              [by apply COMP | by done | by apply leq_addr].
+          }
+          {
+            (* If j_fst arrives (task_period tsk) units after j_in, then j_in comes before
+               j_fst in the sorted list. Contradiction! *)
+            assert (LISTin: j_in \in interfering_jobs).
+            {
+              rewrite mem_filter JOBin eq_refl andTb.
+              admit.
+            }
+              
+            (*apply negbT in LEQ; rewrite -ltnNge in LEQ; apply ltnW in LEQ.
+            exploit (SPO j_in j_fst); [ | by rewrite JOBin FSTtsk | by done | intro LEQarr];
+              first by red; intro NOT; rewrite NOT in EQ.
+            
+            apply leq_ltn_trans with (p := t1) in LEQarr. last by done.
+            apply leq_ltn_trans with (m := job_arrival j_fst) in LEQarr; last by apply leq_addr.
+            move: CARRY => /negP CARRY; apply CARRY; clear CARRY; apply/andP; split; first by done.
+            unfold completed; apply/negP; move => /eqP EQcost.
+            move: FSTserv => /negP FSTserv; apply FSTserv.
+            rewrite -leqn0 -(leq_add2l (service rate sched j_fst t1)); rewrite addn0.
+            rewrite {2}[service _ _ _ _]EQcost.
+            by unfold service, service_during; rewrite <- big_cat_nat with (n := t1);
+              [by apply COMP | by done | by apply leq_addr].
+             *)
+            admit.
+          }
         }
 
       Qed.
