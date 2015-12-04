@@ -141,6 +141,12 @@ Proof.
     [by apply/andP; split | by rewrite eq_fun_ord_to_nat].
 Qed.
 
+Lemma addnb (b1 b2 : bool) : (b1 + b2) != 0 = b1 || b2.
+Proof.
+  by destruct b1,b2;
+  rewrite ?addn0 ?add0n ?addn1 ?orTb ?orbT ?orbF ?orFb.
+Qed.
+
 Lemma strong_ind :
   forall (P: nat -> Prop),
     P 0 -> (forall n, (forall k, k <= n -> P k) -> P n.+1) ->
