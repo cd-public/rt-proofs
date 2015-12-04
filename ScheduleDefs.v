@@ -218,6 +218,31 @@ Module Schedule.
         by move: SCHED => /eqP SCHED; rewrite SCHED eq_refl.
       Qed.
 
+      Lemma job_scheduled_during_interval :
+        forall t1 t2,
+          service_during rate sched j t1 t2 != 0 ->
+          exists t,
+            t1 <= t < t2 /\ 
+            service_at rate sched j t != 0.
+      Proof.
+        intros t1 t2 NONZERO.
+        destruct ([exists t: 'I_t2, (t >= t1) && (service_at rate sched j t != 0)]) eqn:EX.
+        {
+          move: EX => /existsP EX; destruct EX as [x EX]. move: EX => /andP [GE SERV].
+          exists x; split; last by done.
+          by apply/andP; split; [by done | apply ltn_ord].
+        }
+        {
+          apply negbT in EX; rewrite negb_exists in EX; move: EX => /forallP EX.
+          unfold service_during in NONZERO; rewrite big_nat_cond in NONZERO.
+          rewrite (eq_bigr (fun x => 0)) in NONZERO;
+            first by rewrite -big_nat_cond big_const_nat iter_addn mul0n addn0 in NONZERO.
+          intros i; rewrite andbT; move => /andP [GT LT].
+          specialize (EX (Ordinal LT)); simpl in EX.
+          by rewrite GT andTb negbK in EX; apply/eqP.
+        }
+      Qed.
+      
     End Basic.
     
     Section MaxRate.

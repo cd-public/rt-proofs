@@ -51,7 +51,41 @@ Module Workload.
     Definition workload_joblist (t1 t2: time) :=
       \sum_(j <- jobs_scheduled_between t1 t2 | job_task j == tsk)
         service_during rate sched j t1 t2.
-    
+
+    Lemma scheduled_between_implies_service :
+      forall j t1 t2,
+        (j \in jobs_scheduled_between t1 t2) =
+        (service_during rate sched j t1 t2 != 0).
+    Proof.
+      intros j t1 t2; unfold service_during; rewrite mem_undup.
+      generalize dependent t1; induction t2.
+      {
+        by intros t1; rewrite 2?big_geq //.
+      }
+      {
+        intros t1.
+        admit.
+        (*
+        destruct (leqP t1 t2) as [LE | GT]; last by rewrite big_geq // in_nil in SCHED.
+        unfold service_during; rewrite big_nat_recr /= //.
+        rewrite big_nat_recr // /= mem_cat in SCHED; move: SCHED => /orP SCHED; des.
+        {
+          rewrite -lt0n; apply leq_trans with (n := service_during rate sched j t1 t2);
+            last by apply leq_addr.
+          by rewrite lt0n; apply IHt2.
+        }
+        {
+          rewrite -lt0n; apply leq_trans with (n := service_at rate sched j t2);
+            last by rewrite addnC; apply leq_addr.
+          clear -SCHED.
+          unfold processor in rate.
+          induction num_cpus.
+          admit.
+          admit.
+        }*)
+      }
+    Qed.
+
     (* Next, we show that the two definitions are equivalent. *)
     Lemma workload_eq_workload_joblist (t1 t2: time) :
       workload t1 t2 = workload_joblist t1 t2.
@@ -1241,13 +1275,15 @@ Module Workload.
         rewrite workload_eq_workload_joblist; unfold workload_joblist.
         
         (* Identify the subset of jobs that actually cause interference *)
+        rewrite -big_filter.
+        
         set interfering_jobs :=
-          filter (fun (x: JobIn arr_seq) =>
-                    (job_task x == tsk) && (service_during rate sched x t1 t2 != 0))
-                      (jobs_scheduled_between sched t1 t2).
-    
+          filter (fun (x: JobIn arr_seq) => (job_task x == tsk))
+                 (jobs_scheduled_between sched t1 t2).
+
+
         (* Remove the elements that we don't care about from the sum *)
-        assert (SIMPL:
+        (*assert (SIMPL:
           \sum_(i <- jobs_scheduled_between sched t1 t2 | job_task i == tsk)
              service_during rate sched i t1 t2 =
           \sum_(i <- interfering_jobs) service_during rate sched i t1 t2).
@@ -1257,14 +1293,13 @@ Module Workload.
           rewrite (eq_bigr (fun x => 0)); last by move => j_i /andP JOBi; des; apply /eqP.
           rewrite big_const_seq iter_addn mul0n add0n add0n.
           by rewrite big_filter.
-        } rewrite SIMPL; clear SIMPL.
+        } rewrite SIMPL; clear SIMPL.*)
 
         (* Remember that for any job of tsk, service <= task_cost tsk *)
         assert (LTserv: forall j_i (INi: j_i \in interfering_jobs),
                           service_during rate sched j_i t1 t2 <= task_cost tsk).
         {
-          ins; move: INi; rewrite mem_filter; move => /andP xxx; des.
-          move: xxx; move => /andP JOBi; des; clear xxx0 JOBi0.
+          intros j_i; rewrite mem_filter; move => /andP [JOBi _].
           have PROP := job_properties j_i; des.
           move: JOBi => /eqP JOBi; rewrite -JOBi.
           apply leq_trans with (n := job_cost j_i); last by ins. 
@@ -1322,9 +1357,10 @@ Module Workload.
         (* Let's derive some properties about the first element. *)
         exploit (mem_nth elem); last intros FST.
           by instantiate (1:= sorted_jobs); instantiate (1 := 0); rewrite SIZE.
-          
-        move: FST (FST) => FST; rewrite -INboth mem_filter.
-        move => /andP [/andP [FSTtsk FSTserv] FSTin].
+
+
+        move: FST (FST) => FSTin; rewrite -INboth mem_filter (scheduled_between_implies_service rate).
+        move => /andP [FSTtsk FSTserv].  
 
         (* Now we show that the bound holds for a singleton set of interfering jobs. *)
         destruct n.
@@ -1360,8 +1396,9 @@ Module Workload.
         {
             by unfold j_lst; rewrite INboth; apply mem_nth; rewrite SIZE.
         }
-        move: LST (LST) => LST; rewrite mem_filter; move => /andP [/andP [LSTtsk LSTserv] LSTin].
-
+        move: LST (LST) => LSTin.
+        rewrite mem_filter (scheduled_between_implies_service rate); move => /andP [LSTtsk LSTserv].
+        
         assert (AFTERt1: t1 <= job_arrival j_fst + R_tsk).
         {
           rewrite leqNgt; apply /negP; unfold not; intro LTt1.
@@ -1407,13 +1444,7 @@ Module Workload.
         assert (BEFOREt2: job_arrival j_lst < t2).
         {
           rewrite leqNgt; apply/negP; unfold not; intro LT2.
-          assert (LTsize: n.+1 < size sorted_jobs).
-            by destruct sorted_jobs; ins; rewrite SIZE; apply ltnSn.
-          apply (mem_nth elem) in LTsize; rewrite -INboth in LTsize.
-          rewrite -/interfering_jobs mem_filter in LTsize.
-          move: LTsize => /andP [LTsize _]; des.
-          move: LTsize => /andP [_ SERV].
-          move: SERV => /eqP SERV; apply SERV.
+          move: LSTserv => /eqP LSTserv; apply LSTserv. 
           by unfold service_during; rewrite sum_service_before_arrival.
         }
 
@@ -1452,7 +1483,7 @@ Module Workload.
             set cur := nth elem sorted_jobs i.
             set next := nth elem sorted_jobs i.+1.
             clear BOUNDmid LT LTserv j_fst j_lst
-                  FSTin FSTserv FSTtsk LST LSTin LSTserv LSTtsk
+                  FSTin FSTserv FSTtsk LSTin LSTserv LSTtsk
                   BEFOREarr AFTERt1 BEFOREt2.
 
             (* Show that cur arrives earlier than next *)
@@ -1520,26 +1551,23 @@ Module Workload.
           by rewrite big_const_nat iter_addn subn0 addn0 mulnC.
         }
         apply leq_add; first by apply LTserv.
-        destruct (is_carry_in_job j_fst t1) eqn:CARRY.
+        assert (CARRY: is_carry_in_job j_fst t1).
         {
-          admit.
-        }
-        {
-          (* CONVERT THIS TO A LEMMA: uniqueness of carry-in *)
-          
-          (* Suppose j_fst is not the carried-in job. *)
-          exfalso; destruct H_has_carry_in as [j_in [JOBin CARRY']].
+          (* By contradiction. Suppose j_fst is not the carried-in job. *)
+          rewrite -[is_carry_in_job _ _]negbK; apply/negP; intro NOTCARRY.
+          destruct H_has_carry_in as [j_in [JOBin CARRY]].
           destruct (j_fst == j_in) eqn:EQ; move: EQ => /eqP EQ;
-            first by rewrite EQ CARRY' in CARRY.
-          move: CARRY' => /andP [ARRin NOTCOMPin].
+            first by rewrite EQ CARRY in NOTCARRY.
+          move: CARRY => /andP [ARRin NOTCOMPin].
           unfold arrived_before in ARRin.
           move: sporadic_tasks FSTtsk => SPO /eqP FSTtsk.
-          unfold is_carry_in_job, carried_in in CARRY.
+          unfold is_carry_in_job, carried_in in NOTCARRY.
           destruct (job_arrival j_fst <= job_arrival j_in) eqn:LEQ.
           {
             (* If j_fst arrives before j_in, then j_fst is also a carry-in job. Contradiction! *)
             apply leq_ltn_trans with (p := t1) in LEQ; last by done.
-            move: CARRY => /negP CARRY; apply CARRY; clear CARRY; apply/andP; split; first by done.
+            move: NOTCARRY => /negP NOTCARRY; apply NOTCARRY; clear NOTCARRY.
+            apply/andP; split; first by done.
             unfold completed; apply/negP; move => /eqP EQcost.
             move: FSTserv => /negP FSTserv; apply FSTserv.
             rewrite -leqn0 -(leq_add2l (service rate sched j_fst t1)); rewrite addn0.
@@ -1548,18 +1576,37 @@ Module Workload.
               [by apply COMP | by done | by apply leq_addr].
           }
           {
-            (* If j_fst arrives (task_period tsk) units after j_in, then j_in comes before
-               j_fst in the sorted list. Contradiction! *)
-            assert (LISTin: j_in \in interfering_jobs).
+            (* If j_in arrives before f_fst, then j_in must have been scheduled on the interval,
+               otherwise it's not a carry-in job. *)
+            apply negbT in LEQ; rewrite -ltnNge in LEQ.
+            assert (LISTin: j_in \in sorted_jobs).
             {
-              rewrite mem_filter JOBin eq_refl andTb.
-              admit.
+              destruct (service_during rate sched j_in t1 t2 != 0) eqn:SERV.
+              {
+                (* If j_in executes in the interval, then it automatically belongs to sorted_jobs.*)
+                rewrite -INboth mem_filter JOBin eq_refl andTb.
+                by rewrite (scheduled_between_implies_service rate). 
+              }
+              {
+                (* Else, there must be a time when j_fst executes while j_in does not.
+                   This violates task precedence constraints. *)
+                admit.
+              }
+            }   
+            move: LISTin => /nthP LISTin; destruct (LISTin elem) as [i LTi EQi].
+            assert (BUG: ~~ (job_arrival j_fst > job_arrival j_in)).
+            {
+              rewrite -leqNgt -EQi -[i]add0n; apply prev_le_next; destruct sorted_jobs; try (by done).
+              intros j LTj; apply ALL; simpl in *.
+              move: SIZE; move/eqP; rewrite -addn1 -[n.+2]addn1 eqn_add2r; move => /eqP SIZE.
+              by rewrite SIZE in LTj.
             }
-              
-            (*apply negbT in LEQ; rewrite -ltnNge in LEQ; apply ltnW in LEQ.
-            exploit (SPO j_in j_fst); [ | by rewrite JOBin FSTtsk | by done | intro LEQarr];
-              first by red; intro NOT; rewrite NOT in EQ.
-            
+            by rewrite LEQ in BUG.
+          }
+        }
+
+        
+            (*
             apply leq_ltn_trans with (p := t1) in LEQarr. last by done.
             apply leq_ltn_trans with (m := job_arrival j_fst) in LEQarr; last by apply leq_addr.
             move: CARRY => /negP CARRY; apply CARRY; clear CARRY; apply/andP; split; first by done.
