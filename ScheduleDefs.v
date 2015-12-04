@@ -123,6 +123,9 @@ Module Schedule.
     Definition scheduled (t: time) :=
       [exists cpu in 'I_(num_cpus), sched cpu t == Some j].
 
+    Definition is_idle (cpu: 'I_(num_cpus)) (t: time) :=
+      sched cpu t = None.
+
     Definition service_at (t: time) :=
       \sum_(cpu < num_cpus | sched cpu t == Some j) rate j cpu.
 
