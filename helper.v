@@ -160,7 +160,18 @@ Proof.
       by rewrite leqNgt GT in LESn.
       by rewrite EQ; apply ALL, IHn.
 Qed.
-  
+
+Lemma strong_ind_lt :
+  forall (P: nat -> Prop),
+    (forall n, (forall k, k < n -> P k) -> P n) ->
+    forall n, P n.
+Proof.
+  intros P ALL n; apply ALL.
+  induction n; first by ins; apply ALL.
+  intros k LTkSn; apply ALL.
+  by intros k0 LTk0k; apply IHn, leq_trans with (n := k).
+Qed.
+
 Lemma exists_inP_nat t (P: nat -> bool):
   reflect (exists x, x < t /\ P x) [exists (x | x \in 'I_t), P x].
 Proof.
@@ -651,12 +662,18 @@ Proof.
   by apply mem_mask with (m := pair).
 Qed.
 
-Lemma in_powerset {T: eqType} (x: seq T) y :
+(*Lemma in_powerset {T: eqType} (x: seq T) y :
   y \in (powerset x) -> {subset y <= x}.
 Proof.
   intros POW; red; intros z IN; unfold powerset in POW.
   move: POW => /mapP POW; destruct POW as [pair POW EQ]; subst.
   by apply mem_mask with (m := pair).
+Qed.*)
+
+(* Based on http://www.ps.uni-saarland.de/~doczkal/cpp11/html/base.html *)
+Lemma ex2E X (p q : pred X) : (exists2 x , p x & q x) <-> exists x, p x && q x.
+Proof.
+  by split; ins; des; exists x; try (apply/andP; split).
 Qed.
 
 Lemma mem_zip {T: eqType} (X Y: seq T) x y :
@@ -741,6 +758,8 @@ Proof.
     by rewrite lt0n.
   }
 Qed.
+
+
 
 (*Program Definition fun_ord_to_nat2 {n} {T} (x0: T) (f: 'I_n -> T)
         (x : nat) : T :=
