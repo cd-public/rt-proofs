@@ -229,6 +229,7 @@ Module ResponseTimeAnalysisEDF.
             [by ins; apply (INts tsk' R) | unfold is_valid_sporadic_task; intro PARAMStsk; des].
           by unfold task_cost_positive in PARAMStsk; rewrite PARAMStsk in GE_COST.
         } subst ctime; clear HeqR.
+        
         (* According to the IH, all jobs with absolute response-time bound t < (job_arrival j + R)
            have correct response-time bounds.
            Now, we prove the same result for job j by contradiction.
