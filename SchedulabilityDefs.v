@@ -45,7 +45,7 @@ Module Schedulability.
       Definition task_misses_no_deadline_before (t': time) :=
         forall (j: JobIn arr_seq),
           job_task j == tsk ->
-          job_arrival j + job_deadline j <= t' ->
+          job_arrival j + job_deadline j < t' ->
           job_misses_no_deadline rate sched j.
 
     End ScheduleOfTasks.
