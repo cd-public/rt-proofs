@@ -75,6 +75,31 @@ Module ResponseTimeIterationEDF.
           by unfold update_bound; desf.
         Qed.
 
+      Lemma unzip1_edf_iteration :
+          forall l k,
+            unzip1 (iter k edf_rta_iteration (initial_state l)) = l.
+        Proof.
+          intros l k; clear -k.
+          induction k; simpl.
+          {
+            unfold initial_state.
+            induction l; first by done.
+            by simpl; rewrite IHl.
+          }
+          {
+            unfold edf_rta_iteration. 
+            by rewrite unzip1_update_bound.
+          }
+        Qed.
+
+        Lemma size_edf_iteration :
+          forall l k,
+            size (iter k edf_rta_iteration (initial_state l)) = size l.
+        Proof.
+          intros l k; clear -k.
+          induction k; simpl; first by rewrite size_map.
+          by rewrite size_map.
+        Qed.
         
         Lemma interference_bound_edf_monotonic :
           forall tsk x1 x2 tsk_other R R',
@@ -118,31 +143,6 @@ Module ResponseTimeIterationEDF.
           }
         Qed.
 
-      Lemma unzip1_edf_iteration :
-          forall l k,
-            unzip1 (iter k edf_rta_iteration (initial_state l)) = l.
-        Proof.
-          intros l k; clear -k.
-          induction k; simpl.
-          {
-            unfold initial_state.
-            induction l; first by done.
-            by simpl; rewrite IHl.
-          }
-          {
-            unfold edf_rta_iteration. 
-            by rewrite unzip1_update_bound.
-          }
-        Qed.
-
-        Lemma size_edf_iteration :
-          forall l k,
-            size (iter k edf_rta_iteration (initial_state l)) = size l.
-        Proof.
-          intros l k; clear -k.
-          induction k; simpl; first by rewrite size_map.
-          by rewrite size_map.
-        Qed.
 
         (* The following lemma states that the response-time bounds
            computed using R_list are valid. *)
@@ -830,8 +830,8 @@ Module ResponseTimeIterationEDF.
           apply BOUND with (task_cost := task_cost) (task_period := task_period)
              (task_deadline := task_deadline) (job_deadline := job_deadline)
              (job_task := job_task) (ts := ts) (tsk := tsk) (rt_bounds := rt_bounds); try (by ins).
+            by unfold R_list_edf in SOME; desf; rewrite unzip1_edf_iteration.
             by ins; apply R_list_converges.
-            by ins; rewrite (R_list_ge_cost ts rt_bounds).
             by ins; rewrite (R_list_le_deadline ts rt_bounds).
         Qed.
 
