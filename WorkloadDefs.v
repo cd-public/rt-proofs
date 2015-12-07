@@ -504,7 +504,7 @@ Module Workload.
 
     (* Before starting the proof, let's give simpler names to the definitions. *)
     Definition response_time_bound_of (tsk: sporadic_task) (R: time) :=
-        is_response_time_bound_of_task job_cost job_task tsk rate sched R.
+      is_response_time_bound_of_task job_cost job_task tsk rate sched R.
     Definition no_deadline_misses_by (tsk: sporadic_task) (t: time) :=
       task_misses_no_deadline_before job_cost job_deadline job_task
                                      rate sched tsk t.

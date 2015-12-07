@@ -167,11 +167,10 @@ Module ResponseTimeAnalysisEDF.
              is_interfering_task_jlfp tsk tsk_other &&
                task_is_scheduled job_task sched tsk_other t) ts = num_cpus.
 
-    (* Next, we define Bertogna and Cirinei's response-time bound recurrence *)
-      
+    (* Next, we define Bertogna and Cirinei's response-time bound recurrence *)  
     Variable tsk: sporadic_task.
     Variable R: time.
-    Hypothesis tsk_R_in_rt_bounds: (tsk, R) \in rt_bounds.
+    Hypothesis H_tsk_R_in_rt_bounds: (tsk, R) \in rt_bounds.
       
     (* ..., then R bounds the response time of tsk in any schedule. *)
     Theorem bertogna_cirinei_response_time_bound_edf :
@@ -190,10 +189,42 @@ Module ResponseTimeAnalysisEDF.
                H_rate_equals_one into RATE,
                H_global_scheduling_invariant into INVARIANT,
                H_response_time_bounds_ge_cost into GE_COST,
-               H_response_time_is_fixed_point into FIX.
-        intros j JOBtsk.
+               H_response_time_is_fixed_point into FIX,
+               H_tsk_R_in_rt_bounds into INbounds.
 
-        (* For simplicity, let x denote per-task interference under FP
+        (* First, rewrite the claim in terms of the *absolute* response-time bound (arrival + R) *)
+        intros j JOBtsk.
+        remember (job_arrival j + R) as ctime; rename Heqctime into EQc.
+        rewrite -[R](addKn (job_arrival j)) -EQc in INbounds; clear EQc R.
+        revert tsk j JOBtsk INbounds.
+
+        (* Now, we apply strong induction on the absolute response-time bound. *)
+        induction ctime as [ctime BEFOREok] using strong_ind_lt.
+        intros tsk j JOBtsk INbounds.
+        remember (ctime - job_arrival j) as R.
+        assert (INtsk: tsk \in ts).
+        {
+          admit. (* Easy. Need to add this to the assumptions about rt_bounds. *)
+        }
+        assert (EQc: ctime = job_arrival j + R).
+        {
+          rewrite HeqR addnBA; first by rewrite addnC -addnBA // subnn addn0.
+          apply GE_COST in INbounds; rewrite leqNgt; apply/negP; red; intros BUG.
+          apply ltnW in BUG; rewrite -subn_eq0 in BUG; move: BUG => /eqP BUG.
+          rewrite HeqR BUG leqNgt in INbounds.
+          exploit (TASK_PARAMS tsk); [by done | unfold is_valid_sporadic_task; intro PARAMStsk; des].
+          by unfold task_cost_positive in PARAMStsk; rewrite PARAMStsk in INbounds.
+        } subst ctime; clear HeqR.
+
+        (* According to the IH, all jobs with absolute response-time bound t < (job_arrival j + R)
+           have correct response-time bounds.
+           Now, we prove the same result for job j by contradiction.
+           Assume that (job_arrival j + R) is not a response-time bound for job j. *)
+        destruct (completed job_cost rate sched j (job_arrival j + R)) eqn:COMPLETED;
+          first by move: COMPLETED => /eqP COMPLETED; rewrite COMPLETED eq_refl.
+        apply negbT in COMPLETED; exfalso.
+        
+        (* For simplicity, let x denote per-task interference under EDF
            scheduling, and let X denote the total interference. *)
         set x := fun hp_tsk =>
           if (hp_tsk \in ts) && is_interfering_task_jlfp tsk hp_tsk then
@@ -208,17 +239,7 @@ Module ResponseTimeAnalysisEDF.
             if is_interfering_task_jlfp tsk tsk_k then
               interference_bound_edf task_cost task_period task_deadline tsk R (tsk_k, R_k)  (*add EDF-term*)
             else 0.
-         assert (INtsk: tsk \in ts).
-         {
-            admit.
-         }
         
-        (* Now we start the proof. Assume by contradiction that job j
-           is not complete at time (job_arrival j + R). *)
-        destruct (completed job_cost rate sched j (job_arrival j + R)) eqn:COMPLETED;
-          first by move: COMPLETED => /eqP COMPLETED; rewrite COMPLETED eq_refl.
-        apply negbT in COMPLETED; exfalso.
-
         (* Since j has not completed, recall the time when it is not
            executing is the total interference. *)
         exploit (complement_of_interf_equals_service job_cost rate sched j (job_arrival j)
@@ -226,23 +247,23 @@ Module ResponseTimeAnalysisEDF.
           last intro EQinterf; ins; unfold has_arrived;
           first by apply leqnn.
         rewrite {2}[_ + R]addnC -addnBA // subnn addn0 in EQinterf.
-
         
-        (* In order to derive a contradiction, we first show that
-           the interference x_k of any task is no larger than the
-           workload bound W_k. *)
-        assert (WORKLOAD: forall tsk_k,
-                            (tsk_k \in ts) && is_interfering_task_jlfp tsk tsk_k ->
-                            forall R_k, 
-                              (tsk_k, R_k) \in rt_bounds ->
-                              x tsk_k <= workload_bound (tsk_k, R_k)).   
-        { admit.
-          (*
-          move => tsk_k /andP [INk INTERk] R_k HPk.
-          unfold x, workload_bound; rewrite INk INTERk andbT.
-          exploit (exists_R tsk_k); [by ins | by ins | intro INhp; des].
+        (* In order to derive a contradiction, we first show that per-task
+           interference x_k is no larger than the basic interference bound (based on W). *)
+        assert (BASICBOUND:
+                  forall ctime : nat,
+                    ctime < job_arrival j + R ->
+                    forall (tsk_k : sporadic_task) (j_k : JobIn arr_seq),
+                      job_task j_k = tsk_k ->
+                      (tsk_k, ctime - job_arrival j_k) \in rt_bounds ->
+                      x tsk_k <= W task_cost task_period tsk_k (ctime - job_arrival j_k) R).
+        {
+          intros ctime LEt tsk_k j_k JOBk INBOUNDSk; unfold x, interference_bound.
+          destruct ((tsk_k \in ts) && (is_interfering_task_jlfp tsk tsk_k)) eqn:INk;
+            last by done.
+          move: INk => /andP [INk INTERFk]; simpl.
           apply leq_trans with (n := workload job_task rate sched tsk_k
-                                    (job_arrival j) (job_arrival j + R)).
+                                     (job_arrival j) (job_arrival j + R)).
           {
             unfold task_interference, workload.
             apply leq_sum; intros t _.
@@ -257,28 +278,51 @@ Module ResponseTimeAnalysisEDF.
             by destruct (sched cpu t);[by rewrite HAScpu mul1n RATE|by ins].
           }
           {
-            apply workload_bounded_by_W with (task_deadline0 := task_deadline) (job_cost0 := job_cost) (job_deadline0 := job_deadline); ins;
-              [ by rewrite RATE
-              | by apply TASK_PARAMS
-              | by apply RESTR
-              | by red; red; ins; apply (RESP tsk_k)  
+            apply workload_bounded_by_W with (task_deadline0 := task_deadline) (job_cost0 := job_cost) (job_deadline0 := job_deadline); try (by ins);
+              [ by ins; rewrite RATE
+              | by ins; apply TASK_PARAMS
+              | by ins; apply RESTR |  
               | by apply GE_COST |].
-            red; red; move => j' /eqP JOBtsk' _;
-            unfold job_misses_no_deadline.
-            specialize (PARAMS j'); des.
-            rewrite PARAMS1 JOBtsk'.
-            apply completion_monotonic with (t := job_arrival j' + R0); ins;
-              [by rewrite leq_add2l; apply NOMISS | by apply (RESP tsk_k)].
-          }*)
+            {
+              red; red; intros j0 JOB0. set R_k := ctime - job_arrival j_k.
+              apply BEFOREok with (tsk := tsk_k); try (by done); last by rewrite addKn.
+              assert (BEFORE0: job_arrival j0 + R_k < job_arrival j + R).
+              {
+                (* We need to weaken the conditions in WorkloadDefs.v to remove the restriction
+                   that R_k is a response-time bound for all jobs. *)
+                admit.
+              } by done.
+            }
+            red; red; move => j' /eqP JOBtsk' LEdl; unfold job_misses_no_deadline.
+            specialize (PARAMS j'); des; rewrite PARAMS1 JOBtsk'.
+            apply completion_monotonic with (t := job_arrival j' + (ctime - job_arrival j_k)); ins;
+              first by rewrite leq_add2l; apply NOMISS.
+            apply BEFOREok with (tsk := tsk_k); try (by done); last by rewrite addKn.
+            apply leq_ltn_trans with (n := job_arrival j' + job_deadline j'); last by done.
+            by rewrite leq_add2l PARAMS1 JOBtsk' -JOBk; apply NOMISS; rewrite JOBk.
+          }
         }
 
+        assert (EDFBOUND: forall ctime : nat,
+                    ctime < job_arrival j + R ->
+                    forall (tsk_k : sporadic_task) (j_k : JobIn arr_seq),
+                      job_task j_k = tsk_k ->
+                      (tsk_k, ctime - job_arrival j_k) \in rt_bounds ->
+                      x tsk_k <= edf_specific_bound task_cost task_period
+                                                          task_deadline tsk (tsk_k, ctime - job_arrival j_k)).
+        {
+          intros ctime LTctime tsk_k j_k JOBk INBOUNDSk.
+          unfold edf_specific_bound.
+          admit.
+        }
+        
         (* In the remaining of the proof, we show that the workload bound
            W_k is less than the task interference x (contradiction!).
            For that, we require a few auxiliary lemmas: *)
 
         (* 1) We show that the total interference X >= R - e_k + 1.
               Otherwise, job j would have completed on time. *)
-        assert (IunfoldNTERF: X >= R - task_cost tsk + 1).
+        assert (INTERF: X >= R - task_cost tsk + 1).
         {
           unfold completed in COMPLETED.
           rewrite addn1.
@@ -339,7 +383,6 @@ Module ResponseTimeAnalysisEDF.
           apply (INVARIANT tsk j); try (by done).   
         }
         
-
         (* 3) Next, we prove the auxiliary lemma from the paper. *)
         assert (MINSERV: \sum_(tsk_k <- ts) x tsk_k >=
                          (R - task_cost tsk + 1) * num_cpus ->
@@ -520,7 +563,6 @@ Module ResponseTimeAnalysisEDF.
         (* 4) Now, we prove that the Bertogna's interference bound
               is not enough to cover the sum of the "minimum" term over
               all tasks (artifact of the proof by contradiction). *)
-
         assert (SUM: \sum_(k <- rt_bounds | is_interfering_task_jlfp tsk (fst k))
         (minn 
           (interference_bound_edf task_cost task_period task_deadline
@@ -535,13 +577,11 @@ Module ResponseTimeAnalysisEDF.
                                                                                (minn (x (fst i)) ((snd(i) - task_cost tsk + 1))));
               last first.
             {
-              apply leq_sum.
-              intros i _.
-              destruct i as [i R_i].
+              apply leq_sum; intros i _; destruct i as [i R_i].
               rewrite leq_min; apply/andP; split; last by done.
               {
-                apply leq_trans with (n := x i);
-                first by apply geq_minl.
+                apply leq_trans with (n := x i); first by apply geq_minl.
+                unfold interference_bound_edf, interference_bound.
                 admit.
               }
             }
