@@ -541,7 +541,7 @@ Module WorkloadWithJitter.
           exploit (no_dl_misses j_fst INfst); last intros COMP.
           { 
             (* Prove that arr_fst + d_k <= t2 *)
-            apply leq_trans with (n := job_arrival j_lst); last by apply ltnW.
+            apply leq_ltn_trans with (n := job_arrival j_lst); last by done.
             apply leq_trans with (n := job_arrival j_fst + task_period tsk + delta); last by ins.
             rewrite -addnA leq_add2l -[job_deadline _]addn0.
             apply leq_add; last by ins.
