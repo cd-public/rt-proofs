@@ -270,20 +270,11 @@ Module ResponseTimeAnalysisEDF.
                                      x tsk_k <= W task_cost task_period tsk_k R_k R).
         {
           intros tsk_k R_k INBOUNDSk.
-          admit.
-        }
-
-        (*forall ctime : nat,
-                    ctime < job_arrival j + R ->
-                    forall (tsk_k : sporadic_task) (j_k : JobIn arr_seq),
-                      job_task j_k = tsk_k ->
-                      (tsk_k, ctime - job_arrival j_k) \in rt_bounds ->
-                      x tsk_k <= W task_cost task_period tsk_k (ctime - job_arrival j_k) R).
-        {
-          intros ctime LEt tsk_k j_k JOBk INBOUNDSk; unfold x, interference_bound.
-          destruct ((tsk_k \in ts) && (is_interfering_task_jlfp tsk' tsk_k)) eqn:INk;
+          unfold x.
+          destruct ((tsk_k \in ts) && is_interfering_task_jlfp tsk' tsk_k) eqn:INTERFk;
             last by done.
-          move: INk => /andP [INk INTERFk]; simpl.
+          move: INTERFk => /andP [INk INTERFk].
+          unfold task_interference.
           apply leq_trans with (n := workload job_task rate sched tsk_k
                                      (job_arrival j) (job_arrival j + R)).
           {
@@ -320,6 +311,20 @@ Module ResponseTimeAnalysisEDF.
             apply leq_ltn_trans with (n := job_arrival j' + job_deadline j'); last by done.
             by rewrite leq_add2l PARAMS1 JOBtsk' -JOBk; apply NOMISS; rewrite JOBk.
           }
+          admit.
+        }
+
+        (*forall ctime : nat,
+                    ctime < job_arrival j + R ->
+                    forall (tsk_k : sporadic_task) (j_k : JobIn arr_seq),
+                      job_task j_k = tsk_k ->
+                      (tsk_k, ctime - job_arrival j_k) \in rt_bounds ->
+                      x tsk_k <= W task_cost task_period tsk_k (ctime - job_arrival j_k) R).
+        {
+          intros ctime LEt tsk_k j_k JOBk INBOUNDSk; unfold x, interference_bound.
+          destruct ((tsk_k \in ts) && (is_interfering_task_jlfp tsk' tsk_k)) eqn:INk;
+            last by done.
+          move: INk => /andP [INk INTERFk]; simpl.
         }*)
         
         assert (EDFBOUND:

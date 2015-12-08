@@ -25,8 +25,7 @@ Module ResponseTime.
     (* ... R is a response-time bound of tsk in this schedule ... *)
     Variable R: time.
 
-    Definition job_has_completed_by :=
-      completed job_cost rate sched.
+    Let job_has_completed_by := completed job_cost rate sched.
 
     (* ... iff any job j of tsk in this arrival sequence has
        completed by (job_arrival j + R). *)
@@ -45,61 +44,95 @@ Module ResponseTime.
     Variable job_task: Job -> sporadic_task.
 
     Context {arr_seq: arrival_sequence Job}.
-
-    (* Assume a task ...*)
-    Variable tsk: sporadic_task.
     
-    (*...any valid schedule,...*)
+    (* Consider any valid schedule... *)
     Context {num_cpus : nat}.
     Variable sched: schedule num_cpus arr_seq.
     Variable rate: Job -> processor num_cpus -> nat.
 
+    Let job_has_completed_by := completed job_cost rate sched.
+
+    (* ... where jobs dont execute after completion. *)
     Hypothesis H_completed_jobs_dont_execute:
       completed_jobs_dont_execute job_cost rate sched.
 
-    (* ...and that R is a response-time bound of tsk in this schedule. *)
-    Variable R: time.
-    Hypothesis response_time_bound:
-      is_response_time_bound_of_task job_cost job_task tsk rate sched R.
+    Section SpecificJob.
 
-    Variable j: JobIn arr_seq.
-    Hypothesis H_job_of_task: job_task j = tsk.
+      (* Consider any job ...*)
+      Variable j: JobIn arr_seq.
+      
+      (* ...with response-time bound R in this schedule. *)
+      Variable R: time.
+      Hypothesis response_time_bound:
+        job_has_completed_by j (job_arrival j + R). 
+
+      Lemma service_at_after_job_rt_zero :
+        forall t',
+          t' >= job_arrival j + R ->
+          service_at rate sched j t' = 0.
+      Proof.
+        rename response_time_bound into RT,
+               H_completed_jobs_dont_execute into EXEC; ins.
+        unfold is_response_time_bound_of_task, completed,
+               completed_jobs_dont_execute in *.
+        apply/eqP; rewrite -leqn0.
+        rewrite <- leq_add2l with (p := job_cost j).
+        move: RT => /eqP RT; rewrite -{1}RT addn0.
+        apply leq_trans with (n := service rate sched j t'.+1);
+          last by apply EXEC.
+        unfold service; rewrite -> big_cat_nat with
+                                   (p := t'.+1) (n := job_arrival j + R);
+            [rewrite leq_add2l /= | by ins | by apply ltnW].
+          by rewrite big_nat_recr // /=; apply leq_addl.
+      Qed.
+
+      Lemma sum_service_after_job_rt_zero :
+        forall t' t'',
+          t' >= job_arrival j + R ->
+          \sum_(t' <= t < t'') service_at rate sched j t = 0.
+      Proof.
+        ins; apply/eqP; rewrite -leqn0.
+        rewrite big_nat_cond; rewrite -> eq_bigr with (F2 := fun i => 0);
+          first by rewrite big_const_seq iter_addn mul0n addn0 leqnn.
+        intro i; rewrite andbT; move => /andP [LE _].
+        by rewrite service_at_after_job_rt_zero;
+          [by ins | by apply leq_trans with (n := t')].
+      Qed.
+      
+    End SpecificJob.
     
-    Lemma service_at_after_rt_zero :
-      forall t',
-        t' >= job_arrival j + R ->
-        service_at rate sched j t' = 0.
-    Proof.
-      rename response_time_bound into RT,
-             H_completed_jobs_dont_execute into EXEC; ins.
-      unfold is_response_time_bound_of_task, completed,
-             completed_jobs_dont_execute in *.
-      specialize (RT j H_job_of_task).
-      apply/eqP; rewrite -leqn0.
-      rewrite <- leq_add2l with (p := job_cost j).
-      move: RT => /eqP RT; rewrite -{1}RT addn0.
-      apply leq_trans with (n := service rate sched j t'.+1);
-        last by apply EXEC.
-      unfold service; rewrite -> big_cat_nat with
-                                 (p := t'.+1) (n := job_arrival j + R);
-          [rewrite leq_add2l /= | by ins | by apply ltnW].
-        by rewrite big_nat_recr // /=; apply leq_addl.
-    Qed.
+    Section AllJobs.
 
-    Lemma sum_service_after_rt_zero :
-      forall t' t'',
-        t' >= job_arrival j + R ->
-        \sum_(t' <= t < t'') service_at rate sched j t = 0.
-    Proof.
-      ins; apply/eqP; rewrite -leqn0.
-      rewrite big_nat_cond; rewrite -> eq_bigr with (F2 := fun i => 0);
-        first by rewrite big_const_seq iter_addn mul0n addn0 leqnn.
-      intro i; rewrite andbT; move => /andP [LE _].
-      by rewrite service_at_after_rt_zero;
-        [by ins | by apply leq_trans with (n := t')].
-    Qed.
+      (* Assume a task tsk ...*)
+      Variable tsk: sporadic_task.
 
-    Section CostAsLowerBound.
+      (* ...and that R is a response-time bound of tsk in this schedule. *)
+      Variable R: time.
+      Hypothesis response_time_bound:
+        is_response_time_bound_of_task job_cost job_task tsk rate sched R.
+
+      Variable j: JobIn arr_seq.
+      Hypothesis H_job_of_task: job_task j = tsk.
+    
+      Lemma service_at_after_rt_zero :
+        forall t',
+          t' >= job_arrival j + R ->
+          service_at rate sched j t' = 0.
+      Proof.
+        by ins; apply service_at_after_job_rt_zero with (R := R); [apply response_time_bound |].
+      Qed.
+
+      Lemma sum_service_after_rt_zero :
+        forall t' t'',
+          t' >= job_arrival j + R ->
+          \sum_(t' <= t < t'') service_at rate sched j t = 0.
+      Proof.
+        by ins; apply sum_service_after_job_rt_zero with (R := R); [apply response_time_bound |].
+      Qed.
+      
+    End AllJobs.
+    
+    (*Section CostAsLowerBound.
 
       Hypothesis H_jobs_must_arrive_to_execute:
         jobs_must_arrive_to_execute sched.
@@ -126,11 +159,11 @@ Module ResponseTime.
         by apply leq_sum; ins; by apply service_at_le_max_rate.
       Qed.
       
-    End CostAsLowerBound.
+    End CostAsLowerBound.*)
 
   End BasicLemmas.
 
-  Section LowerBoundOfResponseTimeBound.
+  (*Section LowerBoundOfResponseTimeBound.
 
     Context {sporadic_task: eqType}.
     Variable task_cost: sporadic_task -> nat.
@@ -178,6 +211,6 @@ Module ResponseTime.
         by ins; apply EX.
     Qed.
 
-  End LowerBoundOfResponseTimeBound.
+  End LowerBoundOfResponseTimeBound.*)
     
 End ResponseTime.

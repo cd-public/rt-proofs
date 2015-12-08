@@ -466,7 +466,7 @@ Module Workload.
     Variable arr_seq: arrival_sequence Job.
 
     (* Assume that all jobs have valid parameters *)
-    Hypothesis jobs_have_valid_parameters :
+    Hypothesis H_jobs_have_valid_parameters :
       forall (j: JobIn arr_seq),
         valid_sporadic_job task_cost task_deadline job_cost job_deadline job_task j.
     
@@ -492,20 +492,19 @@ Module Workload.
          1) A job does not execute in parallel.
          2) The service rate of the platform is at most 1.
        This is required to use interval lengths as a measure of service. *)
-    Hypothesis no_parallelism:
+    Hypothesis H_no_parallelism:
       jobs_dont_execute_in_parallel sched.
-    Hypothesis rate_at_most_one :
+    Hypothesis H_rate_at_most_one :
       forall j cpu, rate j cpu <= 1.
 
     (* Assumption: sporadic task model.
        This is necessary to conclude that consecutive jobs ordered by arrival times
        are separated by at least 'period' times units. *)
-    Hypothesis sporadic_tasks: sporadic_task_model task_period arr_seq job_task.
+    Hypothesis H_sporadic_tasks: sporadic_task_model task_period arr_seq job_task.
 
     (* Before starting the proof, let's give simpler names to the definitions. *)
-    Definition response_time_bound_of (tsk: sporadic_task) (R: time) :=
-      is_response_time_bound_of_task job_cost job_task tsk rate sched R.
-    Definition no_deadline_misses_by (tsk: sporadic_task) (t: time) :=
+    Let job_has_completed_by := completed job_cost rate sched.
+    Let no_deadline_misses_by (tsk: sporadic_task) (t: time) :=
       task_misses_no_deadline_before job_cost job_deadline job_task
                                      rate sched tsk t.
     Definition workload_of (tsk: sporadic_task) (t1 t2: time) :=
@@ -522,26 +521,32 @@ Module Workload.
              jobs is at least (cost + n*period), where n is the number
              of middle jobs. If cost >> period, the claim does not hold
              for every task set. *)
-    Hypothesis valid_task_parameters:
+    Hypothesis H_valid_task_parameters:
       is_valid_sporadic_task task_cost task_period task_deadline tsk.
 
     (* Assumption: the task must have a restricted deadline.
        This is required to prove that n_k (max_jobs) from Bertogna
        and Cirinei's formula accounts for at least the number of
        middle jobs (i.e., number of jobs - 2 in the worst case). *)
-    Hypothesis restricted_deadline: task_deadline tsk <= task_period tsk.
+    Hypothesis H_restricted_deadline: task_deadline tsk <= task_period tsk.
+      
+    (* Consider an interval [t1, t1 + delta), with no deadline misses. *)
+    Variable t1 delta: time.
+    Hypothesis H_no_deadline_misses_during_interval: no_deadline_misses_by tsk (t1 + delta).
 
     (* Assume that a response-time bound R_tsk for that task in any
        schedule of this processor platform is also given,
        such that R_tsk >= task_cost tsk. *)
     Variable R_tsk: time.
-    Hypothesis response_time_bound: response_time_bound_of tsk R_tsk.
-    Hypothesis response_time_ge_cost: R_tsk >= task_cost tsk.
-    
-    (* Consider an interval [t1, t1 + delta), with no deadline misses. *)
-    Variable t1 delta: time.
-    Hypothesis no_deadline_misses_during_interval: no_deadline_misses_by tsk (t1 + delta).
 
+    Hypothesis H_response_time_ge_cost: R_tsk >= task_cost tsk.
+
+    Hypothesis H_response_time_bound :    
+      forall (j: JobIn arr_seq),
+      job_task j = tsk ->
+      job_arrival j + R_tsk < t1 + delta ->
+      job_has_completed_by j (job_arrival j + R_tsk).
+    
     Section BertognaCirinei.
       
     (* Then the workload of the task in the interval is bounded by W. *)
@@ -550,12 +555,12 @@ Module Workload.
       Theorem workload_bounded_by_W :
         workload_of tsk t1 (t1 + delta) <= workload_bound tsk R_tsk delta.
       Proof.
-        rename jobs_have_valid_parameters into job_properties,
-               no_deadline_misses_during_interval into no_dl_misses,
-               valid_task_parameters into task_properties.
+        rename H_jobs_have_valid_parameters into job_properties,
+               H_no_deadline_misses_during_interval into no_dl_misses,
+               H_valid_task_parameters into task_properties.
         unfold valid_sporadic_job, valid_realtime_job, restricted_deadline_model,
                valid_sporadic_taskset, is_valid_sporadic_task, sporadic_task_model,
-               workload_of, response_time_bound_of, no_deadline_misses_by, workload_bound, W in *; ins; des.
+               workload_of, no_deadline_misses_by, workload_bound, W in *; ins; des.
 
         (* Simplify names *)
         set t2 := t1 + delta.
@@ -689,9 +694,12 @@ Module Workload.
         {
           rewrite leqNgt; apply /negP; unfold not; intro LTt1.
           move: INfst1 => /eqP INfst1; apply INfst1.
-          by apply (sum_service_after_rt_zero job_cost job_task tsk) with (R := R_tsk);
-           last by apply ltnW.
+          apply (sum_service_after_job_rt_zero job_cost) with (R := R_tsk);
+            try (by done); last by apply ltnW.
+          apply H_response_time_bound; first by apply/eqP.
+          by apply leq_trans with (n := t1); last by apply leq_addr.
         }
+        
         assert (BEFOREt2: job_arrival j_lst < t2).
         {
           rewrite leqNgt; apply/negP; unfold not; intro LT2.
@@ -716,18 +724,19 @@ Module Workload.
             apply leq_trans with (n := \sum_(t1 <= t < job_arrival j_fst + R_tsk)
                                            service_at rate sched j_fst t);
               last by apply leq_sum; ins; apply service_at_le_max_rate.
-            destruct (job_arrival j_fst + R_tsk <= t2) eqn:LEt2; last first.
+            destruct (job_arrival j_fst + R_tsk < t2) eqn:LEt2; last first.
             {
               unfold t2; apply negbT in LEt2; rewrite -ltnNge in LEt2.
               rewrite -> big_cat_nat with (n := t1 + delta) (p := job_arrival j_fst + R_tsk);
-                [by apply leq_addr | by apply leq_addr | by apply ltnW].
+                [by apply leq_addr | by apply leq_addr | by done].
             }
             {
-              rewrite -> big_cat_nat with (n := job_arrival j_fst + R_tsk); [| by ins | by ins].
+              rewrite -> big_cat_nat with (n := job_arrival j_fst + R_tsk); [| by ins|by apply ltnW].
               rewrite -{2}[\sum_(_ <= _ < _) _]addn0 /=.
               rewrite leq_add2l leqn0; apply/eqP.
-              by apply (sum_service_after_rt_zero job_cost job_task tsk) with (R := R_tsk);
-                last by apply leqnn. 
+              apply (sum_service_after_job_rt_zero job_cost) with (R := R_tsk);
+                try (by done); last by apply leqnn.
+              by apply H_response_time_bound; first by apply/eqP.
             }
           }
           {
@@ -816,7 +825,7 @@ Module Workload.
                also prove that it doesn't contain duplicates. *)
             assert (CUR_LE_NEXT: job_arrival cur + task_period (job_task cur) <= job_arrival next).
             {
-              apply sporadic_tasks; last by ins.
+              apply H_sporadic_tasks; last by ins.
               unfold cur, next, not; intro EQ; move: EQ => /eqP EQ.
               rewrite nth_uniq in EQ; first by move: EQ => /eqP EQ; intuition.
                 by apply ltn_trans with (n := (size sorted_jobs).-1); destruct sorted_jobs; ins.
@@ -853,7 +862,7 @@ Module Workload.
           intros BEFOREt2; apply BEFOREt2'; clear BEFOREt2'.
           apply leq_trans with (n := job_arrival j_fst + task_deadline tsk + delta);
             last by apply leq_trans with (n := job_arrival j_fst + task_period tsk + delta);
-              [rewrite leq_add2r leq_add2l; apply restricted_deadline | apply DISTmax].
+              [rewrite leq_add2r leq_add2l; apply H_restricted_deadline | apply DISTmax].
           {
             (* Show that j_fst doesn't execute d_k units after its arrival. *)
             unfold t2; rewrite leq_add2r; rename H_completed_jobs_dont_execute into EXEC.
@@ -866,7 +875,7 @@ Module Workload.
               rewrite -addnA leq_add2l -[job_deadline _]addn0.
               apply leq_add; last by ins.
               specialize (job_properties j_fst); des.
-              by rewrite job_properties1 FSTtask restricted_deadline.
+              by rewrite job_properties1 FSTtask H_restricted_deadline.
             }
             rewrite leqNgt; apply/negP; unfold not; intro LTt1.
             (* Now we assume that (job_arrival j_fst + d_k < t1) and reach a contradiction.
@@ -955,13 +964,13 @@ Module Workload.
       Theorem workload_bounded_by_W_NC :
         workload_of tsk t1 (t1 + delta) <= workload_bound tsk delta.
       Proof.
-        rename jobs_have_valid_parameters into job_properties,
-               no_deadline_misses_during_interval into no_dl_misses,
-               valid_task_parameters into task_properties,
+        rename H_jobs_have_valid_parameters into job_properties,
+               H_no_deadline_misses_during_interval into no_dl_misses,
+               H_valid_task_parameters into task_properties,
                H_completed_jobs_dont_execute into COMP.
         unfold valid_sporadic_job, valid_realtime_job, restricted_deadline_model,
                valid_sporadic_taskset, is_valid_sporadic_task, sporadic_task_model,
-               workload_of, response_time_bound_of, no_deadline_misses_by,
+               workload_of, no_deadline_misses_by,
                workload_bound, W_NC in *; ins; des.
 
         (* Simplify names *)
@@ -1204,7 +1213,7 @@ Module Workload.
                also prove that it doesn't contain duplicates. *)
             assert (CUR_LE_NEXT: job_arrival cur + task_period (job_task cur) <= job_arrival next).
             {
-              apply sporadic_tasks; last by ins.
+              apply H_sporadic_tasks; last by ins.
               unfold cur, next, not; intro EQ; move: EQ => /eqP EQ.
               rewrite nth_uniq in EQ; first by move: EQ => /eqP EQ; intuition.
                 by apply ltn_trans with (n := (size sorted_jobs).-1); destruct sorted_jobs; ins.
@@ -1324,14 +1333,14 @@ Module Workload.
       Theorem workload_bounded_by_W_CI :
         workload_of tsk t1 (t1 + delta) <= workload_bound tsk R_tsk delta.
       Proof.
-        rename jobs_have_valid_parameters into job_properties,
-               no_deadline_misses_during_interval into no_dl_misses,
-               valid_task_parameters into task_properties,
+        rename H_jobs_have_valid_parameters into job_properties,
+               H_no_deadline_misses_during_interval into no_dl_misses,
+               H_valid_task_parameters into task_properties,
                H_completed_jobs_dont_execute into COMP,
                H_task_precedence into PREC.
         unfold valid_sporadic_job, valid_realtime_job, restricted_deadline_model,
                valid_sporadic_taskset, is_valid_sporadic_task, sporadic_task_model,
-               workload_of, response_time_bound_of, no_deadline_misses_by,
+               workload_of, no_deadline_misses_by,
                workload_bound, W_CI in *; ins; des.
 
         (* Simplify names *)
@@ -1474,8 +1483,10 @@ Module Workload.
         {
           rewrite leqNgt; apply /negP; unfold not; intro LTt1.
           move: FSTserv => /eqP FSTserv; apply FSTserv.
-          by apply (sum_service_after_rt_zero job_cost job_task tsk) with (R := R_tsk); try (by ins);
-           [by apply/eqP | by apply ltnW].
+          apply (sum_service_after_job_rt_zero job_cost) with (R := R_tsk);
+            try (by ins); last by apply ltnW.
+          apply H_response_time_bound; first by apply/eqP.
+          by apply leq_trans with (n := t1); last by apply leq_addr.
         }
 
         (*assert (AFTERt1: t1 <= job_arrival j_fst).
@@ -1578,7 +1589,7 @@ Module Workload.
                also prove that it doesn't contain duplicates. *)
             assert (CUR_LE_NEXT: job_arrival cur + task_period (job_task cur) <= job_arrival next).
             {
-              apply sporadic_tasks; last by ins.
+              apply H_sporadic_tasks; last by ins.
               unfold cur, next, not; intro EQ; move: EQ => /eqP EQ.
               rewrite nth_uniq in EQ; first by move: EQ => /eqP EQ; intuition.
                 by apply ltn_trans with (n := (size sorted_jobs).-1); destruct sorted_jobs; ins.
@@ -1631,7 +1642,7 @@ Module Workload.
             first by rewrite EQ CARRY in NOTCARRY.
           move: CARRY => /andP [ARRin NOTCOMPin].
           unfold arrived_before in ARRin.
-          move: sporadic_tasks FSTtsk => SPO /eqP FSTtsk.
+          move: H_sporadic_tasks FSTtsk => SPO /eqP FSTtsk.
           unfold is_carry_in_job, carried_in in NOTCARRY.
           destruct (job_arrival j_fst <= job_arrival j_in) eqn:LEQ.
           {
