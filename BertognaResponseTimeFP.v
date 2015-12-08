@@ -607,7 +607,7 @@ Module ResponseTimeIterationFP.
               generalize SOME; apply R_list_rcons_task in SOME; subst tsk_i; intro SOME.
               generalize SOME; apply R_list_rcons_prefix in SOME; intro SOME'.
               have BOUND := bertogna_cirinei_response_time_bound_fp.
-              unfold is_response_time_bound_of_task, job_has_completed_by in BOUND.
+              unfold is_response_time_bound_of_task in BOUND.
               apply BOUND with (task_cost := task_cost) (task_period := task_period) (task_deadline := task_deadline) (job_deadline := job_deadline) (job_task := job_task) (tsk := tsk_lst)
                                (ts := rcons ts' tsk_lst) (hp_bounds := hp_bounds)
                                (higher_eq_priority := higher_eq_priority); clear BOUND; try (by ins).

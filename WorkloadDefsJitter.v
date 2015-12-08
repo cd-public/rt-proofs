@@ -365,9 +365,11 @@ Module WorkloadWithJitter.
       {
         rewrite leqNgt; apply /negP; unfold not; intro LTt1.
         move: INfst1 => /eqP INfst1; apply INfst1.
-        by apply (sum_service_after_rt_zero job_cost job_task tsk) with (R := R_tsk);
-         last by apply ltnW.
+        apply (sum_service_after_job_rt_zero job_cost) with (R := R_tsk);
+          try (by ins); last by apply ltnW.
+        by apply response_time_bound.
       }
+      
       assert (BEFOREt2: job_arrival j_lst < t2).
       {
         rewrite leqNgt; apply/negP; unfold not; intro LT2.
@@ -403,8 +405,9 @@ Module WorkloadWithJitter.
             rewrite -> big_cat_nat with (n := job_arrival j_fst + R_tsk); [| by ins | by ins].
             rewrite -{2}[\sum_(_ <= _ < _) _]addn0 /=.
             rewrite leq_add2l leqn0; apply/eqP.
-            by apply (sum_service_after_rt_zero job_cost job_task tsk) with (R := R_tsk);
-              last by apply leqnn. 
+            apply (sum_service_after_job_rt_zero job_cost) with (R := R_tsk);
+              try (by ins); last by apply leqnn.
+            by apply response_time_bound.
           }
         }
         {

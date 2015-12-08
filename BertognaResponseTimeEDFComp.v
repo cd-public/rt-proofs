@@ -826,7 +826,7 @@ Module ResponseTimeIterationEDF.
           intros rt_bounds tsk R SOME IN j JOBj.
           unfold edf_rta_iteration in *.
           have BOUND := bertogna_cirinei_response_time_bound_edf.
-          unfold is_response_time_bound_of_task, job_has_completed_by in *.
+          unfold is_response_time_bound_of_task in *.
           apply BOUND with (task_cost := task_cost) (task_period := task_period)
              (task_deadline := task_deadline) (job_deadline := job_deadline)
              (job_task := job_task) (ts := ts) (tsk := tsk) (rt_bounds := rt_bounds); try (by ins).

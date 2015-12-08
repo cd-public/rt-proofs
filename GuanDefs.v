@@ -198,10 +198,8 @@ Module ResponseTimeAnalysisGuan.
         is_response_time_bound tsk R.
       Proof.
         unfold is_response_time_bound, is_response_time_bound_of_task,
-               job_has_completed_by, completed,
-               completed_jobs_dont_execute,
-               valid_sporadic_job_with_jitter,
-               valid_sporadic_job in *.
+               completed, completed_jobs_dont_execute,
+               valid_sporadic_job_with_jitter, valid_sporadic_job in *.
         rename H_completed_jobs_dont_execute into COMP,
                H_response_time_recurrence_holds into REC,
                H_valid_job_parameters into PARAMS,

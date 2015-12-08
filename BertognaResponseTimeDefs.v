@@ -341,9 +341,7 @@ Module ResponseTimeAnalysis.
       is_response_time_bound tsk R.
     Proof.
       unfold is_response_time_bound, is_response_time_bound_of_task,
-             job_has_completed_by, completed,
-             completed_jobs_dont_execute,
-             valid_sporadic_job in *.
+             completed, completed_jobs_dont_execute, valid_sporadic_job in *.
       rename H_completed_jobs_dont_execute into COMP,
              H_response_time_recurrence_holds into REC,
              H_valid_job_parameters into PARAMS,
@@ -414,12 +412,12 @@ Module ResponseTimeAnalysis.
           by destruct (sched cpu t);[by rewrite HAScpu mul1n RATE|by ins].
         }
         {
-          apply workload_bounded_by_W with (task_deadline0 := task_deadline) (job_cost0 := job_cost) (job_deadline0 := job_deadline); ins;
-            [ by rewrite RATE
-            | by apply TASK_PARAMS
-            | by apply RESTR
-            | by red; red; ins; apply (RESP tsk_k)  
-            | by apply GE_COST |].
+          apply workload_bounded_by_W with (task_deadline0 := task_deadline) (job_cost0 := job_cost) (job_deadline0 := job_deadline); try (by ins); last 2 first;
+            [ by ins; apply GE_COST 
+            |  by ins; apply RESP with (hp_tsk := tsk_k)
+            | by ins; rewrite RATE
+            | by ins; apply TASK_PARAMS
+            | by ins; apply RESTR |].
           red; red; move => j' /eqP JOBtsk' _;
           unfold job_misses_no_deadline.
           specialize (PARAMS j'); des.
@@ -737,7 +735,7 @@ Module ResponseTimeAnalysis.
       destruct tup_k as [tsk_k R_k]; simpl in LTmin.
       move: LTmin => /andP [INTERFk LTmin]; move: (INTERFk) => /andP [INk INTERFk'].
       rewrite INTERFk' in LTmin; unfold minn at 1 in LTmin.
-      destruct (W task_cost task_period tsk_k R_k R < R - task_cost tsk + 1); rewrite leq_min in LTmin;
+      destruct (W task_cost task_period tsk_k R_k R < R - task_cost tsk + 1); rewrite leq_min in LTmin; 
         last by move: LTmin => /andP [_ BUG]; rewrite ltnn in BUG.
       move: LTmin => /andP [BUG _]; des.
       specialize (WORKLOAD tsk_k INTERFk R_k HPk).

@@ -125,8 +125,8 @@ Module ResponseTimeAnalysisEDF.
 
     Let no_deadline_is_missed_by_tsk (tsk: sporadic_task) :=
       task_misses_no_deadline job_cost job_deadline job_task rate sched tsk.
-    Let is_response_time_bound (tsk: sporadic_task) :=
-      is_response_time_bound_of_task job_cost job_task tsk rate sched.
+    Let response_time_bounded_by (j: JobIn arr_seq) (R: time) :=
+      completed job_cost rate sched j (job_arrival j + R).
 
     (* Assume a known response-time bound R is known...  *)
     Let task_with_response_time := (sporadic_task * time)%type.
@@ -167,20 +167,22 @@ Module ResponseTimeAnalysisEDF.
           (fun tsk_other : sporadic_task =>
              is_interfering_task_jlfp tsk tsk_other &&
                task_is_scheduled job_task sched tsk_other t) ts = num_cpus.
-
+        
     (* Next, we define Bertogna and Cirinei's response-time bound recurrence *)  
     Variable tsk: sporadic_task.
+
     Variable R: time.
     Hypothesis H_tsk_R_in_rt_bounds: (tsk, R) \in rt_bounds.
-      
-    (* ..., then R bounds the response time of tsk in any schedule. *)
+
+    Variable j: JobIn arr_seq.
+    Hypothesis H_job_of_tsk: job_task j = tsk.
+
+    (* Now, we prove that R bounds the response time of tsk in any schedule. *)
     Theorem bertogna_cirinei_response_time_bound_edf :
-      is_response_time_bound tsk R.
+      response_time_bounded_by j R.
     Proof.
-        unfold is_response_time_bound, is_response_time_bound_of_task,
-               job_has_completed_by, completed,
-               completed_jobs_dont_execute,
-               valid_sporadic_job in *.
+        unfold response_time_bounded_by, completed, completed_jobs_dont_execute,
+             valid_sporadic_job in *.
         rename H_completed_jobs_dont_execute into COMP,
                H_valid_job_parameters into PARAMS,
                H_valid_task_parameters into TASK_PARAMS,
@@ -191,34 +193,33 @@ Module ResponseTimeAnalysisEDF.
                H_global_scheduling_invariant into INVARIANT,
                (*H_response_time_bounds_ge_cost into GE_COST,*)
                H_response_time_is_fixed_point into FIX,
-               H_tsk_R_in_rt_bounds into INbounds.
+               H_tsk_R_in_rt_bounds into INbounds,
+               H_job_of_tsk into JOBtsk.
 
         (* Let's prove some basic facts about the tasks. *)
-        assert (INts: forall tsk R,
-                         (tsk, R) \in rt_bounds ->
-                         tsk \in ts).
+        assert (INts: forall tsk R, (tsk, R) \in rt_bounds -> tsk \in ts).
         {
           by intros tsk0 R0 IN0; rewrite -HASTASKS; apply/mapP; exists (tsk0, R0).
         }
 
-        assert (GE_COST: forall tsk R,
-                           (tsk, R) \in rt_bounds ->
-                           task_cost tsk <= R).
+        assert (GE_COST: forall tsk R, (tsk, R) \in rt_bounds -> task_cost tsk <= R).
         {
           by intros tsk0 R0 IN0; rewrite [R0](FIX tsk0); first apply leq_addr.
         }
           
         (* First, rewrite the claim in terms of the *absolute* response-time bound (arrival + R) *)
-        intros j JOBtsk.
         remember (job_arrival j + R) as ctime; rename Heqctime into EQc.
-        rewrite -[R](addKn (job_arrival j)) -EQc in INbounds; clear EQc R.
+        assert (R = ctime - job_arrival j).
+        {
+          by rewrite -[R](addKn (job_arrival j)) -EQc.
+        } subst R; clear EQc.
         revert tsk j JOBtsk INbounds.
 
         (* Now, we apply strong induction on the absolute response-time bound. *)
         induction ctime as [ctime BEFOREok] using strong_ind_lt.
-        intros tsk' j JOBtsk INbounds.
-        remember (ctime - job_arrival j) as R. 
-        assert (EQc: ctime = job_arrival j + R).
+        intros tsk' j' JOBtsk INbounds.
+        remember (ctime - job_arrival j') as R. 
+        assert (EQc: ctime = job_arrival j' + R).
         {
           rewrite HeqR addnBA; first by rewrite addnC -addnBA // subnn addn0.
           specialize (GE_COST tsk' R INbounds).
@@ -234,19 +235,23 @@ Module ResponseTimeAnalysisEDF.
            have correct response-time bounds.
            Now, we prove the same result for job j by contradiction.
            Assume that (job_arrival j + R) is not a response-time bound for job j. *)
-        destruct (completed job_cost rate sched j (job_arrival j + R)) eqn:COMPLETED;
+        destruct (completed job_cost rate sched j' (job_arrival j' + R)) eqn:COMPLETED;
           first by move: COMPLETED => /eqP COMPLETED; rewrite COMPLETED eq_refl.
         apply negbT in COMPLETED; exfalso.
-        
-        (* For simplicity, let x denote per-task interference under EDF
-           scheduling, and let X denote the total interference. *)
-        set x := fun tsk_other =>
-          if (tsk_other \in ts) && is_interfering_task_jlfp tsk' tsk_other then
-            task_interference job_cost job_task rate sched j
-                     (job_arrival j) (job_arrival j + R) tsk_other
-          else 0.
-        set X := total_interference job_cost rate sched j (job_arrival j) (job_arrival j + R).
 
+        (* Let x be the cumulative time during [job_arrival j, job_arrival j + R)
+           where a job j is interfered with by tsk_k, ... *)
+        set x := fun tsk_other =>
+               if (tsk_other \in ts) && is_interfering_task_jlfp tsk' tsk_other then
+                  task_interference job_cost job_task rate sched j'
+                     (job_arrival j') (job_arrival j' + R) tsk_other
+               else 0.
+
+        (* ..., and let X be the cumulative time in the same interval where j is interfered
+           with by any task. *)
+        set X :=
+          total_interference job_cost rate sched j' (job_arrival j') (job_arrival j' + R).
+        
         (* Let's recall the interference bound under EDF scheduling. *)
         set I_edf := fun (tup: task_with_response_time) =>
           let (tsk_k, R_k) := tup in
@@ -256,8 +261,8 @@ Module ResponseTimeAnalysisEDF.
         
         (* Since j has not completed, recall the time when it is not
            executing is the total interference. *)
-        exploit (complement_of_interf_equals_service job_cost rate sched j (job_arrival j)
-                                                     (job_arrival j + R));
+        exploit (complement_of_interf_equals_service job_cost rate sched j' (job_arrival j')
+                                                     (job_arrival j' + R));
           last intro EQinterf; ins; unfold has_arrived;
           first by apply leqnn.
         rewrite {2}[_ + R]addnC -addnBA // subnn addn0 in EQinterf.
@@ -276,7 +281,7 @@ Module ResponseTimeAnalysisEDF.
           move: INTERFk => /andP [INk INTERFk].
           unfold task_interference.
           apply leq_trans with (n := workload job_task rate sched tsk_k
-                                     (job_arrival j) (job_arrival j + R)).
+                                     (job_arrival j') (job_arrival j' + R)).
           {
             unfold task_interference, workload.
             apply leq_sum; intros t _.
@@ -291,50 +296,28 @@ Module ResponseTimeAnalysisEDF.
             by destruct (sched cpu t);[by rewrite HAScpu mul1n RATE|by ins].
           }
           {
-            apply workload_bounded_by_W with (task_deadline0 := task_deadline) (job_cost0 := job_cost) (job_deadline0 := job_deadline); try (by ins);
-              [ by ins; rewrite RATE
+            apply workload_bounded_by_W with (task_deadline0 := task_deadline) (job_cost0 := job_cost) (job_deadline0 := job_deadline); try (by ins); last 2 first;
+              [ by apply GE_COST
+              | by ins; apply BEFOREok with (tsk := tsk_k); try rewrite addKn
+              | by ins; rewrite RATE
               | by ins; apply TASK_PARAMS
-              | by ins; apply RESTR |  
-              | by apply GE_COST |].
-            {
-              red; red; intros j0 JOB0. set R_k := ctime - job_arrival j_k.
-              apply BEFOREok with (tsk := tsk_k); try (by done); last by rewrite addKn.
-              admit.
-                (* We need to weaken the conditions in WorkloadDefs.v to remove the restriction
-                   that R_k is a response-time bound for all jobs. *)
-            }
-            red; red; move => j' /eqP JOBtsk' LEdl; unfold job_misses_no_deadline.
-            specialize (PARAMS j'); des; rewrite PARAMS1 JOBtsk'.
-            apply completion_monotonic with (t := job_arrival j' + (ctime - job_arrival j_k)); ins;
+              | by ins; apply RESTR |].
+            red; move => j'' /eqP JOBtsk' LEdl; unfold job_misses_no_deadline.
+            specialize (PARAMS j''); des; rewrite PARAMS1 JOBtsk'.
+            apply completion_monotonic with (t := job_arrival j'' + (R_k)); ins;
               first by rewrite leq_add2l; apply NOMISS.
             apply BEFOREok with (tsk := tsk_k); try (by done); last by rewrite addKn.
-            apply leq_ltn_trans with (n := job_arrival j' + job_deadline j'); last by done.
-            by rewrite leq_add2l PARAMS1 JOBtsk' -JOBk; apply NOMISS; rewrite JOBk.
+            apply leq_ltn_trans with (n := job_arrival j'' + job_deadline j''); last by done.
+            by rewrite leq_add2l PARAMS1 JOBtsk'; apply NOMISS.
           }
-          admit.
         }
 
-        (*forall ctime : nat,
-                    ctime < job_arrival j + R ->
-                    forall (tsk_k : sporadic_task) (j_k : JobIn arr_seq),
-                      job_task j_k = tsk_k ->
-                      (tsk_k, ctime - job_arrival j_k) \in rt_bounds ->
-                      x tsk_k <= W task_cost task_period tsk_k (ctime - job_arrival j_k) R).
-        {
-          intros ctime LEt tsk_k j_k JOBk INBOUNDSk; unfold x, interference_bound.
-          destruct ((tsk_k \in ts) && (is_interfering_task_jlfp tsk' tsk_k)) eqn:INk;
-            last by done.
-          move: INk => /andP [INk INTERFk]; simpl.
-        }*)
-        
         assert (EDFBOUND:
-                  forall tsk_k R_k,
-                    (tsk_k, R_k) \in rt_bounds ->
-                    x tsk_k <= edf_specific_bound task_cost task_period
-                                           task_deadline tsk' (tsk_k, R_k)).
+                forall tsk_k R_k,
+                  (tsk_k, R_k) \in rt_bounds ->
+                  x tsk_k <= edf_specific_bound task_cost task_period task_deadline tsk' (tsk_k, R_k)).
         {
-          intros tsk_k R_k.
-          unfold edf_specific_bound.
+          intros tsk_k R_k INBOUNDSk.
           admit.
         }
         
@@ -351,17 +334,17 @@ Module ResponseTimeAnalysisEDF.
           move: COMPLETED; rewrite neq_ltn; move => /orP COMPLETED; des;
             last first.
           {
-            apply (leq_ltn_trans (COMP j (job_arrival j + R))) in COMPLETED.
+            apply (leq_ltn_trans (COMP j' (job_arrival j' + R))) in COMPLETED.
             by rewrite ltnn in COMPLETED.
           }
-          apply leq_trans with (n := R - service rate sched j (job_arrival j + R)); last first.
+          apply leq_trans with (n := R - service rate sched j' (job_arrival j' + R)); last first.
           {
             unfold service; rewrite service_before_arrival_eq_service_during; ins.
             rewrite EQinterf.
             rewrite subKn; first by ins.
             {
               unfold total_interference.
-              rewrite -{1}[_ j]add0n big_addn addnC -addnBA // subnn addn0.
+              rewrite -{1}[_ j']add0n big_addn addnC -addnBA // subnn addn0.
               rewrite -{2}[R]subn0 -[R-_]mul1n -[1*_]addn0 -iter_addn.
               by rewrite -big_const_nat leq_sum //; ins; apply leq_b1.
             }
@@ -369,12 +352,12 @@ Module ResponseTimeAnalysisEDF.
           {
             apply ltn_sub2l; last first.
             {
-              apply leq_trans with (n := job_cost j); first by ins.
-              by rewrite -JOBtsk; specialize (PARAMS j); des; apply PARAMS0.
+              apply leq_trans with (n := job_cost j'); first by ins.
+              by rewrite -JOBtsk; specialize (PARAMS j'); des; apply PARAMS0.
             }
-            apply leq_trans with (n := job_cost j); first by ins.
+            apply leq_trans with (n := job_cost j'); first by ins.
             apply leq_trans with (n := task_cost tsk');
-              first by rewrite -JOBtsk; specialize (PARAMS j); des; apply PARAMS0.
+              first by rewrite -JOBtsk; specialize (PARAMS j'); des; apply PARAMS0.
             by rewrite [R](FIX tsk'); first by apply leq_addr.
           }
         }
@@ -388,7 +371,7 @@ Module ResponseTimeAnalysisEDF.
           unfold x, X, total_interference, task_interference.
           rewrite -big_mkcond -exchange_big big_distrl /=.
           apply eq_big_nat; move => t LTt.
-          destruct (backlogged job_cost rate sched j t) eqn:BACK;
+          destruct (backlogged job_cost rate sched j' t) eqn:BACK;
             last by rewrite (eq_bigr (fun i => 0));
               [by rewrite big_const_seq iter_addn mul0n addn0 mul0n|by ins].
           rewrite big_mkcond mul1n /=.
@@ -402,7 +385,7 @@ Module ResponseTimeAnalysisEDF.
           rewrite (eq_bigr (fun i => if (i \in ts) && true then (if is_interfering_task_jlfp tsk' i && task_is_scheduled job_task sched i t then 1 else 0) else 0));
             last by ins; destruct (i \in ts) eqn:IN; rewrite ?andTb ?andFb.
           rewrite -big_mkcond -big_seq_cond -big_mkcond sum1_count.
-          by apply (INVARIANT tsk' j); try (by done); apply (INts tsk' R).   
+          by apply (INVARIANT tsk' j'); try (by done); apply (INts tsk' R).   
         }
         
         (* 3) Next, we prove the auxiliary lemma from the paper. *)
@@ -451,18 +434,18 @@ Module ResponseTimeAnalysisEDF.
                            (R - task_cost tsk' + 1) * (num_cpus - cardA)).
           {
             set some_interference_A := fun t =>
-              backlogged job_cost rate sched j t &&
+              backlogged job_cost rate sched j' t &&
               has (fun tsk_k => (is_interfering_task_jlfp tsk' tsk_k &&
                               ((x tsk_k) >= R - task_cost tsk' + 1) &&
                               task_is_scheduled job_task sched tsk_k t)) ts.      
             set total_interference_B := fun t =>
-              backlogged job_cost rate sched j t *
+              backlogged job_cost rate sched j' t *
               count (fun tsk_k =>
                 is_interfering_task_jlfp tsk' tsk_k &&
                 ((x tsk_k) < R - task_cost tsk' + 1) &&
                 task_is_scheduled job_task sched tsk_k t) ts.
 
-            apply leq_trans with ((\sum_(job_arrival j <= t < job_arrival j + R)
+            apply leq_trans with ((\sum_(job_arrival j' <= t < job_arrival j' + R)
                                       some_interference_A t) * (num_cpus - cardA)).
             {
               rewrite leq_mul2r; apply/orP; right.
@@ -473,7 +456,7 @@ Module ResponseTimeAnalysisEDF.
                 last by ins.
               move: INTERFa => /andP INTERFa; des.
               apply leq_sum; ins.
-              destruct (backlogged job_cost rate sched j i);
+              destruct (backlogged job_cost rate sched j' i);
                 [rewrite 2!andTb | by ins].
               destruct (task_is_scheduled job_task sched tsk_a i) eqn:SCHEDa;
                 [apply eq_leq; symmetry | by ins].
@@ -482,13 +465,13 @@ Module ResponseTimeAnalysisEDF.
               apply/andP; split; last by ins.
               by apply/andP; split; ins.
             }
-            apply leq_trans with (\sum_(job_arrival j <= t < job_arrival j + R)
+            apply leq_trans with (\sum_(job_arrival j' <= t < job_arrival j' + R)
                                      total_interference_B t).
             {
               rewrite big_distrl /=.
               apply leq_sum; intros t _.
               unfold some_interference_A, total_interference_B. 
-              destruct (backlogged job_cost rate sched j t) eqn:BACK;
+              destruct (backlogged job_cost rate sched j' t) eqn:BACK;
                 [rewrite andTb mul1n | by ins].
               destruct (has (fun tsk_k : sporadic_task =>
                        is_interfering_task_jlfp tsk' tsk_k &&
@@ -552,9 +535,9 @@ Module ResponseTimeAnalysisEDF.
             {
               unfold x at 2, task_interference.
               rewrite [\sum_(i <- ts | _) _](eq_bigr
-                (fun i => \sum_(job_arrival j <= t < job_arrival j + R)
+                (fun i => \sum_(job_arrival j' <= t < job_arrival j' + R)
                              (i \in ts) && is_interfering_task_jlfp tsk' i &&
-                             backlogged job_cost rate sched j t &&
+                             backlogged job_cost rate sched j' t &&
                              task_is_scheduled job_task sched i t));
                 last first.
               {
@@ -566,10 +549,11 @@ Module ResponseTimeAnalysisEDF.
               {
                 rewrite exchange_big /=; apply leq_sum; intros t _.
                 unfold total_interference_B.
-                destruct (backlogged job_cost rate sched j t); last by ins.
+                destruct (backlogged job_cost rate sched j' t); last by ins.
                 rewrite mul1n -sum1_count.
                 rewrite big_seq_cond big_mkcond [\sum_(i <- ts | _ < _) _]big_mkcond.
-                apply leq_sum; ins; destruct (x i<R - task_cost tsk' + 1);
+                apply leq_sum; ins.
+                destruct (x i<R - task_cost tsk' + 1);
                   [by rewrite 2!andbT andbA | by rewrite 2!andbF].
               }
             }
@@ -649,7 +633,7 @@ Module ResponseTimeAnalysisEDF.
           }
           {
             apply leq_trans with (n := x tsk_k); first by rewrite geq_minl.
-            by apply EDFBOUND.
+            admit.
           }
         }
 
@@ -661,7 +645,7 @@ Module ResponseTimeAnalysisEDF.
         rewrite INTERFk' in LTmin.
         unfold interference_bound_edf, interference_bound in LTmin.
         rewrite minnAC in LTmin; apply min_lt_same in LTmin.
-        unfold minn in LTmin; clear -LTmin EDFBOUND BASICBOUND HPk; desf.
+        unfold minn in LTmin; clear -LTmin EDFBOUND BASICBOUND JOBtsk HPk; desf.
         {
           specialize (BASICBOUND tsk_k R_k HPk).
           by apply (leq_ltn_trans BASICBOUND) in LTmin; rewrite ltnn in LTmin. 
