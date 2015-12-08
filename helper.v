@@ -759,9 +759,23 @@ Proof.
   }
 Qed.
 
-
-
-(*Program Definition fun_ord_to_nat2 {n} {T} (x0: T) (f: 'I_n -> T)
+Lemma min_lt_same :
+  forall x y z,
+    minn x z < minn y z -> x < y.
+Proof.
+  unfold minn; ins; desf.
+  {
+    apply negbT in Heq0; rewrite -ltnNge in Heq0.
+    by apply leq_trans with (n := z).
+  }
+  {
+    apply negbT in Heq; rewrite -ltnNge in Heq.
+    by apply (ltn_trans H) in Heq0; rewrite ltnn in Heq0.
+  }
+  by rewrite ltnn in H.
+Qed.
+ 
+    (*Program Definition fun_ord_to_nat2 {n} {T} (x0: T) (f: 'I_n -> T)
         (x : nat) : T :=
   match (x < n) with
       true => (f _)

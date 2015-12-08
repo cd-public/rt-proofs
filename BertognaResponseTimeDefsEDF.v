@@ -240,10 +240,10 @@ Module ResponseTimeAnalysisEDF.
         
         (* For simplicity, let x denote per-task interference under EDF
            scheduling, and let X denote the total interference. *)
-        set x := fun hp_tsk =>
-          if (hp_tsk \in ts) && is_interfering_task_jlfp tsk' hp_tsk then
+        set x := fun tsk_other =>
+          if (tsk_other \in ts) && is_interfering_task_jlfp tsk' tsk_other then
             task_interference job_cost job_task rate sched j
-                     (job_arrival j) (job_arrival j + R) hp_tsk
+                     (job_arrival j) (job_arrival j + R) tsk_other
           else 0.
         set X := total_interference job_cost rate sched j (job_arrival j) (job_arrival j + R).
 
@@ -265,7 +265,15 @@ Module ResponseTimeAnalysisEDF.
         (* In order to derive a contradiction, we first show that per-task
            interference x_k is no larger than the basic interference bound (based on W). *)
         assert (BASICBOUND:
-                  forall ctime : nat,
+                  forall tsk_k R_k,
+                    (tsk_k, R_k) \in rt_bounds ->
+                                     x tsk_k <= W task_cost task_period tsk_k R_k R).
+        {
+          intros tsk_k R_k INBOUNDSk.
+          admit.
+        }
+
+        (*forall ctime : nat,
                     ctime < job_arrival j + R ->
                     forall (tsk_k : sporadic_task) (j_k : JobIn arr_seq),
                       job_task j_k = tsk_k ->
@@ -312,17 +320,15 @@ Module ResponseTimeAnalysisEDF.
             apply leq_ltn_trans with (n := job_arrival j' + job_deadline j'); last by done.
             by rewrite leq_add2l PARAMS1 JOBtsk' -JOBk; apply NOMISS; rewrite JOBk.
           }
-        }
+        }*)
         
-        assert (EDFBOUND: forall ctime : nat,
-                    ctime < job_arrival j + R ->
-                    forall (tsk_k : sporadic_task) (j_k : JobIn arr_seq),
-                      job_task j_k = tsk_k ->
-                      (tsk_k, ctime - job_arrival j_k) \in rt_bounds ->
-                      x tsk_k <= edf_specific_bound task_cost task_period
-                                                          task_deadline tsk' (tsk_k, ctime - job_arrival j_k)).
+        assert (EDFBOUND:
+                  forall tsk_k R_k,
+                    (tsk_k, R_k) \in rt_bounds ->
+                    x tsk_k <= edf_specific_bound task_cost task_period
+                                           task_deadline tsk' (tsk_k, R_k)).
         {
-          intros ctime LTctime tsk_k j_k JOBk INBOUNDSk.
+          intros tsk_k R_k.
           unfold edf_specific_bound.
           admit.
         }
@@ -578,59 +584,45 @@ Module ResponseTimeAnalysisEDF.
                      minn (x tsk_k) (R - task_cost tsk' + 1) >
                      I tsk' R). 
         {
-          admit.
-          (*apply leq_trans with (n := \sum_(tsk_k <- ts) minn (x tsk_k) (R - task_cost tsk' + 1));
+          apply leq_trans with (n := \sum_(tsk_k <- ts) minn (x tsk_k) (R - task_cost tsk' + 1));
             last first.
-          { apply leq_trans with (n :=  \sum_(i<- rt_bounds | is_interfering_task_jlfp tsk' (fst i))
-                                                                               (minn (x (fst i)) ((snd(i) - task_cost tsk' + 1))));
-              last first.
-            {
-              apply leq_sum; intros i _; destruct i as [i R_i].
-              rewrite leq_min; apply/andP; split; last by done.
-              {
-                apply leq_trans with (n := x i); first by apply geq_minl.
-                unfold interference_bound_edf, interference_bound.
-                admit.
-              }
-            }
-            
-            rewrite (eq_bigr (fun i => minn (x (fst i)) (R - task_cost tsk' + 1))).
-            admit.
-            admit.
+          {
+            rewrite (eq_bigr (fun i => minn (x (fst i)) (R - task_cost tsk' + 1)));
+              last by ins; destruct i.
+            apply leq_trans with (n := \sum_(tsk_k <- ts | is_interfering_task_jlfp tsk' tsk_k) minn (x tsk_k) (R - task_cost tsk' + 1)).
+          {
+            rewrite [\sum_(_ <- _ | is_interfering_task_jlfp _ _)_]big_mkcond eq_leq //.
+            apply eq_bigr; intros i _; unfold x.
+            destruct (is_interfering_task_jlfp tsk' i); last by rewrite andbF min0n.
+            by rewrite andbT; destruct (i \in ts); last by rewrite min0n.
           }
-          admit.*)
-        }
-        
-            (* last by ins; destruct i.
-            apply leq_trans with (n := \sum_(tsk_k <- ts | is_interfering_task_jlfp tsk tsk_k) minn (x tsk_k) (R - task_cost tsk + 1)).
-            {
-              rewrite [\sum_(_ <- _ | is_interfering_task_jlfp tsk _)_]big_mkcond eq_leq //.
-              apply eq_bigr; intros i _; unfold x.
-              by destruct (is_interfering_task_jlfp tsk i); rewrite ?andbT ?andbF ?min0n.
-            }
-            have MAP := big_map (fun x => fst x) (fun i => true) (fun i => minn (x i) (R - task_cost tsk + 1)).
-            unfold unzip1 in *. rewrite -MAP. -FST -big_filter.
+            have MAP := big_map (fun x => fst x) (fun i => true) (fun i => minn (x i) (R - task_cost tsk' + 1)).
+            unfold unzip1 in *; rewrite -MAP HASTASKS.
+            rewrite big_mkcond /= big_seq_cond [\sum_(_ <- _ | true)_]big_seq_cond.
+            apply leq_sum; intro i; rewrite andbT; intro INi.
+            unfold x; rewrite INi andTb.
+            by destruct (is_interfering_task_jlfp tsk' i).
           }
-          apply ltn_div_trunc with (d := num_cpus);
-            first by apply H_at_least_one_cpu.
-          rewrite -(ltn_add2l (task_cost tsk)) -REC.
+          apply ltn_div_trunc with (d := num_cpus); first by apply H_at_least_one_cpu.
+          rewrite -(ltn_add2l (task_cost tsk')) -FIX; last by done.
           rewrite -addn1 -leq_subLR.
-          rewrite -[R + 1 - _]subh1; last by rewrite REC; apply leq_addr.
+          rewrite -[R + 1 - _]subh1; last by apply GE_COST.
           rewrite leq_divRL; last by apply H_at_least_one_cpu.
           apply MINSERV.
           apply leq_trans with (n := X * num_cpus); last by rewrite ALLBUSY.
           by rewrite leq_mul2r; apply/orP; right; apply INTERF.
-        }*)
-
+        }
+      
         (* 5) This implies that there exists a tuple (tsk_k, R_k) such that
               min (x_k, R - e_i + 1) > min (W_k, R - e_i + 1). *)
         assert (EX:
             has (fun tup : task_with_response_time => let (tsk_k, R_k) := tup in
-              (tsk_k \in ts) && is_interfering_task_jlfp tsk' tsk_k &&                     (minn (x tsk_k) (R - task_cost tsk' + 1)  >
-                              minn (I_edf (tsk_k, R_k)) (R - task_cost tsk' + 1)))
-                        rt_bounds).
+                           (tsk_k \in ts) && is_interfering_task_jlfp tsk' tsk_k &&
+                              (minn (x tsk_k) (R - task_cost tsk' + 1)  >
+                              I_edf (tsk_k, R_k)))
+                 rt_bounds).
         {
-          apply/negP; unfold not; intro NOTHAS.
+          unfold I_edf; apply/negP; unfold not; intro NOTHAS.
           move: NOTHAS => /negP /hasPn ALL.
           rewrite -[_ < _]negbK in SUM.
           move: SUM => /negP SUM; apply SUM; rewrite -leqNgt.
@@ -648,33 +640,30 @@ Module ResponseTimeAnalysisEDF.
             unfold interference_bound; rewrite leq_min; apply/andP; split;
               last by rewrite geq_minr.
             apply leq_trans with (n := x tsk_k); first by rewrite geq_minl.
-
-            admit. (* We need to use BASICBOUND*)
+            by apply BASICBOUND.
           }
           {
-            
-            admit. (* We need to use EDFBOUND*)
+            apply leq_trans with (n := x tsk_k); first by rewrite geq_minl.
+            by apply EDFBOUND.
           }
         }
-        
+
         (* For this particular task, we show that x_k > W_k.
            This contradicts the previous claim. *)
         move: EX => /hasP EX; destruct EX as [tup_k HPk LTmin].
         destruct tup_k as [tsk_k R_k]; simpl in LTmin.
         move: LTmin => /andP [INTERFk LTmin]; move: (INTERFk) => /andP [INk INTERFk'].
-        rewrite INTERFk' in LTmin; unfold minn at 1 in LTmin.
-        destruct (interference_bound_edf task_cost task_period task_deadline tsk' R (tsk_k, R_k) < R - task_cost tsk' + 1) eqn:LT;
-        rewrite LT leq_min in LTmin;
-          last by move: LTmin => /andP [_ BUG]; rewrite ltnn in BUG.
-        move: LTmin => /andP [BUG _]; des; clear LT.
-        unfold interference_bound_edf in BUG; unfold minn in BUG.
-        destruct (interference_bound task_cost task_period tsk' R (tsk_k, R_k) < edf_specific_bound task_cost task_period task_deadline tsk' (tsk_k, R_k)) eqn:MIN;
-          rewrite MIN in BUG; clear MIN.
+        rewrite INTERFk' in LTmin.
+        unfold interference_bound_edf, interference_bound in LTmin.
+        rewrite minnAC in LTmin; apply min_lt_same in LTmin.
+        unfold minn in LTmin; clear -LTmin EDFBOUND BASICBOUND HPk; desf.
         {
-          admit. (* Use BASICBOUND *)
+          specialize (BASICBOUND tsk_k R_k HPk).
+          by apply (leq_ltn_trans BASICBOUND) in LTmin; rewrite ltnn in LTmin. 
         }
         {
-          admit. (* USE EDFBOUND *)
+          specialize (EDFBOUND tsk_k R_k HPk).
+          by apply (leq_ltn_trans EDFBOUND) in LTmin; rewrite ltnn in LTmin.
         }
     Qed.
 
