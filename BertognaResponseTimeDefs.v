@@ -22,27 +22,42 @@ Module ResponseTimeAnalysis.
     Variable rate: Job -> processor num_cpus -> nat.
     Variable sched: schedule num_cpus arr_seq.
 
-    (* Consider any job j in a time interval [t1, t2), and ... *)
+    (* Consider any job j that incurs interference. *)
     Variable j: JobIn arr_seq.
-    Variable t1 t2: time.
 
-    (* recall the definition of backlogged (pending and not scheduled). *)
+    (* Recall the definition of backlogged (pending and not scheduled). *)
     Let job_is_backlogged (t: time) :=
       backlogged job_cost rate sched j t.
 
-    (* We define the total interference incurred by job j during [t1, t2)
-       as the cumulative time in which j is backlogged in this interval. *)
-    Definition total_interference :=
-      \sum_(t1 <= t < t2) job_is_backlogged t.
+    Section TotalInterference.
+      
+      (* First, we define the total interference incurred by job j during [t1, t2)
+         as the cumulative time in which j is backlogged in this interval. *)
+      Definition total_interference (t1 t2: time) :=
+        \sum_(t1 <= t < t2) job_is_backlogged t.
 
+    End TotalInterference.
+    
+    Section JobInterference.
+
+      (* Let job_other be a job that interferes with j. *)
+      Variable job_other: JobIn arr_seq.
+
+      (* The interference caused by job_other is defined as follows. *)
+      Definition job_interference (t1 t2: time) :=
+        \sum_(t1 <= t < t2)
+         (job_is_backlogged t && scheduled sched job_other t).
+
+    End JobInterference.
+    
     Section TaskInterference.
 
-      (* In order to define task interference, consider any task tsk. *)
-      Variable tsk: sporadic_task.
+      (* In order to define task interference, consider any interfering task tsk_other. *)
+      Variable tsk_other: sporadic_task.
     
       Definition schedules_job_of_tsk (cpu: processor num_cpus) (t: time) :=
         match (sched cpu t) with
-          | Some j' => job_task j' == tsk
+          | Some j' => job_task j' == tsk_other
           | None => false
         end.
 
@@ -53,29 +68,154 @@ Module ResponseTimeAnalysis.
 
       (* We define the total interference incurred by tsk during [t1, t2)
          as the cumulative time in which tsk is scheduled. *)
-      Definition task_interference :=
+      Definition task_interference (t1 t2: time) :=
         \sum_(t1 <= t < t2)
           (job_is_backlogged t && task_is_scheduled t).
 
-      (* Note that this definition assumes that no multiple jobs of
-         the same task execute in parallel (task precedence). *)
     End TaskInterference.
+
+    Section TaskInterferenceJobList.
+
+      Variable tsk_other: sporadic_task.
+
+      Definition task_interference_joblist (t1 t2: time) :=
+        \sum_(j <- jobs_scheduled_between sched t1 t2 | job_task j == tsk_other)
+         job_interference j t1 t2.
+
+    End TaskInterferenceJobList.
 
     Section BasicLemmas.
 
       (* Interference cannot be larger than the considered time window. *)
-      Lemma total_interference_le_delta : total_interference <= t2 - t1.
+      Lemma total_interference_le_delta :
+        forall t1 t2,
+          total_interference t1 t2 <= t2 - t1.
       Proof.
-        unfold total_interference.
+        unfold total_interference; intros t1 t2.
         apply leq_trans with (n := \sum_(t1 <= t < t2) 1);
           first by apply leq_sum; ins; apply leq_b1.
         by rewrite big_const_nat iter_addn mul1n addn0 leqnn.
       Qed.
 
+      Hypothesis rate_positive: forall cpu t, rate cpu t > 0.
+
+      Lemma job_interference_le_service :
+        forall j_other t1 t2,
+          job_interference j_other t1 t2 <= service_during rate sched j_other t1 t2.
+      Proof.
+        intros j_other t1 t2; unfold job_interference, service_during.
+        apply leq_trans with (n := \sum_(t1 <= t < t2) scheduled sched j_other t);
+          first by apply leq_sum; ins; destruct (job_is_backlogged i); rewrite ?andTb ?andFb.
+        apply leq_sum; intros t _.
+        destruct (scheduled sched j_other t) eqn:SCHED; last by done.
+        move: SCHED => /existsP EX; destruct EX as [cpu]; move: H => /andP [IN SCHED].
+        unfold service_at; rewrite (bigD1 cpu); last by done.
+        by apply leq_trans with (n := rate j_other cpu);
+          [by apply rate_positive | apply leq_addr].
+      Qed.
+      
+      Lemma task_interference_le_workload :
+        forall tsk t1 t2,
+          task_interference tsk t1 t2 <= workload job_task rate sched tsk t1 t2.
+      Proof.
+        unfold task_interference, workload; intros tsk t1 t2.
+        apply leq_sum; intros t _.
+        rewrite -mulnb -[\sum_(_ < _) _]mul1n.
+        apply leq_mul; first by apply leq_b1.
+        destruct (task_is_scheduled tsk t) eqn:SCHED; last by ins.
+        unfold task_is_scheduled in SCHED.
+        move: SCHED =>/exists_inP SCHED.
+        destruct SCHED as [cpu _ HAScpu].
+        rewrite -> bigD1 with (j := cpu); simpl; last by ins.
+        apply ltn_addr; unfold service_of_task, schedules_job_of_tsk in *.
+        by destruct (sched cpu t); [rewrite HAScpu mul1n rate_positive | by ins].
+      Qed.
+
+      Lemma task_interference_monotonic :
+        forall tsk t1 t2 t1' t2',
+          t1' <= t1 ->
+          t2 <= t2' ->
+          task_interference tsk t1 t2 <= task_interference tsk t1' t2'.
+      Proof.
+        unfold task_interference; intros tsk t1 t2 t1' t2' LE1 LE2.
+        destruct (t1 <= t2) eqn:LE12;
+          last by apply negbT in LE12; rewrite -ltnNge in LE12; rewrite big_geq // ltnW.
+        rewrite -> big_cat_nat with (m := t1') (n := t1); try (by done); simpl;
+          last by apply leq_trans with (n := t2).
+        rewrite -> big_cat_nat with (p := t2') (n := t2); try (by done); simpl.
+        by rewrite addnC -addnA; apply leq_addr.
+    Qed.
+      
     End BasicLemmas.
-    
+
+    Section EquivalenceTaskInterference.
+      
+      Hypothesis H_no_intratask_parallelism:
+        forall (j j': JobIn arr_seq) t,
+          job_task j = job_task j' ->
+            scheduled sched j t -> scheduled sched j' t -> False.
+      
+      Lemma interference_eq_interference_joblist :
+        forall tsk t1 t2,
+          task_interference tsk t1 t2 = task_interference_joblist tsk t1 t2.
+      Proof.
+        intros tsk t1 t2; unfold task_interference, task_interference_joblist, job_interference.
+        rewrite [\sum_(j <- jobs_scheduled_between _ _ _ | _) _]exchange_big /=.
+        apply eq_big_nat; unfold service_at; intros t LEt.
+        destruct (job_is_backlogged t && task_is_scheduled tsk t) eqn:BACK.
+        {
+          move: BACK => /andP [BACK SCHED]; symmetry.
+          move: SCHED => /existsP SCHED; destruct SCHED as [x IN]; move: IN => /andP [IN SCHED].
+          unfold schedules_job_of_tsk in SCHED; desf.
+          rename SCHED into EQtsk0, Heq into SCHED; move: EQtsk0 => /eqP EQtsk0.
+          assert (SCHEDULED: scheduled sched j0 t).
+          {
+            apply/existsP; exists x; apply/andP; split; [by done | by rewrite SCHED eq_refl].
+          }
+          rewrite big_mkcond (bigD1_seq j0) /=; last by rewrite undup_uniq.
+          {
+            rewrite EQtsk0 eq_refl BACK SCHEDULED andbT big_mkcond.
+            rewrite (eq_bigr (fun x => 0));
+              first by rewrite big_const_seq iter_addn mul0n addn0 addn0.
+            intros j1 _; desf; [rewrite andTb | by done].
+            apply/eqP; rewrite eqb0; apply/negP; unfold not; intro SCHEDULED'.
+            apply (H_no_intratask_parallelism j0 j1 t); try (by done).
+            by move: Heq0 => /eqP Heq0; rewrite Heq0.
+          }
+          {
+            rewrite mem_undup.
+            apply mem_bigcat_nat with (j := t); first by done.
+            apply mem_bigcat_ord with (j := x); first by apply ltn_ord.
+            by rewrite SCHED mem_seq1 eq_refl.
+          }
+        }
+        {
+          rewrite big_mkcond (eq_bigr (fun x => 0));
+            first by rewrite big_const_seq iter_addn mul0n addn0.
+          intros i _; desf.
+          unfold task_is_scheduled in BACK.
+          apply negbT in BACK; rewrite negb_exists in BACK.
+          move: BACK => /forallP BACK.
+          assert (NOTSCHED: scheduled sched i t = false).
+          {
+            apply negbTE; rewrite negb_exists; apply/forallP.
+            intros x; rewrite negb_and.
+            specialize (BACK x); rewrite negb_and in BACK; ins.
+            unfold schedules_job_of_tsk in BACK.
+            destruct (sched x t) eqn:SCHED; last by ins.
+            apply/negP; unfold not; move => /eqP BUG; inversion BUG; subst.
+            by move: Heq => /eqP Heq; rewrite Heq eq_refl in BACK.
+          }
+          by rewrite NOTSCHED andbF.
+        }
+      Qed.
+
+    End EquivalenceTaskInterference.
+
     Section CorrespondenceWithService.
 
+      Variable t1 t2: time.
+      
       (* Assume that jobs do not execute in parallel, ...*)
       Hypothesis no_parallelism:
         jobs_dont_execute_in_parallel sched.
@@ -102,7 +242,7 @@ Module ResponseTimeAnalysis.
          the cumulative time in which it did not incur interference. *)
       Lemma complement_of_interf_equals_service :
         \sum_(t1 <= t < t2) service_at rate sched j t =
-          t2 - t1 - total_interference.
+          t2 - t1 - total_interference t1 t2.
       Proof.
         unfold completed, total_interference, job_is_backlogged,
                backlogged, service_during, pending.
@@ -354,13 +494,13 @@ Module ResponseTimeAnalysis.
              H_global_scheduling_invariant into INVARIANT,
              H_response_time_bounds_ge_cost into GE_COST.
       intros j JOBtsk.
-      
+
       (* For simplicity, let x denote per-task interference under FP
          scheduling, and let X denote the total interference. *)
       set x := fun hp_tsk =>
         if (hp_tsk \in ts) && interferes_with_tsk hp_tsk then
           task_interference job_cost job_task rate sched j
-                   (job_arrival j) (job_arrival j + R) hp_tsk
+                   hp_tsk (job_arrival j) (job_arrival j + R)
         else 0.
       set X := total_interference job_cost rate sched j (job_arrival j) (job_arrival j + R).
 
@@ -397,20 +537,8 @@ Module ResponseTimeAnalysis.
         move => tsk_k /andP [INk INTERk] R_k HPk.
         unfold x, workload_bound; rewrite INk INTERk andbT.
         apply leq_trans with (n := workload job_task rate sched tsk_k
-                                  (job_arrival j) (job_arrival j + R)).
-        {
-          unfold task_interference, workload.
-          apply leq_sum; intros t _.
-          rewrite -mulnb -[\sum_(_ < _) _]mul1n.
-          apply leq_mul; first by apply leq_b1.
-          destruct (task_is_scheduled job_task sched tsk_k t) eqn:SCHED; last by ins.
-          unfold task_is_scheduled in SCHED.
-          move: SCHED =>/exists_inP SCHED.
-          destruct SCHED as [cpu _ HAScpu].
-          rewrite -> bigD1 with (j := cpu); simpl; last by ins.
-          apply ltn_addr; unfold service_of_task, schedules_job_of_tsk in *.
-          by destruct (sched cpu t);[by rewrite HAScpu mul1n RATE|by ins].
-        }
+                                            (job_arrival j) (job_arrival j + R));
+          first by apply task_interference_le_workload; ins; rewrite RATE.
         {
           apply workload_bounded_by_W with (task_deadline0 := task_deadline) (job_cost0 := job_cost) (job_deadline0 := job_deadline); try (by ins); last 2 first;
             [ by ins; apply GE_COST 

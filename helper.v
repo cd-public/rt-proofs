@@ -774,7 +774,24 @@ Proof.
   }
   by rewrite ltnn in H.
 Qed.
- 
+
+Lemma size_bigcat_ord {T} n (i: 'I_n) (f: 'I_n -> seq T) :
+  (forall x, size (f x) <= 1) ->
+  size (\cat_(i < n) (f i)) <= n.
+Proof.
+  intros SIZE.
+  destruct n; first by rewrite big_ord0.
+  induction n; first by rewrite big_ord_recl big_ord0 size_cat addn0.
+  rewrite big_ord_recr size_cat.
+  apply leq_trans with (n.+1 + 1); last by rewrite addn1.
+  apply leq_add; last by apply SIZE.
+  apply IHn; last by ins; apply SIZE.
+  {
+    assert (LT: 0 < n.+1). by done.
+    by apply (Ordinal LT).
+  }
+Qed.
+
     (*Program Definition fun_ord_to_nat2 {n} {T} (x0: T) (f: 'I_n -> T)
         (x : nat) : T :=
   match (x < n) with

@@ -52,23 +52,6 @@ Module Workload.
       \sum_(j <- jobs_scheduled_between t1 t2 | job_task j == tsk)
         service_during rate sched j t1 t2.
 
-    Lemma size_bigcat_ord {T} n (i: 'I_n) (f: 'I_n -> seq T) :
-      (forall x, size (f x) <= 1) ->
-      size (\cat_(i < n) (f i)) <= n.
-    Proof.
-      intros SIZE.
-      destruct n; first by rewrite big_ord0.
-      induction n; first by rewrite big_ord_recl big_ord0 size_cat addn0.
-      rewrite big_ord_recr size_cat.
-      apply leq_trans with (n.+1 + 1); last by rewrite addn1.
-      apply leq_add; last by apply SIZE.
-      apply IHn; last by ins; apply SIZE.
-      {
-        assert (LT: 0 < n.+1). by done.
-        by apply (Ordinal LT).
-      }
-    Qed.
-
     Lemma scheduled_between_helper :
       forall j t,
         (forall cpu t, rate cpu t > 0) ->
@@ -144,11 +127,27 @@ Module Workload.
       by apply scheduled_between_helper, RATE.
     Qed.
 
+    Lemma workload_monotonic :
+      forall t1 t2 t1' t2',
+        t1' <= t1 ->
+        t2 <= t2' ->
+        workload t1 t2 <= workload t1' t2'.
+    Proof.
+      unfold workload; intros t1 t2 t1' t2' LE1 LE2.
+      destruct (t1 <= t2) eqn:LE12;
+        last by apply negbT in LE12; rewrite -ltnNge in LE12; rewrite big_geq // ltnW.
+      rewrite -> big_cat_nat with (m := t1') (n := t1); try (by done); simpl;
+        last by apply leq_trans with (n := t2).
+      rewrite -> big_cat_nat with (p := t2') (n := t2); try (by done); simpl.
+      by rewrite addnC -addnA; apply leq_addr.
+    Qed.
+
     (* Next, we show that the two definitions are equivalent. *)
-    Lemma workload_eq_workload_joblist (t1 t2: time) :
+    Lemma workload_eq_workload_joblist :
+      forall t1 t2,
       workload t1 t2 = workload_joblist t1 t2.
     Proof.
-      unfold workload, workload_joblist, service_during.
+      intros t1 t2; unfold workload, workload_joblist, service_during.
       rewrite [\sum_(j <- jobs_scheduled_between _ _ | _) _]exchange_big /=.
       apply eq_big_nat; unfold service_at; intros t LEt.
       rewrite [\sum_(i <- jobs_scheduled_between _ _ | _) _](eq_bigr (fun i =>
@@ -507,7 +506,7 @@ Module Workload.
     Let no_deadline_misses_by (tsk: sporadic_task) (t: time) :=
       task_misses_no_deadline_before job_cost job_deadline job_task
                                      rate sched tsk t.
-    Definition workload_of (tsk: sporadic_task) (t1 t2: time) :=
+    Let workload_of (tsk: sporadic_task) (t1 t2: time) :=
       workload job_task rate sched tsk t1 t2.
 
     (* Now we define the theorem. Let tsk be any task in the taskset. *)

@@ -366,36 +366,30 @@ Module Schedule.
 
 End Schedule.
   
-(*Module ScheduleOfSporadicTask.
+Module ScheduleOfSporadicTask.
 
   Import SporadicTask.
   Export Schedule.
 
-  Section EarlierJobs.
+  Section ValidSchedule.
 
-    Context {Job: eqType}.
-    Context {arr_seq: arrival_sequence Job}.
-    
+    Context {sporadic_task: eqType}.
+    Context {Job: eqType}.    
     Variable job_cost: Job -> nat.
     Variable job_task: Job -> sporadic_task.
 
-    Variable num_cpus: nat.
-    Variable rate: Job -> processor num_cpus -> time.
+    Context {arr_seq: arrival_sequence Job}.
+    Context {num_cpus: nat}.
     Variable sched: schedule num_cpus arr_seq.
 
-    Definition earlier_job_from_same_task (j1 j2: JobIn arr_seq) :=
-      job_task j1 = job_task j2 /\
-      job_arrival j1 < job_arrival j2.
+    Definition jobs_of_same_task_dont_execute_in_parallel :=
+      forall (j j': JobIn arr_seq) t,
+        job_task j = job_task j' ->
+        scheduled sched j t -> scheduled sched j' t -> False.
 
-    Definition job_is_pending :=
-      pending job_cost rate sched.
-    
-    Definition exists_earlier_job (t: time) (jlow: JobIn arr_seq) :=
-      exists j0, job_is_pending j0 t /\ earlier_job_from_same_task j0 jlow.
- 
-  End EarlierJobs.
+  End ValidSchedule.
 
-End ScheduleOfSporadicTask.*)
+End ScheduleOfSporadicTask.
 
 Module ScheduleOfTaskWithJitter.
 

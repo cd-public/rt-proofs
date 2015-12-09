@@ -265,34 +265,22 @@ Module ResponseTimeAnalysisJitter.
         move => tsk_k /andP [INk INTERk] R_k HPk.
         unfold x, workload_bound; rewrite INk INTERk andbT.
         apply leq_trans with (n := workload job_task rate sched tsk_k
-                                  (job_arrival j) (job_arrival j + R)).
-        {
-          unfold task_interference, workload.
-          apply leq_sum; intros t _.
-          rewrite -mulnb -[\sum_(_ < _) _]mul1n.
-          apply leq_mul; first by apply leq_b1.
-          destruct (task_is_scheduled job_task sched tsk_k t) eqn:SCHED; last by ins.
-          unfold task_is_scheduled in SCHED.
-          move: SCHED =>/exists_inP SCHED.
-          destruct SCHED as [cpu _ HAScpu].
-          rewrite -> bigD1 with (j := cpu); simpl; last by ins.
-          apply ltn_addr; unfold service_of_task, schedules_job_of_tsk in *.
-          by destruct (sched cpu t);[by rewrite HAScpu mul1n RATE|by ins].
-        }
-        {
-          apply workload_bounded_by_W_jitter with (task_deadline0 := task_deadline) (job_cost0 := job_cost) (job_deadline0 := job_deadline) (job_jitter0 := job_jitter); ins;
-            [ by rewrite RATE
-            | by apply TASK_PARAMS
-            | by apply RESTR
-            | by red; red; ins; apply (RESP tsk_k)  
-            | by apply GE_COST |].
-          red; red; move => j' /eqP JOBtsk' _;
-          unfold job_misses_no_deadline.
-          specialize (PARAMS j'); des.
-          rewrite PARAMS2 JOBtsk'.
-          apply completion_monotonic with (t := job_arrival j' + R_k); ins;
-            [by rewrite leq_add2l; apply NOMISS | by apply (RESP tsk_k)].
-        }
+                                  (job_arrival j) (job_arrival j + R));
+          first by apply task_interference_le_workload; ins; rewrite RATE.
+        apply workload_bounded_by_W_jitter with (task_deadline0 := task_deadline)
+                                        (job_cost0 := job_cost) (job_deadline0 := job_deadline)
+                                        (job_jitter0 := job_jitter); ins;
+          [ by rewrite RATE
+          | by apply TASK_PARAMS
+          | by apply RESTR
+          | by red; red; ins; apply (RESP tsk_k)  
+          | by apply GE_COST |].
+        red; red; move => j' /eqP JOBtsk' _;
+        unfold job_misses_no_deadline.
+        specialize (PARAMS j'); des.
+        rewrite PARAMS2 JOBtsk'.
+        apply completion_monotonic with (t := job_arrival j' + R_k); ins;
+          [by rewrite leq_add2l; apply NOMISS | by apply (RESP tsk_k)].
       }
 
       (* In the remaining of the proof, we show that the workload bound
