@@ -97,6 +97,31 @@ Module ResponseTimeAnalysis.
         by rewrite big_const_nat iter_addn mul1n addn0 leqnn.
       Qed.
 
+      Lemma job_interference_monotonic :
+        forall j_other t1 t2 t1' t2',
+          t1' <= t1 ->
+          t2 <= t2' ->
+          job_interference j_other t1 t2 <= job_interference j_other t1' t2'.
+      Proof.
+        unfold job_interference; intros tsk t1 t2 t1' t2' LE1 LE2.
+        destruct (t1 <= t2) eqn:LE12;
+          last by apply negbT in LE12; rewrite -ltnNge in LE12; rewrite big_geq // ltnW.
+        rewrite -> big_cat_nat with (m := t1') (n := t1); try (by done); simpl;
+          last by apply leq_trans with (n := t2).
+        rewrite -> big_cat_nat with (p := t2') (n := t2); try (by done); simpl.
+        by rewrite addnC -addnA; apply leq_addr.
+      Qed.
+
+      Lemma job_interference_le_delta :
+        forall j_other t1 delta,
+          job_interference j_other t1 (t1 + delta) <= delta.
+      Proof.
+        unfold job_interference; intros j_other t1 delta.
+        apply leq_trans with (n := \sum_(t1 <= t < t1 + delta) 1);
+          first by apply leq_sum; ins; apply leq_b1.
+        by rewrite big_const_nat iter_addn mul1n addn0 addKn leqnn.
+      Qed.
+      
       Hypothesis rate_positive: forall cpu t, rate cpu t > 0.
 
       Lemma job_interference_le_service :
