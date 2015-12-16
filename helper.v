@@ -68,6 +68,7 @@ Reserved Notation "\cat_ ( i < n ) F"
 Notation "\cat_ ( i < n ) F" :=
   (\big[cat/[::]]_(i < n) F%N) : nat_scope.
 
+
 Ltac des_eqrefl2 :=
   match goal with
     | H: context[match ?X as id return (?X = id -> _) with _ => _ end Logic.eq_refl] |- _ =>
@@ -791,6 +792,22 @@ Proof.
     by apply (Ordinal LT).
   }
 Qed.
+
+Lemma extend_sum :
+  forall t1 t2 t1' t2' F,
+    t1' <= t1 ->
+    t2 <= t2' ->
+    \sum_(t1 <= t < t2) F t <= \sum_(t1' <= t < t2') F t.
+Proof.
+  intros t1 t2 t1' t2' F LE1 LE2.
+  destruct (t1 <= t2) eqn:LE12;
+    last by apply negbT in LE12; rewrite -ltnNge in LE12; rewrite big_geq // ltnW.
+  rewrite -> big_cat_nat with (m := t1') (n := t1); try (by done); simpl;
+    last by apply leq_trans with (n := t2).
+  rewrite -> big_cat_nat with (p := t2') (n := t2); try (by done); simpl.
+  by rewrite addnC -addnA; apply leq_addr.
+Qed.
+
 
     (*Program Definition fun_ord_to_nat2 {n} {T} (x0: T) (f: 'I_n -> T)
         (x : nat) : T :=

@@ -42,7 +42,7 @@ Module ResponseTimeAnalysisEDF.
         let p_other := task_period tsk_other in
         let d_other := task_deadline tsk_other in
           (div_floor d_tsk p_other) * e_other +
-          minn e_other ((d_tsk %% p_other) - d_other + R_other).
+          minn e_other ((d_tsk %% p_other) - (d_other - R_other)).
 
       
       (* Bertogna and Cirinei define the following interference bound
@@ -313,21 +313,21 @@ Module ResponseTimeAnalysisEDF.
 
           rename j' into j_i, tsk' into tsk_i.
           set t1 := job_arrival j_i.
-          set t2 := job_arrival j_i + R_i.
-          set d_i := task_deadline tsk_i; set d_k := task_deadline tsk_k;
+          set t2 := job_arrival j_i + task_deadline tsk_i.
+          set D_i := task_deadline tsk_i; set D_k := task_deadline tsk_k;
           set p_k := task_period tsk_k.
 
           (* TODO: CHECK IF WE CAN USE R_i instead of d_i as the problem window. *)
-          (*apply leq_trans with (n := task_interference job_cost job_task rate sched j_i
-                                                                tsk_k t1 (t1 + d_i));
+          apply leq_trans with (n := task_interference job_cost job_task
+                                        rate sched j_i tsk_k t1 (t1 + D_i));
             first by apply task_interference_monotonic;
-              [by apply leqnn | by rewrite leq_add2l; apply NOMISS].*)
+              [by apply leqnn | by rewrite leq_add2l; apply NOMISS].
           
           rewrite interference_eq_interference_joblist; last by done.
           unfold task_interference_joblist.
 
       (* Simplify names *)
-          set n_k := div_floor d_i p_k.
+          set n_k := div_floor D_i p_k.
       
         (* Identify the subset of jobs that actually cause interference *)
         set interfering_jobs :=
@@ -422,11 +422,11 @@ Module ResponseTimeAnalysisEDF.
           by instantiate (1:= sorted_jobs); instantiate (1 := 0); rewrite SIZE.
         move: FST; rewrite -INboth mem_filter; move => /andP FST; des.
         move: FST => /andP FST; des; move: FST => /eqP FST.
-        rename FST0 into FSTin, FST into FSTtask, FST1 into FSTserv.
-       
+        rename FST0 into FSTin, FST into FSTtask, FST1 into FSTserv.       
                                   
         (* Now we show that the bound holds for a singleton set of interfering jobs. *)
         set j_fst := (nth elem sorted_jobs 0).
+        set a_fst := job_arrival j_fst.
 
         assert (DLfst: job_deadline j_fst = task_deadline tsk_k).
         {
@@ -438,14 +438,105 @@ Module ResponseTimeAnalysisEDF.
           by specialize (PARAMS j_i); des; rewrite PARAMS1 JOBtsk.
         }
 
-
-        (*assert (PRIOinterf: forall (j_k: JobIn arr_seq) t1 t2,
-                              job_task j_k = tsk_k ->
-                              job_interference job_cost rate sched j_i j_k t1 t2 != 0 ->
-                              job_arrival j_k + job_deadline j_k <= job_arrival j_i + job_deadline j_i).
+        assert (AFTERt1: completed job_cost rate sched j_fst (a_fst + R_k) -> t1 <= a_fst + R_k).
         {
-          admit.
-        }*)
+          intros RBOUND.
+          rewrite leqNgt; apply/negP; unfold not; intro BUG.
+          move: FSTserv => /negP FSTserv; apply FSTserv.
+          rewrite -leqn0; apply leq_trans with (n := service_during rate sched j_fst t1 t2);
+            first by apply job_interference_le_service; ins; rewrite RATE.
+          unfold service_during.
+          by rewrite -> sum_service_after_job_rt_zero with (job_cost0 := job_cost) (R := R_k);
+            try (by done); apply ltnW.
+        }
+
+        (*assert (NOBOUND:
+                  forall int,
+                    (completed job_cost rate sched j_fst (a_fst + R_k) ->
+                     job_interference job_cost rate sched j_i j_fst t1 t2 <= int) ->
+                    (job_interference job_cost rate sched j_i j_fst t1 t2 <= int)).
+        {
+          intros int BOUND.
+          destruct (completed job_cost rate sched j_fst (a_fst + R_k)).*)
+        assert (COMPok: completed job_cost rate sched j_fst (a_fst + R_k) -> job_interference job_cost rate sched j_i j_fst t1 t2 <= D_i - (D_k - R_k)).
+        {
+          intros RBOUND.
+          apply PRIOinterf in FSTserv; rename FSTserv into LEdl.
+
+          destruct (D_k - R_k <= D_i) eqn:LEdk; last first.
+          {
+            apply negbT in LEdk; rewrite -ltnNge in LEdk.
+            apply leq_trans with (n := 0); last by done.
+            apply leq_trans with (n := job_interference job_cost rate sched j_i j_fst (a_fst + R_k) t2).
+            {
+              apply extend_sum; last by apply leqnn.
+              rewrite -(leq_add2r D_i).
+              rewrite DLi DLfst in LEdl.
+              apply leq_trans with (n := a_fst + D_k); last by done.
+              rewrite -addnA leq_add2l.
+              by apply ltnW; rewrite -ltn_subRL.
+            }
+            apply leq_trans with (n := service_during rate sched j_fst (a_fst + R_k) t2);
+              first by apply job_interference_le_service; ins; rewrite RATE.
+            unfold service_during.
+            by rewrite -> sum_service_after_job_rt_zero with (job_cost0 := job_cost) (R := R_k);
+              try (by done); apply leqnn.
+          }
+          {
+            rewrite -(leq_add2r (D_k - R_k)) subh1 // -addnBA // subnn addn0.           assert (SUBST: D_k - R_k = \sum_(a_fst + R_k <= i < a_fst + D_k) 1).
+            {
+              rewrite big_const_nat iter_addn mul1n addn0.
+              rewrite addnC -subnBA; last by apply leq_addr.
+              by rewrite addnC -addnBA // subnn addn0.
+            }
+            apply leq_trans with (n := job_interference job_cost rate sched j_i j_fst t1 (a_fst + D_k) + (D_k - R_k)).
+            {
+              rewrite leq_add2r.
+              unfold job_interference at 1; simpl.
+              rewrite -> big_cat_nat with (n := a_fst + D_k); simpl; last 2 first.
+              {
+                apply leq_trans with (n := a_fst + R_k); first by apply AFTERt1.
+                by rewrite leq_add2l; apply NOMISS.
+              }
+              {
+                by unfold D_k, t2; rewrite -DLi -DLfst; apply LEdl.
+              }
+              rewrite -[job_interference _ _ _ _ _ _ _]addn0; apply leq_add;
+                first by apply leqnn.
+              apply leq_trans with (n := service_during rate sched j_fst (a_fst + D_k) t2);
+                first by apply job_interference_le_service; ins; rewrite RATE.
+              unfold service_during; rewrite leqn0; apply/eqP.
+              apply sum_service_after_job_rt_zero with (job_cost0 := job_cost) (R := R_k);
+                try (by done); last by rewrite leq_add2l; apply NOMISS.
+            }
+
+            unfold job_interference.
+            rewrite -> big_cat_nat with (n := a_fst + R_k);
+              [simpl|by apply AFTERt1 | by rewrite leq_add2l; apply NOMISS].
+            apply leq_trans with (n := job_interference job_cost rate sched j_i j_fst t1 (a_fst + R_k) + service_during rate sched j_fst (a_fst + R_k) (a_fst + D_k) + (D_k - R_k)).
+            {
+              rewrite leq_add2r leq_add2l.
+              by apply job_interference_le_service; ins; rewrite RATE.
+            }
+            unfold service_during.
+            rewrite -> sum_service_after_job_rt_zero with (job_cost0 := job_cost) (R := R_k);
+              try (by done); last by apply leqnn.
+            rewrite addn0.
+            apply leq_trans with (n := (\sum_(t1 <= t < a_fst + R_k) 1) + \sum_(a_fst + R_k <= t < a_fst + D_k) 1).
+            {
+              apply leq_add; last by rewrite SUBST.
+              by unfold job_interference; apply leq_sum; ins; apply leq_b1.
+            }
+            rewrite -big_cat_nat;
+              [simpl | by apply AFTERt1 | by rewrite leq_add2l; apply NOMISS ].
+            apply leq_trans with (n := \sum_(t1 <= t < t2) 1).
+            {
+              apply extend_sum; first by apply leqnn.
+              unfold D_k, t2; rewrite -DLfst -DLi; apply LEdl.
+            }
+            by rewrite big_const_nat iter_addn mul1n addn0 addKn leqnn.
+          }
+        }
         
         destruct n.
         {
@@ -457,7 +548,67 @@ Module ResponseTimeAnalysisEDF.
           rewrite -leqn0 leqNgt divn_gt0 in EQnk;
             last by specialize (TASK_PARAMS tsk_k INk); des.
           rewrite -ltnNge in EQnk; rewrite modn_small //.
-          destruct (ltnP d_k d_i) as [LEdi | GTdi]; last first.
+
+          destruct (job_arrival j_fst + R_k < job_arrival j_i + R_i) eqn:LTr.
+          {
+            exploit BEFOREok; [by apply FSTtask | by apply INBOUNDSk | by done |].
+            by intros RBOUND;  apply COMPok in RBOUND.
+          }
+          destruct (completed job_cost rate sched j_fst (job_arrival j_fst + R_k)) eqn:RBOUND;
+            first by apply COMPok.
+
+          (* Now we have the hard case: j_fst cannot use the IH and
+             also has not completed within R_k time units. *)
+          apply negbT in LTr; rewrite -leqNgt in LTr.
+          apply negbT in RBOUND.
+          apply PRIOinterf in FSTserv; rename FSTserv into LEdl.
+          move: LEdl => LEdl. rewrite DLi DLfst in LEdl.
+
+          destruct (task_cost tsk_k <= D_i - (D_k - R_k)) eqn:COST.
+          {
+            by apply leq_trans with (n := task_cost tsk_k);
+              first by apply LTserv; rewrite INboth mem_nth // SIZE.
+          }
+          {
+            rewrite leqNgt; apply/negP; unfold not; intro BUG.
+            apply negbT in COST; rewrite -ltnNge in COST.
+            destruct (job_interference job_cost rate sched j_i j_fst t1 t2 < task_cost tsk_k) eqn:INTcost.
+            unfold job_interference.
+            assert (COMPcost: \sum_(t1 <= t < a_fst + R_k) ((completed job_cost rate sched j_fst (a_fst + R_k)) ==> (backlogged job_cost rate sched j_i t && scheduled sched j_fst t)) = task_cost tsk_k).
+            {
+              admit.
+            }
+            destruct (t2 <= a_fst + R_k) eqn:LEt2.
+            {
+              apply leq_trans with (n := job_interference job_cost rate sched j_i j_fst t1 (a_fst + R_k));
+                first by apply extend_sum; try apply leqnn.
+              admit.
+            }
+              apply 
+            apply leq_trans with (n := task_cost tsk_k);
+              first by apply LTserv; rewrite INboth mem_nth // SIZE.
+            rewrite -COMPcost.
+            rewrite -[completed _ _ _ _ _]negbK RBOUND negbF.
+            rewrite big_pred0.
+            assert (job_interference job_cost rate sched j_i j_fst exploit LTserv.
+            unfold job_interference.
+            rewrite -> big_cat_nat with (n := job_arrival j_fst + R_k); last 2 first.
+            {
+              admit.
+            }
+            {
+              admit.
+            }
+            simpl.
+            
+
+            rewrite (bigID (fun x => completed job_cost rate sched j_fst (job_arrival j_fst + R_k))); simpl.
+            rewrite -{1}[completed _ _ _ _ _]negbK RBOUND negbF.
+            rewrite big_pred0 //. admit.
+            
+            apply leq_trans with (n := \sum_(t1 <= t < t2) backlogged job_cost rate sched j_i t && scheduled sched j_fst t
+                                    
+          (*destruct (ltnP d_k d_i) as [LEdi | GTdi]; last first.
           {
             rewrite -subn_eq0 in GTdi; move: GTdi => /eqP GTdi.
             rewrite GTdi add0n.
@@ -506,7 +657,7 @@ Module ResponseTimeAnalysisEDF.
                 by rewrite add0n; apply job_interference_le_delta.
               }
             }
-          }
+          }*)
         } rewrite [nth]lock /= -lock in ALL.
     
         (* Knowing that we have at least two elements, we take first and last out of the sum *) 
@@ -527,10 +678,6 @@ Module ResponseTimeAnalysisEDF.
         move: INlst => /andP INlst; des.
         move: INfst INlst => /eqP INfst /eqP INlst.
 
-        assert (AFTERt1: t1 <= job_arrival j_fst + R_k).
-        {
-          admit.
-        }
 
         (*assert (AFTERt1': t1 <= job_arrival j_lst).
         {
@@ -723,11 +870,31 @@ Module ResponseTimeAnalysisEDF.
         {
           move: NK => /eqP NK; rewrite -NK [_ + job_interference _ _ _ _ _ _ _]addnC.
           rewrite NK in DIST.
-          rewrite mulSnr addnC -addnA -subndiv_eq_mod.
+          rewrite mulSnr addnC -addnA.
           apply leq_add; first by apply BOUNDmid.
           rewrite addn_minr; rewrite leq_min; apply/andP; split;
             first by apply leq_add; apply LTserv; rewrite INboth mem_nth // SIZE.
           rewrite addnC; apply leq_add; first by apply LTserv; rewrite INboth mem_nth // SIZE.
+          destruct (d_i %% p_k <= d_k) eqn:MODlt.
+          {
+            rewrite -subn_eq0 in MODlt; move: MODlt => /eqP MODlt; rewrite MODlt add0n.
+            apply leq_trans with (n := task_cost tsk_k); last by apply GE_COST.
+            by apply LTserv; rewrite INboth mem_nth // SIZE.
+          }
+          apply negbT in MODlt; rewrite -ltnNge in MODlt.
+          assert (LTd: d_k < d_i).
+          {
+            apply leq_trans with (n := d_i %% p_k); first by done.
+            apply leq_mod.
+          }
+          rewrite addnC.
+          rewrite -leq_subLR.
+          rewrite ltn_mod. service_during rate sched j_fst t1 t2);
+              first by apply job_interference_le_service; ins; rewrite RATE.
+            apply leq_trans with (n := task_cost tsk_k).
+            apply service_le_response_time.
+          rewrite addnC.  rewrite subnBA. rewrite addnBA. rewrite -addnA. rewrite addnBA. subnBA. addnBA. subh1. subnBA.
+ 
           admit. (* Don't know how to prove this yet. *)
         }
       }
