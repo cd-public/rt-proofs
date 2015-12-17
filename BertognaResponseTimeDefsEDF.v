@@ -777,13 +777,26 @@ Module ResponseTimeAnalysisEDF.
           rewrite addnC; apply leq_add;
             first by apply LTserv; rewrite INboth mem_nth // SIZE.
 
-          destruct (D_k - R_k <= D_i %% p_k) eqn:LEmod; last first.
+          assert (LEmod: D_k - R_k <= D_i %% p_k).
           {
-            apply negbT in LEmod; rewrite -ltnNge in LEmod.
-            rewrite ltn_subRL in LEmod.
-            apply leq_trans with (n := 0); last by done.
-            
-            admit.
+            rewrite -subndiv_eq_mod leq_subLR.
+            fold (div_floor D_i p_k) n_k; fold p_k in DIST.
+            rewrite addnBA; last by apply leq_trunc_div.
+            apply leq_trans with (n := R_k + D_i - (a_lst - a_fst));
+              last by apply leq_sub2l.
+            rewrite subnBA; last by apply BEFOREarr.
+            rewrite -(leq_add2r a_lst) subh1; last first.
+            {
+              apply leq_trans with (n := t2); first by apply ltnW, BEFOREt2.
+              rewrite addnC addnA.
+              apply leq_trans with (n := t1 + D_i);
+                first by unfold t2; rewrite leq_add2l; apply NOMISS.
+              by rewrite leq_add2r; apply AFTERt1.
+            }
+            rewrite -addnBA // subnn addn0 [D_k + _]addnC.
+            apply leq_trans with (n := t1 + D_i);
+              last by rewrite -addnA [D_i + _]addnC addnA leq_add2r addnC AFTERt1.
+            by unfold D_i, D_k; rewrite -DLi -DLlst; apply PRIOinterf in LSTserv.
           }
           
           apply subh3; last by apply LEmod.
