@@ -137,9 +137,9 @@ Module ResponseTimeIterationEDF.
               first by apply geq_minr.
             unfold edf_specific_bound; simpl.
             rewrite leq_add2l leq_min; apply/andP; split; first by apply geq_minl.
-            by apply leq_trans with (n := task_deadline tsk %% task_period tsk_other -
-                                   task_deadline tsk_other + R);
-              [by apply geq_minr | by rewrite leq_add2l].
+            apply leq_trans with (n := task_deadline tsk %% task_period tsk_other -
+                                       (task_deadline tsk_other - R));
+              [by apply geq_minr | by rewrite 2?leq_sub2l].
           }
         Qed.
 
@@ -275,17 +275,17 @@ Module ResponseTimeIterationEDF.
       (* ...and do not execute in parallel. *)
       Hypothesis H_no_parallelism:
         jobs_dont_execute_in_parallel sched.
+      Hypothesis H_no_intra_task_parallelism:
+        jobs_of_same_task_dont_execute_in_parallel job_task sched.
 
-      (* Assume the platform satisfies the global scheduling invariant. *)
+      (* Assume that the schedule satisfies the global scheduling
+         invariant with EDF priority, i.e., if any job of tsk is
+         backlogged, every processor must be busy with jobs with
+         no greater absolute deadline. *)
+      Let higher_eq_priority :=
+        @EDF Job arr_seq job_deadline. (* TODO: implicit params seems broken *)    
       Hypothesis H_global_scheduling_invariant:
-        forall (tsk: sporadic_task) (j: JobIn arr_seq) (t: time),
-          tsk \in ts ->
-          job_task j = tsk ->
-          backlogged job_cost rate sched j t ->
-          count
-            (fun tsk_other : _ =>
-               is_interfering_task_jlfp tsk tsk_other &&
-               task_is_scheduled job_task sched tsk_other t) ts = num_cpus.
+        JLFP_JLDP_scheduling_invariant_holds job_cost num_cpus rate sched higher_eq_priority.
 
       Definition no_deadline_missed_by_task (tsk: sporadic_task) :=
         task_misses_no_deadline job_cost job_deadline job_task rate sched tsk.

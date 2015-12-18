@@ -166,13 +166,7 @@ Module ResponseTimeAnalysisJitter.
        the processors must be busy with jobs of equal or higher
        priority. *)
     Hypothesis H_global_scheduling_invariant:
-      forall (j: JobIn arr_seq) (t: time),
-        job_task j = tsk ->
-        backlogged job_cost rate sched j t ->
-        count
-          (fun tsk_other : sporadic_task_with_jitter =>
-             is_interfering_task_fp tsk higher_eq_priority tsk_other &&
-             task_is_scheduled job_task sched tsk_other t) ts = num_cpus.
+      FP_scheduling_invariant_holds job_cost job_task num_cpus rate sched ts higher_eq_priority.
 
     (* Next, we define Bertogna and Cirinei's response-time bound recurrence *)
     
@@ -218,7 +212,7 @@ Module ResponseTimeAnalysisJitter.
       set x := fun hp_tsk =>
         if (hp_tsk \in ts) && interferes_with_tsk hp_tsk then
           task_interference job_cost job_task rate sched j
-                   (job_arrival j) (job_arrival j + R) hp_tsk
+                   hp_tsk (job_arrival j) (job_arrival j + R)
         else 0.
       set X := total_interference job_cost rate sched j (job_arrival j) (job_arrival j + R).
 
@@ -346,7 +340,8 @@ Module ResponseTimeAnalysisJitter.
         }
         rewrite (eq_bigr (fun i => if (i \in ts) && true then (if interferes_with_tsk i && task_is_scheduled job_task sched i t then 1 else 0) else 0));
           last by ins; destruct (i \in ts) eqn:IN; rewrite ?andTb ?andFb.
-        by rewrite -big_mkcond -big_seq_cond -big_mkcond sum1_count; apply (INVARIANT j).
+        rewrite -big_mkcond -big_seq_cond -big_mkcond sum1_count.
+        by apply (INVARIANT tsk j).
       }
 
       (* 3) Next, we prove the auxiliary lemma from the paper. *)
@@ -443,8 +438,7 @@ Module ResponseTimeAnalysisJitter.
             destruct HAS as [tsk_k INk H].
             move: H => /andP [/andP [INTERFk LEk] SCHEDk].
             
-            exploit INVARIANT;
-              [by apply JOBtsk | by apply BACK | intro COUNT].
+            exploit (INVARIANT tsk j t); try (by done); intro COUNT.
 
             unfold cardA.
             set interfering_tasks_at_t :=
@@ -469,8 +463,7 @@ Module ResponseTimeAnalysisJitter.
                 [by rewrite andbT | by rewrite andbF].
             }
 
-            rewrite leq_subLR.
-            rewrite -count_predUI.
+            rewrite leq_subLR -count_predUI.
             apply leq_trans with (n :=
               count (predU (fun i : sporadic_task_with_jitter =>
                               interferes_with_tsk i &&

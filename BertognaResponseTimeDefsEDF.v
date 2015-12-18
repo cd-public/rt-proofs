@@ -196,7 +196,7 @@ Module ResponseTimeAnalysisEDF.
         {
           by intros tsk0 R0 IN0; rewrite [R0](FIX tsk0); first apply leq_addr.
         }
-        
+
         (* First, rewrite the claim in terms of the *absolute* response-time bound (arrival + R) *)
         remember (job_arrival j + R) as ctime.
         
@@ -904,7 +904,8 @@ Module ResponseTimeAnalysisEDF.
           rewrite (eq_bigr (fun i => if (i \in ts) && true then (if is_interfering_task_jlfp tsk' i && task_is_scheduled job_task sched i t then 1 else 0) else 0));
             last by ins; destruct (i \in ts) eqn:IN; rewrite ?andTb ?andFb.
           rewrite -big_mkcond -big_seq_cond -big_mkcond sum1_count.
-          by apply (INVARIANT tsk' j'); try (by done); apply (INts tsk' R').   
+          by eapply cpus_busy_with_interfering_tasks;
+            [by apply INVARIANT | by apply JOBtsk | by apply BACK].
         }
         
         (* 3) Next, we prove the auxiliary lemma from the paper. *)
@@ -1000,9 +1001,10 @@ Module ResponseTimeAnalysisEDF.
               rewrite mul1n; move: HAS => /hasP HAS.
               destruct HAS as [tsk_k INk H].
               move: H => /andP [/andP [INTERFk LEk] SCHEDk].
-              
-              exploit INVARIANT;
-                [by apply (INts tsk' R') | by apply JOBtsk | by apply BACK | intro COUNT].
+
+              generalize INVARIANT; intro COUNT.
+              apply cpus_busy_with_interfering_tasks with (job_task0 := job_task) (ts0 := ts) (j := j') (tsk := tsk') (t0 := t) in COUNT;
+                try by done.
 
               unfold cardA.
               set interfering_tasks_at_t :=

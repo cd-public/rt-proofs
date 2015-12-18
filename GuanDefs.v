@@ -1,11 +1,11 @@
 Require Import Vbase TaskDefs JobDefs TaskArrivalDefs ScheduleDefs
-               PlatformDefs WorkloadDefs BertognaResponseTimeDefs SchedulabilityDefs PriorityDefs
+               PlatformDefs WorkloadDefs BertognaResponseTimeDefs SchedulabilityDefs PriorityDefs InterferenceDefs PlatformDefs
                ResponseTimeDefs divround helper
                ssreflect ssrbool eqtype ssrnat seq fintype bigop div path tuple.
 
 Module ResponseTimeAnalysisGuan.
 
-  Import Job SporadicTaskset ScheduleOfTaskWithJitter Schedulability ResponseTime Priority SporadicTaskArrival.
+  Import Job SporadicTaskset ScheduleOfTaskWithJitter Schedulability ResponseTime Priority SporadicTaskArrival Interference Platform.
   Export Workload ResponseTimeAnalysis.
 
   Section InterferenceBoundGuan.
@@ -33,7 +33,7 @@ Module ResponseTimeAnalysisGuan.
 
       (* Let's filter the list of task and response-times so that it only has interfering tasks. *)
       Let interfering_tasks :=
-        [seq (tsk_other, R) <- R_prev | is_interfering_task_fp tsk higher_eq_priority tsk_other].
+        [seq (tsk_other, R) <- R_prev | is_interfering_task_fp higher_eq_priority tsk tsk_other].
 
       (* After that, we list all possible pairs of subsets of that list:
            [(subset0, subset1), (subset0, subset2), ...]*)
@@ -141,7 +141,7 @@ Module ResponseTimeAnalysisGuan.
     (* Assume there exists a fixed task priority. *)
     Variable higher_eq_priority: fp_policy sporadic_task.
 
-    Let interferes_with_tsk := is_interfering_task_fp tsk higher_eq_priority.
+    Let interferes_with_tsk := is_interfering_task_fp higher_eq_priority tsk.
       
     (* Assume that hp_bounds has exactly the tasks that interfere with tsk,... *)
     Hypothesis H_hp_bounds_has_interfering_tasks:
@@ -174,7 +174,7 @@ Module ResponseTimeAnalysisGuan.
           backlogged job_cost rate sched j t ->
           count
             (fun tsk_other : sporadic_task =>
-               is_interfering_task_fp tsk higher_eq_priority tsk_other &&
+               is_interfering_task_fp higher_eq_priority tsk tsk_other &&
                task_is_scheduled job_task sched tsk_other t) ts = num_cpus.
 
       (* Next, we define Bertogna and Cirinei's response-time bound recurrence *)
@@ -218,7 +218,7 @@ Module ResponseTimeAnalysisGuan.
         set x := fun hp_tsk =>
           if (hp_tsk \in ts) && interferes_with_tsk hp_tsk then
             task_interference job_cost job_task rate sched j
-                     (job_arrival j) (job_arrival j + R) hp_tsk
+                     hp_tsk (job_arrival j) (job_arrival j + R)
           else 0.
         set X := total_interference job_cost rate sched j (job_arrival j) (job_arrival j + R).
 

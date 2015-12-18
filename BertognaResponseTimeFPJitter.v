@@ -1,9 +1,9 @@
-Require Import Vbase JobDefs TaskDefs ScheduleDefs TaskArrivalDefs PriorityDefs WorkloadDefsJitter BertognaResponseTimeDefsJitter divround helper
+Require Import Vbase JobDefs TaskDefs ScheduleDefs TaskArrivalDefs PriorityDefs WorkloadDefsJitter BertognaResponseTimeDefsJitter InterferenceDefs divround helper
                ssreflect ssrbool eqtype ssrnat seq fintype bigop div path tuple.
 
 Module ResponseTimeIterationFPWithJitter.
 
-  Import Job ScheduleOfTaskWithJitter SporadicTaskset SporadicTaskArrival Priority WorkloadWithJitter ResponseTimeAnalysisJitter.
+  Import Job ScheduleOfTaskWithJitter SporadicTaskset SporadicTaskArrival Priority WorkloadWithJitter ResponseTimeAnalysisJitter Interference.
 
   Section Analysis.
     
@@ -378,7 +378,7 @@ Module ResponseTimeIterationFPWithJitter.
           uniq (rcons ts' tsk) ->
           sorted higher_eq_priority (rcons ts' tsk) ->
           R_list (rcons ts' tsk) = Some (rcons hp_bounds (tsk, R)) ->
-            [seq tsk_hp <- rcons ts' tsk | is_interfering_task_fp tsk higher_eq_priority tsk_hp] =
+            [seq tsk_hp <- rcons ts' tsk | is_interfering_task_fp higher_eq_priority tsk tsk_hp] =
             unzip1 hp_bounds.
       Proof.
         intros ts tsk hp_bounds R TRANS.
@@ -408,11 +408,11 @@ Module ResponseTimeIterationFPWithJitter.
           rewrite filter_rcons in IHts.
           unfold is_interfering_task_fp in IHts.
           rewrite eq_refl andbF in IHts.
-          assert (NOTHP: is_interfering_task_fp tsk higher_eq_priority tsk = false).
+          assert (NOTHP: is_interfering_task_fp higher_eq_priority tsk tsk = false).
           {
             by unfold is_interfering_task_fp; rewrite eq_refl andbF.
           } rewrite filter_rcons NOTHP; clear NOTHP.
-          assert (HP: is_interfering_task_fp tsk higher_eq_priority tsk_lst).
+          assert (HP: is_interfering_task_fp higher_eq_priority tsk tsk_lst).
           {
             unfold is_interfering_task_fp; apply/andP; split.
             {
@@ -426,8 +426,8 @@ Module ResponseTimeIterationFPWithJitter.
             }
           } rewrite filter_rcons HP; clear HP.
           unfold unzip1; rewrite map_rcons /=; f_equal.
-          assert (SHIFT: [seq tsk_hp <- ts' | is_interfering_task_fp tsk higher_eq_priority tsk_hp] = [seq tsk_hp <- ts'
-      | is_interfering_task_fp tsk_lst higher_eq_priority tsk_hp]).
+          assert (SHIFT: [seq tsk_hp <- ts' | is_interfering_task_fp higher_eq_priority tsk tsk_hp] = [seq tsk_hp <- ts'
+      | is_interfering_task_fp higher_eq_priority tsk_lst tsk_hp]).
           {
             apply eq_in_filter; red.
             unfold is_interfering_task_fp; intros x INx.
@@ -525,14 +525,7 @@ Module ResponseTimeIterationFPWithJitter.
 
       (* Assume the platform satisfies the global scheduling invariant. *)
       Hypothesis H_global_scheduling_invariant:
-        forall (tsk: sporadic_task_with_jitter) (j: JobIn arr_seq) (t: time),
-          tsk \in ts ->
-          job_task j = tsk ->
-          backlogged job_cost rate sched j t ->
-          count
-            (fun tsk_other : _ =>
-               is_interfering_task_fp tsk higher_eq_priority tsk_other &&
-               task_is_scheduled job_task sched tsk_other t) ts = num_cpus.
+        FP_scheduling_invariant_holds job_cost job_task num_cpus rate sched ts higher_eq_priority.
 
       Definition no_deadline_missed_by_task (tsk: sporadic_task_with_jitter) :=
         task_misses_no_deadline job_cost job_deadline job_task rate sched tsk.
@@ -613,7 +606,8 @@ Module ResponseTimeIterationFPWithJitter.
               apply BOUND with (task_cost := task_cost) (task_period := task_period) (task_deadline := task_deadline) (job_deadline := job_deadline) (job_task := job_task) (tsk := tsk_lst) (job_jitter := job_jitter)
                                (ts := rcons ts' tsk_lst) (hp_bounds := hp_bounds)
                                (higher_eq_priority := higher_eq_priority); clear BOUND; try (by ins).
-              apply R_list_unzip1 with (R := R_lst); try (by ins).
+              by rewrite mem_rcons in_cons eq_refl orTb.
+              by apply R_list_unzip1 with (R := R_lst); try (by ins).
               {
                 intros hp_tsk R0 HP j0 JOB0.
                 apply IH with (rt_bounds := hp_bounds) (tsk := hp_tsk); try (by ins).
@@ -639,10 +633,6 @@ Module ResponseTimeIterationFPWithJitter.
               }
               by ins; apply R_list_ge_cost with (ts' := ts') (rt_bounds := hp_bounds).
               by ins; apply R_list_le_deadline with (ts' := ts') (rt_bounds := hp_bounds).
-              {
-                ins; exploit (INVARIANT tsk_lst j0 t); try (by ins).
-                by rewrite mem_rcons in_cons; apply/orP; left.
-              }
               {
                 rewrite per_task_rta_fold.
                 apply per_task_rta_converges with (ts' := ts'); try (by ins).

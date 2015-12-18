@@ -114,7 +114,10 @@ Module Platform.
                  task_is_scheduled job_task sched j t)
               ts = num_cpus.
         Proof.
-          admit.
+          intros j tsk t JOBtsk BACK.
+          move: H_invariant_holds => bla.
+          apply/eqP; rewrite eqn_leq; apply/andP; split.
+          admit. admit.
         Qed.
         
       End BasicLemmas.
