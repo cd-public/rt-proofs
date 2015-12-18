@@ -1,71 +1,126 @@
-Require Import Vbase ScheduleDefs JobDefs PriorityDefs TaskArrivalDefs
-               ssreflect ssrbool eqtype ssrnat seq.
+Require Import Vbase TaskDefs ScheduleDefs JobDefs PriorityDefs
+               InterferenceDefs helper
+               ssreflect ssrbool eqtype ssrnat seq fintype.
 
-(*Module Platform.
+Module Platform.
 
-Import Schedule.
+  Import Schedule SporadicTaskset Interference Priority.
 
-(* A processor platform is simply a set of schedules, \ie.,
-   it specifies the amount of service that jobs receive over time. *)
-Definition processor_platform := schedule_mapping -> Prop.
+  Section SchedulingInvariants.
+    
+    Context {sporadic_task: eqType}.
+    Variable task_cost: sporadic_task -> nat.
+    Variable task_period: sporadic_task -> nat.
+    Variable task_deadline: sporadic_task -> nat.
+    
+    Context {Job: eqType}.
+    Variable job_cost: Job -> nat.
+    Variable job_deadline: Job -> nat.
+    Variable job_task: Job -> sporadic_task.
+    
+    (* Assume any job arrival sequence... *)
+    Context {arr_seq: arrival_sequence Job}.
 
-(* For a processor platform to be valid, it must be able to schedule
-   any possible job arrival sequence. In particular, the constraints
-   of the platform should not be trivially false. *)
-(*Definition valid_platform (plat: processor_platform) :=
-  exists (sched: schedule), plat sched.*)
+    (* Consider any schedule such that...*)
+    Variable num_cpus: nat.
+    Variable rate: Job -> processor num_cpus -> nat.
+    Variable sched: schedule num_cpus arr_seq.
 
-(* Whether a job receives at most 1 unit of service *)
-Definition max_service_one (sched: schedule) := forall j t, service_at sched j t <= 1.
+    (* Assume that we have a task set where all tasks have valid
+       parameters and restricted deadlines. *)
+    Variable ts: taskset_of sporadic_task.
 
+    Section FP.
+
+      (* Given an FP policy, ...*)
+      Variable higher_eq_priority: fp_policy sporadic_task.
+ 
+      (* the global scheduling invariant states that if a job is
+         backlogged, then all the processors are busy with jobs
+         of higher-priority tasks. *)
+      Definition FP_scheduling_invariant_holds :=
+        forall (tsk: sporadic_task) (j: JobIn arr_seq) (t: time),
+          tsk \in ts ->
+          job_task j = tsk ->
+          backlogged job_cost rate sched j t ->
+          count
+            (fun tsk_other : sporadic_task =>
+               is_interfering_task_fp higher_eq_priority tsk tsk_other &&
+                 task_is_scheduled job_task sched tsk_other t) ts = num_cpus.
+
+    End FP.
+
+    Section JLDP.
+
+      (* Given a JLFP/JLDP policy, ...*)
+      Variable higher_eq_priority: jldp_policy arr_seq.
+
+      (* ... the global scheduling invariant states that at any time t,
+         if a job J is backlogged, then all processors are busy with
+         jobs of higher-priority. *)
+      Definition JLFP_JLDP_scheduling_invariant_holds :=
+        forall (j: JobIn arr_seq) (t: time),
+          backlogged job_cost rate sched j t ->
+          count
+              (fun j_other => higher_eq_priority t j_other j)
+              (jobs_scheduled_at sched t)
+            = num_cpus.
+
+      Section BasicLemmas.
+
+        Hypothesis H_invariant_holds :
+          JLFP_JLDP_scheduling_invariant_holds.
+        
+        Lemma interfering_job_has_higher_eq_prio :
+          forall j j_other t,
+            backlogged job_cost rate sched j t ->
+            scheduled sched j_other t ->
+            higher_eq_priority t j_other j.
+        Proof.
+          intros j j_other t BACK SCHED.
+          exploit H_invariant_holds; [by apply BACK | intro COUNT].
+          destruct (higher_eq_priority t j_other j) eqn:LOW; first by done.
+          apply negbT in LOW.
+          generalize SCHED; unfold scheduled in SCHED; intro SCHED'.
+          move: SCHED => /existsP EX; destruct EX as [cpu H].
+          move: H => /andP [_ /eqP SCHED].
+          assert (ATMOST: size (jobs_scheduled_at sched t) <= num_cpus).
+          {
+            apply size_bigcat_ord; [by apply cpu|].
+            by ins; unfold make_sequence; destruct (sched x t).
+          }
+          rewrite -(count_predC (fun j_other => higher_eq_priority t j_other j)) COUNT in ATMOST.
+          assert (BUG: num_cpus < num_cpus).
+          {
+            apply leq_trans with (n := num_cpus + count (predC (fun j_other => higher_eq_priority t j_other j)) (jobs_scheduled_at sched t));
+              last by done.
+            rewrite -{1}[num_cpus]addn0 ltn_add2l -has_count.
+            apply/hasP; exists j_other; last by done.
+            unfold jobs_scheduled_at.
+            apply mem_bigcat_ord with (j := cpu);
+              first by apply ltn_ord.
+            by unfold make_sequence; rewrite SCHED mem_seq1 eq_refl.
+          }
+          by rewrite ltnn in BUG.
+        Qed.
+
+        Lemma cpus_busy_with_interfering_tasks :
+          forall (j: JobIn arr_seq) tsk t,
+            job_task j = tsk ->
+            backlogged job_cost rate sched j t ->
+            count
+              (fun j : sporadic_task =>
+                 is_interfering_task_jlfp tsk j &&
+                 task_is_scheduled job_task sched j t)
+              ts = num_cpus.
+        Proof.
+          admit.
+        Qed.
+        
+      End BasicLemmas.
+      
+    End JLDP.
+
+  End SchedulingInvariants.
+  
 End Platform.
-
-Module IdenticalMultiprocessor.
-
-Import Job ScheduleOfSporadicTask Platform Priority SporadicTaskArrival.
-
-Section Multiprocessor.
-
-Variable num_cpus: nat.
-Variable higher_eq_priority: jldp_policy.
-Variable sched: schedule.
-
-(* There is at least one processor. *)
-Definition mp_cpus_nonzero := num_cpus > 0.
-
-(* At any time,
-     (a) processors never stay idle when there are pending jobs (work conservation), and,
-     (b) the number of scheduled jobs does not exceed the number of processors. *)
-Definition mp_work_conserving :=
-  forall t, num_scheduled_jobs sched t = minn (num_pending_jobs sched t) num_cpus.
-
-(* If a job is backlogged, then either:
-     (a) there exists an earlier pending job of the same task
-     (b) all processor are busy with (other) jobs with higher or equal priority. *)
-Definition mp_scheduling_invariant :=
-  forall jlow t (ARRIVED: jlow \in prev_arrivals sched t)
-         (BACK: backlogged sched jlow t),
-    exists_earlier_job sched t jlow \/
-    num_interfering_jobs higher_eq_priority sched t jlow = num_cpus.
-
-Definition identical_multiprocessor :=
-  mp_cpus_nonzero /\ mp_scheduling_invariant /\ mp_work_conserving.
-
-End Multiprocessor.
-
-Section Uniprocessor.
-
-(* Uniprocessor is a special case of a multiprocessor *)
-Definition uniprocessor := identical_multiprocessor 1.
-
-End Uniprocessor.
-
-(*Lemma identmp_valid :
-  forall num_cpus higher_eq_priority,
-    valid_platform (identical_multiprocessor num_cpus higher_eq_priority).
-Proof.
-  unfold valid_platform, identical_multiprocessor, mp_cpus_nonzero,
-  mp_scheduling_invariant; ins.
-Qed.*)
-
-End IdenticalMultiprocessor. *)

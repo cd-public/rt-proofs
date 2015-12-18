@@ -54,22 +54,15 @@ Module ResponseTimeAnalysisEDF.
 
     Section AllTasks.
 
-      Definition is_interfering_task_jlfp (tsk_other: sporadic_task) :=
-        tsk_other != tsk.
-
+      Let interferes_with_tsk := is_interfering_task_jlfp tsk.
+      
       (* The total interference incurred by tsk is thus bounded by: *)
       Definition total_interference_bound_edf :=
-        \sum_((tsk_other, R_other) <- R_prev | is_interfering_task_jlfp tsk_other)
+        \sum_((tsk_other, R_other) <- R_prev | interferes_with_tsk tsk_other)
            interference_bound_edf (tsk_other, R_other).
 
     End AllTasks.
 
-    Section Proofs.
-
-    (* Proof of edf-specific bound should go here *)
-      
-    End Proofs.
-    
   End InterferenceBoundEDF.
 
   Section ResponseTimeBound.
@@ -157,19 +150,14 @@ Module ResponseTimeAnalysisEDF.
         (tsk_other, R) \in rt_bounds -> R <= task_deadline tsk_other.
 
     (* Assume that the schedule satisfies the global scheduling
-       invariant, i.e., if any job of tsk is backlogged, all
-       the processors must be busy with jobs of equal or higher
-       priority. *)
+       invariant with EDF priority, i.e., if any job of tsk is
+       backlogged, every processor must be busy with jobs with
+       no greater absolute deadline. *)
+    Let higher_eq_priority :=
+      @EDF Job arr_seq job_deadline. (* TODO: implicit params seems broken *)    
     Hypothesis H_global_scheduling_invariant:
-      forall (tsk: sporadic_task) (j: JobIn arr_seq) (t: time),
-        tsk \in ts ->
-        job_task j = tsk ->
-        backlogged job_cost rate sched j t ->
-        count
-          (fun tsk_other : sporadic_task =>
-             is_interfering_task_jlfp tsk tsk_other &&
-               task_is_scheduled job_task sched tsk_other t) ts = num_cpus.
-        
+      JLFP_JLDP_scheduling_invariant_holds job_cost num_cpus rate sched higher_eq_priority.
+
     (* Next, we define Bertogna and Cirinei's response-time bound recurrence *)  
     Variable tsk: sporadic_task.
 
@@ -378,7 +366,9 @@ Module ResponseTimeAnalysisEDF.
           destruct ([exists t': 'I_t2, (t' >= t1) && backlogged job_cost rate sched j' t' && scheduled sched j t']) eqn:EX.
           {
             move: EX => /existsP EX; destruct EX as [t' EX];move: EX => /andP [/andP [LE BACK] SCHED].
-            admit. (* Use INVARIANT -- needs some fix for EDF *)
+            eapply interfering_job_has_higher_eq_prio in BACK;
+              [ | by apply INVARIANT | by apply SCHED].
+            by apply BACK.
           }
           {
             apply negbT in EX; rewrite negb_exists in EX; move: EX => /forallP ALL.

@@ -150,6 +150,14 @@ Module Schedule.
     (* A carried-out job in [t1,t2) arrives after t1 and is not completed at time t2 *)
     Definition carried_out (t1 t2: time) := arrived_between j t1 t2 && ~~ completed t2.
 
+    (* The list of jobs scheduled at time t. *)
+    Definition jobs_scheduled_at (t: time) :=
+      \cat_(cpu < num_cpus) make_sequence (sched cpu t).
+    
+    (* The (duplicate-free) list of jobs scheduled in the interval [t1, t2). *)
+    Definition jobs_scheduled_between (t1 t2: time) :=
+      undup (\cat_(t1 <= t < t2) jobs_scheduled_at t).
+
   End ScheduledJobs.
 
   Section ValidSchedules.

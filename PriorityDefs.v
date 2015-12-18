@@ -153,8 +153,7 @@ Module Priority.
   Section EDFDefs.
 
     Context {Job: eqType}.
-    Context {num_cpus: nat}.
-    Context {arr_seq: arrival_sequence Job}.
+    Variable arr_seq: arrival_sequence Job.
     Variable job_deadline: Job -> nat.
       
     Definition EDF (t: time) (j1 j2: JobIn arr_seq) :=
@@ -179,55 +178,4 @@ Module Priority.
 
   End EDFDefs.
 
-  (*Section ScheduleIndependent.
-
-    Context {Job: eqType}.
-    Context {num_cpus: nat}.
-    Context {arr_seq: arrival_sequence Job}.
-    
-    (* Whether a priority order is schedule-independent *)
-    Definition schedule_independent (hp: jldp_policy num_cpus arr_seq) :=
-      forall (sched1 sched2: schedule num_cpus arr_seq),
-        hp sched1 = hp sched2.
-
-    Variable job_deadline: Job -> nat.
-    Lemma edf_schedule_independent : schedule_independent (EDF job_deadline).
-    Proof.
-      by unfold schedule_independent, EDF; ins.
-    Qed.
-      
-    Variable job_task: Job -> sporadic_task.
-    Lemma fp_schedule_independent :
-      forall task_hp,
-        schedule_independent (fp_to_jldp job_task task_hp).
-    Proof. 
-      by unfold schedule_independent, fp_to_jldp.
-    Qed.
-      
-  End ScheduleIndependent.*)
-
 End Priority.
-
-
-(*Section BasicDefinitions.
-
-Variable higher_eq_priority: jldp_policy.
-Variable sched: schedule.
-Variable t: time.
-
-Definition num_pending_jobs :=
-  count (fun j => pending sched j t) (all_arrivals sched t).
-
-Definition num_scheduled_jobs :=
-  count (fun j => scheduled sched j t) (all_arrivals sched t).
-
-(* Whether a job jhigh can preempt jlow at time t *)
-Definition interferes_with (jlow jhigh: job) :=
-  scheduled sched jhigh t &&
-  higher_eq_priority sched t jhigh jlow &&
-  (jhigh != jlow).
-
-Definition num_interfering_jobs (jlow: job) :=
-  count (interferes_with jlow) (all_arrivals sched t).
-
-End BasicDefinitions.*)

@@ -1,6 +1,5 @@
 Require Import Vbase TaskDefs JobDefs TaskArrivalDefs ScheduleDefs
-               PlatformDefs helper
-               ssreflect ssrbool eqtype ssrnat seq fintype bigop.
+               helper ssreflect ssrbool eqtype ssrnat seq fintype bigop.
 
 Module ResponseTime.
 
