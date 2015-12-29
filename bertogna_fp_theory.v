@@ -1,25 +1,23 @@
-Require Import Vbase TaskDefs JobDefs TaskArrivalDefs ScheduleDefs
-               PlatformDefs WorkloadDefsJitter BertognaResponseTimeDefs SchedulabilityDefs PriorityDefs
-               ResponseTimeDefs divround helper
+Require Import Vbase task job task_arrival schedule platform workload
+               schedulability priority response_time interference
+               util_divround util_lemmas
                ssreflect ssrbool eqtype ssrnat seq fintype bigop div path tuple.
 
-Module ResponseTimeAnalysisJitter.
+Module ResponseTimeAnalysis.
 
-  Import Job SporadicTaskset ScheduleOfTaskWithJitter Schedulability ResponseTime Priority SporadicTaskArrival.
-  Export WorkloadWithJitter ResponseTimeAnalysis.
+  Export Job SporadicTaskset Schedule Workload Interference Platform Schedulability ResponseTime Priority SporadicTaskArrival.
   
-  Section InterferenceBoundJitter.
+  Section InterferenceBoundFP.
 
-    Context {sporadic_task_with_jitter: eqType}.
-    Variable task_cost: sporadic_task_with_jitter -> nat.
-    Variable task_period: sporadic_task_with_jitter -> nat.
-    Variable task_deadline: sporadic_task_with_jitter -> nat.
-    Variable task_jitter: sporadic_task_with_jitter -> nat.
+    Context {sporadic_task: eqType}.
+    Variable task_cost: sporadic_task -> nat.
+    Variable task_period: sporadic_task -> nat.
+    Variable task_deadline: sporadic_task -> nat.
     
     (* Let tsk be the task to be analyzed. *)
-    Variable tsk: sporadic_task_with_jitter.
+    Variable tsk: sporadic_task.
 
-    Let task_with_response_time := (sporadic_task_with_jitter * time)%type.
+    Let task_with_response_time := (sporadic_task * time)%type.
     
     (* Assume a known response-time bound for each interfering task ... *)
     Variable R_prev: seq task_with_response_time.
@@ -35,53 +33,38 @@ Module ResponseTimeAnalysisJitter.
     
       (* Based on the workload bound, Bertogna and Cirinei define the
          following interference bound for a task. *)
-      Definition interference_bound_jitter :=
-        minn (W_jitter task_cost task_period task_jitter tsk_other R_other delta) (delta - (task_cost tsk) + 1).
+      Definition interference_bound :=
+        minn (W task_cost task_period tsk_other R_other delta) (delta - (task_cost tsk) + 1).
 
     End PerTask.
 
-    Section FP.
+    Section AllTasks.
       
       (* Assume an FP policy. *)
-      Variable higher_eq_priority: fp_policy sporadic_task_with_jitter.
+      Variable higher_eq_priority: fp_policy sporadic_task.
 
-      Definition is_interfering_task_fp (tsk_other: sporadic_task_with_jitter) :=
-        higher_eq_priority tsk_other tsk && (tsk_other != tsk).
+      Let interferes_with_tsk := is_interfering_task_fp higher_eq_priority tsk.
       
       (* The total interference incurred by tsk is thus bounded by: *)
-      Definition total_interference_bound_fp_jitter :=
-        \sum_((tsk_other, R_other) <- R_prev | is_interfering_task_fp tsk_other)
-           interference_bound_jitter (tsk_other, R_other).
+      Definition total_interference_bound_fp :=
+        \sum_((tsk_other, R_other) <- R_prev | interferes_with_tsk tsk_other)
+           interference_bound (tsk_other, R_other).
       
-    End FP.
+    End AllTasks.
 
-    Section JLFP.
-
-      Let is_interfering_task_jlfp (tsk_other: sporadic_task_with_jitter) :=
-        tsk_other != tsk.
-      
-      (* The total interference incurred by tsk is thus bounded by: *)
-      Definition total_interference_bound_jlfp_jitter :=
-        \sum_((tsk_other, R_other) <- R_prev | is_interfering_task_jlfp tsk_other)
-           interference_bound_jitter (tsk_other, R_other).
-
-    End JLFP.
-
-  End InterferenceBoundJitter.
+  End InterferenceBoundFP.
   
   Section ResponseTimeBound.
 
-    Context {sporadic_task_with_jitter: eqType}.
-    Variable task_cost: sporadic_task_with_jitter -> nat.
-    Variable task_period: sporadic_task_with_jitter -> nat.
-    Variable task_deadline: sporadic_task_with_jitter -> nat.
-    Variable task_jitter: sporadic_task_with_jitter -> nat.
+    Context {sporadic_task: eqType}.
+    Variable task_cost: sporadic_task -> nat.
+    Variable task_period: sporadic_task -> nat.
+    Variable task_deadline: sporadic_task -> nat.
     
     Context {Job: eqType}.
     Variable job_cost: Job -> nat.
     Variable job_deadline: Job -> nat.
-    Variable job_task: Job -> sporadic_task_with_jitter.
-    Variable job_jitter: Job -> nat.
+    Variable job_task: Job -> sporadic_task.
     
     (* Assume any job arrival sequence... *)
     Context {arr_seq: arrival_sequence Job}.
@@ -91,7 +74,7 @@ Module ResponseTimeAnalysisJitter.
       sporadic_task_model task_period arr_seq job_task.
     Hypothesis H_valid_job_parameters:
       forall (j: JobIn arr_seq),
-        valid_sporadic_job_with_jitter task_cost task_deadline task_jitter job_cost job_deadline job_task job_jitter j.
+        valid_sporadic_job task_cost task_deadline job_cost job_deadline job_task j.
 
     (* Consider any schedule such that...*)
     Variable num_cpus: nat.
@@ -100,8 +83,8 @@ Module ResponseTimeAnalysisJitter.
 
     (* ...jobs do not execute before their arrival times nor longer
        than their execution costs. *)
-    Hypothesis H_jobs_execute_after_jitter:
-      jobs_execute_after_jitter job_jitter sched.
+    Hypothesis H_jobs_must_arrive_to_execute:
+      jobs_must_arrive_to_execute sched.
     Hypothesis H_completed_jobs_dont_execute:
       completed_jobs_dont_execute job_cost rate sched.
 
@@ -116,29 +99,29 @@ Module ResponseTimeAnalysisJitter.
 
     (* Assume that we have a task set where all tasks have valid
        parameters and restricted deadlines. *)
-    Variable ts: taskset_of sporadic_task_with_jitter.
+    Variable ts: taskset_of sporadic_task.
     Hypothesis H_valid_task_parameters:
       valid_sporadic_taskset task_cost task_period task_deadline ts.
     Hypothesis H_restricted_deadlines:
       forall tsk, tsk \in ts -> task_deadline tsk <= task_period tsk.
 
     (* Next, consider a task tsk that is to be analyzed. *)
-    Variable tsk: sporadic_task_with_jitter.
+    Variable tsk: sporadic_task.
     Hypothesis task_in_ts: tsk \in ts.
 
-    Let no_deadline_is_missed_by_tsk (tsk: sporadic_task_with_jitter) :=
+    Let no_deadline_is_missed_by_tsk (tsk: sporadic_task) :=
       task_misses_no_deadline job_cost job_deadline job_task rate sched tsk.
-    Let is_response_time_bound (tsk: sporadic_task_with_jitter) :=
+    Let is_response_time_bound (tsk: sporadic_task) :=
       is_response_time_bound_of_task job_cost job_task tsk rate sched.
 
     (* Assume a known response-time bound for any interfering task *)
-    Let task_with_response_time := (sporadic_task_with_jitter * time)%type.
+    Let task_with_response_time := (sporadic_task * time)%type.
     Variable hp_bounds: seq task_with_response_time.
     
     (* For FP scheduling, assume there exists a fixed task priority. *)
-    Variable higher_eq_priority: fp_policy sporadic_task_with_jitter.
+    Variable higher_eq_priority: fp_policy sporadic_task.
 
-    Let interferes_with_tsk := is_interfering_task_fp tsk higher_eq_priority.
+    Let interferes_with_tsk := is_interfering_task_fp higher_eq_priority tsk.
     
     (* Assume that hp_bounds has exactly the tasks that interfere with tsk,... *)
     Hypothesis H_hp_bounds_has_interfering_tasks:
@@ -149,7 +132,7 @@ Module ResponseTimeAnalysisJitter.
       forall hp_tsk R,
         (hp_tsk, R) \in hp_bounds ->
         is_response_time_bound_of_task job_cost job_task hp_tsk rate sched R.
-    
+
     (* Assume that the response-time bounds are larger than task costs. *)
     Hypothesis H_response_time_bounds_ge_cost:
       forall hp_tsk R,
@@ -172,28 +155,25 @@ Module ResponseTimeAnalysisJitter.
     
     (* Let R be any time. *)
     Variable R: time.
-    
+
     (* Bertogna and Cirinei's response-time analysis states that
        if R is a fixed-point of the following recurrence, ... *)
-    Let I := total_interference_bound_fp_jitter task_cost task_period
-                           task_jitter tsk hp_bounds R higher_eq_priority.
     Hypothesis H_response_time_recurrence_holds :
-      R = task_cost tsk + (div_floor I num_cpus).
+      R = task_cost tsk +
+          div_floor
+            (total_interference_bound_fp task_cost task_period tsk hp_bounds R higher_eq_priority)
+            num_cpus.
 
-    (* ..., R' = R + jitter, ...*)
-    Let R' := R + task_jitter tsk.
-    
-    (*..., and R' is no larger than the deadline of tsk, ...*)
+    (*..., and R is no larger than the deadline of tsk, ...*)
     Hypothesis H_response_time_no_larger_than_deadline:
-      R' <= task_deadline tsk.
+      R <= task_deadline tsk.
 
-    (* ..., then (R + jitter) bounds the response time of tsk. *)
-    Theorem bertogna_cirinei_response_time_bound_fp_with_jitter :
-      is_response_time_bound tsk R'.
+    (* ..., then R bounds the response time of tsk in any schedule. *)
+    Theorem bertogna_cirinei_response_time_bound_fp :
+      is_response_time_bound tsk R.
     Proof.
       unfold is_response_time_bound, is_response_time_bound_of_task,
-             completed, completed_jobs_dont_execute,
-             valid_sporadic_job_with_jitter, valid_sporadic_job in *.
+             completed, completed_jobs_dont_execute, valid_sporadic_job in *.
       rename H_completed_jobs_dont_execute into COMP,
              H_response_time_recurrence_holds into REC,
              H_valid_job_parameters into PARAMS,
@@ -206,7 +186,7 @@ Module ResponseTimeAnalysisJitter.
              H_global_scheduling_invariant into INVARIANT,
              H_response_time_bounds_ge_cost into GE_COST.
       intros j JOBtsk.
-      
+
       (* For simplicity, let x denote per-task interference under FP
          scheduling, and let X denote the total interference. *)
       set x := fun hp_tsk =>
@@ -220,31 +200,21 @@ Module ResponseTimeAnalysisJitter.
       set workload_bound := fun (tup: task_with_response_time) =>
         let (tsk_k, R_k) := tup in
           if interferes_with_tsk tsk_k then
-            W_jitter task_cost task_period task_jitter tsk_k R_k R
+            W task_cost task_period tsk_k R_k R
           else 0.  
       
       (* Now we start the proof. Assume by contradiction that job j
          is not complete at time (job_arrival j + R). *)
-      destruct (completed job_cost rate sched j (job_arrival j + R')) eqn:COMPLETED;
+      destruct (completed job_cost rate sched j (job_arrival j + R)) eqn:COMPLETED;
         first by move: COMPLETED => /eqP COMPLETED; rewrite COMPLETED eq_refl.
       apply negbT in COMPLETED; exfalso.
 
-      (* Note that j cannot have completed by job_arrival j + R either. *)
-      assert (COMPLETED': ~~ completed job_cost rate sched j (job_arrival j + R)).
-      {
-        apply/negP; unfold not; intro BUG.
-        apply completion_monotonic with (t' := job_arrival j + R') in BUG;
-          try (by ins);
-          [ by rewrite BUG in COMPLETED
-          | by unfold R'; rewrite addnA; apply leq_addr].
-      }
-      
       (* Since j has not completed, recall the time when it is not
          executing is the total interference. *)
       exploit (complement_of_interf_equals_service job_cost rate sched j (job_arrival j)
                                                    (job_arrival j + R));
         last intro EQinterf; ins; unfold has_arrived;
-          first by apply leqnn.
+        first by apply leqnn.
       rewrite {2}[_ + R]addnC -addnBA // subnn addn0 in EQinterf.
 
       (* In order to derive a contradiction, we first show that
@@ -259,22 +229,22 @@ Module ResponseTimeAnalysisJitter.
         move => tsk_k /andP [INk INTERk] R_k HPk.
         unfold x, workload_bound; rewrite INk INTERk andbT.
         apply leq_trans with (n := workload job_task rate sched tsk_k
-                                  (job_arrival j) (job_arrival j + R));
+                                            (job_arrival j) (job_arrival j + R));
           first by apply task_interference_le_workload; ins; rewrite RATE.
-        apply workload_bounded_by_W_jitter with (task_deadline0 := task_deadline)
-                                        (job_cost0 := job_cost) (job_deadline0 := job_deadline)
-                                        (job_jitter0 := job_jitter); ins;
-          [ by rewrite RATE
-          | by apply TASK_PARAMS
-          | by apply RESTR
-          | by red; red; ins; apply (RESP tsk_k)  
-          | by apply GE_COST |].
-        red; red; move => j' /eqP JOBtsk' _;
-        unfold job_misses_no_deadline.
-        specialize (PARAMS j'); des.
-        rewrite PARAMS2 JOBtsk'.
-        apply completion_monotonic with (t := job_arrival j' + R_k); ins;
-          [by rewrite leq_add2l; apply NOMISS | by apply (RESP tsk_k)].
+        {
+          apply workload_bounded_by_W with (task_deadline0 := task_deadline) (job_cost0 := job_cost) (job_deadline0 := job_deadline); try (by ins); last 2 first;
+            [ by ins; apply GE_COST 
+            |  by ins; apply RESP with (hp_tsk := tsk_k)
+            | by ins; rewrite RATE
+            | by ins; apply TASK_PARAMS
+            | by ins; apply RESTR |].
+          red; red; move => j' /eqP JOBtsk' _;
+          unfold job_misses_no_deadline.
+          specialize (PARAMS j'); des.
+          rewrite PARAMS1 JOBtsk'.
+          apply completion_monotonic with (t := job_arrival j' + R_k); ins;
+            [by rewrite leq_add2l; apply NOMISS | by apply (RESP tsk_k)].
+        }
       }
 
       (* In the remaining of the proof, we show that the workload bound
@@ -285,19 +255,19 @@ Module ResponseTimeAnalysisJitter.
             Otherwise, job j would have completed on time. *)
       assert (INTERF: X >= R - task_cost tsk + 1).
       {
-        unfold completed in COMPLETED'; rewrite addn1.
-        move: COMPLETED'; rewrite neq_ltn; move => /orP COMPLETED'; des;
+        unfold completed in COMPLETED.
+        rewrite addn1.
+        move: COMPLETED; rewrite neq_ltn; move => /orP COMPLETED; des;
           last first.
         {
-          apply (leq_ltn_trans (COMP j (job_arrival j + R))) in COMPLETED'.
-          by rewrite ltnn in COMPLETED'.
+          apply (leq_ltn_trans (COMP j (job_arrival j + R))) in COMPLETED.
+          by rewrite ltnn in COMPLETED.
         }
         apply leq_trans with (n := R - service rate sched j (job_arrival j + R)); last first.
         {
-          unfold service.
-          rewrite service_before_arrival_eq_service_during; ins;
-            last by apply arrival_before_jitter with (job_jitter0 := job_jitter).
-          rewrite EQinterf subKn; first by ins.
+          unfold service; rewrite service_before_arrival_eq_service_during; ins.
+          rewrite EQinterf.
+          rewrite subKn; first by ins.
           {
             unfold total_interference.
             rewrite -{1}[_ j]add0n big_addn addnC -addnBA // subnn addn0.
@@ -309,11 +279,11 @@ Module ResponseTimeAnalysisJitter.
           apply ltn_sub2l; last first.
           {
             apply leq_trans with (n := job_cost j); first by ins.
-            by rewrite -JOBtsk; specialize (PARAMS j); des; apply PARAMS1.
+            by rewrite -JOBtsk; specialize (PARAMS j); des; apply PARAMS0.
           }
           apply leq_trans with (n := job_cost j); first by ins.
           apply leq_trans with (n := task_cost tsk);
-            first by rewrite -JOBtsk; specialize (PARAMS j); des; apply PARAMS1.
+            first by rewrite -JOBtsk; specialize (PARAMS j); des; apply PARAMS0.
           by rewrite REC; apply leq_addr.
         }
       }
@@ -429,7 +399,7 @@ Module ResponseTimeAnalysisJitter.
             unfold some_interference_A, total_interference_B. 
             destruct (backlogged job_cost rate sched j t) eqn:BACK;
               [rewrite andTb mul1n | by ins].
-            destruct (has (fun tsk_k : sporadic_task_with_jitter =>
+            destruct (has (fun tsk_k : sporadic_task =>
                      interferes_with_tsk tsk_k &&
                      (R - task_cost tsk + 1 <= x tsk_k) &&
                      task_is_scheduled job_task sched tsk_k t) ts) eqn:HAS;
@@ -438,7 +408,7 @@ Module ResponseTimeAnalysisJitter.
             destruct HAS as [tsk_k INk H].
             move: H => /andP [/andP [INTERFk LEk] SCHEDk].
             
-            exploit (INVARIANT tsk j t); try (by done); intro COUNT.
+            exploit (INVARIANT tsk j t); try (by done); intro COUNT. 
 
             unfold cardA.
             set interfering_tasks_at_t :=
@@ -465,11 +435,11 @@ Module ResponseTimeAnalysisJitter.
 
             rewrite leq_subLR -count_predUI.
             apply leq_trans with (n :=
-              count (predU (fun i : sporadic_task_with_jitter =>
+              count (predU (fun i : sporadic_task =>
                               interferes_with_tsk i &&
                               (R - task_cost tsk + 1 <= x i) &&
                               task_is_scheduled job_task sched i t)
-                           (fun tsk_k0 : sporadic_task_with_jitter =>
+                           (fun tsk_k0 : sporadic_task =>
                               interferes_with_tsk tsk_k0 &&
                               (x tsk_k0 < R - task_cost tsk + 1) &&
                               task_is_scheduled job_task sched tsk_k0 t))
@@ -524,7 +494,8 @@ Module ResponseTimeAnalysisJitter.
             all tasks (artifact of the proof by contradiction). *)
       assert (SUM: \sum_((tsk_k, R_k) <- hp_bounds)
                      minn (x tsk_k) (R - task_cost tsk + 1) >
-                     I).
+                     total_interference_bound_fp task_cost task_period tsk hp_bounds
+                                                 R higher_eq_priority).
       {
         apply leq_trans with (n := \sum_(tsk_k <- ts) minn (x tsk_k) (R - task_cost tsk + 1));
           last first.
@@ -565,7 +536,7 @@ Module ResponseTimeAnalysisJitter.
         move: NOTHAS => /negP /hasPn ALL.
         rewrite -[_ < _]negbK in SUM.
         move: SUM => /negP SUM; apply SUM; rewrite -leqNgt.
-        unfold I, total_interference_bound_fp_jitter.
+        unfold total_interference_bound_fp.
         rewrite [\sum_(i <- _ | let '(tsk_other, _) := i in _)_]big_mkcond.
         rewrite big_seq_cond [\sum_(i <- _ | true) _]big_seq_cond.
         apply leq_sum; move => tsk_k /andP [HPk _]; destruct tsk_k as [tsk_k R_k].
@@ -583,7 +554,7 @@ Module ResponseTimeAnalysisJitter.
       destruct tup_k as [tsk_k R_k]; simpl in LTmin.
       move: LTmin => /andP [INTERFk LTmin]; move: (INTERFk) => /andP [INk INTERFk'].
       rewrite INTERFk' in LTmin; unfold minn at 1 in LTmin.
-      destruct (W_jitter task_cost task_period task_jitter tsk_k R_k R < R - task_cost tsk + 1); rewrite leq_min in LTmin;
+      destruct (W task_cost task_period tsk_k R_k R < R - task_cost tsk + 1); rewrite leq_min in LTmin; 
         last by move: LTmin => /andP [_ BUG]; rewrite ltnn in BUG.
       move: LTmin => /andP [BUG _]; des.
       specialize (WORKLOAD tsk_k INTERFk R_k HPk).
@@ -593,4 +564,4 @@ Module ResponseTimeAnalysisJitter.
 
   End ResponseTimeBound.
 
-End ResponseTimeAnalysisJitter.
+End ResponseTimeAnalysis.

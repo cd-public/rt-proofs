@@ -1,4 +1,4 @@
-Require Import Vbase TaskDefs ScheduleDefs
+Require Import Vbase task schedule
                ssreflect eqtype ssrbool ssrnat seq.
 
 Module Schedulability.

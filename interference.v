@@ -1,5 +1,5 @@
-Require Import Vbase TaskDefs JobDefs ScheduleDefs PriorityDefs WorkloadDefs divround
-              helper ssreflect ssrbool eqtype ssrnat seq fintype bigop.
+Require Import Vbase task job schedule priority workload util_divround
+               util_lemmas ssreflect ssrbool eqtype ssrnat seq fintype bigop.
 
 Module Interference.
 

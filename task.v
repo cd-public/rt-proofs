@@ -1,4 +1,4 @@
-Require Import Vbase helper ssrnat ssrbool eqtype fintype seq.
+Require Import Vbase util_lemmas ssrnat ssrbool eqtype fintype seq.
 
 Module SporadicTask.
 

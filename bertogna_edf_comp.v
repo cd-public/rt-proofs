@@ -1,5 +1,5 @@
-Require Import Vbase ScheduleDefs BertognaResponseTimeDefsEDF divround helper
-               ssreflect ssrbool eqtype ssrnat seq fintype bigop div path tuple.
+Require Import Vbase schedule bertogna_edf_theory util_divround util_lemmas
+               ssreflect ssrbool eqtype ssrnat seq fintype bigop div path.
 
 Module ResponseTimeIterationEDF.
 

@@ -1,4 +1,4 @@
-Require Import Vbase TaskDefs JobDefs ScheduleDefs helper
+Require Import Vbase task job schedule util_lemmas
                ssreflect ssrbool eqtype ssrnat seq fintype bigop.
 
 Module SporadicTaskArrival.

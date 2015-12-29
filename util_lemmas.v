@@ -359,24 +359,6 @@ Proof.
 Qed.
 
 Lemma fun_mon_iter_mon :
-  forall (f: nat -> nat) x0 x1 x2 (LE: x1 <= x2) (MIN: f 0 >= x0)
-         (MON: forall x1 x2, x1 <= x2 -> f x1 <= f x2),
-    iter x1 f x0 <= iter x2 f x0.
-Proof.
-  ins; revert LE; revert x2; rewrite leq_as_delta; intros delta.
-  induction x1; try rewrite add0n.
-  {
-    destruct delta; first by apply leqnn.
-    apply leq_trans with (n := f 0); first by apply MIN.
-    by rewrite iterS MON.
-  }
-  {
-    rewrite iterS -addn1 -addnA [1 + delta]addnC addnA addn1 iterS.
-    by apply MON, IHx1.
-  }
-Qed.
-
-Lemma fun_mon_iter_mon' :
   forall (f: nat -> nat) x0 x1 x2 (LE: x1 <= x2)
          (MIN: f x0 >= x0)
          (MON: forall x1 x2, x1 <= x2 -> f x1 <= f x2),
@@ -807,45 +789,3 @@ Proof.
   rewrite -> big_cat_nat with (p := t2') (n := t2); try (by done); simpl.
   by rewrite addnC -addnA; apply leq_addr.
 Qed.
-
-
-    (*Program Definition fun_ord_to_nat2 {n} {T} (x0: T) (f: 'I_n -> T)
-        (x : nat) : T :=
-  match (x < n) with
-      true => (f _)
-    | false => x0
-  end.
-Next Obligation.
-  eby eapply Ordinal, Logic.eq_sym.
-Defined.
-
-Lemma eq_fun_ord_to_nat2 :
-  forall n {T: Type} x0 (f: 'I_n -> T) (x: 'I_n),
-    (fun_ord_to_nat2 x0 f) x = f x.
-Proof.
-  ins. unfold fun_ord_to_nat2.
-  des_eqrefl.
-    by f_equal; apply ord_inj.
-    by destruct x; ins; rewrite i in EQ.
-Qed.
-
-(* For all x: 'I_n (i.e., x < n), the conversion preserves equality. *)
-Program Definition eq_fun_ord_to_nat :
-  forall n {T: Type} x0 (f: 'I_n -> T) (x: 'I_n),
-    (fun_ord_to_nat x0 f) x = f x :=
-  fun n T x0 f x =>
-    match ltn_ord x in eq _ b return
-          ( 
-            (if b as b' return b = b' -> T then
-               fun (H : b = true) => f (@Ordinal n x ( H))
-             else fun _ => x0) Logic.eq_refl = f x
-          )
-          -> fun_ord_to_nat x0 f x = f x
-    with
-      | Logic.eq_refl => _
-    end (Logic.eq_refl (f x)).
-Next Obligation.
-  destruct x; simpl.
-  f_equal; f_equal.
-  exact: bool_irrelevance.
-Qed.*)

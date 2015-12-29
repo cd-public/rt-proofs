@@ -1,4 +1,4 @@
-Require Import Vbase ExtraRelations TaskDefs JobDefs ScheduleDefs (*TaskArrivalDefs*)
+Require Import Vbase task job schedule
                ssreflect ssrbool eqtype ssrnat seq.
 Set Implicit Arguments.
 

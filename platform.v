@@ -1,5 +1,4 @@
-Require Import Vbase TaskDefs ScheduleDefs JobDefs PriorityDefs
-               InterferenceDefs helper
+Require Import Vbase task schedule job priority interference util_lemmas
                ssreflect ssrbool eqtype ssrnat seq fintype bigop.
 
 Module Platform.

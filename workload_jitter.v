@@ -1,6 +1,6 @@
-Require Import Vbase JobDefs TaskDefs ScheduleDefs TaskArrivalDefs ResponseTimeDefs WorkloadDefs
-        SchedulabilityDefs divround helper
-        ssreflect ssrbool eqtype ssrnat seq div fintype bigop path.
+Require Import Vbase job task schedule task_arrival response_time workload
+               schedulability util_divround util_lemmas
+               ssreflect ssrbool eqtype ssrnat seq div fintype bigop path.
 
 Module WorkloadWithJitter.
 

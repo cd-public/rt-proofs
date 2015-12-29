@@ -1,7 +1,7 @@
-Require Import Vbase TaskDefs JobDefs TaskArrivalDefs ScheduleDefs
-        PlatformDefs WorkloadDefs SchedulabilityDefs PriorityDefs
-        ResponseTimeDefs BertognaResponseTimeDefs divround helper
-        ssreflect ssrbool eqtype ssrnat seq fintype bigop div path tuple.
+Require Import Vbase task job task_arrival schedule platform
+        workload schedulability priority response_time
+        bertogna_fp_theory util_divround util_lemmas
+        ssreflect ssrbool eqtype ssrnat seq fintype bigop div path.
 
 Module ResponseTimeAnalysisEDF.
 
