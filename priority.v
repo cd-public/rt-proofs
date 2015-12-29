@@ -74,11 +74,12 @@ Module Priority.
     Variable task_period: sporadic_task -> nat.
     Variable task_deadline: sporadic_task -> nat.
     
-    (* Rate-Monotonic and Deadline-Monotonic priority order *)
+    (* Rate-Monotonic and Deadline-Monotonic as priority order *)
     Definition RM (tsk1 tsk2: sporadic_task) := task_period tsk1 <= task_period tsk2.
 
     Definition DM (tsk1 tsk2: sporadic_task) := task_deadline tsk1 <= task_deadline tsk2.
 
+    (* Rate-Montonic is a valid FP policy. *)
     Lemma rm_is_valid : valid_fp_policy RM.
     Proof.
       unfold valid_fp_policy, fp_is_reflexive, fp_is_transitive, RM;
@@ -88,6 +89,7 @@ Module Priority.
         [by left | by right; apply ltnW].
     Qed.
 
+    (* Deadline-Monotonic is a valid FP policy. *)
     Lemma dm_is_valid : valid_fp_policy DM.
     Proof.
       unfold valid_fp_policy, fp_is_reflexive, fp_is_transitive, DM;
@@ -106,11 +108,13 @@ Module Priority.
     Variable job_task: Job -> sporadic_task.
     Variable arr_seq: arrival_sequence Job.
     Variable num_cpus: nat.
-    
+
+    (* We define a function to get from FP to JLDP policy. *)
     Definition fp_to_jldp (task_hp: fp_policy sporadic_task) : jldp_policy arr_seq :=
       fun (t: time) (jhigh jlow: JobIn arr_seq) =>
         task_hp (job_task jhigh) (job_task jlow).
 
+    (* With this function, from a valid FP policy comes a valid JLDP policy. *)
     Lemma valid_fp_is_valid_jldp :
       forall task_hp (FP: valid_fp_policy task_hp),
         valid_jldp_policy (fp_to_jldp task_hp).

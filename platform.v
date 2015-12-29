@@ -69,7 +69,8 @@ Module Platform.
 
         Hypothesis H_invariant_holds :
           JLFP_JLDP_scheduling_invariant_holds.
-        
+
+        (* The job which is interfering has higher or equal priority to the interfered one. *)
         Lemma interfering_job_has_higher_eq_prio :
           forall j j_other t,
             backlogged job_cost rate sched j t ->
@@ -103,11 +104,14 @@ Module Platform.
           by rewrite ltnn in BUG.
         Qed.
 
+        (* Assume all jobs are from the taskset ... *)
         Hypothesis all_jobs_from_taskset:
           forall (j: JobIn arr_seq), job_task j \in ts.
+        (* ... and jobs from the same task don't execute in parallel. *)
         Hypothesis no_intra_task_parallelism:
           jobs_of_same_task_dont_execute_in_parallel job_task sched.
 
+        (* If a job isn't scheduled, the processor are busy with interfering tasks. *)
         Lemma cpus_busy_with_interfering_tasks :
           forall (j: JobIn arr_seq) tsk t,
             job_task j = tsk ->

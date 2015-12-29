@@ -65,6 +65,7 @@ Module ResponseTime.
       Hypothesis response_time_bound:
         job_has_completed_by j (job_arrival j + R). 
 
+      (* The service at any time t' after the response time is 0. *)
       Lemma service_at_after_job_rt_zero :
         forall t',
           t' >= job_arrival j + R ->
@@ -85,6 +86,7 @@ Module ResponseTime.
           by rewrite big_nat_recr // /=; apply leq_addl.
       Qed.
 
+      (* The cumulative service after the response time is 0. *)
       Lemma sum_service_after_job_rt_zero :
         forall t' t'',
           t' >= job_arrival j + R ->
@@ -112,7 +114,8 @@ Module ResponseTime.
 
       Variable j: JobIn arr_seq.
       Hypothesis H_job_of_task: job_task j = tsk.
-    
+
+      (* The service at any time t' after the response time is 0. *)
       Lemma service_at_after_rt_zero :
         forall t',
           t' >= job_arrival j + R ->
@@ -121,6 +124,7 @@ Module ResponseTime.
         by ins; apply service_at_after_job_rt_zero with (R := R); [apply response_time_bound |].
       Qed.
 
+      (* The cumulative service after the response time is 0. *)
       Lemma sum_service_after_rt_zero :
         forall t' t'',
           t' >= job_arrival j + R ->
@@ -130,86 +134,7 @@ Module ResponseTime.
       Qed.
       
     End AllJobs.
-    
-    (*Section CostAsLowerBound.
-
-      Hypothesis H_jobs_must_arrive_to_execute:
-        jobs_must_arrive_to_execute sched.
-      Hypothesis H_no_parallelism:
-        jobs_dont_execute_in_parallel sched.
-      Hypothesis H_rate_at_most_one :
-        forall j cpu, rate j cpu <= 1.
-    
-      Lemma response_time_ge_cost : R >= job_cost j.
-      Proof.
-        rename response_time_bound into BOUND.
-        unfold is_response_time_bound_of_task, job_has_completed_by, completed,
-               jobs_must_arrive_to_execute in *.
-      
-        specialize (BOUND j H_job_of_task).
-        move: BOUND => /eqP BOUND; rewrite -BOUND.
-        apply leq_trans with (n := service_during rate sched j
-                                  (job_arrival j) (job_arrival j + R)).
-        unfold service; rewrite -> big_cat_nat with (n := job_arrival j);
-          [by rewrite sum_service_before_arrival // leqnn | by ins | by apply leq_addr].
-        unfold service_during.
-        apply leq_trans with (n := \sum_(job_arrival j <= t < job_arrival j + R) 1);
-          last by rewrite big_const_nat iter_addn mul1n addn0 addnC -addnBA // subnn addn0 leqnn.
-        by apply leq_sum; ins; by apply service_at_le_max_rate.
-      Qed.
-      
-    End CostAsLowerBound.*)
 
   End BasicLemmas.
-
-  (*Section LowerBoundOfResponseTimeBound.
-
-    Context {sporadic_task: eqType}.
-    Variable task_cost: sporadic_task -> nat.
-    
-    Context {Job: eqType}.
-    Variable job_cost: Job -> nat.
-    Variable job_task: Job -> sporadic_task.
-    Context {arr_seq: arrival_sequence Job}.
-    
-    (* Consider any task with at least one job that arrives in this set. *)
-    Variable tsk: sporadic_task.
-    Hypothesis job_of_tsk_exists:
-      exists j: JobIn arr_seq, job_task j = tsk.
-
-    (* And assume any valid schedule...*)
-    Context {num_cpus : nat}.
-    Variable sched: schedule num_cpus arr_seq.
-    Variable rate: Job -> processor num_cpus -> nat.
-
-    (*... that satisfies the following properties: *)
-    Hypothesis H_jobs_must_arrive_to_execute:
-      jobs_must_arrive_to_execute sched.
-    Hypothesis H_no_parallelism:
-      jobs_dont_execute_in_parallel sched.
-    Hypothesis H_rate_at_most_one:
-      forall j cpu, rate j cpu <= 1.
-
-    (* ..., and assume that, for any job cost function, R is a
-            response-time bound of tsk in this schedule. *)
-    Variable R: time.
-    Hypothesis response_time_bound:
-      forall job_cost,
-        is_response_time_bound_of_task job_cost job_task tsk rate sched R.
-
-    (* Then, R cannot be less than the cost of tsk. *)
-    Lemma response_time_ub_ge_task_cost:
-      R >= task_cost tsk.
-    Proof.
-      unfold job_has_completed_by, completed in *.
-      rename job_of_tsk_exists into EX; des.
-      set new_cost := fun (j': Job) => task_cost (job_task j').
-      apply leq_trans with (n := new_cost j);
-        first by unfold new_cost; rewrite EX.
-      by exploit (response_time_ge_cost new_cost job_task tsk sched rate R);
-        by ins; apply EX.
-    Qed.
-
-  End LowerBoundOfResponseTimeBound.*)
     
 End ResponseTime.

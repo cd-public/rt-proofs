@@ -2,6 +2,8 @@ Require Import task util_lemmas ssrnat ssrbool eqtype.
 
 Module Job.
 
+  (*We define valid parameters for different types of jobs ...*) 
+  (*...for a job*)
   Section ValidJob.
 
     Context {Job: eqType}.
@@ -13,6 +15,7 @@ Module Job.
 
   End ValidJob.
 
+  (*... for a real time job (with a deadline) ...*)
   Section ValidRealtimeJob.
 
     Context {Job: eqType}.
@@ -31,6 +34,7 @@ Module Job.
 
   End ValidRealtimeJob.
 
+  (* ... for a job of a sporadic task ...*)
   Section ValidSporadicTaskJob.
 
     Context {sporadic_task: eqType}.
@@ -56,6 +60,7 @@ Module Job.
 
   End ValidSporadicTaskJob.
 
+  (*... for a job of a sporadic task with jitter ...*)
   Section ValidSporadicTaskJobWithJitter.
 
     Context {sporadic_task: eqType}.

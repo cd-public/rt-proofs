@@ -1,10 +1,10 @@
 Require Import Vbase job task schedule task_arrival priority workload_jitter
-               guan_fp_theory util_divround util_lemmas
+               workload_guan guan_fp_theory util_divround util_lemmas
                ssreflect ssrbool eqtype ssrnat seq fintype bigop div path tuple.
 
 Module ResponseTimeIterationFPGuan.
 
-  Import Job ScheduleOfTaskWithJitter SporadicTaskset SporadicTaskArrival Priority WorkloadWithJitter ResponseTimeAnalysisGuan.
+  Import Job ScheduleOfTaskWithJitter SporadicTaskset SporadicTaskArrival Priority WorkloadWithJitter ResponseTimeAnalysisGuan WorkloadBoundGuan.
 
   Section Analysis.
     

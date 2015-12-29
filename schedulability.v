@@ -20,6 +20,7 @@ Module Schedulability.
 
       Variable j: JobIn arr_seq.
 
+      (* Job won't miss its deadline if it is completed by its arrival time plus its (relative) deadline. *)
       Definition job_misses_no_deadline :=
         completed job_cost rate sched j (job_arrival j + job_deadline j).
 
@@ -37,11 +38,13 @@ Module Schedulability.
       Variable ts: taskset_of sporadic_task.
       Variable tsk: sporadic_task.
 
+      (* A task doesn't miss its deadline iff all of its jobs don't miss their deadline. *)
       Definition task_misses_no_deadline :=
         forall (j: JobIn arr_seq),
           job_task j == tsk ->
           job_misses_no_deadline rate sched j.
 
+      (* Whether a task misses a deadline before a particular time. *)
       Definition task_misses_no_deadline_before (t': time) :=
         forall (j: JobIn arr_seq),
           job_task j == tsk ->

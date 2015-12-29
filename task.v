@@ -1,7 +1,7 @@
 Require Import Vbase util_lemmas ssrnat ssrbool eqtype fintype seq.
 
 Module SporadicTask.
-
+  (* Next we define valid parameters for a sporadic task*)
   Section BasicTask.
     Context {Task: eqType}.
     Variable task_cost: Task -> nat.
@@ -25,29 +25,14 @@ Module SporadicTask.
     
   End BasicTask.
 
-  (*Section TaskWithJitter.
-    Variable sporadic_task_with_jitter: eqType.
-    Variable task_cost: sporadic_task_with_jitter -> nat.
-    Variable task_period: sporadic_task_with_jitter -> nat.
-    Variable task_deadline: sporadic_task_with_jitter -> nat.
-    Variable task_jitter: sporadic_task_with_jitter -> nat.
-    
-    Section ValidParameters.
-      Variable tsk: sporadic_task_with_jitter.
-    
-      (*...*)
-    End ValidParameters.
-
-  End TaskWithJitter.*)
-
 End SporadicTask.
 
 Module SporadicTaskset.
   Export SporadicTask.
 
+  (* In this section we define a task set as a sequence of tasks. *)
   Section TasksetDefs.
-    
-    (* Define task set as a sequence of sporadic tasks. *)
+ 
     Definition taskset_of (T: eqType) := seq T.
 
     Section TasksetProperties.

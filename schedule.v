@@ -5,6 +5,7 @@ Definition time := nat.
 
 Module ArrivalSequence.
 
+  (*We define an arrival sequence as a mapping from natural number t to a sequence of jobs*)
   Section ArrivalSequenceDef.
 
     Variable Job: eqType. (* Assume any job type with decidable equality *)
@@ -108,13 +109,13 @@ Module Schedule.
   
   Section ScheduledJobs.
 
-    Context {Job: eqType}. (* Assume a job type with decidable equality... *)
+    Context {Job: eqType}. (* Assume a job type with decidable equality,... *)
     Context {arr_seq: arrival_sequence Job}.
     
-    Variable job_cost: Job -> nat. (* ...and a cost function. *)
+    Variable job_cost: Job -> nat. (* ...a cost function, ... *)
     
     Context {num_cpus: nat}.
-    Variable rate: Job -> processor num_cpus -> nat.
+    Variable rate: Job -> processor num_cpus -> nat. (*...and a specific rate for each processor *)
     Variable sched: schedule num_cpus arr_seq.
 
     Variable j: JobIn arr_seq.
@@ -123,9 +124,11 @@ Module Schedule.
     Definition scheduled (t: time) :=
       [exists cpu in 'I_(num_cpus), sched cpu t == Some j].
 
+    (* Whether a processor is idle *)
     Definition is_idle (cpu: 'I_(num_cpus)) (t: time) :=
       sched cpu t = None.
 
+    (* Define the service as rate of the processor the job is scheduled on. *)
     Definition service_at (t: time) :=
       \sum_(cpu < num_cpus | sched cpu t == Some j) rate j cpu.
 
@@ -160,6 +163,7 @@ Module Schedule.
 
   End ScheduledJobs.
 
+  (* Let's define how valid schedules can look like. *)
   Section ValidSchedules.
 
     Context {Job: eqType}. (* Assume a job type with decidable equality *)
@@ -184,6 +188,8 @@ Module Schedule.
     Definition completed_jobs_dont_execute :=
       forall j t, service rate sched j t <= job_cost j.
 
+    (* In a valid sporadic schedule, jobs have to be arrived before they executed
+       and in case they completed, they don't execute any more. *) 
     Definition valid_sporadic_schedule :=
       jobs_must_arrive_to_execute /\ completed_jobs_dont_execute.
 
@@ -203,6 +209,7 @@ Module Schedule.
 
     Section Basic.
 
+      (* If a job is not scheduled, it won't get service. *)
       Lemma not_scheduled_no_service :
         forall t,
           ~~ scheduled sched j t -> service_at rate sched j t = 0.
@@ -218,6 +225,8 @@ Module Schedule.
         by move: SCHED => /eqP SCHED; rewrite SCHED eq_refl.
       Qed.
 
+      (* If the service during a time interval isn't 0, there will be
+         a time t in this interval where the service isn't 0. *) 
       Lemma job_scheduled_during_interval :
         forall t1 t2,
           service_during rate sched j t1 t2 != 0 ->
@@ -248,12 +257,16 @@ Module Schedule.
     Section MaxRate.
 
       Variable max_rate: nat.
+
+      (* There has to be a maximum rate for all processors. *)
       Hypothesis there_is_max_rate:
         forall j cpu, rate j cpu <= max_rate.
 
+      (* One job won't be executed on more than one processor at the same time. *)
       Hypothesis no_parallelism:
         jobs_dont_execute_in_parallel sched.
 
+      (* Service received by jobs is always less than or equal to the maximum rate. *)
       Lemma service_at_le_max_rate :
         forall t, service_at rate sched j t <= max_rate.
       Proof.
@@ -285,9 +298,12 @@ Module Schedule.
 
       Hypothesis completed_jobs:
         completed_jobs_dont_execute job_cost rate sched.
+      (* Let the rate on each processor be at most 1. *)
       Hypothesis max_service_one:
         forall j' t, service_at rate sched j' t <= 1.
 
+      (* Let the service interval be the interval a job is getting service during.
+         Then the length of the service interval is less than or equal to the cost of the job. *)
       Lemma service_interval_le_cost :
         forall t t',
           service_during rate sched j t t' <= job_cost j.
@@ -302,6 +318,7 @@ Module Schedule.
             [by apply leq_addl | by ins | by rewrite leqNgt negbT //].
       Qed.
 
+      (* If a job is completed at time t, it will be completed at every time t' which is later than t. *)
       Lemma completion_monotonic :
         forall t t',
           t <= t' ->
@@ -322,6 +339,7 @@ Module Schedule.
       Hypothesis jobs_must_arrive:
         jobs_must_arrive_to_execute sched.
 
+      (* The service received by a job at any time t before its arrival time is 0. ... *)
       Lemma service_before_arrival_zero :
         forall t0 (LT: t0 < job_arrival j),
           service_at rate sched j t0 = 0.
@@ -338,6 +356,7 @@ Module Schedule.
         by exploit (ARR i); [by ins | ins]; destruct (sched i t0 == Some j).
       Qed.
 
+      (* ... That's why the sum of service received by a job before its arrival time is 0, as well. *)
       Lemma sum_service_before_arrival :
         forall t1 t2 (LT: t2 <= job_arrival j),
           \sum_(t1 <= i < t2) service_at rate sched j i = 0.
@@ -351,6 +370,7 @@ Module Schedule.
         by apply leq_trans with (n := t2); ins.
       Qed.
 
+      (* Hence, you can ignore the service received by a job before its arrival time. *)
       Lemma service_before_arrival_eq_service_during :
         forall t0 t (LT: t0 <= job_arrival j),
           \sum_(t0 <= t < job_arrival j + t) service_at rate sched j t =
@@ -382,6 +402,7 @@ Module ScheduleOfSporadicTask.
     Context {num_cpus: nat}.
     Variable sched: schedule num_cpus arr_seq.
 
+    (* Whether jobs of the same task can't execute in parallel. *)
     Definition jobs_of_same_task_dont_execute_in_parallel :=
       forall (j j': JobIn arr_seq) t,
         job_task j = job_task j' ->
@@ -415,6 +436,7 @@ Module ScheduleOfTaskWithJitter.
 
     Section BasicLemmas.
 
+      (* The arrival time has to be before the jitter *)
       Lemma arrival_before_jitter :
         jobs_execute_after_jitter ->
         jobs_must_arrive_to_execute sched.

@@ -1,11 +1,11 @@
 Require Import Vbase task job task_arrival schedule platform workload
-               bertogna_fp_theory schedulability priority interference
-               platform response_time util_divround util_lemmas
-               ssreflect ssrbool eqtype ssrnat seq fintype bigop div path tuple.
+        workload_guan bertogna_fp_theory schedulability priority interference
+        platform response_time util_divround util_lemmas
+        ssreflect ssrbool eqtype ssrnat seq fintype bigop div path tuple.
 
 Module ResponseTimeAnalysisGuan.
 
-  Import Job SporadicTaskset ScheduleOfTaskWithJitter Schedulability ResponseTime Priority SporadicTaskArrival Interference Platform.
+  Import Job SporadicTaskset ScheduleOfTaskWithJitter Schedulability ResponseTime Priority SporadicTaskArrival Interference Platform WorkloadBoundGuan.
   Export Workload ResponseTimeAnalysis.
 
   Section InterferenceBoundGuan.
