@@ -275,6 +275,14 @@ Module ResponseTimeIterationEDF.
       (* ...and do not execute in parallel. *)
       Hypothesis H_no_parallelism:
         jobs_dont_execute_in_parallel sched.
+
+      (* In order not to overcount job interference, we assume that
+       jobs of the same task do not execute in parallel.
+       Our proof requires a definition of interference based on
+       the sum of the individual contributions of each job:
+         I_total = I_j1 + I_j2 + ...
+       Note that under EDF, this is equivalent to task precedence
+       constraints. *)
       Hypothesis H_no_intra_task_parallelism:
         jobs_of_same_task_dont_execute_in_parallel job_task sched.
 
@@ -873,7 +881,7 @@ Module ResponseTimeIterationEDF.
         apply leq_trans with (n := service rate sched j (job_arrival j + R)); last first.
         {
           unfold valid_sporadic_taskset, is_valid_sporadic_task in *.
-          apply service_monotonic; rewrite leq_add2l.
+          apply extend_sum; rewrite // leq_add2l.
           specialize (JOBPARAMS j); des; rewrite JOBPARAMS1.
           by rewrite JOBtsk.
         }

@@ -726,7 +726,7 @@ Module ResponseTimeIterationFPGuan.
         apply leq_trans with (n := service rate sched j (job_arrival j + R)); last first.
         {
           unfold valid_sporadic_taskset, is_valid_sporadic_task in *.
-          apply service_monotonic; rewrite leq_add2l.
+          apply extend_sum; rewrite // leq_add2l.
           specialize (JOBPARAMS j); des; rewrite JOBPARAMS1.
           by rewrite JOBtsk.
         }

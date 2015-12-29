@@ -103,16 +103,26 @@ Module ResponseTimeAnalysisEDF.
        unit speed, and that there exists at least one processor. *)
     Hypothesis H_no_parallelism:
       jobs_dont_execute_in_parallel sched.
-    Hypothesis H_no_intra_task_parallelism:
-      jobs_of_same_task_dont_execute_in_parallel job_task sched.
     Hypothesis H_rate_equals_one :
       forall j cpu, rate j cpu = 1.
     Hypothesis H_at_least_one_cpu :
       num_cpus > 0.
 
+    (* In order not to overcount job interference, we assume that
+       jobs of the same task do not execute in parallel.
+       Our proof requires a definition of interference based on
+       the sum of the individual contributions of each job:
+         I_total = I_j1 + I_j2 + ...
+       Note that under EDF, this is equivalent to task precedence
+       constraints. *)
+    Hypothesis H_no_intra_task_parallelism:
+      jobs_of_same_task_dont_execute_in_parallel job_task sched.
+
     (* Assume that we have a task set where all tasks have valid
        parameters and restricted deadlines. *)
     Variable ts: taskset_of sporadic_task.
+    Hypothesis all_jobs_from_taskset:
+      forall (j: JobIn arr_seq), job_task j \in ts.
     Hypothesis H_valid_task_parameters:
       valid_sporadic_taskset task_cost task_period task_deadline ts.
     Hypothesis H_restricted_deadlines:
@@ -904,7 +914,7 @@ Module ResponseTimeAnalysisEDF.
           rewrite (eq_bigr (fun i => if (i \in ts) && true then (if is_interfering_task_jlfp tsk' i && task_is_scheduled job_task sched i t then 1 else 0) else 0));
             last by ins; destruct (i \in ts) eqn:IN; rewrite ?andTb ?andFb.
           rewrite -big_mkcond -big_seq_cond -big_mkcond sum1_count.
-          by eapply cpus_busy_with_interfering_tasks;
+          by eapply cpus_busy_with_interfering_tasks; try (by done);
             [by apply INVARIANT | by apply JOBtsk | by apply BACK].
         }
         

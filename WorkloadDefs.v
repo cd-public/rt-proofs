@@ -36,20 +36,12 @@ Module Workload.
         \sum_(cpu < num_cpus)
           service_of_task cpu (sched cpu t).
 
-    (* We provide an alternative definition for workload,
-       which is more suitable for our proof.
-       It requires computing the list of jobs that are scheduled
-       between t1 and t2 (without duplicates). *)
-    Definition jobs_scheduled_between (t1 t2: time) :=
-      undup (\cat_(t1 <= t < t2)
-               \cat_(cpu < num_cpus)
-                 make_sequence (sched cpu t)).
     
     (* Now, we define workload by summing up the cumulative service
        during [t1,t2) of the scheduled jobs, but only those spawned
        by the task that we care about. *)
     Definition workload_joblist (t1 t2: time) :=
-      \sum_(j <- jobs_scheduled_between t1 t2 | job_task j == tsk)
+      \sum_(j <- jobs_scheduled_between sched t1 t2 | job_task j == tsk)
         service_during rate sched j t1 t2.
 
     Lemma scheduled_between_helper :
@@ -112,7 +104,7 @@ Module Workload.
     Lemma scheduled_between_implies_service :
       forall j t1 t2,
         (forall j cpu, rate j cpu > 0) ->
-        (j \in jobs_scheduled_between t1 t2) =
+        (j \in jobs_scheduled_between sched t1 t2) =
         (service_during rate sched j t1 t2 != 0).
     Proof.
       intros j t1 t2 RATE; unfold service_during; rewrite mem_undup.
@@ -127,30 +119,15 @@ Module Workload.
       by apply scheduled_between_helper, RATE.
     Qed.
 
-    Lemma workload_monotonic :
-      forall t1 t2 t1' t2',
-        t1' <= t1 ->
-        t2 <= t2' ->
-        workload t1 t2 <= workload t1' t2'.
-    Proof.
-      unfold workload; intros t1 t2 t1' t2' LE1 LE2.
-      destruct (t1 <= t2) eqn:LE12;
-        last by apply negbT in LE12; rewrite -ltnNge in LE12; rewrite big_geq // ltnW.
-      rewrite -> big_cat_nat with (m := t1') (n := t1); try (by done); simpl;
-        last by apply leq_trans with (n := t2).
-      rewrite -> big_cat_nat with (p := t2') (n := t2); try (by done); simpl.
-      by rewrite addnC -addnA; apply leq_addr.
-    Qed.
-
     (* Next, we show that the two definitions are equivalent. *)
     Lemma workload_eq_workload_joblist :
       forall t1 t2,
       workload t1 t2 = workload_joblist t1 t2.
     Proof.
       intros t1 t2; unfold workload, workload_joblist, service_during.
-      rewrite [\sum_(j <- jobs_scheduled_between _ _ | _) _]exchange_big /=.
+      rewrite [\sum_(j <- jobs_scheduled_between _ _ _ | _) _]exchange_big /=.
       apply eq_big_nat; unfold service_at; intros t LEt.
-      rewrite [\sum_(i <- jobs_scheduled_between _ _ | _) _](eq_bigr (fun i =>
+      rewrite [\sum_(i <- jobs_scheduled_between _ _ _ | _) _](eq_bigr (fun i =>
                \sum_(cpu < num_cpus) (sched cpu t == Some i) * rate i cpu));
         last by ins; rewrite big_mkcond; apply eq_bigr; ins; rewrite mulnbl.
       rewrite exchange_big /=; apply eq_bigr.

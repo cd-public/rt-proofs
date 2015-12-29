@@ -1,10 +1,10 @@
 Require Import Vbase TaskDefs ScheduleDefs JobDefs PriorityDefs
                InterferenceDefs helper
-               ssreflect ssrbool eqtype ssrnat seq fintype.
+               ssreflect ssrbool eqtype ssrnat seq fintype bigop.
 
 Module Platform.
 
-  Import Schedule SporadicTaskset Interference Priority.
+  Import ScheduleOfSporadicTask SporadicTaskset Interference Priority.
 
   Section SchedulingInvariants.
     
@@ -104,6 +104,11 @@ Module Platform.
           by rewrite ltnn in BUG.
         Qed.
 
+        Hypothesis all_jobs_from_taskset:
+          forall (j: JobIn arr_seq), job_task j \in ts.
+        Hypothesis no_intra_task_parallelism:
+          jobs_of_same_task_dont_execute_in_parallel job_task sched.
+
         Lemma cpus_busy_with_interfering_tasks :
           forall (j: JobIn arr_seq) tsk t,
             job_task j = tsk ->
@@ -114,10 +119,27 @@ Module Platform.
                  task_is_scheduled job_task sched j t)
               ts = num_cpus.
         Proof.
+          rename all_jobs_from_taskset into FROMTS,
+                 no_intra_task_parallelism into NOINTRA,
+                 H_invariant_holds into INV.
+          unfold JLFP_JLDP_scheduling_invariant_holds in *.
           intros j tsk t JOBtsk BACK.
-          move: H_invariant_holds => bla.
-          apply/eqP; rewrite eqn_leq; apply/andP; split.
-          admit. admit.
+          apply eq_trans with (y := count (fun j_other => higher_eq_priority t j_other j) (jobs_scheduled_at sched t));
+            last by apply INV.
+          unfold jobs_scheduled_at, task_is_scheduled.
+          induction num_cpus.
+          {
+            rewrite big_ord0 /=.
+            apply eq_trans with (y := count pred0 ts); last by apply count_pred0.
+            apply eq_count; red; ins.
+            apply negbTE; rewrite negb_and; apply/orP; right.
+            apply/negP; red; intro BUG; move: BUG => /existsP BUG.
+            by destruct BUG as [x0]; destruct x0.
+          }
+          {
+            rewrite big_ord_recr /=.
+            admit.
+          }     
         Qed.
         
       End BasicLemmas.

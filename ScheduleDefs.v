@@ -203,29 +203,6 @@ Module Schedule.
 
     Section Basic.
 
-      Lemma service_monotonic : (* TODO: REMOVE! *)
-        forall t t', t <= t' ->
-           service rate sched j t <= service rate sched j t'.
-      Proof.
-        unfold service; ins; rewrite -> big_cat_nat with (p := t') (n := t);
-          by  [apply leq_addr | by ins | by ins].
-      Qed.
-
-      Lemma sum_service_monotonic :
-        forall t1 t2 t1' t2',
-          t1' <= t1 ->
-          t2 <= t2' ->
-            service_during rate sched j t1 t2 <= service_during rate sched j t1' t2'.
-      Proof.
-        unfold service_during; intros t1 t2 t1' t2' LE1 LE2.
-        destruct (t1 <= t2) eqn:LE12;
-          last by apply negbT in LE12; rewrite -ltnNge in LE12; rewrite big_geq // ltnW.
-        rewrite -> big_cat_nat with (m := t1') (n := t1); try (by done); simpl;
-          last by apply leq_trans with (n := t2).
-        rewrite -> big_cat_nat with (p := t2') (n := t2); try (by done); simpl.
-        by rewrite addnC -addnA; apply leq_addr.
-      Qed.
-
       Lemma not_scheduled_no_service :
         forall t,
           ~~ scheduled sched j t -> service_at rate sched j t = 0.
@@ -335,7 +312,7 @@ Module Schedule.
         rewrite eqn_leq; apply/andP; split;
           first by apply service_interval_le_cost.
         by apply leq_trans with (n := service rate sched j t);
-          [by rewrite COMPt | by apply service_monotonic].
+          [by rewrite COMPt | by apply extend_sum].
       Qed.
       
     End Completion.
