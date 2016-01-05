@@ -2,22 +2,22 @@ Require Import Vbase task job schedule
                ssreflect ssrbool eqtype ssrnat seq.
 Set Implicit Arguments.
 
+(* Definitions of FP and JLFP/JLDP priority relations. *)
 Module Priority.
 
   Import SporadicTask Schedule.
 
   Section PriorityDefs.
 
+    (* Assume a given job arrival sequence. *)
     Context {Job: eqType}.
     Variable arr_seq: arrival_sequence Job.
 
-    (* All the priority relations are non-strict, i.e., they specify that
-       "job_high has higher priority than (or the same priority as) job_low".
-       We define two relations: between jobs (JLDP) and between tasks (JLFP). *)
+    (* In the following, we define all priority relations as non-strict, i.e., they specify that
+       "job_high has higher priority than (or the same priority as) job_low". *)
 
-    (* JLDP policy is a generic relation between two jobs of an arrival sequence.
-       To ensure they can be defined arbitrarily, jldp_policy is parameterized
-       by schedule and time. *)
+    (* A JLDP policy is a generic relation between two jobs of an arrival sequence
+       that can vary with time. *)
     Definition jldp_policy := time -> JobIn arr_seq -> JobIn arr_seq -> bool.
 
     (* FP policy is simply a relation between tasks.
