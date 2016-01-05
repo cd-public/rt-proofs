@@ -128,11 +128,9 @@ Module WorkloadBoundFP.
     
     Variable num_cpus: nat.
     Variable rate: Job -> processor num_cpus -> nat.
-    Variable schedule_of_platform: schedule num_cpus arr_seq -> Prop.
 
-    (* Assume any schedule of a given platform. *)
+    (* Consider any schedule of a given platform. *)
     Variable sched: schedule num_cpus arr_seq.
-    Hypothesis sched_of_platform: schedule_of_platform sched.
 
     (* Assumption: jobs only execute if they arrived.
        This is used to eliminate jobs that arrive after end of the interval t1 + delta. *)
@@ -222,7 +220,9 @@ Module WorkloadBoundFP.
       (* Now, let's consider the list of interfering jobs sorted by arrival time. *)
       Let order := fun (x y: JobIn arr_seq) => job_arrival x <= job_arrival y.
       Let sorted_jobs := (sort order interfering_jobs).
-      
+
+      (* The first step consists in simplifying the sum corresponding
+         to the workload. *)
       Section SimplifyJobSequence.
  
         (* Remove the elements that we don't care about from the sum *)
@@ -237,6 +237,7 @@ Module WorkloadBoundFP.
           by rewrite big_const_seq iter_addn mul0n add0n add0n big_filter.
         Qed.
 
+        (* Consider the sum over the sorted sequence of jobs. *)
         Lemma workload_bound_simpl_by_sorting_interfering_jobs :
           \sum_(i <- interfering_jobs) service_during rate sched i t1 t2 =
            \sum_(i <- sorted_jobs) service_during rate sched i t1 t2.
@@ -252,6 +253,8 @@ Module WorkloadBoundFP.
           by apply perm_eq_mem; rewrite -(perm_sort order).
         Qed.
 
+        (* Remember that all jobs in the sorted sequence is an
+           interfering job of task tsk. *)
         Lemma workload_bound_all_jobs_from_tsk :
           forall j_i,
             j_i \in sorted_jobs ->
@@ -264,7 +267,7 @@ Module WorkloadBoundFP.
           by move: LTi => /andP [/andP [/eqP JOBi SERVi] INi]; repeat split.
         Qed.
 
-        (* Remember that the jobs are ordered by arrival. *)
+        (* Remember that consecutive jobs are ordered by arrival. *)
         Lemma workload_bound_jobs_ordered_by_arrival :
           forall i elem,
             i < (size sorted_jobs).-1 ->
@@ -277,7 +280,9 @@ Module WorkloadBoundFP.
         Qed.
 
       End SimplifyJobSequence.
-      
+
+      (* Next, we show that if the number of jobs is no larger than n_k,
+         the workload bound trivially holds. *)
       Section WorkloadNotManyJobs.
 
         Lemma workload_bound_holds_for_at_most_n_k_jobs :
@@ -302,6 +307,8 @@ Module WorkloadBoundFP.
 
       End WorkloadNotManyJobs.
 
+      (* Otherwise, assume that the number of jobs is larger than n_k >= 0.
+         First, consider the simple case with only one job. *)
       Section WorkloadSingleJob.
 
         (* Assume that there's at least one job in the sorted list. *)
@@ -309,7 +316,8 @@ Module WorkloadBoundFP.
 
         Variable elem: JobIn arr_seq.
         Let j_fst := nth elem sorted_jobs 0.
-        
+
+        (* The first job is an interfering job of task tsk. *)
         Lemma workload_bound_j_fst_is_job_of_tsk :
           job_task j_fst = tsk /\
           service_during rate sched j_fst t1 t2 != 0 /\
@@ -317,44 +325,48 @@ Module WorkloadBoundFP.
         Proof.
           by apply workload_bound_all_jobs_from_tsk, mem_nth.
         Qed.
-        
+
+        (* The workload bound holds for the single job. *)
         Lemma workload_bound_holds_for_a_single_job :
           \sum_(0 <= i < 1) service_during rate sched (nth elem sorted_jobs i) t1 t2 <=
           workload_bound.
-      Proof.
-        unfold workload_bound, W; fold n_k.
-        have INfst := workload_bound_j_fst_is_job_of_tsk; des.
-        rewrite big_nat_recr // big_geq // [nth]lock /= -lock add0n.
-        destruct n_k; last first.
-        {
-          rewrite -[service_during _ _ _ _ _]add0n; rewrite leq_add //.
-          rewrite -[service_during _ _ _ _ _]add0n [_* task_cost tsk]mulSnr.
-          apply leq_add; first by done.
-          by eapply cumulative_service_le_task_cost;
-            [| by apply INfst
-             | by apply H_jobs_have_valid_parameters].
-        }
-        {
-          rewrite 2!mul0n addn0 subn0 leq_min; apply/andP; split.
+        Proof.
+          unfold workload_bound, W; fold n_k.
+          have INfst := workload_bound_j_fst_is_job_of_tsk; des.
+          rewrite big_nat_recr // big_geq // [nth]lock /= -lock add0n.
+          destruct n_k; last first.
           {
+            rewrite -[service_during _ _ _ _ _]add0n; rewrite leq_add //.
+            rewrite -[service_during _ _ _ _ _]add0n [_* task_cost tsk]mulSnr.
+            apply leq_add; first by done.
             by eapply cumulative_service_le_task_cost;
-               [| by apply INfst
-                | by apply H_jobs_have_valid_parameters].
+              [| by apply INfst
+               | by apply H_jobs_have_valid_parameters].
           }
           {
-            rewrite -addnBA // -[service_during _ _ _ _ _]addn0.
-            apply leq_add; last by done.
-            apply leq_trans with (n := \sum_(t1 <= t < t2) 1).
-              by apply leq_sum; ins; apply service_at_le_max_rate.
-              by unfold t2; rewrite big_const_nat iter_addn mul1n addn0 addnC -addnBA// subnn addn0.
+            rewrite 2!mul0n addn0 subn0 leq_min; apply/andP; split.
+            {
+              by eapply cumulative_service_le_task_cost;
+                 [| by apply INfst
+                | by apply H_jobs_have_valid_parameters].
+            }
+            {
+              rewrite -addnBA // -[service_during _ _ _ _ _]addn0.
+              apply leq_add; last by done.
+              apply leq_trans with (n := \sum_(t1 <= t < t2) 1).
+                by apply leq_sum; ins; apply service_at_le_max_rate.
+                by unfold t2; rewrite big_const_nat iter_addn mul1n addn0 addnC -addnBA// subnn addn0.
+            }
           }
-        }
-      Qed.
+        Qed.
 
       End WorkloadSingleJob.
 
+      (* Next, consider the last case where there are at least two jobs:
+         the first job j_fst, and the last job j_lst. *)
       Section WorkloadTwoOrMoreJobs.
 
+        (* There are at least two jobs. *)
         Variable num_mid_jobs: nat.
         Hypothesis H_at_least_two_jobs : size sorted_jobs = num_mid_jobs.+2.
         
@@ -362,6 +374,7 @@ Module WorkloadBoundFP.
         Let j_fst := nth elem sorted_jobs 0.
         Let j_lst := nth elem sorted_jobs num_mid_jobs.+1.
 
+        (* The last job is an interfering job of task tsk. *)
         Lemma workload_bound_j_lst_is_job_of_tsk :
           job_task j_lst = tsk /\
           service_during rate sched j_lst t1 t2 != 0 /\
@@ -371,6 +384,7 @@ Module WorkloadBoundFP.
           by rewrite H_at_least_two_jobs.
         Qed.
 
+        (* The response time of the first job must fall inside the interval. *)
         Lemma workload_bound_response_time_of_first_job_inside_interval :
           t1 <= job_arrival j_fst + R_tsk.
         Proof.
@@ -387,7 +401,8 @@ Module WorkloadBoundFP.
           apply H_response_time_bound; first by done.
           by apply leq_trans with (n := t1); last by apply leq_addr.
         Qed.
-        
+
+        (* The arrival of the last job must also fall inside the interval. *)
         Lemma workload_bound_last_job_arrives_before_end_of_interval :
           job_arrival j_lst < t2.
         Proof.
@@ -455,6 +470,7 @@ Module WorkloadBoundFP.
           }
         Qed.
 
+        (* Simplify the expression from the previous lemma. *)
         Lemma workload_bound_simpl_expression_with_first_and_last :
           job_arrival j_fst + R_tsk - t1 + (t2 - job_arrival j_lst) =
                        delta + R_tsk - (job_arrival j_lst - job_arrival j_fst).
@@ -471,6 +487,7 @@ Module WorkloadBoundFP.
           by ins; apply workload_bound_jobs_ordered_by_arrival.
         Qed.
 
+        (* Bound the service of the middle jobs. *)
         Lemma workload_bound_service_of_middle_jobs :
           \sum_(0 <= i < num_mid_jobs)
             service_during rate sched (nth elem sorted_jobs i.+1) t1 t2 <=
@@ -493,8 +510,7 @@ Module WorkloadBoundFP.
           by ins; des.
         Qed.
 
-        (* Conclude that the distance between first and last is at least n + 1 periods,
-           where n is the number of middle jobs. *)
+        (* Conclude that the distance between first and last is at least num_mid_jobs + 1 periods. *)
         Lemma workload_bound_many_periods_in_between :
           job_arrival j_lst - job_arrival j_fst >= num_mid_jobs.+1 * (task_period tsk).
         Proof.
@@ -540,6 +556,9 @@ Module WorkloadBoundFP.
           by rewrite subh3 // addnC; move: INnth => /eqP INnth; rewrite -INnth.
         Qed.
 
+        (* Now, we prove an auxiliary lemma for the next result.
+           The statement is not meaninful, since it's part of a proof
+           by contradiction. *)
         Lemma workload_bound_helper_lemma :
           job_arrival j_fst + task_period tsk + delta <= job_arrival j_lst ->
           t1 <= job_arrival j_fst + task_deadline tsk.
@@ -625,6 +644,45 @@ Module WorkloadBoundFP.
           by apply workload_bound_helper_lemma.
         Qed.
 
+        (* If n_k = num_mid_jobs, then the workload bound holds. *)
+        Lemma workload_bound_n_k_equals_num_mid_jobs :
+          num_mid_jobs = n_k ->
+          service_during rate sched j_lst t1 t2 +
+            service_during rate sched j_fst t1 t2 +
+            \sum_(0 <= i < num_mid_jobs)
+             service_during rate sched (nth elem sorted_jobs i.+1) t1 t2
+          <= workload_bound.
+        Proof.
+          rename H_valid_task_parameters into PARAMS.
+          unfold is_valid_sporadic_task in *; des.
+          unfold workload_bound, W; fold n_k.
+          move => NK; rewrite -NK.
+          apply leq_add;
+            last by apply workload_bound_service_of_middle_jobs.
+          apply leq_trans with (delta + R_tsk - (job_arrival j_lst - job_arrival j_fst)).
+          {
+            rewrite addnC -workload_bound_simpl_expression_with_first_and_last.
+            by apply workload_bound_service_of_first_and_last_jobs.
+          }
+          rewrite leq_min; apply/andP; split.
+          {
+            rewrite leq_subLR [_ + task_cost _]addnC -leq_subLR.
+            apply leq_trans with (num_mid_jobs.+1 * task_period tsk);
+              last by apply workload_bound_many_periods_in_between.
+            rewrite NK ltnW // -ltn_divLR;
+              last by apply PARAMS0.
+            by unfold n_k, max_jobs, div_floor.
+          }
+          {
+            rewrite -subnDA; apply leq_sub2l.
+            apply leq_trans with (n := num_mid_jobs.+1 * task_period tsk);
+              last by apply workload_bound_many_periods_in_between.
+            rewrite -addn1 addnC mulnDl mul1n.
+            by rewrite leq_add2l; last by apply PARAMS3.
+          }
+        Qed.
+
+        (* If n_k = num_mid_jobs + 1, then the workload bound holds. *)
         Lemma workload_bound_n_k_equals_num_mid_jobs_plus_1 :
           num_mid_jobs.+1 = n_k ->
           service_during rate sched j_lst t1 t2 +
@@ -663,46 +721,10 @@ Module WorkloadBoundFP.
             }
           }
         Qed.
-
-        Lemma workload_bound_n_k_equals_num_mid_jobs :
-          num_mid_jobs = n_k ->
-          service_during rate sched j_lst t1 t2 +
-            service_during rate sched j_fst t1 t2 +
-            \sum_(0 <= i < num_mid_jobs)
-             service_during rate sched (nth elem sorted_jobs i.+1) t1 t2
-          <= workload_bound.
-        Proof.
-          rename H_valid_task_parameters into PARAMS.
-          unfold is_valid_sporadic_task in *; des.
-          unfold workload_bound, W; fold n_k.
-          move => NK; rewrite -NK.
-          apply leq_add;
-            last by apply workload_bound_service_of_middle_jobs.
-          apply leq_trans with (delta + R_tsk - (job_arrival j_lst - job_arrival j_fst)).
-          {
-            rewrite addnC -workload_bound_simpl_expression_with_first_and_last.
-            by apply workload_bound_service_of_first_and_last_jobs.
-          }
-          rewrite leq_min; apply/andP; split.
-          {
-            rewrite leq_subLR [_ + task_cost _]addnC -leq_subLR.
-            apply leq_trans with (num_mid_jobs.+1 * task_period tsk);
-              last by apply workload_bound_many_periods_in_between.
-            rewrite NK ltnW // -ltn_divLR;
-              last by apply PARAMS0.
-            by unfold n_k, max_jobs, div_floor.
-          }
-          {
-            rewrite -subnDA; apply leq_sub2l.
-            apply leq_trans with (n := num_mid_jobs.+1 * task_period tsk);
-              last by apply workload_bound_many_periods_in_between.
-            rewrite -addn1 addnC mulnDl mul1n.
-            by rewrite leq_add2l; last by apply PARAMS3.
-          }
-        Qed.
         
       End WorkloadTwoOrMoreJobs.
-      
+
+      (* Using the lemmas above, we prove the main theorem about the workload bound. *)
       Theorem workload_bounded_by_W :
         workload_of tsk t1 (t1 + delta) <= workload_bound.
       Proof.
