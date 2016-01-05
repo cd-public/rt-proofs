@@ -56,15 +56,13 @@ Module Workload.
       rewrite [\sum_(_ < _ | _) _]big_mkcond.
       destruct num_cpus; first by rewrite 2!big_ord0 in_nil.
       assert (LT0: 0 < n.+1); first by done.
-      rewrite (big_nth (Ordinal LT0)).
-      rewrite (big_nth (Ordinal LT0)).
+      rewrite 2!(big_nth (Ordinal LT0)).
       set m := size (index_enum (ordinal_finType n.+1)).
       induction m; first by rewrite big_geq // big_geq //.
       {
         rewrite big_nat_recr; last by done.
         rewrite big_nat_recr; last by done.
-        rewrite mem_cat.
-        rewrite IHm.
+        rewrite mem_cat IHm.
         destruct ( (j
          \in make_sequence
                (sched
@@ -84,20 +82,14 @@ Module Workload.
         }
         {
           unfold make_sequence in SUBST.
-          destruct (sched (nth (Ordinal LT0) (index_enum (ordinal_finType n.+1)) m ) t).
+          destruct (sched (nth (Ordinal LT0) (index_enum (ordinal_finType n.+1)) m ) t);
+            last by desf; rewrite orbF /= addn0.
           {
             rewrite mem_seq1 in SUBST.
-            destruct (Some j0 == Some j) eqn:SOME.
-            {
-              move: SOME SUBST => /eqP SOME /eqP SUBST; inversion SOME. rewrite H0 in SUBST. by done.
-            }
-            {
-              rewrite SOME. rewrite orbF. simpl. rewrite addn0.
-              ins.
-            }
-          }
-          {
-            desf. rewrite orbF /= addn0. ins.
+            destruct (Some j0 == Some j) eqn:SOME;
+              last by rewrite SOME orbF /= addn0.
+            move: SOME SUBST => /eqP SOME /eqP SUBST; inversion SOME.
+            by rewrite H0 in SUBST.
           }
         }
       }

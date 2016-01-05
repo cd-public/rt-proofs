@@ -287,7 +287,7 @@ Module ResponseTimeAnalysisEDF.
             | by ins; rewrite RATE
             | by ins; apply TASK_PARAMS
             | by ins; apply RESTR |].
-          red; move => j'' /eqP JOBtsk' LEdl; unfold job_misses_no_deadline.
+          red; move => j'' JOBtsk' LEdl; unfold job_misses_no_deadline.
           assert (PARAMS' := PARAMS j''); des; rewrite PARAMS'1 JOBtsk'.
           apply completion_monotonic with (t := job_arrival j'' + (R_k)); ins;
             first by rewrite leq_add2l; apply NOMISS.
@@ -345,12 +345,11 @@ Module ResponseTimeAnalysisEDF.
         assert (LTserv: forall j (INi: j \in interfering_jobs),
                           job_interference job_cost rate sched j_i j t1 t2 <= task_cost tsk_k).
         {
-          intros j; rewrite mem_filter; move => /andP [/andP [/eqP JOBj _] _]; rewrite -JOBj.
+          intros j; rewrite mem_filter; move => /andP [/andP [/eqP JOBj _] _].
           specialize (PARAMS j); des.
-          apply leq_trans with (n := job_cost j); last by ins.
           apply leq_trans with (n := service_during rate sched j t1 t2);
             first by apply job_interference_le_service; ins; rewrite RATE.
-          by apply service_interval_le_cost.
+          by apply cumulative_service_le_task_cost with (job_task0 := job_task) (task_deadline0 := task_deadline) (job_cost0 := job_cost) (job_deadline0 := job_deadline).
         }
 
         (* Order the sequence of interfering jobs by arrival time, so that
@@ -456,9 +455,8 @@ Module ResponseTimeAnalysisEDF.
           move: FSTserv => /negP FSTserv; apply FSTserv.
           rewrite -leqn0; apply leq_trans with (n := service_during rate sched j_fst t1 t2);
             first by apply job_interference_le_service; ins; rewrite RATE.
-          unfold service_during.
-          by rewrite -> sum_service_after_job_rt_zero with (job_cost0 := job_cost) (R := R_k);
-            try (by done); apply ltnW.
+          rewrite leqn0; apply/eqP.
+          by apply cumulative_service_after_job_rt_zero with (job_cost0 := job_cost) (R := R_k); try (by done); apply ltnW.
         }
 
         assert (COMPok: completed job_cost rate sched j_fst (a_fst + R_k) -> job_interference job_cost rate sched j_i j_fst t1 t2 <= D_i - (D_k - R_k)).
@@ -483,7 +481,7 @@ Module ResponseTimeAnalysisEDF.
             apply leq_trans with (n := service_during rate sched j_fst (a_fst + R_k) t2);
               first by apply job_interference_le_service; ins; rewrite RATE.
             unfold service_during.
-            by rewrite -> sum_service_after_job_rt_zero with (job_cost0 := job_cost) (R := R_k);
+            by rewrite -> cumulative_service_after_job_rt_zero with (job_cost0 := job_cost) (R := R_k);
               try (by done); apply leqnn.
           }
           {
@@ -517,7 +515,7 @@ Module ResponseTimeAnalysisEDF.
                   by apply job_interference_le_service; ins; rewrite RATE.
                 }
                 unfold service_during.
-                rewrite -> sum_service_after_job_rt_zero with (job_cost0 := job_cost) (R := R_k);
+                rewrite -> cumulative_service_after_job_rt_zero with (job_cost0 := job_cost) (R := R_k);
                   try (by done); last by apply leqnn.
                 rewrite addn0; apply extend_sum; first by apply leqnn.
                 by rewrite leq_add2l; apply NOMISS.
@@ -535,7 +533,7 @@ Module ResponseTimeAnalysisEDF.
               by apply job_interference_le_service; ins; rewrite RATE.
             }
             unfold service_during.
-            rewrite -> sum_service_after_job_rt_zero with (job_cost0 := job_cost) (R := R_k);
+            rewrite -> cumulative_service_after_job_rt_zero with (job_cost0 := job_cost) (R := R_k);
               try (by done); last by apply leqnn.
             rewrite addn0.
             apply leq_trans with (n := (\sum_(t1 <= t < a_fst + R_k) 1) +
@@ -648,7 +646,8 @@ Module ResponseTimeAnalysisEDF.
           apply/eqP; rewrite -leqn0.
           apply leq_trans with (n := service_during rate sched j_lst t1 t2);
             first by apply job_interference_le_service; ins; rewrite RATE.
-          by unfold service_during; rewrite sum_service_before_arrival.
+          rewrite leqn0; apply/eqP.
+          by apply cumulative_service_before_job_arrival_zero.
         }
 
         assert (FSTok: completed job_cost rate sched j_fst (a_fst + R_k)).
@@ -664,7 +663,8 @@ Module ResponseTimeAnalysisEDF.
             move: INTERF2 => /negP INTERF2; apply INTERF2.
             rewrite -leqn0; apply leq_trans with (n := service_during rate sched j_snd t1 t2);
               first by apply job_interference_le_service; ins; rewrite RATE.
-            by unfold service_during; rewrite sum_service_before_arrival.
+            rewrite leqn0; apply/eqP.
+            by apply cumulative_service_before_job_arrival_zero.
           }
           apply leq_trans with (n := a_fst + p_k).
           {
@@ -819,8 +819,8 @@ Module ResponseTimeAnalysisEDF.
                 first by apply leq_sum; ins; apply leq_b1.
               apply leq_trans with (n := service_during rate sched j_fst (a_fst + R_k) t2);
                 first by apply job_interference_le_service; ins; rewrite RATE.
-              unfold service_during.
-              by rewrite -> sum_service_after_job_rt_zero with (job_cost0 := job_cost) (R := R_k); rewrite ?leqnn.
+              rewrite leqn0; apply/eqP.
+              by apply cumulative_service_after_job_rt_zero with (job_cost0 := job_cost) (R := R_k); rewrite ?leqnn.
             }
           }
 

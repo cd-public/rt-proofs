@@ -319,7 +319,7 @@ Module WorkloadBoundGuan.
           have PROP := job_properties j_i; des.
           move: JOBi => /eqP JOBi; rewrite -JOBi.
           apply leq_trans with (n := job_cost j_i); last by ins. 
-          by apply service_interval_le_cost.
+          by apply cumulative_service_le_job_cost.
         }
 
         (* Order the sequence of interfering jobs by arrival time, so that
@@ -388,7 +388,7 @@ Module WorkloadBoundGuan.
             rewrite leq_min; apply/andP; split; last first.
             {
               apply leq_trans with (n := job_cost (nth elem sorted_jobs 0));
-                first by apply service_interval_le_cost.
+                first by apply cumulative_service_le_job_cost.
               by rewrite -FSTtask; have PROP := job_properties (nth elem sorted_jobs 0); des.
             }
             {
@@ -462,7 +462,7 @@ Module WorkloadBoundGuan.
           move: LTsize => /andP [LTsize _]; des.
           move: LTsize => /andP [_ SERV].
           move: SERV => /eqP SERV; apply SERV.
-          by unfold service_during; rewrite sum_service_before_arrival.
+          by apply cumulative_service_before_job_arrival_zero. 
         }
 
         assert (BEFOREarr: job_arrival j_fst <= job_arrival j_lst).
@@ -543,8 +543,8 @@ Module WorkloadBoundGuan.
           unfold n_k, max_jobs_NC in LTnk.
           rewrite ltn_divLR in LTnk; last by done.
           apply (leq_trans LTnk) in DIST.
-          move: INlst1 => /negP BUG; apply BUG.
-          unfold service_during; rewrite sum_service_before_arrival; try (by ins). 
+          move: INlst1 => /negP BUG; apply BUG; apply/eqP.
+          apply cumulative_service_before_job_arrival_zero; try (by done). 
           unfold t2. apply leq_trans with (n := job_arrival j_fst + delta);
             first by rewrite leq_add2r.
           rewrite -(ltn_add2l (job_arrival j_fst)) addnBA // in DIST.
@@ -562,7 +562,7 @@ Module WorkloadBoundGuan.
           rewrite mulSn; apply leq_add.
           {
             apply leq_trans with (n := job_cost (nth elem sorted_jobs 0));
-              first by apply service_interval_le_cost.
+              first by apply cumulative_service_le_job_cost.
             by rewrite -FSTtask; have PROP := job_properties (nth elem sorted_jobs 0); des.
           }
           {
@@ -570,7 +570,7 @@ Module WorkloadBoundGuan.
             rewrite big_nat_cond [\sum_(_ <= _ < _ | true)_]big_nat_cond.
             apply leq_sum; intros i; rewrite andbT; move => /andP [_ LE].
             apply leq_trans with (n := job_cost (nth elem sorted_jobs i.+1));
-              first by apply service_interval_le_cost.
+              first by apply cumulative_service_le_job_cost.
             assert (TASKnth: job_task (nth elem sorted_jobs i.+1) = tsk).
             {
               exploit (mem_nth elem); last intros IN.
@@ -585,14 +585,14 @@ Module WorkloadBoundGuan.
           {
             move: INlst => /eqP INlst; rewrite -INlst.
             apply leq_trans with (n := job_cost j_lst);
-              first by apply service_interval_le_cost.
+              first by apply cumulative_service_le_job_cost.
             by have PROP := job_properties j_lst; des.
           }
           {
             unfold service_during.
             rewrite -> big_cat_nat with (n := job_arrival j_lst); simpl;
               try (by ins); last by apply ltnW.            
-            rewrite sum_service_before_arrival ?leqnn // add0n.
+            rewrite cumulative_service_before_job_arrival_zero ?leqnn // add0n.
             apply leq_trans with (n := \sum_(job_arrival j_lst <= i < t2) 1).
             apply leq_sum; first by ins; apply service_at_le_max_rate.
             rewrite big_const_nat iter_addn mul1n addn0.
@@ -690,7 +690,7 @@ Module WorkloadBoundGuan.
           have PROP := job_properties j_i; des.
           move: JOBi => /eqP JOBi; rewrite -JOBi.
           apply leq_trans with (n := job_cost j_i); last by ins. 
-          by apply service_interval_le_cost.
+          by apply cumulative_service_le_job_cost.
         }
 
         (* Order the sequence of interfering jobs by arrival time, so that
@@ -794,7 +794,7 @@ Module WorkloadBoundGuan.
         {
           rewrite leqNgt; apply /negP; unfold not; intro LTt1.
           move: FSTserv => /eqP FSTserv; apply FSTserv.
-          apply (sum_service_after_job_rt_zero job_cost) with (R := R_tsk);
+          apply (cumulative_service_after_job_rt_zero job_cost) with (R := R_tsk);
             try (by ins); last by apply ltnW.
           apply H_response_time_bound; first by apply/eqP.
           by apply leq_trans with (n := t1); last by apply leq_addr.
@@ -838,7 +838,7 @@ Module WorkloadBoundGuan.
         {
           rewrite leqNgt; apply/negP; unfold not; intro LT2.
           move: LSTserv => /eqP LSTserv; apply LSTserv. 
-          by unfold service_during; rewrite sum_service_before_arrival.
+          by apply cumulative_service_before_job_arrival_zero.
         }
 
         assert (BEFOREarr: job_arrival j_fst <= job_arrival j_lst).
@@ -1038,10 +1038,3 @@ Module WorkloadBoundGuan.
 
 
 End WorkloadBoundGuan.
-
-
-
-
-
-
-  

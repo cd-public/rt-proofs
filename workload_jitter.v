@@ -255,12 +255,9 @@ Module WorkloadWithJitter.
       assert (LTserv: forall j_i (INi: j_i \in interfering_jobs),
                         service_during rate sched j_i t1 t2 <= task_cost tsk).
       {
-        ins; move: INi; rewrite mem_filter; move => /andP xxx; des.
-        move: xxx; move => /andP JOBi; des; clear xxx0 JOBi0.
-        have PROP := job_properties j_i; des.
-        move: JOBi => /eqP JOBi; rewrite -JOBi.
-        apply leq_trans with (n := job_cost j_i); last by ins. 
-        by apply service_interval_le_cost.
+        ins; apply cumulative_service_le_task_cost with (task_deadline0 := task_deadline) (job_cost0 := job_cost) (job_deadline0 := job_deadline) (job_task0 := job_task); try (by done);
+          last by apply job_properties.
+        by move: INi; rewrite mem_filter; move => /andP [/andP [/eqP JOBtsk _] _].
       }
 
       (* Order the sequence of interfering jobs by arrival time, so that
@@ -335,7 +332,7 @@ Module WorkloadWithJitter.
           rewrite leq_min; apply/andP; split.
           {
             apply leq_trans with (n := job_cost (nth elem sorted_jobs 0));
-              first by apply service_interval_le_cost.
+              first by apply cumulative_service_le_job_cost.
             by rewrite -FSTtask; have PROP := job_properties (nth elem sorted_jobs 0); des.
           }
           {
@@ -356,16 +353,12 @@ Module WorkloadWithJitter.
       set j_lst := (nth elem sorted_jobs n.+1).
                      
       (* Now we infer some facts about how first and last are ordered in the timeline *)
-      assert (INfst: j_fst \in interfering_jobs).
-        by unfold j_fst; rewrite INboth; apply mem_nth; destruct sorted_jobs; ins.
-      move: INfst; rewrite mem_filter; move => /andP INfst; des.
-      move: INfst => /andP INfst; des.
 
       assert (AFTERt1: t1 <= job_arrival j_fst + R_tsk).
       {
         rewrite leqNgt; apply /negP; unfold not; intro LTt1.
-        move: INfst1 => /eqP INfst1; apply INfst1.
-        apply (sum_service_after_job_rt_zero job_cost) with (R := R_tsk);
+        move: FSTserv => /eqP FSTserv; apply FSTserv.
+        apply (cumulative_service_after_job_rt_zero job_cost) with (R := R_tsk);
           try (by ins); last by apply ltnW.
         by apply response_time_bound.
       }
@@ -380,7 +373,7 @@ Module WorkloadWithJitter.
         move: LTsize => /andP [LTsize _]; des.
         move: LTsize => /andP [_ SERV].
         move: SERV => /eqP SERV; apply SERV.
-        unfold service_during; rewrite sum_service_before_arrival; try (by ins).
+        apply cumulative_service_before_job_arrival_zero; try (by ins).
         by apply arrival_before_jitter with (job_jitter0 := job_jitter).
       }
 
@@ -405,7 +398,7 @@ Module WorkloadWithJitter.
             rewrite -> big_cat_nat with (n := job_arrival j_fst + R_tsk); [| by ins | by ins].
             rewrite -{2}[\sum_(_ <= _ < _) _]addn0 /=.
             rewrite leq_add2l leqn0; apply/eqP.
-            apply (sum_service_after_job_rt_zero job_cost) with (R := R_tsk);
+            apply (cumulative_service_after_job_rt_zero job_cost) with (R := R_tsk);
               try (by ins); last by apply leqnn.
             by apply response_time_bound.
           }
@@ -425,8 +418,9 @@ Module WorkloadWithJitter.
             rewrite -> big_cat_nat with (n := job_arrival j_lst); [|by apply ltnW| by apply ltnW].
             rewrite /= -[\sum_(_ <= _ < _) 1]add0n; apply leq_add.
             {
-              rewrite sum_service_before_arrival; [by ins| |by apply leqnn].
-                by apply arrival_before_jitter with (job_jitter0 := job_jitter).
+              rewrite cumulative_service_before_job_arrival_zero;
+                [by ins| |by apply leqnn].
+              by apply arrival_before_jitter with (job_jitter0 := job_jitter).
             }
             by apply leq_sum; ins; apply service_at_le_max_rate.
           }
@@ -476,7 +470,7 @@ Module WorkloadWithJitter.
           set cur := nth elem sorted_jobs i.
           set next := nth elem sorted_jobs i.+1.
           clear BOUNDend BOUNDmid LT LTserv j_fst j_lst
-                INfst INfst0 INfst1 AFTERt1 BEFOREt2 FSTserv FSTtask FSTin.
+                AFTERt1 BEFOREt2 FSTserv FSTtask FSTin.
 
           (* Show that cur arrives earlier than next *)
           assert (ARRle: job_arrival cur <= job_arrival next).
@@ -541,7 +535,7 @@ Module WorkloadWithJitter.
           (* Show that j_fst doesn't execute d_k units after its arrival. *)
           unfold t2; rewrite leq_add2r; rename H_completed_jobs_dont_execute into EXEC.
           unfold task_misses_no_deadline_before, job_misses_no_deadline, completed in *; des.
-          exploit (no_dl_misses j_fst INfst); last intros COMP.
+          exploit (no_dl_misses j_fst FSTtask); last intros COMP.
           { 
             (* Prove that arr_fst + d_k <= t2 *)
             apply leq_ltn_trans with (n := job_arrival j_lst); last by done.
@@ -557,7 +551,7 @@ Module WorkloadWithJitter.
              equals 0, which contradicts the previous assumption that j_fst interferes in
              the scheduling window. *)
           clear BEFOREt2 DISTmax LTnk DIST BOUNDend BOUNDmid FSTin; move: EXEC => EXEC.
-          move: INfst1 => /eqP SERVnonzero; apply SERVnonzero.
+          move: FSTserv => /eqP SERVnonzero; apply SERVnonzero.
           {
             unfold service_during; apply/eqP; rewrite -leqn0.
             rewrite <- leq_add2l with (p := job_cost j_fst); rewrite addn0.

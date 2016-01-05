@@ -679,7 +679,7 @@ Module ResponseTimeIterationFPWithJitter.
                H_test_succeeds into TEST.
         destruct H_valid_policy as [REFL [TRANS TOTAL]].
 
-        move => tsk INtsk j /eqP JOBtsk.
+        move => tsk INtsk j JOBtsk.
         have RLIST := (R_list_has_response_time_bounds).
         have NONEMPTY := (R_list_non_empty ts).
         have DL := (R_list_le_deadline ts).
@@ -689,7 +689,7 @@ Module ResponseTimeIterationFPWithJitter.
         exploit (RLIST rt_bounds tsk R); [by ins | by ins | by apply JOBtsk | intro COMPLETED].
         exploit (DL rt_bounds tsk R); [by ins | by ins | clear DL; intro DL].
         
-        rewrite eqn_leq; apply/andP; split; first by apply service_interval_le_cost.
+        rewrite eqn_leq; apply/andP; split; first by apply cumulative_service_le_job_cost.
         apply leq_trans with (n := service rate sched j (job_arrival j + R)); last first.
         {
           unfold valid_sporadic_taskset, is_valid_sporadic_task in *.
@@ -734,7 +734,7 @@ Module ResponseTimeIterationFPWithJitter.
         intros j.
         have SCHED := taskset_with_jitter_schedulable_by_fp_rta.
         unfold no_deadline_missed_by_task, task_misses_no_deadline in *.
-        apply SCHED with (tsk := job_task j); last by rewrite eq_refl.
+        apply SCHED with (tsk := job_task j); last by done.
         by apply H_all_jobs_from_taskset.
       Qed.
       

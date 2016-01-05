@@ -238,7 +238,7 @@ Module ResponseTimeAnalysis.
             | by ins; rewrite RATE
             | by ins; apply TASK_PARAMS
             | by ins; apply RESTR |].
-          red; red; move => j' /eqP JOBtsk' _;
+          red; red; move => j' JOBtsk' _;
           unfold job_misses_no_deadline.
           specialize (PARAMS j'); des.
           rewrite PARAMS1 JOBtsk'.

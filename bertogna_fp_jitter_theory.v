@@ -269,7 +269,7 @@ Module ResponseTimeAnalysisJitter.
           | by apply RESTR
           | by red; red; ins; apply (RESP tsk_k)  
           | by apply GE_COST |].
-        red; red; move => j' /eqP JOBtsk' _;
+        red; red; move => j' JOBtsk' _;
         unfold job_misses_no_deadline.
         specialize (PARAMS j'); des.
         rewrite PARAMS2 JOBtsk'.
