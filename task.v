@@ -1,7 +1,8 @@
 Require Import Vbase util_lemmas ssrnat ssrbool eqtype fintype seq.
 
+(* Attributes of a valid sporadic task. *)
 Module SporadicTask.
-  (* Next we define valid parameters for a sporadic task*)
+
   Section BasicTask.
     Context {Task: eqType}.
     Variable task_cost: Task -> nat.
@@ -10,10 +11,13 @@ Module SporadicTask.
 
     Section ValidParameters.
       Variable tsk: Task.
-    
+
+      (* The cost, period and deadline of the task must be positive. *)
       Definition task_cost_positive := task_cost tsk > 0.
       Definition task_period_positive := task_period tsk > 0.
       Definition task_deadline_positive := task_deadline tsk > 0.
+
+      (* The task cost cannot be larger than the deadline or the period. *)
       Definition task_cost_le_deadline := task_cost tsk <= task_deadline tsk.
       Definition task_cost_le_period := task_cost tsk <= task_period tsk.
 
@@ -27,14 +31,16 @@ Module SporadicTask.
 
 End SporadicTask.
 
+(* Definition and properties of a task set. *)
 Module SporadicTaskset.
   Export SporadicTask.
 
-  (* In this section we define a task set as a sequence of tasks. *)
   Section TasksetDefs.
- 
-    Definition taskset_of (T: eqType) := seq T.
 
+    (* A task set is just a sequence of tasks. *)
+    Definition taskset_of (Task: eqType) := seq Task.
+
+    (* Next, we define some properties of a task set. *)
     Section TasksetProperties.
 
       Context {Task: eqType}.
@@ -47,11 +53,13 @@ Module SporadicTaskset.
 
       Variable ts: taskset_of Task.
 
+      (* A valid sporadic taskset only contains valid tasks. *)
       Definition valid_sporadic_taskset :=
         forall tsk,
           tsk \in ts -> is_valid_task tsk.
 
-      (* Deadline models: implicit, restricted or arbitrary *)
+      (* A task set can satisfy one of three deadline models:
+         implicit, restricted, or arbitrary. *)
       Definition implicit_deadline_model :=
         forall tsk,
           tsk \in ts -> task_deadline tsk = task_period tsk.
