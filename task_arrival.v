@@ -1,12 +1,14 @@
 Require Import Vbase task job schedule util_lemmas
                ssreflect ssrbool eqtype ssrnat seq fintype bigop.
 
+(* Properties of the job arrival. *)
 Module SporadicTaskArrival.
 
 Import SporadicTaskset Schedule.
   
   Section ArrivalModels.
 
+    (* Assume the task period is known. *)
     Context {sporadic_task: eqType}.
     Variable task_period: sporadic_task -> nat.
     
@@ -14,13 +16,14 @@ Import SporadicTaskset Schedule.
     Variable arr_seq: arrival_sequence Job.
     Variable job_task: Job -> sporadic_task.
 
-    (* We define the sporadic task model *)
+    (* Then, we define the sporadic task model as follows.*)
+    
     Definition sporadic_task_model :=
       forall (j j': JobIn arr_seq),
-             j <> j' -> (* Given two different jobs j and j' such that ... *)
-             job_task j = job_task j' -> (* ...they are from the same task ... *)
-             job_arrival j <= job_arrival j' -> (* ...and arr <= arr'...  *)
-        (* then the next jobs arrives 'period' time units later. *)
+             j <> j' -> (* Given two different jobs j and j' ... *)
+             job_task j = job_task j' -> (* ... of the same task, ... *)
+             job_arrival j <= job_arrival j' -> (* ... if the arrival of j precedes the arrival of j' ...,  *)
+        (* then the arrival of j and the arrival of j' are separated by at least one period. *)
         job_arrival j' >= job_arrival j + task_period (job_task j).
 
   End ArrivalModels.

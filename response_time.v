@@ -1,10 +1,11 @@
 Require Import Vbase task job task_arrival schedule util_lemmas
                ssreflect ssrbool eqtype ssrnat seq fintype bigop.
 
+(* Definition of response-time bound and some simple lemmas. *)
 Module ResponseTime.
 
   Import Schedule SporadicTaskset SporadicTaskArrival.
-                                    
+  
   Section ResponseTimeBound.
 
     Context {sporadic_task: eqType}.
@@ -57,16 +58,16 @@ Module ResponseTime.
 
     Section SpecificJob.
 
-      (* Consider any job ...*)
+      (* Then, for any job j ...*)
       Variable j: JobIn arr_seq.
       
-      (* ...with response-time bound R in this schedule. *)
+      (* ...with response-time bound R in this schedule, ... *)
       Variable R: time.
       Hypothesis response_time_bound:
         job_has_completed_by j (job_arrival j + R). 
 
-      (* The service at any time t' after the response time is 0. *)
-      Lemma service_at_after_job_rt_zero :
+      (* the service received by j at any time t' after its response time is 0. *)
+      Lemma service_after_job_rt_zero :
         forall t',
           t' >= job_arrival j + R ->
           service_at rate sched j t' = 0.
@@ -86,8 +87,8 @@ Module ResponseTime.
           by rewrite big_nat_recr // /=; apply leq_addl.
       Qed.
 
-      (* The cumulative service after the response time is 0. *)
-      Lemma sum_service_after_job_rt_zero :
+      (* The same applies for the cumulative service of job j. *)
+      Lemma cumulative_service_after_job_rt_zero :
         forall t' t'',
           t' >= job_arrival j + R ->
           \sum_(t' <= t < t'') service_at rate sched j t = 0.
@@ -96,7 +97,7 @@ Module ResponseTime.
         rewrite big_nat_cond; rewrite -> eq_bigr with (F2 := fun i => 0);
           first by rewrite big_const_seq iter_addn mul0n addn0 leqnn.
         intro i; rewrite andbT; move => /andP [LE _].
-        by rewrite service_at_after_job_rt_zero;
+        by rewrite service_after_job_rt_zero;
           [by ins | by apply leq_trans with (n := t')].
       Qed.
       
@@ -104,33 +105,35 @@ Module ResponseTime.
     
     Section AllJobs.
 
-      (* Assume a task tsk ...*)
+      (* Consider any task tsk ...*)
       Variable tsk: sporadic_task.
 
-      (* ...and that R is a response-time bound of tsk in this schedule. *)
+      (* ... for which a response-time bound R is known. *)
       Variable R: time.
       Hypothesis response_time_bound:
         is_response_time_bound_of_task job_cost job_task tsk rate sched R.
 
+      (* Then, for any job j of this task, ...*)
       Variable j: JobIn arr_seq.
       Hypothesis H_job_of_task: job_task j = tsk.
 
-      (* The service at any time t' after the response time is 0. *)
-      Lemma service_at_after_rt_zero :
+      (* the service received by job j at any time t' after the response time is 0. *)
+      Lemma service_after_task_rt_zero :
         forall t',
           t' >= job_arrival j + R ->
           service_at rate sched j t' = 0.
       Proof.
-        by ins; apply service_at_after_job_rt_zero with (R := R); [apply response_time_bound |].
+        by ins; apply service_after_job_rt_zero with (R := R); [apply response_time_bound |].
       Qed.
 
-      (* The cumulative service after the response time is 0. *)
-      Lemma sum_service_after_rt_zero :
+      (* The same applies for the cumulative service of job j. *)
+      Lemma cumulative_service_after_task_rt_zero :
         forall t' t'',
           t' >= job_arrival j + R ->
           \sum_(t' <= t < t'') service_at rate sched j t = 0.
       Proof.
-        by ins; apply sum_service_after_job_rt_zero with (R := R); [apply response_time_bound |].
+        by ins; apply cumulative_service_after_job_rt_zero with (R := R);
+          first by apply response_time_bound. 
       Qed.
       
     End AllJobs.
