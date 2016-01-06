@@ -1,10 +1,10 @@
 Require Import Vbase schedule bertogna_fp_theory util_divround util_lemmas
         ssreflect ssrbool eqtype ssrnat seq fintype bigop div path
-        workload_fp.
+        workload_bound.
 
 Module ResponseTimeIterationFP.
 
-  Import Schedule ResponseTimeAnalysis WorkloadBoundFP.
+  Import Schedule ResponseTimeAnalysis WorkloadBound.
 
   Section Analysis.
     

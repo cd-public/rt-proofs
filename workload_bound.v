@@ -2,9 +2,11 @@ Require Import workload Vbase job task schedule task_arrival response_time
                schedulability util_divround util_lemmas
                ssreflect ssrbool eqtype ssrnat seq div fintype bigop path.
 
-Module WorkloadBoundFP.
- Import Job SporadicTaskset ScheduleOfSporadicTask SporadicTaskArrival ResponseTime Schedulability Workload.
-  Section WorkloadBound.
+Module WorkloadBound.
+  
+  Import Job SporadicTaskset ScheduleOfSporadicTask SporadicTaskArrival ResponseTime Schedulability Workload.
+
+  Section WorkloadBoundDef.
 
     Context {sporadic_task: eqType}.
     Variable task_cost: sporadic_task -> nat.
@@ -24,7 +26,7 @@ Module WorkloadBoundFP.
       let p_k := (task_period tsk) in            
         minn e_k (delta + R_tsk - e_k - max_jobs * p_k) + max_jobs * e_k.
 
-  End WorkloadBound.
+  End WorkloadBoundDef.
   
   Section BasicLemmas.
 
@@ -241,8 +243,8 @@ Module WorkloadBoundFP.
         Lemma workload_bound_simpl_by_sorting_interfering_jobs :
           \sum_(i <- interfering_jobs) service_during rate sched i t1 t2 =
            \sum_(i <- sorted_jobs) service_during rate sched i t1 t2.
-          Proof.
-            by rewrite (eq_big_perm sorted_jobs) /=; last by rewrite -(perm_sort order).
+        Proof.
+          by rewrite (eq_big_perm sorted_jobs) /=; last by rewrite -(perm_sort order).
         Qed.
 
         (* Remember that both sequences have the same set of elements *)
@@ -790,4 +792,4 @@ Module WorkloadBoundFP.
     
   End ProofWorkloadBound.
 
-End WorkloadBoundFP.
+End WorkloadBound.

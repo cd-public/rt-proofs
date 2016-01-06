@@ -1,10 +1,10 @@
 Require Import Vbase schedule bertogna_edf_theory util_divround util_lemmas
         ssreflect ssrbool eqtype ssrnat seq fintype bigop div path
-        workload_fp.
+        workload_bound.
 
 Module ResponseTimeIterationEDF.
 
-  Import Schedule ResponseTimeAnalysisEDF WorkloadBoundFP.
+  Import Schedule ResponseTimeAnalysisEDF WorkloadBound.
 
   Section Analysis.
     
