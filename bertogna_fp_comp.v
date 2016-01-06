@@ -4,7 +4,7 @@ Require Import Vbase schedule bertogna_fp_theory util_divround util_lemmas
 
 Module ResponseTimeIterationFP.
 
-  Import Schedule ResponseTimeAnalysis WorkloadBound.
+  Import Schedule ResponseTimeAnalysisFP WorkloadBound.
 
   Section Analysis.
     

@@ -1,4 +1,4 @@
-Require Import Vbase task job task_arrival schedule platform
+Require Import Vbase task job task_arrival schedule platform interference
         workload workload_bound schedulability priority response_time
         bertogna_fp_theory util_divround util_lemmas
         ssreflect ssrbool eqtype ssrnat seq fintype bigop div path.
@@ -6,7 +6,7 @@ Require Import Vbase task job task_arrival schedule platform
 Module ResponseTimeAnalysisEDF.
 
   Export Job SporadicTaskset ScheduleOfSporadicTask Workload Schedulability ResponseTime
-         Priority SporadicTaskArrival ResponseTimeAnalysis WorkloadBound.
+         Priority SporadicTaskArrival WorkloadBound ResponseTimeAnalysisFP.
 
   Section InterferenceBoundEDF.
 

@@ -6,7 +6,7 @@ Require Import Vbase task job task_arrival schedule platform workload
 Module ResponseTimeAnalysisGuan.
 
   Import Job SporadicTaskset ScheduleOfTaskWithJitter Schedulability ResponseTime Priority SporadicTaskArrival Interference Platform WorkloadBoundGuan.
-  Export Workload ResponseTimeAnalysis.
+  Export Workload.
 
   Section InterferenceBoundGuan.
 
