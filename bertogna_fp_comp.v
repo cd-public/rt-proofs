@@ -34,9 +34,9 @@ Module ResponseTimeIterationFP.
     (* Next we define the fixed-point iteration for computing
        Bertogna's response-time bound for any task in ts. *)
     
-    (* First, given a sequence of pairs R_prev = [..., (tsk_hp, R_hp)] of
+    (* First, given a sequence of pairs R_prev = <..., (tsk_hp, R_hp)> of
        response-time bounds for the higher-priority tasks, we define an
-       iteration that computes the response-time bound of the single task tsk:
+       iteration that computes the response-time bound of the current task:
 
            R_tsk (0) = task_cost tsk
            R_tsk (step + 1) =  f (R step),
@@ -86,8 +86,8 @@ Module ResponseTimeIterationFP.
     
     (* In the following section, we prove several helper lemmas about the
        list of response-time bounds. The results seem trivial, but must be proven
-       nonetheless since the list of response-time bounds is a result of an
-       iterative procedure. *)
+       nonetheless since the list of response-time bounds is computed with
+       a specific algorithm and there are no lemmas in the library for that. *)
     Section SimpleLemmas.
 
       (* First, we show that R_list of the prefix is the prefix of R_list. *)
@@ -290,7 +290,7 @@ Module ResponseTimeIterationFP.
         }
       Qed.
 
-      (* Simple lemma about unfold the iteration one step. *)
+      (* Short lemma about unfolding the iteration one step. *)
       Lemma per_task_rta_fold :
         forall tsk rt_bounds,
           task_cost tsk +
@@ -323,8 +323,8 @@ Module ResponseTimeIterationFP.
       Variable R: time.
       Hypothesis H_analysis_succeeds: R_list (rcons ts_hp tsk) = Some (rcons hp_bounds (tsk, R)).
       
-      (* Then, the list of tasks in the prefix of R_list is exactly the set of
-         interfering tasks under FP scheduling.*)
+      (* Then, the tasks in the prefix of R_list are exactly interfering tasks
+         under FP scheduling.*)
       Lemma R_list_unzip1 :
         [seq tsk_hp <- rcons ts_hp tsk | is_interfering_task_fp higher_eq_priority tsk tsk_hp] =
           unzip1 hp_bounds.
@@ -407,6 +407,7 @@ Module ResponseTimeIterationFP.
       
     End HighPriorityTasks.
 
+    (* In this section, we show that the fixed-point iteration converges. *)
     Section Convergence.
 
       (* Consider any valid set of higher-priority tasks. *)
@@ -418,13 +419,13 @@ Module ResponseTimeIterationFP.
       Variable rt_bounds: seq task_with_response_time.
       Hypothesis H_test_succeeds: R_list ts_hp = Some rt_bounds.
 
-      (* Consider any task tsk. *)
+      (* Consider any task tsk to be analyzed. *)
       Variable tsk: sporadic_task.
 
       (* To simplify, let f denote the fixed-point iteration. *)
       Let f := per_task_rta tsk rt_bounds.
 
-      (* Assume that the iteration reaches a value no larger than the deadline. *)
+      (* Assume that f (max_steps tsk) is no larger than the deadline. *)
       Hypothesis H_no_larger_than_deadline: f (max_steps tsk) <= task_deadline tsk.
 
       (* First, we show that f is monotonically increasing. *)
@@ -489,7 +490,7 @@ Module ResponseTimeIterationFP.
             by apply bertogna_fp_comp_f_monotonic, leqnSn.
         Qed.
 
-        (* In the end, the response-time bound must exceed the deadline. *)
+        (* In the end, the response-time bound must exceed the deadline. Contradiction! *)
         Lemma bertogna_fp_comp_rt_exceeds_deadline :
           f (max_steps tsk) > task_deadline tsk.
         Proof.
@@ -535,9 +536,10 @@ Module ResponseTimeIterationFP.
       Variable ts: taskset_of sporadic_task.
       
       (* Assume that higher_eq_priority is a total order.
-         Actually, it just needs to be total over the task set,
-         but to weaken the assumption, I have to re-prove many lemmas
-         about ordering in ssreflect. This can be done later. *)
+         TODO: it doesn't have to be total over the entire domain, but
+         only within the task set.
+         But to weaken the hypothesis, we need to re-prove some lemmas
+         from ssreflect. *)
       Hypothesis H_reflexive: reflexive higher_eq_priority.
       Hypothesis H_transitive: transitive higher_eq_priority.
       Hypothesis H_unique_priorities: antisymmetric higher_eq_priority.
@@ -603,15 +605,15 @@ Module ResponseTimeIterationFP.
         job_misses_no_deadline job_cost job_deadline rate sched.
        
       (* In the following lemma, we prove that any response-time bound contained
-         in R_list is safe. The proof follows by induction of the task set:
+         in R_list is safe. The proof follows by induction on the task set:
 
            Induction hypothesis: all higher-priority tasks have safe response-time bounds.
            Inductive step: We prove that the response-time bound of the current task is safe.
 
          Note that the inductive step is a direct application of the main Theorem from
          bertogna_fp_theory.v.
-         The proof is only long because of the dozens of hypothesis that we need to supply.
-         There's no clean way of breaking this up into small lemmas. *)
+         The proof is only long because of the dozens of hypothesis that we need to supply,
+         so there's no clean way of breaking this down into small lemmas. *)
       Lemma R_list_has_response_time_bounds :
         forall rt_bounds tsk R,
           R_list ts = Some rt_bounds ->
