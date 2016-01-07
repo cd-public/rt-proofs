@@ -164,13 +164,14 @@ Module ResponseTimeAnalysisFP.
     Hypothesis H_response_time_no_larger_than_deadline:
       R <= task_deadline tsk.
 
+    (* In order to prove that R is a response-time bound, we first present some lemmas. *)
     Section Lemmas.
 
       (* Consider any job j of tsk. *)
       Variable j: JobIn arr_seq.
       Hypothesis H_job_of_tsk: job_task j = tsk.
 
-      (* Assume by contradiction that j hasn't completed by the response time bound. *)
+      (* Assume that job j hasn't completed by the response time bound. *)
       Hypothesis H_j_not_completed: ~~ completed job_cost rate sched j (job_arrival j + R).
       
       (* Let's call x the interference incurred by job j due to tsk_other, ...*)
@@ -196,9 +197,8 @@ Module ResponseTimeAnalysisFP.
         Variable R_other: time.
         Hypothesis H_response_time_of_tsk_other: (tsk_other, R_other) \in hp_bounds.
 
-        (* Trivially, tsk_other is in task set ts ...*)
-        Lemma bertogna_fp_tsk_other_in_ts :
-            tsk_other \in ts.
+        (* Note that tsk_other is in task set ts ...*)
+        Lemma bertogna_fp_tsk_other_in_ts: tsk_other \in ts.
           Proof.
             rename H_hp_bounds_has_interfering_tasks into UNZIP,
                    H_response_time_of_tsk_other into INbounds.
@@ -209,9 +209,8 @@ Module ResponseTimeAnalysisFP.
             by apply/mapP; exists (tsk_other, R_other).
         Qed.
 
-        (*... that interferes with task tsk. *)
-        Lemma bertogna_fp_tsk_other_interferes :
-            interferes_with_tsk tsk_other.
+        (*... and interferes with task tsk. *)
+        Lemma bertogna_fp_tsk_other_interferes: interferes_with_tsk tsk_other.
           Proof.
             rename H_hp_bounds_has_interfering_tasks into UNZIP,
                    H_response_time_of_tsk_other into INbounds.
@@ -222,8 +221,8 @@ Module ResponseTimeAnalysisFP.
             by apply/mapP; exists (tsk_other, R_other).
         Qed.
 
-        (* Since a task cannot interfere more than it executes, we show that
-           the per-task interference of tsk_other is no larger than workload bound W. *)
+        (* Since tsk_other cannot interfere more than it executes, we show that
+           the interference caused by tsk_other is no larger than workload bound W. *)
         Lemma bertogna_fp_workload_bounds_interference :
           x tsk_other <= workload_bound tsk_other R_other.
         Proof.
@@ -259,6 +258,7 @@ Module ResponseTimeAnalysisFP.
 
       End LemmasAboutInterferingTasks.
 
+      (* Next we prove some lemmas that help to derive a contradiction.*)
       Section DerivingContradiction.
 
       (* 1) Since job j did not complete by its response time bound, it follows that
@@ -308,10 +308,9 @@ Module ResponseTimeAnalysisFP.
         }
       Qed.
 
-      (* 2) Next, we prove that the sum of the interference of each
-         task is equal to the total interference multiplied by the
-         number of processors. This holds because interference only
-         occurs when all processors are busy. *)
+      (* 2) Next, we prove that the sum of the interference of each task is equal
+            to the total interference multiplied by the number of processors. This
+            holds because interference only occurs when all processors are busy. *)
       Lemma bertogna_fp_all_cpus_busy :
         \sum_(tsk_k <- ts_interf) x tsk_k = X * num_cpus.
       Proof.
@@ -333,33 +332,32 @@ Module ResponseTimeAnalysisFP.
         by rewrite -big_mkcond sum1_count.
       Qed.
 
-      (* Let cardGE be the number of interfering tasks with interference larger
-         than R - task_cost tsk + 1. *)
-      Let cardGE := count (fun i => R - task_cost tsk + 1 <= x i) ts_interf.
-
+      (* Let (cardGE delta) be the number of interfering tasks whose interference
+         is larger than delta. *)
+      Let cardGE (delta: time) := count (fun i => x i >= delta) ts_interf.
 
       (* 3) If there is at least one of such tasks (e.g., cardGE > 0), then the
          cumulative interference caused by the complementary set of interfering
          tasks fills at least (num_cpus - cardGE) processors. *)
       Lemma bertogna_fp_helper_lemma :
-        cardGE > 0 ->
-        \sum_(i <- ts_interf | x i < R - task_cost tsk + 1) x i >=
-                         (R - task_cost tsk + 1) * (num_cpus - cardGE).
+        forall delta,
+          cardGE delta > 0 ->
+          \sum_(i <- ts_interf | x i < delta) x i >= delta * (num_cpus - cardGE delta).
       Proof.
         rename H_global_scheduling_invariant into INVARIANT.
-        intros HAS.
+        intros delta HAS.
         set some_interference_A := fun t =>
             backlogged job_cost rate sched j t &&
-            has (fun tsk_k => ((x tsk_k >= R - task_cost tsk + 1) &&
+            has (fun tsk_k => ((x tsk_k >= delta) &&
                      task_is_scheduled job_task sched tsk_k t)) ts_interf.      
         set total_interference_B := fun t =>
             backlogged job_cost rate sched j t *
-            count (fun tsk_k =>(x tsk_k < R - task_cost tsk + 1) &&
+            count (fun tsk_k => (x tsk_k < delta) &&
               task_is_scheduled job_task sched tsk_k t) ts_interf.
 
         rewrite -has_count in HAS.
         apply leq_trans with ((\sum_(job_arrival j <= t < job_arrival j + R)
-                              some_interference_A t) * (num_cpus - cardGE)).
+                              some_interference_A t) * (num_cpus - cardGE delta)).
         {
           rewrite leq_mul2r; apply/orP; right.
           move: HAS => /hasP HAS; destruct HAS as [tsk_a INa LEa].
@@ -381,8 +379,7 @@ Module ResponseTimeAnalysisFP.
           unfold some_interference_A, total_interference_B. 
           destruct (backlogged job_cost rate sched j t) eqn:BACK;
             [rewrite andTb mul1n | by done].
-          destruct (has (fun tsk_k : sporadic_task =>
-                     (R - task_cost tsk + 1 <= x tsk_k) &&
+          destruct (has (fun tsk_k : sporadic_task => (delta <= x tsk_k) &&
                      task_is_scheduled job_task sched tsk_k t) ts_interf) eqn:HAS';
             last by done.
           rewrite mul1n; move: HAS => /hasP HAS.
@@ -399,7 +396,7 @@ Module ResponseTimeAnalysisFP.
           fold interfering_tasks_at_t in COUNT.
           rewrite count_predT in COUNT.
           apply leq_trans with (n := num_cpus -
-                       count (fun i => (x i >= R -  task_cost tsk + 1) &&
+                       count (fun i => (x i >= delta) &&
                           task_is_scheduled job_task sched i t) ts_interf).
           {
             apply leq_sub2l.
@@ -413,10 +410,10 @@ Module ResponseTimeAnalysisFP.
           rewrite leq_subLR -count_predUI.
           apply leq_trans with (n :=
               count (predU (fun i : sporadic_task =>
-                              (R - task_cost tsk + 1 <= x i) &&
+                              (delta <= x i) &&
                               task_is_scheduled job_task sched i t)
                            (fun tsk_k0 : sporadic_task =>
-                              (x tsk_k0 < R - task_cost tsk + 1) &&
+                              (x tsk_k0 < delta) &&
                               task_is_scheduled job_task sched tsk_k0 t))
                     ts_interf); last by apply leq_addr.
           apply leq_trans with (n := size interfering_tasks_at_t).
@@ -447,31 +444,28 @@ Module ResponseTimeAnalysisFP.
         }
       Qed.
       
-      (* 4) Next, we show that if the sum of per-task interferences exceeds
-            (R - task_cost tsk + 1) * num_cpus, the same applies for the
-            sum of the minimum. *)
+      (* 4) Next, we prove that, for any interval delta, if the sum of per-task
+            interference exceeds delta * num_cpus, the same applies for the
+            sum of the minimum between the interference and delta. *)
       Lemma bertogna_fp_minimum_exceeds_interference :
-        \sum_(tsk_k <- ts_interf) x tsk_k >= (R - task_cost tsk + 1) * num_cpus ->
-           \sum_(tsk_k <- ts_interf) minn (x tsk_k) (R - task_cost tsk + 1) >=
-           (R - task_cost tsk + 1) * num_cpus.
+        forall delta,
+          \sum_(tsk_k <- ts_interf) x tsk_k >= delta * num_cpus ->
+             \sum_(tsk_k <- ts_interf) minn (x tsk_k) delta >=
+             delta * num_cpus.
       Proof.
-        intro SUMLESS.
-        set more_interf := fun tsk_k => x tsk_k >= R - task_cost tsk + 1.
+        intros delta SUMLESS.
+        set more_interf := fun tsk_k => x tsk_k >= delta.
         rewrite [\sum_(_ <- _) minn _ _](bigID more_interf) /=.
         unfold more_interf, minn.
-        rewrite [\sum_(_ <- _ | R - _ + _ <= _)_](eq_bigr (fun i => R - task_cost tsk + 1));
-          last first.
-        {
-          intros i COND; rewrite leqNgt in COND.
-          destruct (R - task_cost tsk + 1 > x i); ins.
-        }
-        rewrite [\sum_(_ <- _ | ~~_)_](eq_big (fun i => x i < R - task_cost tsk + 1)
+        rewrite [\sum_(_ <- _ | delta <= _)_](eq_bigr (fun i => delta));
+          last by intros i COND; rewrite leqNgt in COND; destruct (delta > x i).
+        rewrite [\sum_(_ <- _ | ~~_)_](eq_big (fun i => x i < delta)
                                               (fun i => x i));
           [| by red; ins; rewrite ltnNge
            | by intros i COND; rewrite -ltnNge in COND; rewrite COND].
 
         (* Case 1: cardGE = 0 *)
-        destruct (~~ has (fun i => R - task_cost tsk + 1 <= x i) ts_interf) eqn:HASa.
+        destruct (~~ has (fun i => delta <= x i) ts_interf) eqn:HASa.
         {
           rewrite [\sum_(_ <- _ | _ <= _) _]big_hasC; last by apply HASa.
           rewrite big_seq_cond; move: HASa => /hasPn HASa.
@@ -480,11 +474,11 @@ Module ResponseTimeAnalysisFP.
               [by rewrite andTb ltnNge; apply HASa | by rewrite andFb].
           by rewrite -big_seq_cond.
         } apply negbFE in HASa.
-
+        
         (* Case 2: cardGE >= num_cpus *)
-        destruct (cardGE >= num_cpus) eqn:CARD.
+        destruct (cardGE delta >= num_cpus) eqn:CARD.
         {
-          apply leq_trans with ((R - task_cost tsk + 1) * cardGE);
+          apply leq_trans with (delta * cardGE delta);
             first by rewrite leq_mul2l; apply/orP; right.
           unfold cardGE; rewrite -sum1_count big_distrr /=.
           rewrite -[\sum_(_ <- _ | _) _]addn0.
@@ -493,12 +487,12 @@ Module ResponseTimeAnalysisFP.
 
         (* Case 3: cardGE < num_cpus *)
         rewrite big_const_seq iter_addn addn0; fold cardGE.
-        apply leq_trans with (n := (R-task_cost tsk+1) * cardGE +
-                                   (R-task_cost tsk+1) * (num_cpus-cardGE));
+        apply leq_trans with (n := delta * cardGE delta +
+                                   delta * (num_cpus - cardGE delta));
           first by rewrite -mulnDr subnKC //; apply ltnW.
         by rewrite leq_add2l; apply bertogna_fp_helper_lemma; rewrite -has_count.
       Qed.
-
+      
       (* 4) Now, we prove that the Bertogna's interference bound
             is not enough to cover the sum of the "minimum" term over
             all tasks (artifact of the proof by contradiction). *)
@@ -536,30 +530,35 @@ Module ResponseTimeAnalysisFP.
             we prove that there exists a tuple (tsk_k, R_k) such that
             min (x_k, R - e_i + 1) > min (W_k, R - e_i + 1). *)
       Lemma bertogna_fp_exists_task_that_exceeds_bound :
-        has (fun tup : task_with_response_time =>
-             let (tsk_k, R_k) := tup in
-               (tsk_k \in ts) && interferes_with_tsk tsk_k &&        
-               (minn (x tsk_k) (R - task_cost tsk + 1) >
-                minn (workload_bound tsk_k R_k)
-                     (R - task_cost tsk + 1)))
-            hp_bounds.
+        exists tsk_k R_k,
+          (tsk_k, R_k) \in hp_bounds /\
+          (minn (x tsk_k) (R - task_cost tsk + 1) >
+            minn (workload_bound tsk_k R_k) (R - task_cost tsk + 1)).
       Proof.
         rename H_hp_bounds_has_interfering_tasks into UNZIP.
-        apply/negP; unfold not; intro NOTHAS.
-        move: NOTHAS => /negP /hasPn ALL.
-        have SUM := bertogna_fp_sum_exceeds_total_interference.
-        rewrite -[_ < _]negbK in SUM.
-        move: SUM => /negP SUM; apply SUM; rewrite -leqNgt.
-        unfold total_interference_bound_fp.
-        rewrite [\sum_(i <- _ | let '(tsk_other, _) := i in _)_]big_mkcond.
-        rewrite big_seq_cond [\sum_(i <- _ | true) _]big_seq_cond.
-        apply leq_sum; move => tsk_k /andP [HPk _]; destruct tsk_k as [tsk_k R_k].
-        specialize (ALL (tsk_k, R_k) HPk).
-        have INTERFk := bertogna_fp_tsk_other_interferes tsk_k R_k HPk.
-        have INk := bertogna_fp_tsk_other_in_ts tsk_k R_k HPk.
-        unfold interference_bound, workload_bound, x in *.
-        fold (interferes_with_tsk); rewrite INTERFk.
-        by rewrite INTERFk INk 2!andTb -leqNgt in ALL; apply ALL.
+        assert (HAS: has (fun tup : task_with_response_time =>
+                           let (tsk_k, R_k) := tup in
+                             (minn (x tsk_k) (R - task_cost tsk + 1) >
+                              minn (workload_bound tsk_k R_k)(R - task_cost tsk + 1)))
+                          hp_bounds).
+        {
+          apply/negP; unfold not; intro NOTHAS.
+          move: NOTHAS => /negP /hasPn ALL.
+          have SUM := bertogna_fp_sum_exceeds_total_interference.
+          rewrite -[_ < _]negbK in SUM.
+          move: SUM => /negP SUM; apply SUM; rewrite -leqNgt.
+          unfold total_interference_bound_fp.
+          rewrite [\sum_(i <- _ | let '(tsk_other, _) := i in _)_]big_mkcond.
+          rewrite big_seq_cond [\sum_(i <- _ | true) _]big_seq_cond.
+          apply leq_sum; move => tsk_k /andP [HPk _]; destruct tsk_k as [tsk_k R_k].
+          specialize (ALL (tsk_k, R_k) HPk).
+          rewrite -leqNgt in ALL.
+          have INTERFk := bertogna_fp_tsk_other_interferes tsk_k R_k HPk.
+          fold (interferes_with_tsk); rewrite INTERFk.
+          by apply ALL.
+        }
+        move: HAS => /hasP HAS; destruct HAS as [[tsk_k R_k] HPk MINk]; exists tsk_k, R_k.
+        by repeat split.
       Qed.
       
       End DerivingContradiction.
@@ -593,9 +592,7 @@ Module ResponseTimeAnalysisFP.
 
       (* We derive a contradiction using the previous lemmas. *)
       have EX := bertogna_fp_exists_task_that_exceeds_bound j JOBtsk NOTCOMP.
-      move: EX => /hasP EX; destruct EX as [tup_k HPk LTmin].
-      destruct tup_k as [tsk_k R_k]; simpl in LTmin.
-      move: LTmin => /andP [INTERFk LTmin]; move: (INTERFk) => /andP [INk INTERFk'].
+      destruct EX as [tsk_k [R_k [HPk LTmin]]].
       unfold minn at 1 in LTmin.
       have WORKLOAD := bertogna_fp_workload_bounds_interference j tsk_k R_k HPk.
       destruct (W task_cost task_period tsk_k R_k R < R - task_cost tsk + 1); rewrite leq_min in LTmin; 

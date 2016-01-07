@@ -559,7 +559,7 @@ Module WorkloadBound.
         Qed.
 
         (* Now, we prove an auxiliary lemma for the next result.
-           The statement is not meaninful, since it's part of a proof
+           The statement is not meaningful, since it's part of a proof
            by contradiction. *)
         Lemma workload_bound_helper_lemma :
           job_arrival j_fst + task_period tsk + delta <= job_arrival j_lst ->
