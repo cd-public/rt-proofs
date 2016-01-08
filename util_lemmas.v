@@ -68,6 +68,11 @@ Reserved Notation "\cat_ ( i < n ) F"
 Notation "\cat_ ( i < n ) F" :=
   (\big[cat/[::]]_(i < n) F%N) : nat_scope.
 
+Reserved Notation "x \In A"
+  (at level 70, format "'[hv' x '/ ' \In A ']'", no associativity).
+
+Notation "x \In A" :=
+  (if A is Some B then in_mem x (mem B) else false) : bool_scope.
 
 Ltac des_eqrefl2 :=
   match goal with
