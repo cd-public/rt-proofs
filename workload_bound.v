@@ -203,7 +203,7 @@ Module WorkloadBound.
       job_arrival j + R_tsk < t1 + delta ->
       job_has_completed_by j (job_arrival j + R_tsk).
     
-    Section BertognaCirinei.
+    Section MainProof.
 
       (* In this section, we prove that the workload of a task in the
          interval [t1, t1 + delta) is bounded by W. *)
@@ -703,7 +703,8 @@ Module WorkloadBound.
               by rewrite H_at_least_two_jobs.
             have INfst := workload_bound_j_fst_is_job_of_tsk SIZE elem;
             have INlst := workload_bound_j_lst_is_job_of_tsk; des.
-            by apply leq_add; apply cumulative_service_le_task_cost with (task_deadline0 := task_deadline) (job_cost0 := job_cost) (job_deadline0 := job_deadline) (job_task0 := job_task).
+            by apply leq_add; apply cumulative_service_le_task_cost with (task_deadline0 := task_deadline)
+                             (job_cost0 := job_cost) (job_deadline0 := job_deadline) (job_task0 := job_task).
           }
           {
             rewrite subnAC subnK; last first.
@@ -788,7 +789,7 @@ Module WorkloadBound.
         }
       Qed.
 
-    End BertognaCirinei.
+    End MainProof.
     
   End ProofWorkloadBound.
 
