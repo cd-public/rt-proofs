@@ -599,11 +599,13 @@ Module ResponseTimeIterationFP.
       Hypothesis H_global_scheduling_invariant:
         FP_scheduling_invariant_holds job_cost job_task num_cpus rate sched ts higher_eq_priority.
 
-      Definition no_deadline_missed_by_task (tsk: sporadic_task) :=
+      Let no_deadline_missed_by_task (tsk: sporadic_task) :=
         task_misses_no_deadline job_cost job_deadline job_task rate sched tsk.
-      Definition no_deadline_missed_by_job :=
+      Let no_deadline_missed_by_job :=
         job_misses_no_deadline job_cost job_deadline rate sched.
-       
+      Let response_time_bounded_by (tsk: sporadic_task) :=
+        is_response_time_bound_of_task job_cost job_task tsk rate sched.
+          
       (* In the following lemma, we prove that any response-time bound contained
          in R_list is safe. The proof follows by induction on the task set:
 
@@ -618,9 +620,7 @@ Module ResponseTimeIterationFP.
         forall rt_bounds tsk R,
           R_list ts = Some rt_bounds ->
           (tsk, R) \in rt_bounds ->
-          forall j : JobIn arr_seq,
-            job_task j = tsk ->
-            completed job_cost rate sched j (job_arrival j + R).
+          response_time_bounded_by tsk R.
       Proof.
         rename H_valid_job_parameters into JOBPARAMS, H_valid_task_parameters into TASKPARAMS,
                H_restricted_deadlines into RESTR, H_completed_jobs_dont_execute into COMP,
@@ -769,11 +769,12 @@ Module ResponseTimeIterationFP.
       Theorem fp_schedulability_test_yields_response_time_bounds :
         forall tsk,
           tsk \in ts ->
-          exists R,
-            R <= task_deadline tsk /\
-            forall (j: JobIn arr_seq),
-              job_task j = tsk ->
-              completed job_cost rate sched j (job_arrival j + R).
+            if R_list ts is Some rt_bounds then
+              exists R,
+                (tsk, R) \in rt_bounds /\
+                R <= task_deadline tsk /\
+                response_time_bounded_by tsk R        
+            else False.
       Proof.
         intros tsk IN.
         unfold fp_schedulable in *.
@@ -783,7 +784,7 @@ Module ResponseTimeIterationFP.
         destruct (R_list ts) as [rt_bounds |]; last by ins.
         exploit (TASKS rt_bounds tsk); [by ins | clear TASKS; intro EX].
         destruct EX as [EX _]; specialize (EX IN); des.
-        exists R; split.
+        exists R; repeat split; try (by done).
           by apply DL with (rt_bounds0 := rt_bounds).
           by ins; apply (BOUNDS rt_bounds tsk).
       Qed.
