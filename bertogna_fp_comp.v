@@ -622,7 +622,7 @@ Module ResponseTimeIterationFP.
       Hypothesis H_completed_jobs_dont_execute:
         completed_jobs_dont_execute job_cost rate sched.
 
-      (* ...and do not execute in parallel. *)
+      (* ...and do not execute in parallel (required by the workload bound). *)
       Hypothesis H_no_parallelism:
         jobs_dont_execute_in_parallel sched.
 
