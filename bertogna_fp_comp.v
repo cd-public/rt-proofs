@@ -448,7 +448,7 @@ Module ResponseTimeIterationFP.
         have GE_COST := (R_list_ge_cost ts_hp rt_bounds i R).
         have INts := (R_list_non_empty ts_hp rt_bounds i SOME).
         destruct INts as [_ EX]; exploit EX; [by exists R | intro IN].
-        unfold interference_bound; simpl.
+        unfold interference_bound_fp; simpl.
         rewrite leq_min; apply/andP; split.
         {
           apply leq_trans with (n := W task_cost task_period i R x1); first by apply geq_minl.

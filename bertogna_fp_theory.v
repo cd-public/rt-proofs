@@ -34,7 +34,7 @@ Module ResponseTimeAnalysisFP.
     
       (* Based on the workload bound, Bertogna and Cirinei define the
          following interference bound for a task. *)
-      Definition interference_bound :=
+      Definition interference_bound_fp :=
         minn (W task_cost task_period tsk_other R_other delta) (delta - (task_cost tsk) + 1).
 
     End PerTask.
@@ -46,10 +46,11 @@ Module ResponseTimeAnalysisFP.
 
       Let interferes_with_tsk := is_interfering_task_fp higher_eq_priority tsk.
       
-      (* The total interference incurred by tsk is thus bounded by: *)
+      (* The total interference incurred by tsk is bounded by the sum
+         of individual task interferences. *)
       Definition total_interference_bound_fp :=
         \sum_((tsk_other, R_other) <- R_prev | interferes_with_tsk tsk_other)
-           interference_bound (tsk_other, R_other).
+           interference_bound_fp (tsk_other, R_other).
       
     End AllTasks.
 
@@ -493,7 +494,7 @@ Module ResponseTimeAnalysisFP.
         by rewrite leq_add2l; apply bertogna_fp_helper_lemma; rewrite -has_count.
       Qed.
       
-      (* 4) Now, we prove that the Bertogna's interference bound
+      (* 5) Now, we prove that the Bertogna's interference bound
             is not enough to cover the sum of the "minimum" term over
             all tasks (artifact of the proof by contradiction). *)
       Lemma bertogna_fp_sum_exceeds_total_interference:
@@ -526,7 +527,7 @@ Module ResponseTimeAnalysisFP.
         by apply bertogna_fp_too_much_interference.
       Qed.
 
-      (* 5) After concluding that the sum of the minimum exceeds (R - e_i + 1),
+      (* 6) After concluding that the sum of the minimum exceeds (R - e_i + 1),
             we prove that there exists a tuple (tsk_k, R_k) such that
             min (x_k, R - e_i + 1) > min (W_k, R - e_i + 1). *)
       Lemma bertogna_fp_exists_task_that_exceeds_bound :
@@ -565,7 +566,7 @@ Module ResponseTimeAnalysisFP.
 
     End Lemmas.
     
-    (* Using the lemmas above, we prove that R bounds the response time of tsk. *)
+    (* Using the lemmas above, we prove that R bounds the response time of task tsk. *)
     Theorem bertogna_cirinei_response_time_bound_fp :
       is_response_time_bound tsk R.
     Proof.
@@ -587,7 +588,7 @@ Module ResponseTimeAnalysisFP.
       (* Now we start the proof. Assume by contradiction that job j
          is not complete at time (job_arrival j + R). *)
       destruct (completed job_cost rate sched j (job_arrival j + R)) eqn:NOTCOMP;
-        first by move: NOTCOMP => /eqP NOTCOMP; rewrite NOTCOMP eq_refl.
+        first by done.
       apply negbT in NOTCOMP; exfalso.
 
       (* We derive a contradiction using the previous lemmas. *)
