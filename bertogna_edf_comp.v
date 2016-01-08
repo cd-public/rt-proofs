@@ -1,10 +1,13 @@
-Require Import Vbase schedule bertogna_edf_theory util_divround util_lemmas
-        ssreflect ssrbool eqtype ssrnat seq fintype bigop div path
-        workload_bound.
+Require Import Vbase task job task_arrival schedule platform interference
+        workload workload_bound schedulability priority response_time
+        bertogna_fp_theory bertogna_edf_theory interference_bound_edf util_divround util_lemmas
+        ssreflect ssrbool eqtype ssrnat seq fintype bigop div path.
 
 Module ResponseTimeIterationEDF.
 
-  Import Schedule ResponseTimeAnalysisEDF WorkloadBound.
+  Import Job SporadicTaskset ScheduleOfSporadicTask Workload Schedulability ResponseTime
+         Priority SporadicTaskArrival WorkloadBound EDFSpecificBound ResponseTimeAnalysisFP
+         ResponseTimeAnalysisEDF.
 
   Section Analysis.
     
@@ -112,7 +115,7 @@ Module ResponseTimeIterationEDF.
             interference_bound_edf task_cost task_period task_deadline tsk x2 (tsk_other, R').
         Proof.
           intros tsk x1 x2 tsk_other R R' LEx LEr GEperiod LEcost.
-          unfold interference_bound_edf, interference_bound.
+          unfold interference_bound_edf, interference_bound_fp.
           rewrite leq_min; apply/andP; split.
           {
             rewrite leq_min; apply/andP; split.
@@ -134,9 +137,9 @@ Module ResponseTimeIterationEDF.
             }
           }
           {
-            apply leq_trans with (n := edf_specific_bound task_cost task_period task_deadline tsk (tsk_other, R));
+            apply leq_trans with (n := edf_specific_interference_bound task_cost task_period task_deadline tsk tsk_other R);
               first by apply geq_minr.
-            unfold edf_specific_bound; simpl.
+            unfold edf_specific_interference_bound; simpl.
             rewrite leq_add2l leq_min; apply/andP; split; first by apply geq_minl.
             apply leq_trans with (n := task_deadline tsk %% task_period tsk_other -
                                        (task_deadline tsk_other - R));
