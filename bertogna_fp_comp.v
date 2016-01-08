@@ -53,9 +53,9 @@ Module ResponseTimeIterationFP.
         (task_cost tsk).
 
     (* To ensure that the iteration converges, we will apply per_task_rta
-       a "sufficient" number of times: task_deadline tsk - task_cost tsk.
+       a "sufficient" number of times: task_deadline tsk - task_cost tsk + 1.
        This corresponds to the time complexity of the iteration. *)
-    Definition max_steps (tsk: sporadic_task) := task_deadline tsk - task_cost tsk.
+    Definition max_steps (tsk: sporadic_task) := task_deadline tsk - task_cost tsk + 1.
     
     (* Next we compute the response-time bounds for the entire task set.
        Since high-priority tasks may not be schedulable, we allow the
@@ -125,7 +125,7 @@ Module ResponseTimeIterationFP.
         rewrite eqseq_rcons in EQ.
         move: EQ => /andP [_ /eqP EQ].
         by inversion EQ.
-      Qed. 
+      Qed.
 
       (* The response-time bounds computed using R_list are based on the per-task
          fixed-point iteration. *)
@@ -409,17 +409,19 @@ Module ResponseTimeIterationFP.
     (* In this section, we show that the fixed-point iteration converges. *)
     Section Convergence.
 
-      (* Consider any valid set of higher-priority tasks. *)
+      (* Consider any set of higher-priority tasks. *)
       Variable ts_hp: taskset_of sporadic_task.
-      Hypothesis valid_task_parameters:
-        valid_sporadic_taskset task_cost task_period task_deadline ts_hp.
 
-      (* Assume that the response-time analysis succeeds. *)
+      (* Assume that the response-time analysis succeeds for the higher-priority tasks. *)
       Variable rt_bounds: seq task_with_response_time.
       Hypothesis H_test_succeeds: R_list ts_hp = Some rt_bounds.
 
-      (* Consider any task tsk to be analyzed. *)
+      (* Consider any task tsk to be analyzed, ... *)
       Variable tsk: sporadic_task.
+
+      (* ... and assume all tasks have valid parameters. *)
+      Hypothesis H_valid_task_parameters:
+        valid_sporadic_taskset task_cost task_period task_deadline (rcons ts_hp tsk).
 
       (* To simplify, let f denote the fixed-point iteration. *)
       Let f := per_task_rta tsk rt_bounds.
@@ -433,7 +435,7 @@ Module ResponseTimeIterationFP.
       Proof.
         unfold valid_sporadic_taskset, is_valid_sporadic_task in *.
         rename H_test_succeeds into SOME,
-               valid_task_parameters into VALID.
+               H_valid_task_parameters into VALID.
         intros x1 x2 LEx; unfold f, per_task_rta.
         apply fun_mon_iter_mon; [by ins | by ins; apply leq_addr |].
         clear LEx x1 x2; intros x1 x2 LEx.
@@ -451,7 +453,7 @@ Module ResponseTimeIterationFP.
         rewrite leq_min; apply/andP; split.
         {
           apply leq_trans with (n := W task_cost task_period i R x1); first by apply geq_minl.
-            specialize (VALID i IN); des.
+            exploit (VALID i); [by rewrite mem_rcons in_cons IN orbT | ins; des].
             by apply W_monotonic; try (by ins);
               [by apply GE_COST | by apply leqnn].
         }
@@ -463,10 +465,10 @@ Module ResponseTimeIterationFP.
 
       (* If the iteration converged at an earlier step, then it remains stable. *)
       Lemma bertogna_fp_comp_f_converges_early :
-        (exists k, k < max_steps tsk /\ f k = f k.+1) ->
+        (exists k, k <= max_steps tsk /\ f k = f k.+1) ->
         f (max_steps tsk) = f (max_steps tsk).+1.
       Proof.
-        by intros EX; des; apply iter_fix with (k := k); [by done | by apply ltnW].
+        by intros EX; des; apply iter_fix with (k := k).
       Qed.
 
       (* Else, we derive a contradiction. *)
@@ -475,12 +477,12 @@ Module ResponseTimeIterationFP.
         (* Assume instead that the iteration continued to diverge. *)
         Hypothesis H_keeps_diverging:
           forall k,
-            k < max_steps tsk -> f k != f k.+1.
+            k <= max_steps tsk -> f k != f k.+1.
 
         (* By monotonicity, it follows that the value always increases. *)
         Lemma bertogna_fp_comp_f_increases :
           forall k,
-            k < max_steps tsk ->
+            k <= max_steps tsk ->
             f k < f k.+1.
         Proof.
           intros k LT.
@@ -490,16 +492,35 @@ Module ResponseTimeIterationFP.
         Qed.
 
         (* In the end, the response-time bound must exceed the deadline. Contradiction! *)
-        Lemma bertogna_fp_comp_rt_exceeds_deadline :
-          f (max_steps tsk) > task_deadline tsk.
+        Lemma bertogna_fp_comp_rt_grows_too_much :
+          forall k,
+            k <= max_steps tsk ->
+            f k > k + task_cost tsk - 1.
         Proof.
-          unfold max_steps.
-          induction (task_deadline tsk).
+          rename H_valid_task_parameters into TASK_PARAMS.
+          unfold valid_sporadic_taskset, is_valid_sporadic_task in *; des.
+          exploit (TASK_PARAMS tsk);
+            [by rewrite mem_rcons in_cons eq_refl orTb | intro PARAMS; des].
+          induction k.
           {
-            simpl.
-            admit.
+            intros _; rewrite add0n -addn1 subh1;
+              first by rewrite -addnBA // subnn addn0 /= leqnn.
+            by apply PARAMS.
           }
-          admit.
+          {
+            intros LT.
+            specialize (IHk (ltnW LT)).
+            apply leq_ltn_trans with (n := f k);
+              last by apply bertogna_fp_comp_f_increases, ltnW.
+            rewrite -addn1 -addnA [1 + _]addnC addnA -addnBA // subnn addn0.
+            rewrite -(ltn_add2r 1) in IHk.
+            rewrite subh1 in IHk; last first.
+            {
+              apply leq_trans with (n := task_cost tsk); last by apply leq_addl.
+              by apply PARAMS.
+            }
+            by rewrite -addnBA // subnn addn0 addn1 ltnS in IHk.
+          }  
         Qed.
 
       End DerivingContradiction.
@@ -508,15 +529,16 @@ Module ResponseTimeIterationFP.
       Lemma per_task_rta_converges:
         f (max_steps tsk) = f (max_steps tsk).+1.
       Proof.
-        unfold valid_sporadic_taskset, is_valid_sporadic_task in *.
-        rename H_no_larger_than_deadline into LE.
-        
+        rename H_no_larger_than_deadline into LE,
+               H_valid_task_parameters into TASK_PARAMS.
+        unfold valid_sporadic_taskset, is_valid_sporadic_task in *; des.
+       
         (* Either f converges by the deadline or not. *)
-        destruct ([exists k in 'I_(max_steps tsk), f k == f k.+1]) eqn:EX.
+        destruct ([exists k in 'I_(max_steps tsk).+1, f k == f k.+1]) eqn:EX.
         {
           move: EX => /exists_inP EX; destruct EX as [k _ ITERk].
           apply bertogna_fp_comp_f_converges_early.
-          by exists k; split; [by apply ltn_ord | by apply/eqP].
+          by exists k; split; [by rewrite -ltnS; apply ltn_ord | by apply/eqP].
         }
 
         (* If not, then we reach a contradiction *)
@@ -524,7 +546,18 @@ Module ResponseTimeIterationFP.
         move: EX => /forall_inP EX.
         rewrite leqNgt in LE; move: LE => /negP LE.
         exfalso; apply LE.
-        by apply bertogna_fp_comp_rt_exceeds_deadline.  
+        have TOOMUCH := bertogna_fp_comp_rt_grows_too_much _ (max_steps tsk).
+        exploit TOOMUCH; [| by apply leqnn |].
+        {
+          intros k LEk; rewrite -ltnS in LEk.
+          by exploit (EX (Ordinal LEk)); [by done | intro DIFF].
+        }
+        unfold max_steps at 1.
+        exploit (TASK_PARAMS tsk);
+          [by rewrite mem_rcons in_cons eq_refl orTb | intro PARAMS; des].
+        rewrite -addnA [1 + _]addnC addnA -addnBA // subnn addn0.
+        rewrite subh1; last by apply PARAMS2.
+        by rewrite -addnBA // subnn addn0.
       Qed.
       
     End Convergence.
@@ -704,7 +737,8 @@ Module ResponseTimeIterationFP.
             by ins; apply R_list_le_deadline with (ts' := ts') (rt_bounds := hp_bounds).
             {
               rewrite [R_lst](R_list_rcons_response_time ts' hp_bounds tsk_lst); last by ins.
-              rewrite per_task_rta_fold; apply per_task_rta_converges.
+              rewrite per_task_rta_fold.
+              apply per_task_rta_converges with (ts_hp := ts'); try (by done).
               apply R_list_le_deadline with (ts' := rcons ts' tsk_lst)
                                             (rt_bounds := rcons hp_bounds (tsk_lst, R_lst));
                 first by apply SOME'.
