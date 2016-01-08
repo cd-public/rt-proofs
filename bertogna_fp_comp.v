@@ -28,8 +28,7 @@ Module ResponseTimeIterationFP.
     Variable num_cpus: nat.
 
     (* ..., and priorities based on an FP policy. *)
-    Variable higher_eq_priority: fp_policy sporadic_task.
-    Hypothesis H_valid_policy: valid_fp_policy higher_eq_priority.
+    Variable higher_priority: fp_policy sporadic_task.
 
     (* Next we define the fixed-point iteration for computing
        Bertogna's response-time bound for any task in ts. *)
@@ -49,7 +48,7 @@ Module ResponseTimeIterationFP.
         (fun t => task_cost tsk +
                   div_floor
                     (total_interference_bound_fp task_cost task_period tsk
-                                                R_prev t higher_eq_priority)
+                                                R_prev t higher_priority)
                     num_cpus)
         (task_cost tsk).
 
@@ -295,7 +294,7 @@ Module ResponseTimeIterationFP.
         forall tsk rt_bounds,
           task_cost tsk +
            div_floor (total_interference_bound_fp task_cost task_period tsk rt_bounds
-                     (per_task_rta tsk rt_bounds (max_steps tsk)) higher_eq_priority) num_cpus
+                     (per_task_rta tsk rt_bounds (max_steps tsk)) higher_priority) num_cpus
           = per_task_rta tsk rt_bounds (max_steps tsk).+1.
       Proof.
           by done.
@@ -313,10 +312,10 @@ Module ResponseTimeIterationFP.
 
       (* Assume that the task set doesn't contain duplicates and is sorted by priority, ... *)
       Hypothesis H_task_set_is_a_set: uniq (rcons ts_hp tsk).
-      Hypothesis H_task_set_is_sorted: sorted higher_eq_priority (rcons ts_hp tsk).
+      Hypothesis H_task_set_is_sorted: sorted higher_priority (rcons ts_hp tsk).
 
       (* ...the priority order is transitive, ...*)
-      Hypothesis H_priority_transitive: transitive higher_eq_priority.
+      Hypothesis H_priority_transitive: transitive higher_priority.
       
       (* ... and that the response-time analysis succeeds. *)
       Variable hp_bounds: seq task_with_response_time.
@@ -326,7 +325,7 @@ Module ResponseTimeIterationFP.
       (* Then, the tasks in the prefix of R_list are exactly interfering tasks
          under FP scheduling.*)
       Lemma R_list_unzip1 :
-        [seq tsk_hp <- rcons ts_hp tsk | is_interfering_task_fp higher_eq_priority tsk tsk_hp] =
+        [seq tsk_hp <- rcons ts_hp tsk | is_interfering_task_fp higher_priority tsk tsk_hp] =
           unzip1 hp_bounds.
       Proof.
         rename H_priority_transitive into TRANS,
@@ -359,11 +358,11 @@ Module ResponseTimeIterationFP.
           specialize (IHt tsk_lst hp_bounds R_lst).
           rewrite filter_rcons in IHt.
           unfold is_interfering_task_fp in IHt; rewrite eq_refl andbF in IHt.
-          assert (NOTHP: is_interfering_task_fp higher_eq_priority tsk tsk = false).
+          assert (NOTHP: is_interfering_task_fp higher_priority tsk tsk = false).
           {
             by unfold is_interfering_task_fp; rewrite eq_refl andbF.
           } rewrite filter_rcons NOTHP; clear NOTHP.
-          assert (HP: is_interfering_task_fp higher_eq_priority tsk tsk_lst).
+          assert (HP: is_interfering_task_fp higher_priority tsk tsk_lst).
           {
             unfold is_interfering_task_fp; apply/andP; split.
             {
@@ -378,9 +377,9 @@ Module ResponseTimeIterationFP.
           } rewrite filter_rcons HP; clear HP.
           unfold unzip1; rewrite map_rcons /=; f_equal.
           assert (SHIFT: [seq tsk_hp <- ts_hp' | is_interfering_task_fp
-                                                higher_eq_priority tsk tsk_hp] =
+                                                higher_priority tsk tsk_hp] =
                          [seq tsk_hp <- ts_hp' | is_interfering_task_fp
-                                                higher_eq_priority tsk_lst tsk_hp]).
+                                                higher_priority tsk_lst tsk_hp]).
           {
             apply eq_in_filter; red.
             unfold is_interfering_task_fp; intros x INx.
@@ -540,10 +539,9 @@ Module ResponseTimeIterationFP.
          only within the task set.
          But to weaken the hypothesis, we need to re-prove some lemmas
          from ssreflect. *)
-      Hypothesis H_reflexive: reflexive higher_eq_priority.
-      Hypothesis H_transitive: transitive higher_eq_priority.
-      Hypothesis H_unique_priorities: antisymmetric higher_eq_priority.
-      Hypothesis H_total: total higher_eq_priority.
+      Hypothesis H_transitive: transitive higher_priority.
+      Hypothesis H_unique_priorities: antisymmetric higher_priority.
+      Hypothesis H_total: total higher_priority.
 
       (* Assume the task set has no duplicates, ... *)
       Hypothesis H_ts_is_a_set: uniq ts.
@@ -557,7 +555,7 @@ Module ResponseTimeIterationFP.
         forall tsk, tsk \in ts -> task_deadline tsk <= task_period tsk.
 
       (* ...and tasks are ordered by increasing priorities. *)
-      Hypothesis H_sorted_ts: sorted higher_eq_priority ts.
+      Hypothesis H_sorted_ts: sorted higher_priority ts.
 
       (* Next, consider any arrival sequence such that...*)
       Context {arr_seq: arrival_sequence Job}.
@@ -597,7 +595,7 @@ Module ResponseTimeIterationFP.
 
       (* Assume the platform satisfies the global scheduling invariant. *)
       Hypothesis H_global_scheduling_invariant:
-        FP_scheduling_invariant_holds job_cost job_task num_cpus rate sched ts higher_eq_priority.
+        FP_scheduling_invariant_holds job_cost job_task num_cpus rate sched ts higher_priority.
 
       Let no_deadline_missed_by_task (tsk: sporadic_task) :=
         task_misses_no_deadline job_cost job_deadline job_task rate sched tsk.
@@ -655,7 +653,7 @@ Module ResponseTimeIterationFP.
               rewrite -cats1 count_cat /= in INV.
               unfold is_interfering_task_fp in INV.
               generalize SOME; apply R_list_rcons_task in SOME; subst tsk_i; intro SOME.
-              assert (HP: higher_eq_priority tsk_lst tsk0 = false).
+              assert (HP: higher_priority tsk_lst tsk0 = false).
               {
                 apply order_sorted_rcons with (x := tsk0) in SORT; [|by ins | by ins].
                 apply negbTE; apply/negP; unfold not; intro BUG.
@@ -676,7 +674,7 @@ Module ResponseTimeIterationFP.
             unfold is_response_time_bound_of_task in BOUND.
             apply BOUND with (task_cost := task_cost) (task_period := task_period) (task_deadline := task_deadline) (job_deadline := job_deadline) (job_task := job_task) (tsk := tsk_lst)
                                (ts := rcons ts' tsk_lst) (hp_bounds := hp_bounds)
-                               (higher_eq_priority := higher_eq_priority); clear BOUND; try (by ins).
+                               (higher_eq_priority := higher_priority); clear BOUND; try (by ins).
             by rewrite mem_rcons in_cons eq_refl orTb.
             by apply R_list_unzip1 with (R := R_lst).
             {
@@ -692,7 +690,7 @@ Module ResponseTimeIterationFP.
                   [by rewrite mem_rcons in_cons; apply/orP; right | intro INV].
                 rewrite -cats1 count_cat /= addn0 in INV.
                 unfold is_interfering_task_fp in INV.
-                assert (NOINTERF: higher_eq_priority tsk_lst tsk0 = false).
+                assert (NOINTERF: higher_priority tsk_lst tsk0 = false).
                 {
                   apply order_sorted_rcons with (x := tsk0) in SORT; [|by ins | by ins].
                   apply negbTE; apply/negP; unfold not; intro BUG.
