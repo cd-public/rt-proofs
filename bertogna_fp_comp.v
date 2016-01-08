@@ -64,7 +64,7 @@ Module ResponseTimeIterationFP.
        (a) append the computed response-time bound (tsk, R) of the current task
            to the list of pairs, or,
        (b) return None if the response-time analysis failed. *)
-    Definition R_list_helper hp_pairs tsk :=
+    Definition fp_bound_of_task hp_pairs tsk :=
       if hp_pairs is Some rt_bounds then
         let R := per_task_rta tsk rt_bounds (max_steps tsk) in
           if R <= task_deadline tsk then
@@ -75,13 +75,13 @@ Module ResponseTimeIterationFP.
     (* The response-time analysis for a given task set is defined
        as a left-fold (reduce) based on the function above.
        This either returns a list of task and response-time bounds, or None. *)
-    Definition R_list (ts: taskset_of sporadic_task) :=
-      foldl R_list_helper (Some [::]) ts.
+    Definition fp_claimed_bounds (ts: taskset_of sporadic_task) :=
+      foldl fp_bound_of_task (Some [::]) ts.
 
     (* The schedulability test simply checks if we got a list of
        response-time bounds (i.e., if the computation did not fail). *)
     Definition fp_schedulable (ts: taskset_of sporadic_task) :=
-      R_list ts != None.
+      fp_claimed_bounds ts != None.
     
     (* In the following section, we prove several helper lemmas about the
        list of response-time bounds. The results seem trivial, but must be proven
@@ -90,17 +90,17 @@ Module ResponseTimeIterationFP.
     Section SimpleLemmas.
 
       (* First, we show that R_list of the prefix is the prefix of R_list. *)
-      Lemma R_list_rcons_prefix :
+      Lemma fp_claimed_bounds_rcons_prefix :
         forall ts' hp_bounds tsk1 tsk2 R,
-          R_list (rcons ts' tsk1) = Some (rcons hp_bounds (tsk2, R)) ->
-            R_list ts' = Some hp_bounds.
+          fp_claimed_bounds (rcons ts' tsk1) = Some (rcons hp_bounds (tsk2, R)) ->
+            fp_claimed_bounds ts' = Some hp_bounds.
       Proof.
         intros ts hp_bounds tsk1 tsk2 R SOME.
         rewrite -cats1 in SOME.
-        unfold R_list in *.
+        unfold fp_claimed_bounds in *.
         rewrite foldl_cat in SOME.
         simpl in SOME.
-        unfold R_list_helper in SOME.
+        unfold fp_bound_of_task in SOME.
         desf; rewrite Heq; rename H0 into EQ.
         move: EQ => /eqP EQ.
         rewrite eqseq_rcons in EQ.
@@ -109,17 +109,17 @@ Module ResponseTimeIterationFP.
       Qed. 
 
       (* R_list returns the same tasks as the original task set. *)
-      Lemma R_list_rcons_task :
+      Lemma fp_claimed_bounds_rcons_task :
         forall ts' hp_bounds tsk1 tsk2 R,
-          R_list (rcons ts' tsk1) = Some (rcons hp_bounds (tsk2, R)) ->
+          fp_claimed_bounds (rcons ts' tsk1) = Some (rcons hp_bounds (tsk2, R)) ->
             tsk1 = tsk2.
       Proof.
         intros ts hp_bounds tsk1 tsk2 R SOME.
         rewrite -cats1 in SOME.
-        unfold R_list in *.
+        unfold fp_claimed_bounds in *.
         rewrite foldl_cat in SOME.
         simpl in SOME.
-        unfold R_list_helper in SOME.
+        unfold fp_bound_of_task in SOME.
         desf; rename H0 into EQ.
         move: EQ => /eqP EQ.
         rewrite eqseq_rcons in EQ.
@@ -129,17 +129,17 @@ Module ResponseTimeIterationFP.
 
       (* The response-time bounds computed using R_list are based on the per-task
          fixed-point iteration. *)
-      Lemma R_list_rcons_response_time :
+      Lemma fp_claimed_bounds_rcons_response_time :
         forall ts' hp_bounds tsk R,
-          R_list (rcons ts' tsk) = Some (rcons hp_bounds (tsk, R)) ->
+          fp_claimed_bounds (rcons ts' tsk) = Some (rcons hp_bounds (tsk, R)) ->
             R = per_task_rta tsk hp_bounds (max_steps tsk). 
       Proof.
         intros ts hp_bounds tsk R SOME.
         rewrite -cats1 in SOME.
-        unfold R_list in SOME.
+        unfold fp_claimed_bounds in SOME.
         rewrite foldl_cat in SOME.
         simpl in SOME.
-        unfold R_list_helper in SOME.
+        unfold fp_bound_of_task in SOME.
         desf; rename H0 into EQ; move: EQ => /eqP EQ.
         rewrite eqseq_rcons in EQ; move: EQ => /andP [/eqP EQ1 /eqP EQ2].
         by inversion EQ2; rewrite EQ1.
@@ -147,9 +147,9 @@ Module ResponseTimeIterationFP.
 
       (* If the analysis suceeds, the computed response-time bounds are no larger
          than the deadline. *)
-      Lemma R_list_le_deadline :
+      Lemma fp_claimed_bounds_le_deadline :
         forall ts' rt_bounds tsk R,
-          R_list ts' = Some rt_bounds ->
+          fp_claimed_bounds ts' = Some rt_bounds ->
           (tsk, R) \in rt_bounds ->
           R <= task_deadline tsk.
       Proof.
@@ -167,10 +167,9 @@ Module ResponseTimeIterationFP.
           {
             move: LAST => /eqP LAST.
             rewrite -cats1 in SOME.
-            unfold R_list in *.
-            rewrite foldl_cat in SOME.
-            simpl in SOME.
-            unfold R_list_helper in SOME.
+            unfold fp_claimed_bounds in *.
+            rewrite foldl_cat /= in SOME.
+            unfold fp_bound_of_task in SOME.
             desf; rename H0 into EQ.
             move: EQ => /eqP EQ.
             rewrite eqseq_rcons in EQ.
@@ -180,16 +179,16 @@ Module ResponseTimeIterationFP.
           }
           {
             apply IHts with (rt_bounds := rt_bounds); last by ins.
-            by apply R_list_rcons_prefix in SOME.
+            by apply fp_claimed_bounds_rcons_prefix in SOME.
           }
         }
       Qed.
 
       (* If the analysis succeeds, the computed response-time bounds are no smaller
          than the task cost. *)
-      Lemma R_list_ge_cost :
+      Lemma fp_claimed_bounds_ge_cost :
         forall ts' rt_bounds tsk R,
-          R_list ts' = Some rt_bounds ->
+          fp_claimed_bounds ts' = Some rt_bounds ->
           (tsk, R) \in rt_bounds ->
           R >= task_cost tsk.
       Proof.
@@ -207,10 +206,9 @@ Module ResponseTimeIterationFP.
           {
             move: LAST => /eqP LAST.
             rewrite -cats1 in SOME.
-            unfold R_list in *.
-            rewrite foldl_cat in SOME.
-            simpl in SOME.
-            unfold R_list_helper in SOME.
+            unfold fp_claimed_bounds in *.
+            rewrite foldl_cat /= in SOME.
+            unfold fp_bound_of_task in SOME.
             desf; rename H0 into EQ.
             move: EQ => /eqP EQ.
             rewrite eqseq_rcons in EQ.
@@ -221,15 +219,15 @@ Module ResponseTimeIterationFP.
           }
           {
             apply IHts with (rt_bounds := rt_bounds); last by ins.
-            by apply R_list_rcons_prefix in SOME.
+            by apply fp_claimed_bounds_rcons_prefix in SOME.
           }
         }
       Qed.
 
-      (* R_list contains a response-time bound for every tasks in the original task set. *)
-      Lemma R_list_non_empty :
+      (* fp_claimed_bounds contains a response-time bound for every tasks in the original task set. *)
+      Lemma fp_claimed_bounds_non_empty :
         forall ts' rt_bounds tsk,
-          R_list ts' = Some rt_bounds ->
+          fp_claimed_bounds ts' = Some rt_bounds ->
           (tsk \in ts' <->
             exists R,
               (tsk, R) \in rt_bounds).
@@ -245,10 +243,10 @@ Module ResponseTimeIterationFP.
           destruct (lastP rt_bounds) as [|rt_bounds (tsk_lst', R_lst)].
           {
             split; last first; intro EX; des; first by rewrite in_nil in EX.
-            unfold R_list in *.
+            unfold fp_claimed_bounds in *.
             rewrite -cats1 foldl_cat in SOME.
             simpl in SOME.
-            unfold R_list_helper in *; desf; rename H0 into EQ.
+            unfold fp_bound_of_task in *; desf; rename H0 into EQ.
             destruct l; first by ins.
             by rewrite rcons_cons in EQ; inversion EQ.
           }
@@ -258,12 +256,12 @@ Module ResponseTimeIterationFP.
             destruct IN as [LAST | FRONT].
             {
               move: LAST => /eqP LAST; subst tsk_i.
-              generalize SOME; apply R_list_rcons_task in SOME; subst tsk_lst'; intro SOME.
+              generalize SOME; apply fp_claimed_bounds_rcons_task in SOME; subst tsk_lst'; intro SOME.
               exists R_lst.
               by rewrite mem_rcons in_cons; apply/orP; left.
             }
             {
-              apply R_list_rcons_prefix in SOME.
+              apply fp_claimed_bounds_rcons_prefix in SOME.
               exploit (IHts rt_bounds tsk_i); [by ins | intro EX].
               apply EX in FRONT; des.
               by exists R; rewrite mem_rcons in_cons; apply/orP; right.
@@ -276,13 +274,13 @@ Module ResponseTimeIterationFP.
             {
               move: LAST => /eqP LAST.
               inversion LAST; subst tsk_i R; clear LAST.
-              apply R_list_rcons_task in SOME; subst.
+              apply fp_claimed_bounds_rcons_task in SOME; subst.
               by rewrite mem_rcons in_cons; apply/orP; left.
             }
             {
               rewrite mem_rcons in_cons; apply/orP; right.
               exploit (IHts rt_bounds tsk_i);
-                [by apply R_list_rcons_prefix in SOME | intro EX].
+                [by apply fp_claimed_bounds_rcons_prefix in SOME | intro EX].
               by apply EX; exists R.
             }
           }
@@ -303,7 +301,7 @@ Module ResponseTimeIterationFP.
     End SimpleLemmas.
 
     (* In this section, we prove that if the task set is sorted by priority,
-       the tasks in R_list are interfering tasks.  *)
+       the tasks in fp_claimed_bounds are interfering tasks.  *)
     Section HighPriorityTasks.
 
       (* Consider a list of previous tasks and a task tsk to be analyzed. *)
@@ -320,11 +318,11 @@ Module ResponseTimeIterationFP.
       (* ... and that the response-time analysis succeeds. *)
       Variable hp_bounds: seq task_with_response_time.
       Variable R: time.
-      Hypothesis H_analysis_succeeds: R_list (rcons ts_hp tsk) = Some (rcons hp_bounds (tsk, R)).
+      Hypothesis H_analysis_succeeds: fp_claimed_bounds (rcons ts_hp tsk) = Some (rcons hp_bounds (tsk, R)).
       
-      (* Then, the tasks in the prefix of R_list are exactly interfering tasks
+      (* Then, the tasks in the prefix of fp_claimed_bounds are exactly interfering tasks
          under FP scheduling.*)
-      Lemma R_list_unzip1 :
+      Lemma fp_claimed_bounds_unzip1 :
         [seq tsk_hp <- rcons ts_hp tsk | is_interfering_task_fp higher_priority tsk tsk_hp] =
           unzip1 hp_bounds.
       Proof.
@@ -339,21 +337,21 @@ Module ResponseTimeIterationFP.
           unfold is_interfering_task_fp.
           rewrite eq_refl andbF.
           destruct hp_bounds; first by ins.
-          unfold R_list in SOME; inversion SOME; desf.
+          unfold fp_claimed_bounds in SOME; inversion SOME; desf.
           by destruct l.
         }
         {
           intros tsk hp_bounds R UNIQ SORTED SOME.
           destruct (lastP hp_bounds) as [| hp_bounds (tsk_lst', R_lst)].
           {
-            apply R_list_rcons_prefix in SOME.
-            unfold R_list in SOME.
+            apply fp_claimed_bounds_rcons_prefix in SOME.
+            unfold fp_claimed_bounds in SOME.
             rewrite -cats1 foldl_cat in SOME.
-            unfold R_list_helper in SOME.
+            unfold fp_bound_of_task in SOME.
             inversion SOME; desf.
             by destruct l.
           }
-          generalize SOME; apply R_list_rcons_prefix, R_list_rcons_task in SOME;
+          generalize SOME; apply fp_claimed_bounds_rcons_prefix, fp_claimed_bounds_rcons_task in SOME;
             subst tsk_lst'; intro SOME.
           specialize (IHt tsk_lst hp_bounds R_lst).
           rewrite filter_rcons in IHt.
@@ -400,7 +398,7 @@ Module ResponseTimeIterationFP.
           apply IHt.
             by rewrite rcons_uniq in UNIQ; move: UNIQ => /andP [_ UNIQ].
             by apply sorted_rcons_prefix in SORTED.
-            by apply R_list_rcons_prefix in SOME.
+            by apply fp_claimed_bounds_rcons_prefix in SOME.
         }
       Qed.
       
@@ -414,7 +412,7 @@ Module ResponseTimeIterationFP.
 
       (* Assume that the response-time analysis succeeds for the higher-priority tasks. *)
       Variable rt_bounds: seq task_with_response_time.
-      Hypothesis H_test_succeeds: R_list ts_hp = Some rt_bounds.
+      Hypothesis H_test_succeeds: fp_claimed_bounds ts_hp = Some rt_bounds.
 
       (* Consider any task tsk to be analyzed, ... *)
       Variable tsk: sporadic_task.
@@ -446,8 +444,8 @@ Module ResponseTimeIterationFP.
 
         intros i; destruct (i \in rt_bounds) eqn:HP; last by rewrite andFb.
         destruct i as [i R]; intros _.
-        have GE_COST := (R_list_ge_cost ts_hp rt_bounds i R).
-        have INts := (R_list_non_empty ts_hp rt_bounds i SOME).
+        have GE_COST := (fp_claimed_bounds_ge_cost ts_hp rt_bounds i R).
+        have INts := (fp_claimed_bounds_non_empty ts_hp rt_bounds i SOME).
         destruct INts as [_ EX]; exploit EX; [by exists R | intro IN].
         unfold interference_bound_fp; simpl.
         rewrite leq_min; apply/andP; split.
@@ -637,20 +635,17 @@ Module ResponseTimeIterationFP.
       Let response_time_bounded_by (tsk: sporadic_task) :=
         is_response_time_bound_of_task job_cost job_task tsk rate sched.
           
-      (* In the following lemma, we prove that any response-time bound contained
-         in R_list is safe. The proof follows by induction on the task set:
+      (* In the following theorem, we prove that any response-time bound contained
+         in fp_claimed_bounds is safe. The proof follows by induction on the task set:
 
            Induction hypothesis: all higher-priority tasks have safe response-time bounds.
            Inductive step: We prove that the response-time bound of the current task is safe.
 
          Note that the inductive step is a direct application of the main Theorem from
-         bertogna_fp_theory.v.
-         The proof is only long because of the dozens of hypothesis that we need to supply,
-         so there's no clean way of breaking this down into small lemmas. *)
-      Lemma R_list_has_response_time_bounds :
-        forall rt_bounds tsk R,
-          R_list ts = Some rt_bounds ->
-          (tsk, R) \in rt_bounds ->
+         bertogna_fp_theory.v. *)
+      Theorem fp_analysis_yields_response_time_bounds :
+        forall tsk R,
+          (tsk, R) \In fp_claimed_bounds ts ->
           response_time_bounded_by tsk R.
       Proof.
         rename H_valid_job_parameters into JOBPARAMS, H_valid_task_parameters into TASKPARAMS,
@@ -660,21 +655,27 @@ Module ResponseTimeIterationFP.
                H_unique_priorities into UNIQ, H_total into TOTAL,
                H_all_jobs_from_taskset into ALLJOBS, H_ts_is_a_set into SET.
         clear ALLJOBS.
-        
-        unfold fp_schedulable, R_list in *.
+        intros tsk R MATCH.
+        assert (SOME: exists hp_bounds, fp_claimed_bounds ts = Some hp_bounds /\ (tsk, R) \in hp_bounds).
+        {
+          destruct (fp_claimed_bounds ts); last by done.
+          by exists l; split.
+        } clear MATCH; des.
+        revert hp_bounds tsk R SOME SOME0.
+        unfold fp_schedulable, fp_claimed_bounds in *.
         induction ts as [| ts' tsk_i IH] using last_ind.
         {
-          intros rt_bounds tsk R SOME IN.
+          intros hp_bounds tsk R SOME IN.
           by inversion SOME; subst; rewrite in_nil in IN.
         }
         {
-         intros rt_bounds tsk R SOME IN j JOBj.
-           destruct (lastP rt_bounds) as [| hp_bounds (tsk_lst, R_lst)];
+          intros hp_bounds tsk R SOME IN j JOBj.
+          destruct (lastP hp_bounds) as [| hp_bounds (tsk_lst, R_lst)];
             first by rewrite in_nil in IN.
           rewrite mem_rcons in_cons in IN; move: IN => /orP IN.
           destruct IN as [LAST | BEGINNING]; last first.
           {
-            apply IH with (rt_bounds := hp_bounds) (tsk := tsk); try (by ins).
+            apply IH with (hp_bounds := hp_bounds) (tsk := tsk); try (by ins).
             by rewrite rcons_uniq in SET; move: SET => /andP [_ SET].
             by ins; red; ins; apply TASKPARAMS; rewrite mem_rcons in_cons; apply/orP; right.
             by ins; apply RESTR; rewrite mem_rcons in_cons; apply/orP; right.
@@ -685,7 +686,7 @@ Module ResponseTimeIterationFP.
                 [by rewrite mem_rcons in_cons; apply/orP; right | intro INV].
               rewrite -cats1 count_cat /= in INV.
               unfold is_interfering_task_fp in INV.
-              generalize SOME; apply R_list_rcons_task in SOME; subst tsk_i; intro SOME.
+              generalize SOME; apply fp_claimed_bounds_rcons_task in SOME; subst tsk_i; intro SOME.
               assert (HP: higher_priority tsk_lst tsk0 = false).
               {
                 apply order_sorted_rcons with (x := tsk0) in SORT; [|by ins | by ins].
@@ -695,24 +696,25 @@ Module ResponseTimeIterationFP.
               }              
               by rewrite HP 2!andFb 2!addn0 in INV.
             }
-            by apply R_list_rcons_prefix in SOME.
+            by apply fp_claimed_bounds_rcons_prefix in SOME.
           }
           {
             move: LAST => /eqP LAST.
             inversion LAST as [[EQ1 EQ2]].
             rewrite -> EQ1 in *; rewrite -> EQ2 in *; clear EQ1 EQ2 LAST.
-            generalize SOME; apply R_list_rcons_task in SOME; subst tsk_i; intro SOME.
-            generalize SOME; apply R_list_rcons_prefix in SOME; intro SOME'.
+            generalize SOME; apply fp_claimed_bounds_rcons_task in SOME; subst tsk_i; intro SOME.
+            generalize SOME; apply fp_claimed_bounds_rcons_prefix in SOME; intro SOME'.
             have BOUND := bertogna_cirinei_response_time_bound_fp.
             unfold is_response_time_bound_of_task in BOUND.
-            apply BOUND with (task_cost := task_cost) (task_period := task_period) (task_deadline := task_deadline) (job_deadline := job_deadline) (job_task := job_task) (tsk := tsk_lst)
-                               (ts := rcons ts' tsk_lst) (hp_bounds := hp_bounds)
+            apply BOUND with (task_cost := task_cost) (task_period := task_period)
+                  (task_deadline := task_deadline) (job_deadline := job_deadline) (tsk := tsk_lst)
+                  (job_task := job_task) (ts := rcons ts' tsk_lst) (hp_bounds := hp_bounds)
                                (higher_eq_priority := higher_priority); clear BOUND; try (by ins).
             by rewrite mem_rcons in_cons eq_refl orTb.
-            by apply R_list_unzip1 with (R := R_lst).
+            by apply fp_claimed_bounds_unzip1 with (R := R_lst).
             {
               intros hp_tsk R0 HP j0 JOB0.
-              apply IH with (rt_bounds := hp_bounds) (tsk := hp_tsk); try (by ins).
+              apply IH with (hp_bounds := hp_bounds) (tsk := hp_tsk); try (by ins).
               by rewrite rcons_uniq in SET; move: SET => /andP [_ SET].
               by red; ins; apply TASKPARAMS; rewrite mem_rcons in_cons; apply/orP; right.
               by ins; apply RESTR; rewrite mem_rcons in_cons; apply/orP; right.
@@ -733,27 +735,27 @@ Module ResponseTimeIterationFP.
                 by rewrite NOINTERF 2!andFb addn0 in INV.
               }
             }
-            by ins; apply R_list_ge_cost with (ts' := ts') (rt_bounds := hp_bounds).
-            by ins; apply R_list_le_deadline with (ts' := ts') (rt_bounds := hp_bounds).
+            by ins; apply fp_claimed_bounds_ge_cost with (ts' := ts') (rt_bounds := hp_bounds).
+            by ins; apply fp_claimed_bounds_le_deadline with (ts' := ts') (rt_bounds := hp_bounds).
             {
-              rewrite [R_lst](R_list_rcons_response_time ts' hp_bounds tsk_lst); last by ins.
+              rewrite [R_lst](fp_claimed_bounds_rcons_response_time ts' hp_bounds tsk_lst); last by ins.
               rewrite per_task_rta_fold.
               apply per_task_rta_converges with (ts_hp := ts'); try (by done).
-              apply R_list_le_deadline with (ts' := rcons ts' tsk_lst)
+              apply fp_claimed_bounds_le_deadline with (ts' := rcons ts' tsk_lst)
                                             (rt_bounds := rcons hp_bounds (tsk_lst, R_lst));
                 first by apply SOME'.
               rewrite mem_rcons in_cons; apply/orP; left; apply/eqP.
               f_equal; symmetry.
-              by apply R_list_rcons_response_time with (ts' := ts'). 
+              by apply fp_claimed_bounds_rcons_response_time with (ts' := ts'). 
             }
           }
         }
       Qed.
 
-      (* Finally, if the schedulability test suceeds, ...*)
+      (* Therefore, if the schedulability test suceeds, ...*)
       Hypothesis H_test_succeeds: fp_schedulable ts.
       
-      (*..., no task misses its deadline,... *)
+      (*..., no task misses its deadline. *)
       Theorem taskset_schedulable_by_fp_rta :
         forall tsk, tsk \in ts -> no_deadline_missed_by_task tsk.
       Proof.
@@ -775,13 +777,13 @@ Module ResponseTimeIterationFP.
                H_test_succeeds into TEST.
 
         move => tsk INtsk j JOBtsk.
-        have RLIST := (R_list_has_response_time_bounds).
-        have NONEMPTY := (R_list_non_empty ts).
-        have DL := (R_list_le_deadline ts).
+        have RLIST := (fp_analysis_yields_response_time_bounds).
+        have NONEMPTY := (fp_claimed_bounds_non_empty ts).
+        have DL := (fp_claimed_bounds_le_deadline ts).
 
-        destruct (R_list ts) as [rt_bounds |]; last by ins.
+        destruct (fp_claimed_bounds ts) as [rt_bounds |]; last by ins.
         exploit (NONEMPTY rt_bounds tsk); [by ins | intros [EX _]; specialize (EX INtsk); des].
-        exploit (RLIST rt_bounds tsk R); [by ins | by ins | by apply JOBtsk | intro COMPLETED].
+        exploit (RLIST tsk R); [by ins | by apply JOBtsk | intro COMPLETED].
         exploit (DL rt_bounds tsk R); [by ins | by ins | clear DL; intro DL].
         
         rewrite eqn_leq; apply/andP; split; first by apply cumulative_service_le_job_cost.
@@ -794,31 +796,6 @@ Module ResponseTimeIterationFP.
         }
         rewrite leq_eqVlt; apply/orP; left; rewrite eq_sym.
         by apply COMPLETED.
-      Qed.
-
-      (* ..., and the schedulability test yields safe response-time
-         bounds for each task. *)
-      Theorem fp_schedulability_test_yields_response_time_bounds :
-        forall tsk,
-          tsk \in ts ->
-            if R_list ts is Some rt_bounds then
-              exists R,
-                (tsk, R) \in rt_bounds /\
-                R <= task_deadline tsk /\
-                response_time_bounded_by tsk R        
-            else False.
-      Proof.
-        intros tsk IN.
-        unfold fp_schedulable in *.
-        have TASKS := R_list_non_empty ts.
-        have BOUNDS := (R_list_has_response_time_bounds).
-        have DL := (R_list_le_deadline ts).
-        destruct (R_list ts) as [rt_bounds |]; last by ins.
-        exploit (TASKS rt_bounds tsk); [by ins | clear TASKS; intro EX].
-        destruct EX as [EX _]; specialize (EX IN); des.
-        exists R; repeat split; try (by done).
-          by apply DL with (rt_bounds0 := rt_bounds).
-          by ins; apply (BOUNDS rt_bounds tsk).
       Qed.
 
       (* For completeness, since all jobs of the arrival sequence
