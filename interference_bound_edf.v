@@ -7,7 +7,7 @@ Require Import Vbase task job task_arrival schedule platform interference
      EDF-specific per-task interference bound. *)
 Module EDFSpecificBound.
 
-  Import Job SporadicTaskset ScheduleOfSporadicTask Workload Schedulability ResponseTime
+  Import Job SporadicTaskset ScheduleOfSporadicTask Schedulability ResponseTime
          Priority SporadicTaskArrival Interference.
 
   Section EDFBoundDef.
@@ -143,8 +143,8 @@ Module EDFSpecificBound.
         job_arrival j_k + R_k < job_arrival j_i + delta ->
         completed job_cost rate sched j_k (job_arrival j_k + R_k).
 
-    (* In this section, we prove that the workload of a task in the
-       interval [t1, t1 + delta) is bounded by W. *)
+    (* In this section, we prove that Bertogna and Cirinei's EDF interference bound
+       indeed bounds the interference caused by task tsk_k in the interval [t1, t1 + delta). *)
     Section MainProof.
                                     
       (* Let's call x the task interference incurred by job j due to tsk_k. *)
@@ -213,8 +213,7 @@ Module EDFSpecificBound.
           by rewrite (eq_big_perm sorted_jobs) /=; last by rewrite -(perm_sort order).
         Qed.
 
-        (* Remember that both sequences have the same set of elements.
-           TODO: check if really necessary. *)
+        (* Note that both sequences have the same set of elements. *)
         Lemma interference_bound_edf_job_in_same_sequence :
           forall j,
             (j \in interfering_jobs) = (j \in sorted_jobs).
@@ -222,7 +221,7 @@ Module EDFSpecificBound.
           by apply perm_eq_mem; rewrite -(perm_sort order).
         Qed.
 
-        (* Remember that all jobs in the sorted sequence is an interfering job of tsk_k. *)
+        (* Also recall that all jobs in the sorted sequence is an interfering job of tsk_k, ... *)
         Lemma interference_bound_edf_all_jobs_from_tsk_k :
           forall j,
             j \in sorted_jobs ->
@@ -235,7 +234,7 @@ Module EDFSpecificBound.
           by move: LT => /andP [/andP [/eqP JOBi SERVi] INi]; repeat split.
         Qed.
 
-        (* Remember that consecutive jobs are ordered by arrival. *)
+        (* ...and consecutive jobs are ordered by arrival. *)
         Lemma interference_bound_edf_jobs_ordered_by_arrival :
           forall i elem,
             i < (size sorted_jobs).-1 ->
@@ -247,7 +246,7 @@ Module EDFSpecificBound.
           by destruct sorted_jobs; simpl in *; [by rewrite ltn0 in LT | by apply/pathP].
         Qed.
 
-        (* Remember that for any job of tsk_k, service <= task_cost tsk *)
+        (* Also, for any job of task tsk_k, the interference is bounded by the task cost. *)
         Lemma interference_bound_edf_interference_le_task_cost :
           forall j (INi: j \in interfering_jobs),
             interference_caused_by j t1 t2 <= task_cost tsk_k.
@@ -331,7 +330,7 @@ Module EDFSpecificBound.
 
         Hypothesis H_many_jobs: n_k < size sorted_jobs.
 
-        (* This of course implies that there's at least one job. *)
+        (* This trivially implies that there's at least one job. *)
         Lemma interference_bound_edf_at_least_one_job: size sorted_jobs > 0.
         Proof.
           by apply leq_ltn_trans with (n := n_k).
@@ -397,9 +396,9 @@ Module EDFSpecificBound.
           
         End FactsAboutFirstJob.
         
-        (* Now, let's prove the interference bound for the particular case with a single job.
-           This case must be dealt with separately because the single job can be both
-           carry-in and carry-out at the same time, so its response time is not necessarily
+        (* Now, let's prove the interference bound for the particular case of a single job.
+           This case must be solved separately because the single job can symultaneously
+           be carry-in and carry-out job, so its response time is not necessarily
            bounded by R_k (from the hypothesis H_all_previous_jobs_completed_on_time). *)
         Section InterferenceSingleJob.
 
@@ -534,7 +533,7 @@ Module EDFSpecificBound.
             Hypothesis H_j_fst_not_complete_by_rt_bound :
               ~~ completed job_cost rate sched j_fst (a_fst + R_k).
 
-            (* This of course implies that a_fst + R_k lies after the end of the interval,
+            (* This trivially implies that a_fst + R_k lies after the end of the interval,
                otherwise j_fst would have completed by its response-time bound. *)
             Lemma interference_bound_edf_response_time_bound_of_j_fst_after_interval :
               job_arrival j_fst + R_k >= job_arrival j_i + delta.
@@ -567,7 +566,7 @@ Module EDFSpecificBound.
               by apply (leq_trans LTdk) in BUG; rewrite ltnn in BUG.
             Qed.
 
-            (* Else, if the slack is small, j_fst causes interference no longer than
+            (* Else, if the slack is small, j_fst causes interference for no longer than
                D_i - (D_k - R_k). *)
             Lemma interference_bound_edf_holds_for_single_job_with_small_slack :
               D_i >= D_k - R_k ->
@@ -604,8 +603,8 @@ Module EDFSpecificBound.
 
           End ResponseTimeOfSingleJobNotBounded.
           
-          (* Finally, we prove that the interference caused by the single job
-             is bounded by D_i - (D_k - R_k). *)
+          (* By combining the results above, we prove that the interference caused by the single job
+             is bounded by D_i - (D_k - R_k), ... *)
           Lemma interference_bound_edf_interference_of_j_fst_limited_by_slack :
             interference_caused_by j_fst t1 t2 <= D_i - (D_k - R_k).
           Proof.
@@ -617,6 +616,7 @@ Module EDFSpecificBound.
               by apply interference_bound_edf_holds_for_single_job_with_small_slack.
           Qed.
 
+          (* ... and thus the interference bound holds. *)
           Lemma interference_bound_edf_holds_for_a_single_job :
             interference_caused_by j_fst t1 t2 <= interference_bound.
           Proof.
@@ -637,7 +637,7 @@ Module EDFSpecificBound.
 
         End InterferenceSingleJob.
 
-        (* Next, consider the last case where there are at least two jobs:
+        (* Next, consider the other case where there are at least two jobs:
            the first job j_fst, and the last job j_lst. *)
         Section InterferenceTwoOrMoreJobs.
 
@@ -703,7 +703,7 @@ Module EDFSpecificBound.
             Qed.
 
             (* Since there are multiple jobs, j_fst is far enough from the end of
-               the interval so that its response-time bound is valid
+               the interval that its response-time bound is valid
                (by the assumption H_all_previous_jobs_completed_on_time). *)
             Lemma interference_bound_edf_j_fst_completed_on_time :
               completed job_cost rate sched j_fst (a_fst + R_k).
@@ -796,7 +796,8 @@ Module EDFSpecificBound.
             by rewrite subh3 // addnC; move: INnth => /eqP INnth; rewrite -INnth.
           Qed.
 
-          (* Then, we prove that the ratio n_k is at least the number of middle jobs + 1, ... *)
+          (* Using the lemma above, we prove that the ratio n_k is at least the number of
+             middle jobs + 1, ... *)
           Lemma interference_bound_edf_n_k_covers_middle_jobs_plus_one :
             n_k >= num_mid_jobs.+1.
           Proof.
@@ -856,7 +857,7 @@ Module EDFSpecificBound.
             }
           Qed.
 
-          (* Since n_k < sorted_jobs = num_mid_jobs + 2, it follows that
+          (* Now, since n_k < sorted_jobs = num_mid_jobs + 2, it follows that
              n_k = num_mid_jobs + 1. *)
           Lemma interference_bound_edf_n_k_equals_num_mid_jobs_plus_one :
             n_k = num_mid_jobs.+1.
@@ -868,12 +869,12 @@ Module EDFSpecificBound.
             by move: NK => /eqP NK; rewrite NK. 
           Qed.
           
-          (* The interference bound of the first job must be proven separately,
-             since it exploits the slack. *)
+          (* After proving the bounds of the middle and last jobs, we do the same for
+             the first job. This requires a different proof in order to exploit the slack. *)
           Section InterferenceOfFirstJob.
 
-            (* In order to move (D_i %% p_k) to the other side of the inequality,
-               we need to prove it is no larger than the slack. *)
+            (* As required by the next lemma, in order to move (D_i %% p_k) to the left of
+               the inequality (<=), we must show that it is no smaller than the slack. *)
             Lemma interference_bound_edf_remainder_ge_slack :
               D_k - R_k <= D_i %% p_k.
             Proof.
@@ -907,8 +908,19 @@ Module EDFSpecificBound.
               by apply interference_under_edf_implies_shorter_deadlines in LSTserv.
             Qed.
 
-            (* To help with the last lemma, we prove that interference caused by j_fst
-               is bounded by the length of the interval [t1, a_fst + R_k), ... *)
+            (* To conclude that the interference bound holds, it suffices to show that
+               this reordered inequality holds. *)
+            Lemma interference_bound_edf_simpl_by_moving_to_left_side :
+              interference_caused_by j_fst t1 t2 + (D_k - R_k) + D_i %/ p_k * p_k <= D_i ->
+              interference_caused_by j_fst t1 t2 <= D_i %% p_k - (D_k - R_k).
+            Proof.
+              intro LE.
+              apply subh3; last by apply interference_bound_edf_remainder_ge_slack.
+              by rewrite -subndiv_eq_mod; apply subh3; last by apply leq_trunc_div.
+            Qed.
+              
+            (* Next, we prove that interference caused by j_fst is bounded by the length
+               of the interval [t1, a_fst + R_k), ... *)
             Lemma interference_bound_edf_interference_of_j_fst_bounded_by_response_time :
                interference_caused_by j_fst t1 t2 <= \sum_(t1 <= t < a_fst + R_k) 1.
             Proof.
@@ -939,7 +951,7 @@ Module EDFSpecificBound.
               }
             Qed.
 
-            (* ..., that we can bound the terms in the inequality using interval lengths,... *)
+            (* ..., which leads to the following bounds based on interval lengths. *)
             Lemma interference_bound_edf_bounding_interference_with_interval_lengths :
               interference_caused_by j_fst t1 t2 + (D_k - R_k) + D_i %/ p_k * p_k <=
               \sum_(t1 <= t < a_fst + R_k) 1
@@ -969,7 +981,8 @@ Module EDFSpecificBound.
               by apply leqnn.
             Qed.
 
-            (*..., and that the concatenation of these interval lengths equals (a_lst + D_k) - 1. *)
+            (* To conclude, we show that the concatenation of these interval lengths equals
+               (a_lst + D_k) - 1, ... *)
             Lemma interference_bound_edf_simpl_by_concatenation_of_intervals :
               \sum_(t1 <= t < a_fst + R_k) 1
               + \sum_(a_fst + R_k <= t < a_fst + D_k) 1
@@ -996,18 +1009,13 @@ Module EDFSpecificBound.
               by rewrite big_const_nat iter_addn mul1n addn0.
             Qed.
             
-            (* Using the fact that absolute deadlines are ordered, we show that the
-               interference caused by the first job is no larger than D_i %% p_k - (D_k - R_k). *)
+            (* ... which results in proving that (a_lst + D_k) - 1 <= a_fst.
+               This holds because high-priority jobs have earlier deadlines. Therefore,
+               the interference caused by the first job is bounded by D_i %% p_k - (D_k - R_k). *)
             Lemma interference_bound_edf_interference_of_j_fst_limited_by_remainder_and_slack :
               interference_caused_by j_fst t1 t2 <= D_i %% p_k - (D_k - R_k).
             Proof.
-              assert (AFTERt1: t1 <= a_fst + R_k).
-              {
-                apply interference_bound_edf_j_fst_completion_implies_rt_bound_inside_interval.
-                by apply interference_bound_edf_j_fst_completed_on_time.
-              }
-              apply subh3; last by apply interference_bound_edf_remainder_ge_slack.
-              rewrite -subndiv_eq_mod; apply subh3; last by apply leq_trunc_div.
+              apply interference_bound_edf_simpl_by_moving_to_left_side.
               apply (leq_trans interference_bound_edf_bounding_interference_with_interval_lengths).
               rewrite interference_bound_edf_simpl_by_concatenation_of_intervals leq_subLR.
               have LST := interference_bound_edf_j_lst_is_job_of_tsk_k.
@@ -1018,6 +1026,32 @@ Module EDFSpecificBound.
             Qed.
 
           End InterferenceOfFirstJob.
+
+          (* Using the lemmas above we show that the interference bound works in the
+             case of two or more jobs. *)
+          Lemma interference_bound_edf_holds_for_multiple_jobs :
+            \sum_(0 <= i < num_mid_jobs.+2)
+              interference_caused_by (nth elem sorted_jobs i) t1 t2 <= interference_bound.
+          Proof.
+            (* Knowing that we have at least two elements, we take first and last out of the sum *) 
+            rewrite [nth]lock big_nat_recl // big_nat_recr // /= -lock.
+            rewrite addnA addnC addnA.
+
+            have NK := interference_bound_edf_n_k_equals_num_mid_jobs_plus_one. 
+
+            (* We use the lemmas we proved to show that the interference bound holds. *)
+            unfold interference_bound, edf_specific_interference_bound.
+            fold D_i D_k p_k n_k.
+            rewrite addnC addnA; apply leq_add;
+              first by rewrite addnC interference_bound_edf_holds_for_middle_and_last_jobs.
+            rewrite leq_min; apply/andP; split.
+            {
+              apply interference_bound_edf_interference_le_task_cost.
+              rewrite interference_bound_edf_job_in_same_sequence.
+              by apply mem_nth; rewrite H_at_least_two_jobs.
+            }
+            by apply interference_bound_edf_interference_of_j_fst_limited_by_remainder_and_slack.
+          Qed.
           
         End InterferenceTwoOrMoreJobs.
 
@@ -1053,37 +1087,16 @@ Module EDFSpecificBound.
         destruct (size sorted_jobs) as [| n] eqn:SIZE;
           first by rewrite big_geq.
 
-        (* Then, we show the same for a singleton set of jobs. *)
+        (* Then, we show the same for a single job, or for multiple jobs. *)
         rewrite SIZE; destruct n as [| num_mid_jobs].
         {
           rewrite big_nat_recr // big_geq //.
           rewrite [nth]lock /= -lock add0n.
           by apply interference_bound_edf_holds_for_a_single_job; rewrite SIZE.
         }
-        
-        (* Knowing that we have at least two elements, we take first and last out of the sum *) 
-        rewrite [nth]lock big_nat_recl // big_nat_recr // /= -lock.
-        rewrite addnA addnC addnA.
-
-        (* Recall that n_k >= num_mids_jobs + 1.
-           Because num_mid_jobs < size_sorted_jobs < n_k, it follows that
-           n_k = num_mid_jobs + 2 is the only possible case. *)
-        exploit interference_bound_edf_n_k_equals_num_mid_jobs_plus_one;
-          [by rewrite SIZE | by apply elem | by rewrite SIZE | intro NK].
-
-        (* We use the lemmas we proved to show that the interference bound holds. *)
-        unfold interference_bound, edf_specific_interference_bound.
-        fold D_i D_k p_k n_k.
-        rewrite addnC addnA; apply leq_add;
-          first by rewrite addnC interference_bound_edf_holds_for_middle_and_last_jobs // SIZE.
-        rewrite leq_min; apply/andP; split.
         {
-          apply interference_bound_edf_interference_le_task_cost.
-          rewrite interference_bound_edf_job_in_same_sequence.
-          by apply mem_nth; rewrite SIZE.
+          by apply interference_bound_edf_holds_for_multiple_jobs; first by rewrite SIZE.
         }
-        by apply interference_bound_edf_interference_of_j_fst_limited_by_remainder_and_slack with
-                                                    (num_mid_jobs := num_mid_jobs); rewrite SIZE.
       Qed.
       
     End MainProof.
