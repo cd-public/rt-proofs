@@ -48,9 +48,9 @@ Module ArrivalSequence.
 
     (* Finally, we assume a decidable equality for JobIn. We don't care about
        its definition. It's just to make JobIn compatible with ssreflect. *)
-    Definition f (arr_seq: arrival_sequence Job) :=
+    Definition jobin_eqdef (arr_seq: arrival_sequence Job) :=
       (fun j1 j2: JobIn arr_seq => (JobIn_is_Job j1) == (JobIn_is_Job j2)).
-    Axiom eqn_jobin : forall arr_seq, Equality.axiom (f arr_seq).
+    Axiom eqn_jobin : forall arr_seq, Equality.axiom (jobin_eqdef arr_seq).
     Canonical jobin_eqMixin arr_seq := EqMixin (eqn_jobin arr_seq).
     Canonical jobin_eqType arr_seq := Eval hnf in EqType (JobIn arr_seq) (jobin_eqMixin arr_seq).
 
