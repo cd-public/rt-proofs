@@ -711,6 +711,28 @@ Proof.
   }
 Qed.
 
+Lemma mem_zip_exists :
+  forall (T T': eqType) (x1: T) (x2: T') l1 l2 elem elem',
+    size l1 = size l2 ->
+    (x1, x2) \in zip l1 l2 ->
+    exists idx,
+      idx < size l1 /\
+      idx < size l2 /\
+      x1 = nth elem l1 idx /\
+      x2 = nth elem' l2 idx.
+Proof.
+  intros T T' x1 x2 l1 l2 elem elem' SIZE IN.
+  assert (LT: index (x1, x2) (zip l1 l2) < size l1).
+  {
+    apply leq_trans with (n := size (zip l1 l2)); first by rewrite index_mem.
+    by rewrite size_zip; apply geq_minl.
+  }
+  have NTH := @nth_index _ (elem,elem') (x1, x2) (zip l1 l2) IN.
+  rewrite nth_zip in NTH; last by done.
+  inversion NTH; rewrite H1 H0; rewrite H0 in H1.
+  by exists (index (x1, x2) (zip l1 l2)); repeat split; try (by done); rewrite -?SIZE.
+Qed.
+
 Definition no_intersection {T: eqType} (l1 l2: seq T) :=
   ~~ has (mem l1) l2.
 
