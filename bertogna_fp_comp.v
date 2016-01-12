@@ -24,14 +24,14 @@ Module ResponseTimeIterationFP.
     Variable job_deadline: Job -> nat.
     Variable job_task: Job -> sporadic_task.
 
-    (* Consider a platform with num_cpus processors, ...*)
+    (* Consider a platform with num_cpus processors, ... *)
     Variable num_cpus: nat.
 
     (* ..., and priorities based on an FP policy. *)
     Variable higher_priority: fp_policy sporadic_task.
 
     (* Next we define the fixed-point iteration for computing
-       Bertogna's response-time bound for any task in ts. *)
+       Bertogna's response-time bound of a task set. *)
     
     (* First, given a sequence of pairs R_prev = <..., (tsk_hp, R_hp)> of
        response-time bounds for the higher-priority tasks, we define an
@@ -224,7 +224,7 @@ Module ResponseTimeIterationFP.
         }
       Qed.
 
-      (* fp_claimed_bounds contains a response-time bound for every tasks in the original task set. *)
+      (* The list contains a response-time bound for every task in the task set. *)
       Lemma fp_claimed_bounds_non_empty :
         forall ts' rt_bounds tsk,
           fp_claimed_bounds ts' = Some rt_bounds ->

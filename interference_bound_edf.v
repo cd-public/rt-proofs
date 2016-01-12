@@ -1009,7 +1009,7 @@ Module EDFSpecificBound.
               by rewrite big_const_nat iter_addn mul1n addn0.
             Qed.
             
-            (* ... which results in proving that (a_lst + D_k) - 1 <= a_fst.
+            (* ... which results in proving that (a_lst + D_k) - t1 <= D_i.
                This holds because high-priority jobs have earlier deadlines. Therefore,
                the interference caused by the first job is bounded by D_i %% p_k - (D_k - R_k). *)
             Lemma interference_bound_edf_interference_of_j_fst_limited_by_remainder_and_slack :
