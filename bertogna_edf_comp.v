@@ -10,7 +10,7 @@ Module ResponseTimeIterationEDF.
          ResponseTimeAnalysisEDF.
 
   (* In this section, we define the algorithm of Bertogna and Cirinei's
-     response-time analysis for FP scheduling. *)
+     response-time analysis for EDF scheduling. *)
   Section Analysis.
     
     Context {sporadic_task: eqType}.
@@ -36,8 +36,8 @@ Module ResponseTimeIterationEDF.
       total_interference_bound_edf task_cost task_period task_deadline tsk rt_bounds delta.
 
     (* ..., which yields the following response-time bound. *)
-    Let response_time_bound (rt_bounds: seq task_with_response_time)
-                            (tsk: sporadic_task) (delta: time) :=
+    Definition edf_response_time_bound (rt_bounds: seq task_with_response_time)
+                                           (tsk: sporadic_task) (delta: time) :=
       task_cost tsk + div_floor (I rt_bounds tsk delta) num_cpus.
 
     (* Also note that a response-time is only valid if it is no larger
@@ -55,7 +55,7 @@ Module ResponseTimeIterationEDF.
     Definition update_bound (rt_bounds: seq task_with_response_time)
                         (pair : task_with_response_time) :=
       let (tsk, R) := pair in
-        (tsk, response_time_bound rt_bounds tsk R).
+        (tsk, edf_response_time_bound rt_bounds tsk R).
 
     (* To compute the response-time bounds of the entire task set,
        We start the iteration with a sequence of tasks and costs:
@@ -149,7 +149,7 @@ Module ResponseTimeIterationEDF.
           rewrite iterS in IN.
           move: IN => /mapP IN; destruct IN as [x IN EQ].
           unfold update_bound in EQ; destruct x; inversion EQ.
-          by unfold response_time_bound; apply leq_addr.
+          by unfold edf_response_time_bound; apply leq_addr.
         }
       Qed.
 
@@ -195,7 +195,7 @@ Module ResponseTimeIterationEDF.
           set prev_state := iter step edf_rta_iteration (initial_state ts).
           fold prev_state in IN, IHstep.
           specialize (IHstep tsk IN); des.
-          exists (response_time_bound prev_state tsk R).
+          exists (edf_response_time_bound prev_state tsk R).
           by apply/mapP; exists (tsk, R); [by done | by f_equal].
         }
       Qed.
@@ -253,7 +253,10 @@ Module ResponseTimeIterationEDF.
 
     End MonotonicityOfInterferenceBound.
 
-    (* In this section, we prove the convergence of the RTA procedure. *)
+    (* In this section, we prove the convergence of the RTA procedure.
+       Since we define the RTA procedure as the application of a function
+       a fixed number of times, this translates into proving that the value
+       of the iteration at (max_steps ts) is equal to the value at (max_steps ts) + 1. *)
     Section Convergence.
 
       (* Consider any valid task set. *)
@@ -408,7 +411,7 @@ Module ResponseTimeIterationEDF.
             last by rewrite size_zip 2!size_map -SIZE minnn in LTi.
           rewrite (nth_map p0);
             last by rewrite size_zip 2!size_map SIZE minnn in LTi.
-          unfold update_bound, response_time_bound; desf; simpl.
+          unfold update_bound, edf_response_time_bound; desf; simpl.
           rename s into tsk_i, s0 into tsk_i', n into R_i, n0 into R_i', Heq into EQ, Heq0 into EQ'.
           assert (EQtsk: tsk_i = tsk_i').
           {
@@ -567,7 +570,8 @@ Module ResponseTimeIterationEDF.
         by unfold edf_rta_iteration.
       Qed.
 
-      (* Otherwise, if the iteration converged at an earlier step, then it remains stable. *)
+      (* Otherwise, if the iteration reached a fixed point before (max_steps ts), then
+         the value at (max_steps ts) is still at a fixed point. *)
       Lemma bertogna_edf_comp_f_converges_early :
         (exists k, k <= max_steps ts /\ f k = f k.+1) ->
         f (max_steps ts) = f (max_steps ts).+1.
@@ -757,14 +761,13 @@ Module ResponseTimeIterationEDF.
 
       End DerivingContradiction. 
 
-      (* Using the lemmas above, we prove that edf_rta_iteration remains stable
+      (* Using the lemmas above, we prove that edf_rta_iteration reaches a fixed point
          after (max_steps ts) iterations, ... *)
       Lemma edf_claimed_bounds_converges_helper :
         forall rt_bounds,
           edf_claimed_bounds ts = Some rt_bounds ->
           valid_sporadic_taskset task_cost task_period task_deadline ts ->
-          iter (max_steps ts) edf_rta_iteration (initial_state ts)
-            = iter (max_steps ts).+1 edf_rta_iteration (initial_state ts).
+          f (max_steps ts) = f (max_steps ts).+1. 
       Proof.
         intros rt_bounds SOME VALID.
         unfold valid_sporadic_taskset, is_valid_sporadic_task in *.
@@ -856,6 +859,7 @@ Module ResponseTimeIterationEDF.
         have CONV := edf_claimed_bounds_converges_helper rt_bounds.
         unfold edf_claimed_bounds in *; desf.
         exploit (CONV); [by done | by done | intro ITER; clear CONV].
+        unfold f in ITER.
 
         cut (update_bound (iter (max_steps ts)
                edf_rta_iteration (initial_state ts)) (tsk,R) = (tsk, R)).
@@ -953,7 +957,7 @@ Module ResponseTimeIterationEDF.
         job_misses_no_deadline job_cost job_deadline rate sched.
 
       (* In the following theorem, we prove that any response-time bound contained
-         in fp_claimed_bounds is safe. The proof follows by direct application of
+         in edf_claimed_bounds is safe. The proof follows by direct application of
          the main Theorem from bertogna_edf_theory.v. *)
       Theorem edf_analysis_yields_response_time_bounds :
         forall tsk R,
@@ -979,7 +983,7 @@ Module ResponseTimeIterationEDF.
       Hypothesis H_test_succeeds: edf_schedulable ts.
       
       (*... no task misses its deadline. *)
-      Theorem taskset_schedulable_by_fp_rta :
+      Theorem taskset_schedulable_by_edf_rta :
         forall tsk, tsk \in ts -> no_deadline_missed_by_task tsk.
       Proof.
         unfold no_deadline_missed_by_task, task_misses_no_deadline,
@@ -1021,11 +1025,11 @@ Module ResponseTimeIterationEDF.
       (* For completeness, since all jobs of the arrival sequence
          are spawned by the task set, we conclude that no job misses
          its deadline. *)
-      Theorem jobs_schedulable_by_fp_rta :
+      Theorem jobs_schedulable_by_edf_rta :
         forall (j: JobIn arr_seq), no_deadline_missed_by_job j.
       Proof.
         intros j.
-        have SCHED := taskset_schedulable_by_fp_rta.
+        have SCHED := taskset_schedulable_by_edf_rta.
         unfold no_deadline_missed_by_task, task_misses_no_deadline in *.
         apply SCHED with (tsk := job_task j); last by done.
         by apply H_all_jobs_from_taskset.
