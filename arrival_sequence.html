@@ -1,0 +1,151 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1"/>
+<link href="coqdoc.css" rel="stylesheet" type="text/css"/>
+<title>arrival_sequence</title>
+</head>
+
+<body>
+
+<div id="page">
+
+<div id="header">
+</div>
+
+<div id="main">
+
+<h1 class="libtitle">Library arrival_sequence</h1>
+
+<div class="code">
+<span class="id" type="keyword">Require</span> <span class="id" type="keyword">Import</span> <a class="idref" href="Vbase.html#"><span class="id" type="library">Vbase</span></a> <a class="idref" href="job.html#"><span class="id" type="library">job</span></a> <a class="idref" href="task.html#"><span class="id" type="library">task</span></a> <a class="idref" href="util_lemmas.html#"><span class="id" type="library">util_lemmas</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="library">ssreflect</span> <span class="id" type="library">ssrbool</span> <span class="id" type="library">eqtype</span> <span class="id" type="library">ssrnat</span> <span class="id" type="library">seq</span> <span class="id" type="library">fintype</span> <span class="id" type="library">bigop</span>.<br/>
+
+<br/>
+<span class="comment">(*&nbsp;Definitions&nbsp;and&nbsp;properties&nbsp;of&nbsp;job&nbsp;arrival&nbsp;sequences.&nbsp;*)</span><br/>
+<span class="id" type="keyword">Module</span> <a name="ArrivalSequence"><span class="id" type="module">ArrivalSequence</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="comment">(*&nbsp;Let&nbsp;time&nbsp;be&nbsp;the&nbsp;set&nbsp;of&nbsp;natural&nbsp;numbers.&nbsp;*)</span><br/>
+&nbsp;&nbsp;<span class="id" type="keyword">Definition</span> <a name="ArrivalSequence.time"><span class="id" type="definition">time</span></a> := <a class="idref" href="http://coq.inria.fr/distrib/8.4pl4/stdlib/Coq.Init.Datatypes.html#nat"><span class="id" type="inductive">nat</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="comment">(*&nbsp;Next,&nbsp;we&nbsp;define&nbsp;a&nbsp;job&nbsp;arrival&nbsp;sequence&nbsp;(can&nbsp;be&nbsp;infinite).&nbsp;*)</span><br/>
+&nbsp;&nbsp;<span class="id" type="keyword">Section</span> <a name="ArrivalSequence.ArrivalSequenceDef"><span class="id" type="section">ArrivalSequenceDef</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;Given&nbsp;any&nbsp;job&nbsp;type&nbsp;with&nbsp;decidable&nbsp;equality,&nbsp;...&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Variable</span> <a name="ArrivalSequence.ArrivalSequenceDef.Job"><span class="id" type="variable">Job</span></a>: <span class="id" type="abbreviation">eqType</span>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;...,&nbsp;an&nbsp;arrival&nbsp;sequence&nbsp;is&nbsp;a&nbsp;mapping&nbsp;from&nbsp;time&nbsp;to&nbsp;a&nbsp;sequence&nbsp;of&nbsp;jobs.&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Definition</span> <a name="ArrivalSequence.arrival_sequence"><span class="id" type="definition">arrival_sequence</span></a> := <a class="idref" href="arrival_sequence.html#ArrivalSequence.time"><span class="id" type="definition">time</span></a> -&gt; <span class="id" type="abbreviation">seq</span> <a class="idref" href="arrival_sequence.html#ArrivalSequence.ArrivalSequenceDef.Job"><span class="id" type="variable">Job</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" type="keyword">End</span> <a class="idref" href="arrival_sequence.html#ArrivalSequence.ArrivalSequenceDef"><span class="id" type="section">ArrivalSequenceDef</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="comment">(*&nbsp;Note&nbsp;that&nbsp;Job&nbsp;denotes&nbsp;the&nbsp;universe&nbsp;of&nbsp;all&nbsp;possible&nbsp;jobs.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;In&nbsp;order&nbsp;to&nbsp;distinguish&nbsp;jobs&nbsp;of&nbsp;different&nbsp;arrival&nbsp;sequences,&nbsp;next&nbsp;we<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;define&nbsp;a&nbsp;subtype&nbsp;of&nbsp;Job&nbsp;called&nbsp;JobIn.&nbsp;*)</span><br/>
+&nbsp;&nbsp;<span class="id" type="keyword">Section</span> <a name="ArrivalSequence.JobInArrivalSequence"><span class="id" type="section">JobInArrivalSequence</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Context</span> {<span class="id" type="var">Job</span>: <span class="id" type="abbreviation">eqType</span>}.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;Whether&nbsp;a&nbsp;job&nbsp;arrives&nbsp;in&nbsp;a&nbsp;particular&nbsp;sequence&nbsp;at&nbsp;time&nbsp;t&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Definition</span> <a name="ArrivalSequence.arrives_at"><span class="id" type="definition">arrives_at</span></a> (<span class="id" type="var">j</span>: <a class="idref" href="arrival_sequence.html#ArrivalSequence.JobInArrivalSequence.Job"><span class="id" type="variable">Job</span></a>) (<span class="id" type="var">arr_seq</span>: <a class="idref" href="arrival_sequence.html#ArrivalSequence.arrival_sequence"><span class="id" type="definition">arrival_sequence</span></a> <a class="idref" href="arrival_sequence.html#ArrivalSequence.JobInArrivalSequence.Job"><span class="id" type="variable">Job</span></a>) (<span class="id" type="var">t</span>: <a class="idref" href="arrival_sequence.html#ArrivalSequence.time"><span class="id" type="definition">time</span></a>) :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="arrival_sequence.html#j"><span class="id" type="variable">j</span></a> <span class="id" type="notation">\</span><span class="id" type="keyword">in</span> <a class="idref" href="arrival_sequence.html#arr_seq"><span class="id" type="variable">arr_seq</span></a> <a class="idref" href="arrival_sequence.html#t"><span class="id" type="variable">t</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;A&nbsp;job&nbsp;j&nbsp;of&nbsp;type&nbsp;(JobIn&nbsp;arr_seq)&nbsp;is&nbsp;a&nbsp;job&nbsp;that&nbsp;arrives&nbsp;at&nbsp;some&nbsp;particular<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;time&nbsp;in&nbsp;arr_seq.&nbsp;It&nbsp;holds&nbsp;the&nbsp;arrival&nbsp;time&nbsp;and&nbsp;a&nbsp;proof&nbsp;of&nbsp;arrival.&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Record</span> <a name="ArrivalSequence.JobIn"><span class="id" type="record">JobIn</span></a> (<span class="id" type="var">arr_seq</span>: <a class="idref" href="arrival_sequence.html#ArrivalSequence.arrival_sequence"><span class="id" type="definition">arrival_sequence</span></a> <a class="idref" href="arrival_sequence.html#ArrivalSequence.JobInArrivalSequence.Job"><span class="id" type="variable">Job</span></a>) : <span class="id" type="keyword">Type</span> :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;{<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a name="ArrivalSequence._job_in"><span class="id" type="projection">_job_in</span></a>: <a class="idref" href="arrival_sequence.html#ArrivalSequence.JobInArrivalSequence.Job"><span class="id" type="variable">Job</span></a>;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a name="ArrivalSequence._arrival_time"><span class="id" type="projection">_arrival_time</span></a>: <a class="idref" href="arrival_sequence.html#ArrivalSequence.time"><span class="id" type="definition">time</span></a>; <span class="comment">(*&nbsp;arrival&nbsp;time&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="var">_</span>: <a class="idref" href="arrival_sequence.html#ArrivalSequence.arrives_at"><span class="id" type="definition">arrives_at</span></a> <a class="idref" href="arrival_sequence.html#_job_in"><span class="id" type="method">_job_in</span></a> <a class="idref" href="arrival_sequence.html#arr_seq"><span class="id" type="variable">arr_seq</span></a> <a class="idref" href="arrival_sequence.html#_arrival_time"><span class="id" type="method">_arrival_time</span></a> <span class="comment">(*&nbsp;proof&nbsp;of&nbsp;arrival&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;}.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;Define&nbsp;a&nbsp;coercion&nbsp;that&nbsp;states&nbsp;that&nbsp;every&nbsp;JobIn&nbsp;is&nbsp;a&nbsp;Job.&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Coercion</span> <span class="id" type="var">JobIn_is_Job</span> {<span class="id" type="var">arr_seq</span>: <a class="idref" href="arrival_sequence.html#ArrivalSequence.arrival_sequence"><span class="id" type="definition">arrival_sequence</span></a> <a class="idref" href="arrival_sequence.html#ArrivalSequence.JobInArrivalSequence.Job"><span class="id" type="variable">Job</span></a>} (<span class="id" type="var">j</span>: <a class="idref" href="arrival_sequence.html#ArrivalSequence.JobIn"><span class="id" type="record">JobIn</span></a> <a class="idref" href="arrival_sequence.html#arr_seq"><span class="id" type="variable">arr_seq</span></a>) :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="arrival_sequence.html#ArrivalSequence._job_in"><span class="id" type="projection">_job_in</span></a> <a class="idref" href="arrival_sequence.html#arr_seq"><span class="id" type="variable">arr_seq</span></a> <a class="idref" href="arrival_sequence.html#j"><span class="id" type="variable">j</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;Define&nbsp;job&nbsp;arrival&nbsp;time&nbsp;as&nbsp;that&nbsp;time&nbsp;that&nbsp;the&nbsp;job&nbsp;arrives&nbsp;(only&nbsp;works&nbsp;for&nbsp;JobIn).&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Definition</span> <a name="ArrivalSequence.job_arrival"><span class="id" type="definition">job_arrival</span></a> {<span class="id" type="var">arr_seq</span>: <a class="idref" href="arrival_sequence.html#ArrivalSequence.arrival_sequence"><span class="id" type="definition">arrival_sequence</span></a> <a class="idref" href="arrival_sequence.html#ArrivalSequence.JobInArrivalSequence.Job"><span class="id" type="variable">Job</span></a>} (<span class="id" type="var">j</span>: <a class="idref" href="arrival_sequence.html#ArrivalSequence.JobIn"><span class="id" type="record">JobIn</span></a> <a class="idref" href="arrival_sequence.html#arr_seq"><span class="id" type="variable">arr_seq</span></a>) :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="arrival_sequence.html#ArrivalSequence._arrival_time"><span class="id" type="projection">_arrival_time</span></a> <a class="idref" href="arrival_sequence.html#arr_seq"><span class="id" type="variable">arr_seq</span></a> <a class="idref" href="arrival_sequence.html#j"><span class="id" type="variable">j</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;Finally,&nbsp;we&nbsp;assume&nbsp;a&nbsp;decidable&nbsp;equality&nbsp;for&nbsp;JobIn,&nbsp;to&nbsp;make&nbsp;it&nbsp;compatible<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;with&nbsp;ssreflect.&nbsp;TODO:&nbsp;Is&nbsp;there&nbsp;a&nbsp;better&nbsp;way&nbsp;to&nbsp;do&nbsp;this?&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Definition</span> <a name="ArrivalSequence.jobin_eqdef"><span class="id" type="definition">jobin_eqdef</span></a> (<span class="id" type="var">arr_seq</span>: <a class="idref" href="arrival_sequence.html#ArrivalSequence.arrival_sequence"><span class="id" type="definition">arrival_sequence</span></a> <a class="idref" href="arrival_sequence.html#ArrivalSequence.JobInArrivalSequence.Job"><span class="id" type="variable">Job</span></a>) :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(<span class="id" type="keyword">fun</span> <span class="id" type="var">j1</span> <span class="id" type="var">j2</span>: <a class="idref" href="arrival_sequence.html#ArrivalSequence.JobIn"><span class="id" type="record">JobIn</span></a> <a class="idref" href="arrival_sequence.html#arr_seq"><span class="id" type="variable">arr_seq</span></a> =&gt; <span class="id" type="notation">(</span><a class="idref" href="arrival_sequence.html#ArrivalSequence.JobIn_is_Job"><span class="id" type="definition">JobIn_is_Job</span></a> <a class="idref" href="arrival_sequence.html#j1"><span class="id" type="variable">j1</span></a><span class="id" type="notation">)</span> <span class="id" type="notation">==</span> <span class="id" type="notation">(</span><a class="idref" href="arrival_sequence.html#ArrivalSequence.JobIn_is_Job"><span class="id" type="definition">JobIn_is_Job</span></a> <a class="idref" href="arrival_sequence.html#j2"><span class="id" type="variable">j2</span></a><span class="id" type="notation">)</span>).<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Axiom</span> <a name="ArrivalSequence.eqn_jobin"><span class="id" type="axiom">eqn_jobin</span></a> : <span class="id" type="keyword">forall</span> <span class="id" type="var">arr_seq</span>, <span class="id" type="definition">Equality.axiom</span> (<a class="idref" href="arrival_sequence.html#ArrivalSequence.jobin_eqdef"><span class="id" type="definition">jobin_eqdef</span></a> <a class="idref" href="arrival_sequence.html#arr_seq"><span class="id" type="variable">arr_seq</span></a>).<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Canonical</span> <span class="id" type="var">jobin_eqMixin</span> <span class="id" type="var">arr_seq</span> := <span class="id" type="abbreviation">EqMixin</span> (<a class="idref" href="arrival_sequence.html#ArrivalSequence.eqn_jobin"><span class="id" type="axiom">eqn_jobin</span></a> <a class="idref" href="arrival_sequence.html#arr_seq"><span class="id" type="variable">arr_seq</span></a>).<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Canonical</span> <span class="id" type="var">jobin_eqType</span> <span class="id" type="var">arr_seq</span> := <span class="id" type="keyword">Eval</span> <span class="id" type="tactic">hnf</span> <span class="id" type="keyword">in</span> <span class="id" type="abbreviation">EqType</span> (<a class="idref" href="arrival_sequence.html#ArrivalSequence.JobIn"><span class="id" type="record">JobIn</span></a> <a class="idref" href="arrival_sequence.html#arr_seq"><span class="id" type="variable">arr_seq</span></a>) (<a class="idref" href="arrival_sequence.html#ArrivalSequence.jobin_eqMixin"><span class="id" type="definition">jobin_eqMixin</span></a> <a class="idref" href="arrival_sequence.html#arr_seq"><span class="id" type="variable">arr_seq</span></a>).<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" type="keyword">End</span> <a class="idref" href="arrival_sequence.html#ArrivalSequence.JobInArrivalSequence"><span class="id" type="section">JobInArrivalSequence</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="comment">(*&nbsp;A&nbsp;valid&nbsp;arrival&nbsp;sequence&nbsp;must&nbsp;satisfy&nbsp;some&nbsp;properties.&nbsp;*)</span><br/>
+&nbsp;&nbsp;<span class="id" type="keyword">Section</span> <a name="ArrivalSequence.ArrivalSequenceProperties"><span class="id" type="section">ArrivalSequenceProperties</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Context</span> {<span class="id" type="var">Job</span>: <span class="id" type="abbreviation">eqType</span>}.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Variable</span> <a name="ArrivalSequence.ArrivalSequenceProperties.arr_seq"><span class="id" type="variable">arr_seq</span></a>: <a class="idref" href="arrival_sequence.html#ArrivalSequence.arrival_sequence"><span class="id" type="definition">arrival_sequence</span></a> <a class="idref" href="arrival_sequence.html#ArrivalSequence.ArrivalSequenceProperties.Job"><span class="id" type="variable">Job</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;The&nbsp;same&nbsp;job&nbsp;j&nbsp;cannot&nbsp;arrive&nbsp;at&nbsp;two&nbsp;different&nbsp;times.&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Definition</span> <a name="ArrivalSequence.no_multiple_arrivals"><span class="id" type="definition">no_multiple_arrivals</span></a> :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">forall</span> (<span class="id" type="var">j</span>: <a class="idref" href="arrival_sequence.html#ArrivalSequence.ArrivalSequenceProperties.Job"><span class="id" type="variable">Job</span></a>) <span class="id" type="var">t1</span> <span class="id" type="var">t2</span>,<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="arrival_sequence.html#ArrivalSequence.arrives_at"><span class="id" type="definition">arrives_at</span></a> <a class="idref" href="arrival_sequence.html#j"><span class="id" type="variable">j</span></a> <a class="idref" href="arrival_sequence.html#ArrivalSequence.ArrivalSequenceProperties.arr_seq"><span class="id" type="variable">arr_seq</span></a> <a class="idref" href="arrival_sequence.html#t1"><span class="id" type="variable">t1</span></a> -&gt; <a class="idref" href="arrival_sequence.html#ArrivalSequence.arrives_at"><span class="id" type="definition">arrives_at</span></a> <a class="idref" href="arrival_sequence.html#j"><span class="id" type="variable">j</span></a> <a class="idref" href="arrival_sequence.html#ArrivalSequence.ArrivalSequenceProperties.arr_seq"><span class="id" type="variable">arr_seq</span></a> <a class="idref" href="arrival_sequence.html#t2"><span class="id" type="variable">t2</span></a> -&gt; <a class="idref" href="arrival_sequence.html#t1"><span class="id" type="variable">t1</span></a> <a class="idref" href="http://coq.inria.fr/distrib/8.4pl4/stdlib/Coq.Init.Logic.html#:type_scope:x_'='_x"><span class="id" type="notation">=</span></a> <a class="idref" href="arrival_sequence.html#t2"><span class="id" type="variable">t2</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;The&nbsp;sequence&nbsp;of&nbsp;arrivals&nbsp;at&nbsp;a&nbsp;particular&nbsp;time&nbsp;has&nbsp;no&nbsp;duplicates.&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Definition</span> <a name="ArrivalSequence.arrival_sequence_is_a_set"><span class="id" type="definition">arrival_sequence_is_a_set</span></a> := <span class="id" type="keyword">forall</span> <span class="id" type="var">t</span>, <span class="id" type="definition">uniq</span> (<a class="idref" href="arrival_sequence.html#ArrivalSequence.ArrivalSequenceProperties.arr_seq"><span class="id" type="variable">arr_seq</span></a> <a class="idref" href="arrival_sequence.html#t"><span class="id" type="variable">t</span></a>).<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" type="keyword">End</span> <a class="idref" href="arrival_sequence.html#ArrivalSequence.ArrivalSequenceProperties"><span class="id" type="section">ArrivalSequenceProperties</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="comment">(*&nbsp;Next,&nbsp;we&nbsp;define&nbsp;whether&nbsp;a&nbsp;job&nbsp;has&nbsp;arrived&nbsp;in&nbsp;an&nbsp;interval.&nbsp;*)</span><br/>
+&nbsp;&nbsp;<span class="id" type="keyword">Section</span> <a name="ArrivalSequence.ArrivingJobs"><span class="id" type="section">ArrivingJobs</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Context</span> {<span class="id" type="var">Job</span>: <span class="id" type="abbreviation">eqType</span>}.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Context</span> {<span class="id" type="var">arr_seq</span>: <a class="idref" href="arrival_sequence.html#ArrivalSequence.arrival_sequence"><span class="id" type="definition">arrival_sequence</span></a> <a class="idref" href="arrival_sequence.html#ArrivalSequence.ArrivingJobs.Job"><span class="id" type="variable">Job</span></a>}.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Variable</span> <a name="ArrivalSequence.ArrivingJobs.j"><span class="id" type="variable">j</span></a>: <a class="idref" href="arrival_sequence.html#ArrivalSequence.JobIn"><span class="id" type="record">JobIn</span></a> <a class="idref" href="arrival_sequence.html#ArrivalSequence.ArrivingJobs.arr_seq"><span class="id" type="variable">arr_seq</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;A&nbsp;job&nbsp;has&nbsp;arrived&nbsp;at&nbsp;time&nbsp;t&nbsp;iff&nbsp;it&nbsp;arrives&nbsp;at&nbsp;some&nbsp;time&nbsp;t_0,&nbsp;with&nbsp;0&nbsp;&lt;=&nbsp;t_0&nbsp;&lt;=&nbsp;t.&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Definition</span> <a name="ArrivalSequence.has_arrived"><span class="id" type="definition">has_arrived</span></a> (<span class="id" type="var">t</span>: <a class="idref" href="http://coq.inria.fr/distrib/8.4pl4/stdlib/Coq.Init.Datatypes.html#nat"><span class="id" type="inductive">nat</span></a>) := <a class="idref" href="arrival_sequence.html#ArrivalSequence.job_arrival"><span class="id" type="definition">job_arrival</span></a> <a class="idref" href="arrival_sequence.html#ArrivalSequence.ArrivingJobs.j"><span class="id" type="variable">j</span></a> <span class="id" type="notation">&lt;=</span> <a class="idref" href="arrival_sequence.html#t"><span class="id" type="variable">t</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;A&nbsp;job&nbsp;arrived&nbsp;before&nbsp;t&nbsp;iff&nbsp;it&nbsp;arrives&nbsp;at&nbsp;some&nbsp;time&nbsp;t_0,&nbsp;with&nbsp;0&nbsp;&lt;=&nbsp;t_0&nbsp;&lt;&nbsp;t.&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Definition</span> <a name="ArrivalSequence.arrived_before"><span class="id" type="definition">arrived_before</span></a> (<span class="id" type="var">t</span>: <a class="idref" href="http://coq.inria.fr/distrib/8.4pl4/stdlib/Coq.Init.Datatypes.html#nat"><span class="id" type="inductive">nat</span></a>) := <a class="idref" href="arrival_sequence.html#ArrivalSequence.job_arrival"><span class="id" type="definition">job_arrival</span></a> <a class="idref" href="arrival_sequence.html#ArrivalSequence.ArrivingJobs.j"><span class="id" type="variable">j</span></a> <span class="id" type="notation">&lt;</span> <a class="idref" href="arrival_sequence.html#t"><span class="id" type="variable">t</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;A&nbsp;job&nbsp;arrives&nbsp;between&nbsp;t1&nbsp;and&nbsp;t2&nbsp;iff&nbsp;it&nbsp;arrives&nbsp;at&nbsp;some&nbsp;time&nbsp;t&nbsp;with&nbsp;t1&nbsp;&lt;=&nbsp;t&nbsp;&lt;&nbsp;t2.&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Definition</span> <a name="ArrivalSequence.arrived_between"><span class="id" type="definition">arrived_between</span></a> (<span class="id" type="var">t1</span> <span class="id" type="var">t2</span>: <a class="idref" href="http://coq.inria.fr/distrib/8.4pl4/stdlib/Coq.Init.Datatypes.html#nat"><span class="id" type="inductive">nat</span></a>) := <a class="idref" href="arrival_sequence.html#t1"><span class="id" type="variable">t1</span></a> <span class="id" type="notation">&lt;=</span> <a class="idref" href="arrival_sequence.html#ArrivalSequence.job_arrival"><span class="id" type="definition">job_arrival</span></a> <a class="idref" href="arrival_sequence.html#ArrivalSequence.ArrivingJobs.j"><span class="id" type="variable">j</span></a> <span class="id" type="notation">&lt;</span> <a class="idref" href="arrival_sequence.html#t2"><span class="id" type="variable">t2</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" type="keyword">End</span> <a class="idref" href="arrival_sequence.html#ArrivalSequence.ArrivingJobs"><span class="id" type="section">ArrivingJobs</span></a>.<br/>
+
+<br/>
+<span class="id" type="keyword">End</span> <a class="idref" href="arrival_sequence.html#"><span class="id" type="module">ArrivalSequence</span></a>.<br/>
+</div>
+</div>
+
+<div id="footer">
+<hr/><a href="index.html">Index</a><hr/>This page has been generated by <a href="http://coq.inria.fr/">coqdoc</a>
+</div>
+
+</div>
+
+</body>
+</html>

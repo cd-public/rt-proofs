@@ -1,0 +1,276 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1"/>
+<link href="coqdoc.css" rel="stylesheet" type="text/css"/>
+<title>interference</title>
+</head>
+
+<body>
+
+<div id="page">
+
+<div id="header">
+</div>
+
+<div id="main">
+
+<h1 class="libtitle">Library interference</h1>
+
+<div class="code">
+<span class="id" type="keyword">Require</span> <span class="id" type="keyword">Import</span> <a class="idref" href="Vbase.html#"><span class="id" type="library">Vbase</span></a> <a class="idref" href="task.html#"><span class="id" type="library">task</span></a> <a class="idref" href="job.html#"><span class="id" type="library">job</span></a> <a class="idref" href="schedule.html#"><span class="id" type="library">schedule</span></a> <a class="idref" href="priority.html#"><span class="id" type="library">priority</span></a> <a class="idref" href="workload.html#"><span class="id" type="library">workload</span></a> <a class="idref" href="util_divround.html#"><span class="id" type="library">util_divround</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="util_lemmas.html#"><span class="id" type="library">util_lemmas</span></a> <span class="id" type="library">ssreflect</span> <span class="id" type="library">ssrbool</span> <span class="id" type="library">eqtype</span> <span class="id" type="library">ssrnat</span> <span class="id" type="library">seq</span> <span class="id" type="library">fintype</span> <span class="id" type="library">bigop</span>.<br/>
+
+<br/>
+<span class="id" type="keyword">Module</span> <a name="Interference"><span class="id" type="module">Interference</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" type="keyword">Import</span> <span class="id" type="var">ScheduleOfSporadicTask</span> <span class="id" type="var">Priority</span> <span class="id" type="var">Workload</span>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" type="keyword">Section</span> <a name="Interference.InterferingTasks"><span class="id" type="section">InterferingTasks</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Context</span> {<span class="id" type="var">sporadic_task</span>: <span class="id" type="abbreviation">eqType</span>}.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Variable</span> <a name="Interference.InterferingTasks.task_cost"><span class="id" type="variable">task_cost</span></a>: <a class="idref" href="interference.html#Interference.InterferingTasks.sporadic_task"><span class="id" type="variable">sporadic_task</span></a> -&gt; <a class="idref" href="http://coq.inria.fr/distrib/8.4pl4/stdlib/Coq.Init.Datatypes.html#nat"><span class="id" type="inductive">nat</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Variable</span> <a name="Interference.InterferingTasks.task_period"><span class="id" type="variable">task_period</span></a>: <a class="idref" href="interference.html#Interference.InterferingTasks.sporadic_task"><span class="id" type="variable">sporadic_task</span></a> -&gt; <a class="idref" href="http://coq.inria.fr/distrib/8.4pl4/stdlib/Coq.Init.Datatypes.html#nat"><span class="id" type="inductive">nat</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Variable</span> <a name="Interference.InterferingTasks.task_deadline"><span class="id" type="variable">task_deadline</span></a>: <a class="idref" href="interference.html#Interference.InterferingTasks.sporadic_task"><span class="id" type="variable">sporadic_task</span></a> -&gt; <a class="idref" href="http://coq.inria.fr/distrib/8.4pl4/stdlib/Coq.Init.Datatypes.html#nat"><span class="id" type="inductive">nat</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Section</span> <a name="Interference.InterferingTasks.FP"><span class="id" type="section">FP</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;Assume&nbsp;an&nbsp;FP&nbsp;policy.&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Variable</span> <a name="Interference.InterferingTasks.FP.higher_eq_priority"><span class="id" type="variable">higher_eq_priority</span></a>: <a class="idref" href="priority.html#Priority.fp_policy"><span class="id" type="definition">fp_policy</span></a> <a class="idref" href="interference.html#Interference.InterferingTasks.sporadic_task"><span class="id" type="variable">sporadic_task</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;Then,&nbsp;tsk_other&nbsp;is&nbsp;said&nbsp;to&nbsp;interfere&nbsp;with&nbsp;tsk&nbsp;if&nbsp;it's&nbsp;a&nbsp;different<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;task&nbsp;with&nbsp;higher&nbsp;or&nbsp;equal&nbsp;priority.&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Definition</span> <a name="Interference.is_interfering_task_fp"><span class="id" type="definition">is_interfering_task_fp</span></a> (<span class="id" type="var">tsk</span> <span class="id" type="var">tsk_other</span>: <a class="idref" href="interference.html#Interference.InterferingTasks.sporadic_task"><span class="id" type="variable">sporadic_task</span></a>) :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="interference.html#Interference.InterferingTasks.FP.higher_eq_priority"><span class="id" type="variable">higher_eq_priority</span></a> <a class="idref" href="interference.html#tsk_other"><span class="id" type="variable">tsk_other</span></a> <a class="idref" href="interference.html#tsk"><span class="id" type="variable">tsk</span></a> <a class="idref" href="http://coq.inria.fr/distrib/8.4pl4/stdlib/Coq.Init.Datatypes.html#:bool_scope:x_'&&'_x"><span class="id" type="notation">&amp;&amp;</span></a> <a class="idref" href="http://coq.inria.fr/distrib/8.4pl4/stdlib/Coq.Init.Datatypes.html#:bool_scope:x_'&&'_x"><span class="id" type="notation">(</span></a><a class="idref" href="interference.html#tsk_other"><span class="id" type="variable">tsk_other</span></a> <span class="id" type="notation">!=</span> <a class="idref" href="interference.html#tsk"><span class="id" type="variable">tsk</span></a><a class="idref" href="http://coq.inria.fr/distrib/8.4pl4/stdlib/Coq.Init.Datatypes.html#:bool_scope:x_'&&'_x"><span class="id" type="notation">)</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">End</span> <a class="idref" href="interference.html#Interference.InterferingTasks.FP"><span class="id" type="section">FP</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Section</span> <a name="Interference.InterferingTasks.JLFP"><span class="id" type="section">JLFP</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;Under&nbsp;JLFP&nbsp;policies,&nbsp;any&nbsp;two&nbsp;different&nbsp;tasks&nbsp;can&nbsp;interfere&nbsp;with<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;each&nbsp;other.&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Definition</span> <a name="Interference.is_interfering_task_jlfp"><span class="id" type="definition">is_interfering_task_jlfp</span></a> (<span class="id" type="var">tsk</span> <span class="id" type="var">tsk_other</span>: <a class="idref" href="interference.html#Interference.InterferingTasks.sporadic_task"><span class="id" type="variable">sporadic_task</span></a>) :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="interference.html#tsk_other"><span class="id" type="variable">tsk_other</span></a> <span class="id" type="notation">!=</span> <a class="idref" href="interference.html#tsk"><span class="id" type="variable">tsk</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">End</span> <a class="idref" href="interference.html#Interference.InterferingTasks.JLFP"><span class="id" type="section">JLFP</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" type="keyword">End</span> <a class="idref" href="interference.html#Interference.InterferingTasks"><span class="id" type="section">InterferingTasks</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" type="keyword">Section</span> <a name="Interference.InterferenceDefs"><span class="id" type="section">InterferenceDefs</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Context</span> {<span class="id" type="var">sporadic_task</span>: <span class="id" type="abbreviation">eqType</span>}.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Context</span> {<span class="id" type="var">Job</span>: <span class="id" type="abbreviation">eqType</span>}.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Variable</span> <a name="Interference.InterferenceDefs.job_cost"><span class="id" type="variable">job_cost</span></a>: <a class="idref" href="interference.html#Interference.InterferenceDefs.Job"><span class="id" type="variable">Job</span></a> -&gt; <a class="idref" href="http://coq.inria.fr/distrib/8.4pl4/stdlib/Coq.Init.Datatypes.html#nat"><span class="id" type="inductive">nat</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Variable</span> <a name="Interference.InterferenceDefs.job_task"><span class="id" type="variable">job_task</span></a>: <a class="idref" href="interference.html#Interference.InterferenceDefs.Job"><span class="id" type="variable">Job</span></a> -&gt; <a class="idref" href="interference.html#Interference.InterferenceDefs.sporadic_task"><span class="id" type="variable">sporadic_task</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;Assume&nbsp;any&nbsp;job&nbsp;arrival&nbsp;sequence...*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Context</span> {<span class="id" type="var">arr_seq</span>: <a class="idref" href="arrival_sequence.html#ArrivalSequence.arrival_sequence"><span class="id" type="definition">arrival_sequence</span></a> <a class="idref" href="interference.html#Interference.InterferenceDefs.Job"><span class="id" type="variable">Job</span></a>}.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;...&nbsp;and&nbsp;any&nbsp;schedule.&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Context</span> {<span class="id" type="var">num_cpus</span>: <a class="idref" href="http://coq.inria.fr/distrib/8.4pl4/stdlib/Coq.Init.Datatypes.html#nat"><span class="id" type="inductive">nat</span></a>}.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Variable</span> <a name="Interference.InterferenceDefs.sched"><span class="id" type="variable">sched</span></a>: <a class="idref" href="schedule.html#Schedule.schedule"><span class="id" type="definition">schedule</span></a> <a class="idref" href="interference.html#Interference.InterferenceDefs.num_cpus"><span class="id" type="variable">num_cpus</span></a> <a class="idref" href="interference.html#Interference.InterferenceDefs.arr_seq"><span class="id" type="variable">arr_seq</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;Consider&nbsp;any&nbsp;job&nbsp;j&nbsp;that&nbsp;incurs&nbsp;interference.&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Variable</span> <a name="Interference.InterferenceDefs.j"><span class="id" type="variable">j</span></a>: <a class="idref" href="arrival_sequence.html#ArrivalSequence.JobIn"><span class="id" type="record">JobIn</span></a> <a class="idref" href="interference.html#Interference.InterferenceDefs.arr_seq"><span class="id" type="variable">arr_seq</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;Recall&nbsp;the&nbsp;definition&nbsp;of&nbsp;backlogged&nbsp;(pending&nbsp;and&nbsp;not&nbsp;scheduled).&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Let</span> <a name="Interference.InterferenceDefs.job_is_backlogged"><span class="id" type="variable">job_is_backlogged</span></a> (<span class="id" type="var">t</span>: <a class="idref" href="arrival_sequence.html#ArrivalSequence.time"><span class="id" type="definition">time</span></a>) :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="schedule.html#Schedule.backlogged"><span class="id" type="definition">backlogged</span></a> <a class="idref" href="interference.html#Interference.InterferenceDefs.job_cost"><span class="id" type="variable">job_cost</span></a> <a class="idref" href="interference.html#Interference.InterferenceDefs.sched"><span class="id" type="variable">sched</span></a> <a class="idref" href="interference.html#Interference.InterferenceDefs.j"><span class="id" type="variable">j</span></a> <a class="idref" href="interference.html#t"><span class="id" type="variable">t</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Section</span> <a name="Interference.InterferenceDefs.TotalInterference"><span class="id" type="section">TotalInterference</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;First,&nbsp;we&nbsp;define&nbsp;the&nbsp;total&nbsp;interference&nbsp;incurred&nbsp;by&nbsp;job&nbsp;j&nbsp;during&nbsp;<span class="inlinecode"><span class="id" type="var">t1</span>,</span> <span class="inlinecode"><span class="id" type="var">t2</span>)</span>
+         <span class="inlinecode"><span class="id" type="keyword">as</span></span> <span class="inlinecode"><span class="id" type="var">the</span></span> <span class="inlinecode"><span class="id" type="var">cumulative</span></span> <span class="inlinecode"><span class="id" type="var">time</span></span> <span class="inlinecode"><span class="id" type="keyword">in</span></span> <span class="inlinecode"><span class="id" type="var">which</span></span> <span class="inlinecode"><span class="id" type="var">j</span></span> <span class="inlinecode"><span class="id" type="var">is</span></span> <span class="inlinecode"><span class="id" type="var">backlogged</span></span> <span class="inlinecode"><span class="id" type="keyword">in</span></span> <span class="inlinecode"><span class="id" type="var">this</span></span> <span class="inlinecode"><span class="id" type="var">interval</span>.</span> <span class="inlinecode"></span>*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Definition</span> <a name="Interference.total_interference"><span class="id" type="definition">total_interference</span></a> (<span class="id" type="var">t1</span> <span class="id" type="var">t2</span>: <a class="idref" href="arrival_sequence.html#ArrivalSequence.time"><span class="id" type="definition">time</span></a>) :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="notation">\</span><span class="id" type="notation">sum_</span><span class="id" type="notation">(</span><a class="idref" href="interference.html#t1"><span class="id" type="variable">t1</span></a> <span class="id" type="notation">&lt;=</span> <span class="id" type="var">t</span> <span class="id" type="notation">&lt;</span> <a class="idref" href="interference.html#t2"><span class="id" type="variable">t2</span></a><span class="id" type="notation">)</span> <a class="idref" href="interference.html#Interference.InterferenceDefs.job_is_backlogged"><span class="id" type="variable">job_is_backlogged</span></a> <span class="id" type="var">t</span>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">End</span> <a class="idref" href="interference.html#Interference.InterferenceDefs.TotalInterference"><span class="id" type="section">TotalInterference</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Section</span> <a name="Interference.InterferenceDefs.JobInterference"><span class="id" type="section">JobInterference</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;Let&nbsp;job_other&nbsp;be&nbsp;a&nbsp;job&nbsp;that&nbsp;interferes&nbsp;with&nbsp;j.&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Variable</span> <a name="Interference.InterferenceDefs.JobInterference.job_other"><span class="id" type="variable">job_other</span></a>: <a class="idref" href="arrival_sequence.html#ArrivalSequence.JobIn"><span class="id" type="record">JobIn</span></a> <a class="idref" href="interference.html#Interference.InterferenceDefs.arr_seq"><span class="id" type="variable">arr_seq</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;The&nbsp;interference&nbsp;caused&nbsp;by&nbsp;job_other&nbsp;is&nbsp;defined&nbsp;as&nbsp;follows.&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Definition</span> <a name="Interference.job_interference"><span class="id" type="definition">job_interference</span></a> (<span class="id" type="var">t1</span> <span class="id" type="var">t2</span>: <a class="idref" href="arrival_sequence.html#ArrivalSequence.time"><span class="id" type="definition">time</span></a>) :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="notation">\</span><span class="id" type="notation">sum_</span><span class="id" type="notation">(</span><a class="idref" href="interference.html#t1"><span class="id" type="variable">t1</span></a> <span class="id" type="notation">&lt;=</span> <span class="id" type="var">t</span> <span class="id" type="notation">&lt;</span> <a class="idref" href="interference.html#t2"><span class="id" type="variable">t2</span></a><span class="id" type="notation">)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="notation">(</span><a class="idref" href="interference.html#Interference.InterferenceDefs.job_is_backlogged"><span class="id" type="variable">job_is_backlogged</span></a> <span class="id" type="var">t</span> <a class="idref" href="http://coq.inria.fr/distrib/8.4pl4/stdlib/Coq.Init.Datatypes.html#:bool_scope:x_'&&'_x"><span class="id" type="notation">&amp;&amp;</span></a> <a class="idref" href="schedule.html#Schedule.scheduled"><span class="id" type="definition">scheduled</span></a> <a class="idref" href="interference.html#Interference.InterferenceDefs.sched"><span class="id" type="variable">sched</span></a> <a class="idref" href="interference.html#Interference.InterferenceDefs.JobInterference.job_other"><span class="id" type="variable">job_other</span></a> <span class="id" type="var">t</span><span class="id" type="notation">)</span>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">End</span> <a class="idref" href="interference.html#Interference.InterferenceDefs.JobInterference"><span class="id" type="section">JobInterference</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Section</span> <a name="Interference.InterferenceDefs.TaskInterference"><span class="id" type="section">TaskInterference</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;In&nbsp;order&nbsp;to&nbsp;define&nbsp;task&nbsp;interference,&nbsp;consider&nbsp;any&nbsp;interfering&nbsp;task&nbsp;tsk_other.&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Variable</span> <a name="Interference.InterferenceDefs.TaskInterference.tsk_other"><span class="id" type="variable">tsk_other</span></a>: <a class="idref" href="interference.html#Interference.InterferenceDefs.sporadic_task"><span class="id" type="variable">sporadic_task</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Definition</span> <a name="Interference.schedules_job_of_tsk"><span class="id" type="definition">schedules_job_of_tsk</span></a> (<span class="id" type="var">cpu</span>: <a class="idref" href="schedule.html#Schedule.processor"><span class="id" type="definition">processor</span></a> <a class="idref" href="interference.html#Interference.InterferenceDefs.num_cpus"><span class="id" type="variable">num_cpus</span></a>) (<span class="id" type="var">t</span>: <a class="idref" href="arrival_sequence.html#ArrivalSequence.time"><span class="id" type="definition">time</span></a>) :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">match</span> (<a class="idref" href="interference.html#Interference.InterferenceDefs.sched"><span class="id" type="variable">sched</span></a> <a class="idref" href="interference.html#cpu"><span class="id" type="variable">cpu</span></a> <a class="idref" href="interference.html#t"><span class="id" type="variable">t</span></a>) <span class="id" type="keyword">with</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;| <a class="idref" href="http://coq.inria.fr/distrib/8.4pl4/stdlib/Coq.Init.Datatypes.html#Some"><span class="id" type="constructor">Some</span></a> <span class="id" type="var">j'</span> =&gt; <a class="idref" href="interference.html#Interference.InterferenceDefs.job_task"><span class="id" type="variable">job_task</span></a> <span class="id" type="var">j'</span> <span class="id" type="notation">==</span> <a class="idref" href="interference.html#Interference.InterferenceDefs.TaskInterference.tsk_other"><span class="id" type="variable">tsk_other</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;| <a class="idref" href="http://coq.inria.fr/distrib/8.4pl4/stdlib/Coq.Init.Datatypes.html#None"><span class="id" type="constructor">None</span></a> =&gt; <a class="idref" href="http://coq.inria.fr/distrib/8.4pl4/stdlib/Coq.Init.Datatypes.html#false"><span class="id" type="constructor">false</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">end</span>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;We&nbsp;know&nbsp;that&nbsp;tsk&nbsp;is&nbsp;scheduled&nbsp;at&nbsp;time&nbsp;t&nbsp;if&nbsp;there&nbsp;exists&nbsp;a&nbsp;processor<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;scheduling&nbsp;a&nbsp;job&nbsp;of&nbsp;tsk.&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Definition</span> <a name="Interference.task_is_scheduled"><span class="id" type="definition">task_is_scheduled</span></a> (<span class="id" type="var">t</span>: <a class="idref" href="arrival_sequence.html#ArrivalSequence.time"><span class="id" type="definition">time</span></a>) :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="notation">[</span><span class="id" type="notation">exists</span> <span class="id" type="var">cpu</span> <span class="id" type="keyword">in</span> <a class="idref" href="schedule.html#Schedule.processor"><span class="id" type="definition">processor</span></a> <a class="idref" href="interference.html#Interference.InterferenceDefs.num_cpus"><span class="id" type="variable">num_cpus</span></a><span class="id" type="notation">,</span> <a class="idref" href="interference.html#Interference.schedules_job_of_tsk"><span class="id" type="definition">schedules_job_of_tsk</span></a> <span class="id" type="var">cpu</span> <a class="idref" href="interference.html#t"><span class="id" type="variable">t</span></a><span class="id" type="notation">]</span>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;We&nbsp;define&nbsp;the&nbsp;total&nbsp;interference&nbsp;incurred&nbsp;by&nbsp;tsk&nbsp;during&nbsp;<span class="inlinecode"><span class="id" type="var">t1</span>,</span> <span class="inlinecode"><span class="id" type="var">t2</span>)</span>
+         <span class="inlinecode"><span class="id" type="keyword">as</span></span> <span class="inlinecode"><span class="id" type="var">the</span></span> <span class="inlinecode"><span class="id" type="var">cumulative</span></span> <span class="inlinecode"><span class="id" type="var">time</span></span> <span class="inlinecode"><span class="id" type="keyword">in</span></span> <span class="inlinecode"><span class="id" type="var">which</span></span> <span class="inlinecode"><span class="id" type="var">tsk</span></span> <span class="inlinecode"><span class="id" type="var">is</span></span> <span class="inlinecode"><span class="id" type="var">scheduled</span>.</span> <span class="inlinecode"></span>*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Definition</span> <a name="Interference.task_interference"><span class="id" type="definition">task_interference</span></a> (<span class="id" type="var">t1</span> <span class="id" type="var">t2</span>: <a class="idref" href="arrival_sequence.html#ArrivalSequence.time"><span class="id" type="definition">time</span></a>) :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="notation">\</span><span class="id" type="notation">sum_</span><span class="id" type="notation">(</span><a class="idref" href="interference.html#t1"><span class="id" type="variable">t1</span></a> <span class="id" type="notation">&lt;=</span> <span class="id" type="var">t</span> <span class="id" type="notation">&lt;</span> <a class="idref" href="interference.html#t2"><span class="id" type="variable">t2</span></a><span class="id" type="notation">)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="notation">(</span><a class="idref" href="interference.html#Interference.InterferenceDefs.job_is_backlogged"><span class="id" type="variable">job_is_backlogged</span></a> <span class="id" type="var">t</span> <a class="idref" href="http://coq.inria.fr/distrib/8.4pl4/stdlib/Coq.Init.Datatypes.html#:bool_scope:x_'&&'_x"><span class="id" type="notation">&amp;&amp;</span></a> <a class="idref" href="interference.html#Interference.task_is_scheduled"><span class="id" type="definition">task_is_scheduled</span></a> <span class="id" type="var">t</span><span class="id" type="notation">)</span>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">End</span> <a class="idref" href="interference.html#Interference.InterferenceDefs.TaskInterference"><span class="id" type="section">TaskInterference</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Section</span> <a name="Interference.InterferenceDefs.TaskInterferenceJobList"><span class="id" type="section">TaskInterferenceJobList</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Variable</span> <a name="Interference.InterferenceDefs.TaskInterferenceJobList.tsk_other"><span class="id" type="variable">tsk_other</span></a>: <a class="idref" href="interference.html#Interference.InterferenceDefs.sporadic_task"><span class="id" type="variable">sporadic_task</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Definition</span> <a name="Interference.task_interference_joblist"><span class="id" type="definition">task_interference_joblist</span></a> (<span class="id" type="var">t1</span> <span class="id" type="var">t2</span>: <a class="idref" href="arrival_sequence.html#ArrivalSequence.time"><span class="id" type="definition">time</span></a>) :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="notation">\</span><span class="id" type="notation">sum_</span><span class="id" type="notation">(</span><span class="id" type="var">j</span> <span class="id" type="notation">&lt;-</span> <a class="idref" href="schedule.html#Schedule.jobs_scheduled_between"><span class="id" type="definition">jobs_scheduled_between</span></a> <a class="idref" href="interference.html#Interference.InterferenceDefs.sched"><span class="id" type="variable">sched</span></a> <a class="idref" href="interference.html#t1"><span class="id" type="variable">t1</span></a> <a class="idref" href="interference.html#t2"><span class="id" type="variable">t2</span></a> <span class="id" type="notation">|</span> <a class="idref" href="interference.html#Interference.InterferenceDefs.job_task"><span class="id" type="variable">job_task</span></a> <span class="id" type="var">j</span> <span class="id" type="notation">==</span> <a class="idref" href="interference.html#Interference.InterferenceDefs.TaskInterferenceJobList.tsk_other"><span class="id" type="variable">tsk_other</span></a><span class="id" type="notation">)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="interference.html#Interference.job_interference"><span class="id" type="definition">job_interference</span></a> <span class="id" type="var">j</span> <a class="idref" href="interference.html#t1"><span class="id" type="variable">t1</span></a> <a class="idref" href="interference.html#t2"><span class="id" type="variable">t2</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">End</span> <a class="idref" href="interference.html#Interference.InterferenceDefs.TaskInterferenceJobList"><span class="id" type="section">TaskInterferenceJobList</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Section</span> <a name="Interference.InterferenceDefs.BasicLemmas"><span class="id" type="section">BasicLemmas</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;Interference&nbsp;cannot&nbsp;be&nbsp;larger&nbsp;than&nbsp;the&nbsp;considered&nbsp;time&nbsp;window.&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Lemma</span> <a name="Interference.total_interference_le_delta"><span class="id" type="lemma">total_interference_le_delta</span></a> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">forall</span> <span class="id" type="var">t1</span> <span class="id" type="var">t2</span>,<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="interference.html#Interference.total_interference"><span class="id" type="definition">total_interference</span></a> <a class="idref" href="interference.html#t1"><span class="id" type="variable">t1</span></a> <a class="idref" href="interference.html#t2"><span class="id" type="variable">t2</span></a> <span class="id" type="notation">&lt;=</span> <a class="idref" href="interference.html#t2"><span class="id" type="variable">t2</span></a> <span class="id" type="notation">-</span> <a class="idref" href="interference.html#t1"><span class="id" type="variable">t1</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Lemma</span> <a name="Interference.job_interference_le_delta"><span class="id" type="lemma">job_interference_le_delta</span></a> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">forall</span> <span class="id" type="var">j_other</span> <span class="id" type="var">t1</span> <span class="id" type="keyword">delta</span>,<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="interference.html#Interference.job_interference"><span class="id" type="definition">job_interference</span></a> <a class="idref" href="interference.html#j_other"><span class="id" type="variable">j_other</span></a> <a class="idref" href="interference.html#t1"><span class="id" type="variable">t1</span></a> (<a class="idref" href="interference.html#t1"><span class="id" type="variable">t1</span></a> <span class="id" type="notation">+</span> <span class="id" type="keyword">delta</span>) <span class="id" type="notation">&lt;=</span> <span class="id" type="keyword">delta</span>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Lemma</span> <a name="Interference.job_interference_le_service"><span class="id" type="lemma">job_interference_le_service</span></a> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">forall</span> <span class="id" type="var">j_other</span> <span class="id" type="var">t1</span> <span class="id" type="var">t2</span>,<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="interference.html#Interference.job_interference"><span class="id" type="definition">job_interference</span></a> <a class="idref" href="interference.html#j_other"><span class="id" type="variable">j_other</span></a> <a class="idref" href="interference.html#t1"><span class="id" type="variable">t1</span></a> <a class="idref" href="interference.html#t2"><span class="id" type="variable">t2</span></a> <span class="id" type="notation">&lt;=</span> <a class="idref" href="schedule.html#Schedule.service_during"><span class="id" type="definition">service_during</span></a> <a class="idref" href="interference.html#Interference.InterferenceDefs.sched"><span class="id" type="variable">sched</span></a> <a class="idref" href="interference.html#j_other"><span class="id" type="variable">j_other</span></a> <a class="idref" href="interference.html#t1"><span class="id" type="variable">t1</span></a> <a class="idref" href="interference.html#t2"><span class="id" type="variable">t2</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Lemma</span> <a name="Interference.task_interference_le_workload"><span class="id" type="lemma">task_interference_le_workload</span></a> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">forall</span> <span class="id" type="var">tsk</span> <span class="id" type="var">t1</span> <span class="id" type="var">t2</span>,<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="interference.html#Interference.task_interference"><span class="id" type="definition">task_interference</span></a> <a class="idref" href="interference.html#tsk"><span class="id" type="variable">tsk</span></a> <a class="idref" href="interference.html#t1"><span class="id" type="variable">t1</span></a> <a class="idref" href="interference.html#t2"><span class="id" type="variable">t2</span></a> <span class="id" type="notation">&lt;=</span> <a class="idref" href="workload.html#Workload.workload"><span class="id" type="definition">workload</span></a> <a class="idref" href="interference.html#Interference.InterferenceDefs.job_task"><span class="id" type="variable">job_task</span></a> <a class="idref" href="interference.html#Interference.InterferenceDefs.sched"><span class="id" type="variable">sched</span></a> <a class="idref" href="interference.html#tsk"><span class="id" type="variable">tsk</span></a> <a class="idref" href="interference.html#t1"><span class="id" type="variable">t1</span></a> <a class="idref" href="interference.html#t2"><span class="id" type="variable">t2</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">End</span> <a class="idref" href="interference.html#Interference.InterferenceDefs.BasicLemmas"><span class="id" type="section">BasicLemmas</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;If&nbsp;we&nbsp;assume&nbsp;no&nbsp;intra-task&nbsp;parallelism,&nbsp;the&nbsp;two&nbsp;definitions<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;of&nbsp;interference&nbsp;are&nbsp;the&nbsp;same.&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Section</span> <a name="Interference.InterferenceDefs.EquivalenceWithPerJobInterference"><span class="id" type="section">EquivalenceWithPerJobInterference</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Hypothesis</span> <a name="Interference.InterferenceDefs.EquivalenceWithPerJobInterference.H_no_intratask_parallelism"><span class="id" type="variable">H_no_intratask_parallelism</span></a>:<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="schedule.html#ScheduleOfSporadicTask.jobs_of_same_task_dont_execute_in_parallel"><span class="id" type="definition">jobs_of_same_task_dont_execute_in_parallel</span></a> <a class="idref" href="interference.html#Interference.InterferenceDefs.job_task"><span class="id" type="variable">job_task</span></a> <a class="idref" href="interference.html#Interference.InterferenceDefs.sched"><span class="id" type="variable">sched</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Lemma</span> <a name="Interference.interference_eq_interference_joblist"><span class="id" type="lemma">interference_eq_interference_joblist</span></a> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">forall</span> <span class="id" type="var">tsk</span> <span class="id" type="var">t1</span> <span class="id" type="var">t2</span>,<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="interference.html#Interference.task_interference"><span class="id" type="definition">task_interference</span></a> <a class="idref" href="interference.html#tsk"><span class="id" type="variable">tsk</span></a> <a class="idref" href="interference.html#t1"><span class="id" type="variable">t1</span></a> <a class="idref" href="interference.html#t2"><span class="id" type="variable">t2</span></a> <a class="idref" href="http://coq.inria.fr/distrib/8.4pl4/stdlib/Coq.Init.Logic.html#:type_scope:x_'='_x"><span class="id" type="notation">=</span></a> <a class="idref" href="interference.html#Interference.task_interference_joblist"><span class="id" type="definition">task_interference_joblist</span></a> <a class="idref" href="interference.html#tsk"><span class="id" type="variable">tsk</span></a> <a class="idref" href="interference.html#t1"><span class="id" type="variable">t1</span></a> <a class="idref" href="interference.html#t2"><span class="id" type="variable">t2</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">End</span> <a class="idref" href="interference.html#Interference.InterferenceDefs.EquivalenceWithPerJobInterference"><span class="id" type="section">EquivalenceWithPerJobInterference</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;If&nbsp;we&nbsp;don't&nbsp;assume&nbsp;intra-task&nbsp;parallelism,&nbsp;the&nbsp;per-job&nbsp;interference<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;bounds&nbsp;the&nbsp;actual&nbsp;interference.&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Section</span> <a name="Interference.InterferenceDefs.BoundUsingPerJobInterference"><span class="id" type="section">BoundUsingPerJobInterference</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Lemma</span> <a name="Interference.interference_le_interference_joblist"><span class="id" type="lemma">interference_le_interference_joblist</span></a> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">forall</span> <span class="id" type="var">tsk</span> <span class="id" type="var">t1</span> <span class="id" type="var">t2</span>,<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="interference.html#Interference.task_interference"><span class="id" type="definition">task_interference</span></a> <a class="idref" href="interference.html#tsk"><span class="id" type="variable">tsk</span></a> <a class="idref" href="interference.html#t1"><span class="id" type="variable">t1</span></a> <a class="idref" href="interference.html#t2"><span class="id" type="variable">t2</span></a> <span class="id" type="notation">&lt;=</span> <a class="idref" href="interference.html#Interference.task_interference_joblist"><span class="id" type="definition">task_interference_joblist</span></a> <a class="idref" href="interference.html#tsk"><span class="id" type="variable">tsk</span></a> <a class="idref" href="interference.html#t1"><span class="id" type="variable">t1</span></a> <a class="idref" href="interference.html#t2"><span class="id" type="variable">t2</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">End</span> <a class="idref" href="interference.html#Interference.InterferenceDefs.BoundUsingPerJobInterference"><span class="id" type="section">BoundUsingPerJobInterference</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Section</span> <a name="Interference.InterferenceDefs.CorrespondenceWithService"><span class="id" type="section">CorrespondenceWithService</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Variable</span> <a name="Interference.InterferenceDefs.CorrespondenceWithService.t1"><span class="id" type="variable">t1</span></a> <a name="Interference.InterferenceDefs.CorrespondenceWithService.t2"><span class="id" type="variable">t2</span></a>: <a class="idref" href="arrival_sequence.html#ArrivalSequence.time"><span class="id" type="definition">time</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;Assume&nbsp;that&nbsp;jobs&nbsp;do&nbsp;not&nbsp;execute&nbsp;in&nbsp;parallel,&nbsp;...*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Hypothesis</span> <a name="Interference.InterferenceDefs.CorrespondenceWithService.no_parallelism"><span class="id" type="variable">no_parallelism</span></a>:<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="schedule.html#Schedule.jobs_dont_execute_in_parallel"><span class="id" type="definition">jobs_dont_execute_in_parallel</span></a> <a class="idref" href="interference.html#Interference.InterferenceDefs.sched"><span class="id" type="variable">sched</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;...,&nbsp;and&nbsp;that&nbsp;jobs&nbsp;only&nbsp;execute&nbsp;after&nbsp;they&nbsp;arrived<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;and&nbsp;no&nbsp;longer&nbsp;than&nbsp;their&nbsp;execution&nbsp;costs.&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Hypothesis</span> <a name="Interference.InterferenceDefs.CorrespondenceWithService.jobs_must_arrive_to_execute"><span class="id" type="variable">jobs_must_arrive_to_execute</span></a>:<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="schedule.html#Schedule.jobs_must_arrive_to_execute"><span class="id" type="definition">jobs_must_arrive_to_execute</span></a> <a class="idref" href="interference.html#Interference.InterferenceDefs.sched"><span class="id" type="variable">sched</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Hypothesis</span> <a name="Interference.InterferenceDefs.CorrespondenceWithService.completed_jobs_dont_execute"><span class="id" type="variable">completed_jobs_dont_execute</span></a>:<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="schedule.html#Schedule.completed_jobs_dont_execute"><span class="id" type="definition">completed_jobs_dont_execute</span></a> <a class="idref" href="interference.html#Interference.InterferenceDefs.job_cost"><span class="id" type="variable">job_cost</span></a> <a class="idref" href="interference.html#Interference.InterferenceDefs.sched"><span class="id" type="variable">sched</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;If&nbsp;job&nbsp;j&nbsp;had&nbsp;already&nbsp;arrived&nbsp;at&nbsp;time&nbsp;t1&nbsp;and&nbsp;did&nbsp;not&nbsp;yet<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;complete&nbsp;by&nbsp;time&nbsp;t2,&nbsp;...*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Hypothesis</span> <a name="Interference.InterferenceDefs.CorrespondenceWithService.job_has_arrived"><span class="id" type="variable">job_has_arrived</span></a> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="arrival_sequence.html#ArrivalSequence.has_arrived"><span class="id" type="definition">has_arrived</span></a> <a class="idref" href="interference.html#Interference.InterferenceDefs.j"><span class="id" type="variable">j</span></a> <a class="idref" href="interference.html#Interference.InterferenceDefs.CorrespondenceWithService.t1"><span class="id" type="variable">t1</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Hypothesis</span> <a name="Interference.InterferenceDefs.CorrespondenceWithService.job_is_not_complete"><span class="id" type="variable">job_is_not_complete</span></a> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="notation">~~</span> <a class="idref" href="schedule.html#Schedule.completed"><span class="id" type="definition">completed</span></a> <a class="idref" href="interference.html#Interference.InterferenceDefs.job_cost"><span class="id" type="variable">job_cost</span></a> <a class="idref" href="interference.html#Interference.InterferenceDefs.sched"><span class="id" type="variable">sched</span></a> <a class="idref" href="interference.html#Interference.InterferenceDefs.j"><span class="id" type="variable">j</span></a> <a class="idref" href="interference.html#Interference.InterferenceDefs.CorrespondenceWithService.t2"><span class="id" type="variable">t2</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;then&nbsp;the&nbsp;service&nbsp;received&nbsp;by&nbsp;j&nbsp;during&nbsp;<span class="inlinecode"><span class="id" type="var">t1</span>,</span> <span class="inlinecode"><span class="id" type="var">t2</span>)</span> <span class="inlinecode"><span class="id" type="var">equals</span></span>
+         <span class="inlinecode"><span class="id" type="var">the</span></span> <span class="inlinecode"><span class="id" type="var">cumulative</span></span> <span class="inlinecode"><span class="id" type="var">time</span></span> <span class="inlinecode"><span class="id" type="keyword">in</span></span> <span class="inlinecode"><span class="id" type="var">which</span></span> <span class="inlinecode"><span class="id" type="var">it</span></span> <span class="inlinecode"><span class="id" type="var">did</span></span> <span class="inlinecode"><span class="id" type="var">not</span></span> <span class="inlinecode"><span class="id" type="var">incur</span></span> <span class="inlinecode"><span class="id" type="var">interference</span>.</span> <span class="inlinecode"></span>*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Lemma</span> <a name="Interference.complement_of_interf_equals_service"><span class="id" type="lemma">complement_of_interf_equals_service</span></a> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="notation">\</span><span class="id" type="notation">sum_</span><span class="id" type="notation">(</span><a class="idref" href="interference.html#Interference.InterferenceDefs.CorrespondenceWithService.t1"><span class="id" type="variable">t1</span></a> <span class="id" type="notation">&lt;=</span> <span class="id" type="var">t</span> <span class="id" type="notation">&lt;</span> <a class="idref" href="interference.html#Interference.InterferenceDefs.CorrespondenceWithService.t2"><span class="id" type="variable">t2</span></a><span class="id" type="notation">)</span> <a class="idref" href="schedule.html#Schedule.service_at"><span class="id" type="definition">service_at</span></a> <a class="idref" href="interference.html#Interference.InterferenceDefs.sched"><span class="id" type="variable">sched</span></a> <a class="idref" href="interference.html#Interference.InterferenceDefs.j"><span class="id" type="variable">j</span></a> <span class="id" type="var">t</span> <a class="idref" href="http://coq.inria.fr/distrib/8.4pl4/stdlib/Coq.Init.Logic.html#:type_scope:x_'='_x"><span class="id" type="notation">=</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="interference.html#Interference.InterferenceDefs.CorrespondenceWithService.t2"><span class="id" type="variable">t2</span></a> <span class="id" type="notation">-</span> <a class="idref" href="interference.html#Interference.InterferenceDefs.CorrespondenceWithService.t1"><span class="id" type="variable">t1</span></a> <span class="id" type="notation">-</span> <a class="idref" href="interference.html#Interference.total_interference"><span class="id" type="definition">total_interference</span></a> <a class="idref" href="interference.html#Interference.InterferenceDefs.CorrespondenceWithService.t1"><span class="id" type="variable">t1</span></a> <a class="idref" href="interference.html#Interference.InterferenceDefs.CorrespondenceWithService.t2"><span class="id" type="variable">t2</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;Reorder&nbsp;terms...&nbsp;*)</span><br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">End</span> <a class="idref" href="interference.html#Interference.InterferenceDefs.CorrespondenceWithService"><span class="id" type="section">CorrespondenceWithService</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" type="keyword">End</span> <a class="idref" href="interference.html#Interference.InterferenceDefs"><span class="id" type="section">InterferenceDefs</span></a>.<br/>
+
+<br/>
+<span class="id" type="keyword">End</span> <a class="idref" href="interference.html#"><span class="id" type="module">Interference</span></a>.<br/>
+</div>
+</div>
+
+<div id="footer">
+<hr/><a href="index.html">Index</a><hr/>This page has been generated by <a href="http://coq.inria.fr/">coqdoc</a>
+</div>
+
+</div>
+
+</body>
+</html>

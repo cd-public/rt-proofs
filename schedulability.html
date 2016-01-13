@@ -1,0 +1,206 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1"/>
+<link href="coqdoc.css" rel="stylesheet" type="text/css"/>
+<title>schedulability</title>
+</head>
+
+<body>
+
+<div id="page">
+
+<div id="header">
+</div>
+
+<div id="main">
+
+<h1 class="libtitle">Library schedulability</h1>
+
+<div class="code">
+<span class="id" type="keyword">Require</span> <span class="id" type="keyword">Import</span> <a class="idref" href="Vbase.html#"><span class="id" type="library">Vbase</span></a> <a class="idref" href="job.html#"><span class="id" type="library">job</span></a> <a class="idref" href="task.html#"><span class="id" type="library">task</span></a> <a class="idref" href="schedule.html#"><span class="id" type="library">schedule</span></a> <a class="idref" href="util_lemmas.html#"><span class="id" type="library">util_lemmas</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="library">ssreflect</span> <span class="id" type="library">eqtype</span> <span class="id" type="library">ssrbool</span> <span class="id" type="library">ssrnat</span> <span class="id" type="library">seq</span> <span class="id" type="library">bigop</span>.<br/>
+
+<br/>
+<span class="comment">(*&nbsp;Definitions&nbsp;of&nbsp;deadline&nbsp;miss.&nbsp;*)</span><br/>
+<span class="id" type="keyword">Module</span> <a name="Schedulability"><span class="id" type="module">Schedulability</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" type="keyword">Import</span> <span class="id" type="var">Schedule</span> <span class="id" type="var">SporadicTaskset</span> <span class="id" type="var">Job</span>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" type="keyword">Section</span> <a name="Schedulability.SchedulableDefs"><span class="id" type="section">SchedulableDefs</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;Assume&nbsp;that&nbsp;the&nbsp;cost&nbsp;and&nbsp;deadline&nbsp;of&nbsp;a&nbsp;job&nbsp;is&nbsp;known.&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Context</span> {<span class="id" type="var">Job</span>: <span class="id" type="abbreviation">eqType</span>}.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Context</span> {<span class="id" type="var">arr_seq</span>: <a class="idref" href="arrival_sequence.html#ArrivalSequence.arrival_sequence"><span class="id" type="definition">arrival_sequence</span></a> <a class="idref" href="schedulability.html#Schedulability.SchedulableDefs.Job"><span class="id" type="variable">Job</span></a>}.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Variable</span> <a name="Schedulability.SchedulableDefs.job_cost"><span class="id" type="variable">job_cost</span></a>: <a class="idref" href="schedulability.html#Schedulability.SchedulableDefs.Job"><span class="id" type="variable">Job</span></a> -&gt; <a class="idref" href="http://coq.inria.fr/distrib/8.4pl4/stdlib/Coq.Init.Datatypes.html#nat"><span class="id" type="inductive">nat</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Variable</span> <a name="Schedulability.SchedulableDefs.job_deadline"><span class="id" type="variable">job_deadline</span></a>: <a class="idref" href="schedulability.html#Schedulability.SchedulableDefs.Job"><span class="id" type="variable">Job</span></a> -&gt; <a class="idref" href="http://coq.inria.fr/distrib/8.4pl4/stdlib/Coq.Init.Datatypes.html#nat"><span class="id" type="inductive">nat</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Section</span> <a name="Schedulability.SchedulableDefs.ScheduleOfJobs"><span class="id" type="section">ScheduleOfJobs</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;For&nbsp;any&nbsp;job&nbsp;j&nbsp;in&nbsp;schedule&nbsp;sched,&nbsp;...*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Context</span> {<span class="id" type="var">num_cpus</span>: <a class="idref" href="http://coq.inria.fr/distrib/8.4pl4/stdlib/Coq.Init.Datatypes.html#nat"><span class="id" type="inductive">nat</span></a>}.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Variable</span> <a name="Schedulability.SchedulableDefs.ScheduleOfJobs.sched"><span class="id" type="variable">sched</span></a>: <a class="idref" href="schedule.html#Schedule.schedule"><span class="id" type="definition">schedule</span></a> <a class="idref" href="schedulability.html#Schedulability.SchedulableDefs.ScheduleOfJobs.num_cpus"><span class="id" type="variable">num_cpus</span></a> <a class="idref" href="schedulability.html#Schedulability.SchedulableDefs.arr_seq"><span class="id" type="variable">arr_seq</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Variable</span> <a name="Schedulability.SchedulableDefs.ScheduleOfJobs.j"><span class="id" type="variable">j</span></a>: <a class="idref" href="arrival_sequence.html#ArrivalSequence.JobIn"><span class="id" type="record">JobIn</span></a> <a class="idref" href="schedulability.html#Schedulability.SchedulableDefs.arr_seq"><span class="id" type="variable">arr_seq</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;job&nbsp;j&nbsp;misses&nbsp;no&nbsp;deadline&nbsp;in&nbsp;sched&nbsp;if&nbsp;it&nbsp;completed&nbsp;by&nbsp;its&nbsp;absolute&nbsp;deadline.&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Definition</span> <a name="Schedulability.job_misses_no_deadline"><span class="id" type="definition">job_misses_no_deadline</span></a> :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="schedule.html#Schedule.completed"><span class="id" type="definition">completed</span></a> <a class="idref" href="schedulability.html#Schedulability.SchedulableDefs.job_cost"><span class="id" type="variable">job_cost</span></a> <a class="idref" href="schedulability.html#Schedulability.SchedulableDefs.ScheduleOfJobs.sched"><span class="id" type="variable">sched</span></a> <a class="idref" href="schedulability.html#Schedulability.SchedulableDefs.ScheduleOfJobs.j"><span class="id" type="variable">j</span></a> (<a class="idref" href="arrival_sequence.html#ArrivalSequence.job_arrival"><span class="id" type="definition">job_arrival</span></a> <a class="idref" href="schedulability.html#Schedulability.SchedulableDefs.ScheduleOfJobs.j"><span class="id" type="variable">j</span></a> <span class="id" type="notation">+</span> <a class="idref" href="schedulability.html#Schedulability.SchedulableDefs.job_deadline"><span class="id" type="variable">job_deadline</span></a> <a class="idref" href="schedulability.html#Schedulability.SchedulableDefs.ScheduleOfJobs.j"><span class="id" type="variable">j</span></a>).<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">End</span> <a class="idref" href="schedulability.html#Schedulability.SchedulableDefs.ScheduleOfJobs"><span class="id" type="section">ScheduleOfJobs</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Section</span> <a name="Schedulability.SchedulableDefs.ScheduleOfTasks"><span class="id" type="section">ScheduleOfTasks</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Context</span> {<span class="id" type="var">sporadic_task</span>: <span class="id" type="abbreviation">eqType</span>}.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Variable</span> <a name="Schedulability.SchedulableDefs.ScheduleOfTasks.job_task"><span class="id" type="variable">job_task</span></a>: <a class="idref" href="schedulability.html#Schedulability.SchedulableDefs.Job"><span class="id" type="variable">Job</span></a> -&gt; <a class="idref" href="schedulability.html#Schedulability.SchedulableDefs.ScheduleOfTasks.sporadic_task"><span class="id" type="variable">sporadic_task</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Context</span> {<span class="id" type="var">num_cpus</span>: <a class="idref" href="http://coq.inria.fr/distrib/8.4pl4/stdlib/Coq.Init.Datatypes.html#nat"><span class="id" type="inductive">nat</span></a>}.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Variable</span> <a name="Schedulability.SchedulableDefs.ScheduleOfTasks.sched"><span class="id" type="variable">sched</span></a>: <a class="idref" href="schedule.html#Schedule.schedule"><span class="id" type="definition">schedule</span></a> <a class="idref" href="schedulability.html#Schedulability.SchedulableDefs.ScheduleOfTasks.num_cpus"><span class="id" type="variable">num_cpus</span></a> <a class="idref" href="schedulability.html#Schedulability.SchedulableDefs.arr_seq"><span class="id" type="variable">arr_seq</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;Consider&nbsp;any&nbsp;task&nbsp;tsk.&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Variable</span> <a name="Schedulability.SchedulableDefs.ScheduleOfTasks.tsk"><span class="id" type="variable">tsk</span></a>: <a class="idref" href="schedulability.html#Schedulability.SchedulableDefs.ScheduleOfTasks.sporadic_task"><span class="id" type="variable">sporadic_task</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;Task&nbsp;tsk&nbsp;doesn't&nbsp;miss&nbsp;its&nbsp;deadline&nbsp;iff&nbsp;all&nbsp;of&nbsp;its&nbsp;jobs&nbsp;don't&nbsp;miss&nbsp;their&nbsp;deadline.&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Definition</span> <a name="Schedulability.task_misses_no_deadline"><span class="id" type="definition">task_misses_no_deadline</span></a> :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">forall</span> (<span class="id" type="var">j</span>: <a class="idref" href="arrival_sequence.html#ArrivalSequence.JobIn"><span class="id" type="record">JobIn</span></a> <a class="idref" href="schedulability.html#Schedulability.SchedulableDefs.arr_seq"><span class="id" type="variable">arr_seq</span></a>),<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="schedulability.html#Schedulability.SchedulableDefs.ScheduleOfTasks.job_task"><span class="id" type="variable">job_task</span></a> <a class="idref" href="schedulability.html#j"><span class="id" type="variable">j</span></a> <a class="idref" href="http://coq.inria.fr/distrib/8.4pl4/stdlib/Coq.Init.Logic.html#:type_scope:x_'='_x"><span class="id" type="notation">=</span></a> <a class="idref" href="schedulability.html#Schedulability.SchedulableDefs.ScheduleOfTasks.tsk"><span class="id" type="variable">tsk</span></a> -&gt;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="schedulability.html#Schedulability.job_misses_no_deadline"><span class="id" type="definition">job_misses_no_deadline</span></a> <a class="idref" href="schedulability.html#Schedulability.SchedulableDefs.ScheduleOfTasks.sched"><span class="id" type="variable">sched</span></a> <a class="idref" href="schedulability.html#j"><span class="id" type="variable">j</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;Task&nbsp;tsk&nbsp;doesn't&nbsp;miss&nbsp;its&nbsp;deadline&nbsp;before&nbsp;time&nbsp;t'&nbsp;iff&nbsp;all&nbsp;of&nbsp;its&nbsp;jobs&nbsp;don't&nbsp;miss<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;their&nbsp;deadline&nbsp;by&nbsp;that&nbsp;time.&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Definition</span> <a name="Schedulability.task_misses_no_deadline_before"><span class="id" type="definition">task_misses_no_deadline_before</span></a> (<span class="id" type="var">t'</span>: <a class="idref" href="arrival_sequence.html#ArrivalSequence.time"><span class="id" type="definition">time</span></a>) :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">forall</span> (<span class="id" type="var">j</span>: <a class="idref" href="arrival_sequence.html#ArrivalSequence.JobIn"><span class="id" type="record">JobIn</span></a> <a class="idref" href="schedulability.html#Schedulability.SchedulableDefs.arr_seq"><span class="id" type="variable">arr_seq</span></a>),<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="schedulability.html#Schedulability.SchedulableDefs.ScheduleOfTasks.job_task"><span class="id" type="variable">job_task</span></a> <a class="idref" href="schedulability.html#j"><span class="id" type="variable">j</span></a> <a class="idref" href="http://coq.inria.fr/distrib/8.4pl4/stdlib/Coq.Init.Logic.html#:type_scope:x_'='_x"><span class="id" type="notation">=</span></a> <a class="idref" href="schedulability.html#Schedulability.SchedulableDefs.ScheduleOfTasks.tsk"><span class="id" type="variable">tsk</span></a> -&gt;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="arrival_sequence.html#ArrivalSequence.job_arrival"><span class="id" type="definition">job_arrival</span></a> <a class="idref" href="schedulability.html#j"><span class="id" type="variable">j</span></a> <span class="id" type="notation">+</span> <a class="idref" href="schedulability.html#Schedulability.SchedulableDefs.job_deadline"><span class="id" type="variable">job_deadline</span></a> <a class="idref" href="schedulability.html#j"><span class="id" type="variable">j</span></a> <span class="id" type="notation">&lt;</span> <a class="idref" href="schedulability.html#t'"><span class="id" type="variable">t'</span></a> -&gt;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="schedulability.html#Schedulability.job_misses_no_deadline"><span class="id" type="definition">job_misses_no_deadline</span></a> <a class="idref" href="schedulability.html#Schedulability.SchedulableDefs.ScheduleOfTasks.sched"><span class="id" type="variable">sched</span></a> <a class="idref" href="schedulability.html#j"><span class="id" type="variable">j</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">End</span> <a class="idref" href="schedulability.html#Schedulability.SchedulableDefs.ScheduleOfTasks"><span class="id" type="section">ScheduleOfTasks</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" type="keyword">End</span> <a class="idref" href="schedulability.html#Schedulability.SchedulableDefs"><span class="id" type="section">SchedulableDefs</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" type="keyword">Section</span> <a name="Schedulability.BasicLemmas"><span class="id" type="section">BasicLemmas</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Context</span> {<span class="id" type="var">sporadic_task</span>: <span class="id" type="abbreviation">eqType</span>}.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Variable</span> <a name="Schedulability.BasicLemmas.task_cost"><span class="id" type="variable">task_cost</span></a>: <a class="idref" href="schedulability.html#Schedulability.BasicLemmas.sporadic_task"><span class="id" type="variable">sporadic_task</span></a> -&gt; <a class="idref" href="http://coq.inria.fr/distrib/8.4pl4/stdlib/Coq.Init.Datatypes.html#nat"><span class="id" type="inductive">nat</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Variable</span> <a name="Schedulability.BasicLemmas.task_period"><span class="id" type="variable">task_period</span></a>: <a class="idref" href="schedulability.html#Schedulability.BasicLemmas.sporadic_task"><span class="id" type="variable">sporadic_task</span></a> -&gt; <a class="idref" href="http://coq.inria.fr/distrib/8.4pl4/stdlib/Coq.Init.Datatypes.html#nat"><span class="id" type="inductive">nat</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Variable</span> <a name="Schedulability.BasicLemmas.task_deadline"><span class="id" type="variable">task_deadline</span></a>: <a class="idref" href="schedulability.html#Schedulability.BasicLemmas.sporadic_task"><span class="id" type="variable">sporadic_task</span></a> -&gt; <a class="idref" href="http://coq.inria.fr/distrib/8.4pl4/stdlib/Coq.Init.Datatypes.html#nat"><span class="id" type="inductive">nat</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Context</span> {<span class="id" type="var">Job</span>: <span class="id" type="abbreviation">eqType</span>}.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Variable</span> <a name="Schedulability.BasicLemmas.job_cost"><span class="id" type="variable">job_cost</span></a>: <a class="idref" href="schedulability.html#Schedulability.BasicLemmas.Job"><span class="id" type="variable">Job</span></a> -&gt; <a class="idref" href="http://coq.inria.fr/distrib/8.4pl4/stdlib/Coq.Init.Datatypes.html#nat"><span class="id" type="inductive">nat</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Variable</span> <a name="Schedulability.BasicLemmas.job_deadline"><span class="id" type="variable">job_deadline</span></a>: <a class="idref" href="schedulability.html#Schedulability.BasicLemmas.Job"><span class="id" type="variable">Job</span></a> -&gt; <a class="idref" href="http://coq.inria.fr/distrib/8.4pl4/stdlib/Coq.Init.Datatypes.html#nat"><span class="id" type="inductive">nat</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Variable</span> <a name="Schedulability.BasicLemmas.job_task"><span class="id" type="variable">job_task</span></a>: <a class="idref" href="schedulability.html#Schedulability.BasicLemmas.Job"><span class="id" type="variable">Job</span></a> -&gt; <a class="idref" href="schedulability.html#Schedulability.BasicLemmas.sporadic_task"><span class="id" type="variable">sporadic_task</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Context</span> {<span class="id" type="var">arr_seq</span>: <a class="idref" href="arrival_sequence.html#ArrivalSequence.arrival_sequence"><span class="id" type="definition">arrival_sequence</span></a> <a class="idref" href="schedulability.html#Schedulability.BasicLemmas.Job"><span class="id" type="variable">Job</span></a>}.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;Consider&nbsp;any&nbsp;valid&nbsp;schedule...&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Context</span> {<span class="id" type="var">num_cpus</span> : <a class="idref" href="http://coq.inria.fr/distrib/8.4pl4/stdlib/Coq.Init.Datatypes.html#nat"><span class="id" type="inductive">nat</span></a>}.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Variable</span> <a name="Schedulability.BasicLemmas.sched"><span class="id" type="variable">sched</span></a>: <a class="idref" href="schedule.html#Schedule.schedule"><span class="id" type="definition">schedule</span></a> <a class="idref" href="schedulability.html#Schedulability.BasicLemmas.num_cpus"><span class="id" type="variable">num_cpus</span></a> <a class="idref" href="schedulability.html#Schedulability.BasicLemmas.arr_seq"><span class="id" type="variable">arr_seq</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;...&nbsp;where&nbsp;jobs&nbsp;dont&nbsp;execute&nbsp;after&nbsp;completion.&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Hypothesis</span> <a name="Schedulability.BasicLemmas.H_completed_jobs_dont_execute"><span class="id" type="variable">H_completed_jobs_dont_execute</span></a>:<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="schedule.html#Schedule.completed_jobs_dont_execute"><span class="id" type="definition">completed_jobs_dont_execute</span></a> <a class="idref" href="schedulability.html#Schedulability.BasicLemmas.job_cost"><span class="id" type="variable">job_cost</span></a> <a class="idref" href="schedulability.html#Schedulability.BasicLemmas.sched"><span class="id" type="variable">sched</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Section</span> <a name="Schedulability.BasicLemmas.SpecificJob"><span class="id" type="section">SpecificJob</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;Then,&nbsp;for&nbsp;any&nbsp;job&nbsp;j&nbsp;...*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Variable</span> <a name="Schedulability.BasicLemmas.SpecificJob.j"><span class="id" type="variable">j</span></a>: <a class="idref" href="arrival_sequence.html#ArrivalSequence.JobIn"><span class="id" type="record">JobIn</span></a> <a class="idref" href="schedulability.html#Schedulability.BasicLemmas.arr_seq"><span class="id" type="variable">arr_seq</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;...that&nbsp;doesn't&nbsp;miss&nbsp;a&nbsp;deadline&nbsp;in&nbsp;this&nbsp;schedule,&nbsp;...&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Hypothesis</span> <a name="Schedulability.BasicLemmas.SpecificJob.no_deadline_miss"><span class="id" type="variable">no_deadline_miss</span></a>:<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="schedulability.html#Schedulability.job_misses_no_deadline"><span class="id" type="definition">job_misses_no_deadline</span></a> <a class="idref" href="schedulability.html#Schedulability.BasicLemmas.job_cost"><span class="id" type="variable">job_cost</span></a> <a class="idref" href="schedulability.html#Schedulability.BasicLemmas.job_deadline"><span class="id" type="variable">job_deadline</span></a> <a class="idref" href="schedulability.html#Schedulability.BasicLemmas.sched"><span class="id" type="variable">sched</span></a> <a class="idref" href="schedulability.html#Schedulability.BasicLemmas.SpecificJob.j"><span class="id" type="variable">j</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;the&nbsp;service&nbsp;received&nbsp;by&nbsp;j&nbsp;at&nbsp;any&nbsp;time&nbsp;t'&nbsp;after&nbsp;its&nbsp;deadline&nbsp;is&nbsp;0.&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Lemma</span> <a name="Schedulability.service_after_job_deadline_zero"><span class="id" type="lemma">service_after_job_deadline_zero</span></a> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">forall</span> <span class="id" type="var">t'</span>,<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="schedulability.html#t'"><span class="id" type="variable">t'</span></a> <span class="id" type="notation">&gt;=</span> <a class="idref" href="arrival_sequence.html#ArrivalSequence.job_arrival"><span class="id" type="definition">job_arrival</span></a> <a class="idref" href="schedulability.html#Schedulability.BasicLemmas.SpecificJob.j"><span class="id" type="variable">j</span></a> <span class="id" type="notation">+</span> <a class="idref" href="schedulability.html#Schedulability.BasicLemmas.job_deadline"><span class="id" type="variable">job_deadline</span></a> <a class="idref" href="schedulability.html#Schedulability.BasicLemmas.SpecificJob.j"><span class="id" type="variable">j</span></a> -&gt;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="schedule.html#Schedule.service_at"><span class="id" type="definition">service_at</span></a> <a class="idref" href="schedulability.html#Schedulability.BasicLemmas.sched"><span class="id" type="variable">sched</span></a> <a class="idref" href="schedulability.html#Schedulability.BasicLemmas.SpecificJob.j"><span class="id" type="variable">j</span></a> <a class="idref" href="schedulability.html#t'"><span class="id" type="variable">t'</span></a> <a class="idref" href="http://coq.inria.fr/distrib/8.4pl4/stdlib/Coq.Init.Logic.html#:type_scope:x_'='_x"><span class="id" type="notation">=</span></a> 0.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;The&nbsp;same&nbsp;applies&nbsp;for&nbsp;the&nbsp;cumulative&nbsp;service&nbsp;of&nbsp;job&nbsp;j.&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Lemma</span> <a name="Schedulability.cumulative_service_after_job_deadline_zero"><span class="id" type="lemma">cumulative_service_after_job_deadline_zero</span></a> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">forall</span> <span class="id" type="var">t'</span> <span class="id" type="var">t''</span>,<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="schedulability.html#t'"><span class="id" type="variable">t'</span></a> <span class="id" type="notation">&gt;=</span> <a class="idref" href="arrival_sequence.html#ArrivalSequence.job_arrival"><span class="id" type="definition">job_arrival</span></a> <a class="idref" href="schedulability.html#Schedulability.BasicLemmas.SpecificJob.j"><span class="id" type="variable">j</span></a> <span class="id" type="notation">+</span> <a class="idref" href="schedulability.html#Schedulability.BasicLemmas.job_deadline"><span class="id" type="variable">job_deadline</span></a> <a class="idref" href="schedulability.html#Schedulability.BasicLemmas.SpecificJob.j"><span class="id" type="variable">j</span></a> -&gt;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="notation">\</span><span class="id" type="notation">sum_</span><span class="id" type="notation">(</span><a class="idref" href="schedulability.html#t'"><span class="id" type="variable">t'</span></a> <span class="id" type="notation">&lt;=</span> <span class="id" type="var">t</span> <span class="id" type="notation">&lt;</span> <a class="idref" href="schedulability.html#t''"><span class="id" type="variable">t''</span></a><span class="id" type="notation">)</span> <a class="idref" href="schedule.html#Schedule.service_at"><span class="id" type="definition">service_at</span></a> <a class="idref" href="schedulability.html#Schedulability.BasicLemmas.sched"><span class="id" type="variable">sched</span></a> <a class="idref" href="schedulability.html#Schedulability.BasicLemmas.SpecificJob.j"><span class="id" type="variable">j</span></a> <span class="id" type="var">t</span> <a class="idref" href="http://coq.inria.fr/distrib/8.4pl4/stdlib/Coq.Init.Logic.html#:type_scope:x_'='_x"><span class="id" type="notation">=</span></a> 0.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">End</span> <a class="idref" href="schedulability.html#Schedulability.BasicLemmas.SpecificJob"><span class="id" type="section">SpecificJob</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Section</span> <a name="Schedulability.BasicLemmas.AllJobs"><span class="id" type="section">AllJobs</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;Consider&nbsp;any&nbsp;task&nbsp;tsk&nbsp;...*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Variable</span> <a name="Schedulability.BasicLemmas.AllJobs.tsk"><span class="id" type="variable">tsk</span></a>: <a class="idref" href="schedulability.html#Schedulability.BasicLemmas.sporadic_task"><span class="id" type="variable">sporadic_task</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;...&nbsp;that&nbsp;doesn't&nbsp;miss&nbsp;any&nbsp;deadline.&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Hypothesis</span> <a name="Schedulability.BasicLemmas.AllJobs.no_deadline_misses"><span class="id" type="variable">no_deadline_misses</span></a>:<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="schedulability.html#Schedulability.task_misses_no_deadline"><span class="id" type="definition">task_misses_no_deadline</span></a> <a class="idref" href="schedulability.html#Schedulability.BasicLemmas.job_cost"><span class="id" type="variable">job_cost</span></a> <a class="idref" href="schedulability.html#Schedulability.BasicLemmas.job_deadline"><span class="id" type="variable">job_deadline</span></a> <a class="idref" href="schedulability.html#Schedulability.BasicLemmas.job_task"><span class="id" type="variable">job_task</span></a> <a class="idref" href="schedulability.html#Schedulability.BasicLemmas.sched"><span class="id" type="variable">sched</span></a> <a class="idref" href="schedulability.html#Schedulability.BasicLemmas.AllJobs.tsk"><span class="id" type="variable">tsk</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;Then,&nbsp;for&nbsp;any&nbsp;valid&nbsp;job&nbsp;j&nbsp;of&nbsp;this&nbsp;task,&nbsp;...*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Variable</span> <a name="Schedulability.BasicLemmas.AllJobs.j"><span class="id" type="variable">j</span></a>: <a class="idref" href="arrival_sequence.html#ArrivalSequence.JobIn"><span class="id" type="record">JobIn</span></a> <a class="idref" href="schedulability.html#Schedulability.BasicLemmas.arr_seq"><span class="id" type="variable">arr_seq</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Hypothesis</span> <a name="Schedulability.BasicLemmas.AllJobs.H_job_of_task"><span class="id" type="variable">H_job_of_task</span></a>: <a class="idref" href="schedulability.html#Schedulability.BasicLemmas.job_task"><span class="id" type="variable">job_task</span></a> <a class="idref" href="schedulability.html#Schedulability.BasicLemmas.AllJobs.j"><span class="id" type="variable">j</span></a> <a class="idref" href="http://coq.inria.fr/distrib/8.4pl4/stdlib/Coq.Init.Logic.html#:type_scope:x_'='_x"><span class="id" type="notation">=</span></a> <a class="idref" href="schedulability.html#Schedulability.BasicLemmas.AllJobs.tsk"><span class="id" type="variable">tsk</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Hypothesis</span> <a name="Schedulability.BasicLemmas.AllJobs.H_valid_job"><span class="id" type="variable">H_valid_job</span></a>:<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="job.html#Job.valid_sporadic_job"><span class="id" type="definition">valid_sporadic_job</span></a> <a class="idref" href="schedulability.html#Schedulability.BasicLemmas.task_cost"><span class="id" type="variable">task_cost</span></a> <a class="idref" href="schedulability.html#Schedulability.BasicLemmas.task_deadline"><span class="id" type="variable">task_deadline</span></a> <a class="idref" href="schedulability.html#Schedulability.BasicLemmas.job_cost"><span class="id" type="variable">job_cost</span></a> <a class="idref" href="schedulability.html#Schedulability.BasicLemmas.job_deadline"><span class="id" type="variable">job_deadline</span></a> <a class="idref" href="schedulability.html#Schedulability.BasicLemmas.job_task"><span class="id" type="variable">job_task</span></a> <a class="idref" href="schedulability.html#Schedulability.BasicLemmas.AllJobs.j"><span class="id" type="variable">j</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;the&nbsp;service&nbsp;received&nbsp;by&nbsp;job&nbsp;j&nbsp;at&nbsp;any&nbsp;time&nbsp;t'&nbsp;after&nbsp;the&nbsp;deadline&nbsp;is&nbsp;0.&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Lemma</span> <a name="Schedulability.service_after_task_deadline_zero"><span class="id" type="lemma">service_after_task_deadline_zero</span></a> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">forall</span> <span class="id" type="var">t'</span>,<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="schedulability.html#t'"><span class="id" type="variable">t'</span></a> <span class="id" type="notation">&gt;=</span> <a class="idref" href="arrival_sequence.html#ArrivalSequence.job_arrival"><span class="id" type="definition">job_arrival</span></a> <a class="idref" href="schedulability.html#Schedulability.BasicLemmas.AllJobs.j"><span class="id" type="variable">j</span></a> <span class="id" type="notation">+</span> <a class="idref" href="schedulability.html#Schedulability.BasicLemmas.task_deadline"><span class="id" type="variable">task_deadline</span></a> <a class="idref" href="schedulability.html#Schedulability.BasicLemmas.AllJobs.tsk"><span class="id" type="variable">tsk</span></a> -&gt;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="schedule.html#Schedule.service_at"><span class="id" type="definition">service_at</span></a> <a class="idref" href="schedulability.html#Schedulability.BasicLemmas.sched"><span class="id" type="variable">sched</span></a> <a class="idref" href="schedulability.html#Schedulability.BasicLemmas.AllJobs.j"><span class="id" type="variable">j</span></a> <a class="idref" href="schedulability.html#t'"><span class="id" type="variable">t'</span></a> <a class="idref" href="http://coq.inria.fr/distrib/8.4pl4/stdlib/Coq.Init.Logic.html#:type_scope:x_'='_x"><span class="id" type="notation">=</span></a> 0.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;The&nbsp;same&nbsp;applies&nbsp;for&nbsp;the&nbsp;cumulative&nbsp;service&nbsp;of&nbsp;job&nbsp;j.&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Lemma</span> <a name="Schedulability.cumulative_service_after_task_deadline_zero"><span class="id" type="lemma">cumulative_service_after_task_deadline_zero</span></a> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">forall</span> <span class="id" type="var">t'</span> <span class="id" type="var">t''</span>,<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="schedulability.html#t'"><span class="id" type="variable">t'</span></a> <span class="id" type="notation">&gt;=</span> <a class="idref" href="arrival_sequence.html#ArrivalSequence.job_arrival"><span class="id" type="definition">job_arrival</span></a> <a class="idref" href="schedulability.html#Schedulability.BasicLemmas.AllJobs.j"><span class="id" type="variable">j</span></a> <span class="id" type="notation">+</span> <a class="idref" href="schedulability.html#Schedulability.BasicLemmas.task_deadline"><span class="id" type="variable">task_deadline</span></a> <a class="idref" href="schedulability.html#Schedulability.BasicLemmas.AllJobs.tsk"><span class="id" type="variable">tsk</span></a> -&gt;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="notation">\</span><span class="id" type="notation">sum_</span><span class="id" type="notation">(</span><a class="idref" href="schedulability.html#t'"><span class="id" type="variable">t'</span></a> <span class="id" type="notation">&lt;=</span> <span class="id" type="var">t</span> <span class="id" type="notation">&lt;</span> <a class="idref" href="schedulability.html#t''"><span class="id" type="variable">t''</span></a><span class="id" type="notation">)</span> <a class="idref" href="schedule.html#Schedule.service_at"><span class="id" type="definition">service_at</span></a> <a class="idref" href="schedulability.html#Schedulability.BasicLemmas.sched"><span class="id" type="variable">sched</span></a> <a class="idref" href="schedulability.html#Schedulability.BasicLemmas.AllJobs.j"><span class="id" type="variable">j</span></a> <span class="id" type="var">t</span> <a class="idref" href="http://coq.inria.fr/distrib/8.4pl4/stdlib/Coq.Init.Logic.html#:type_scope:x_'='_x"><span class="id" type="notation">=</span></a> 0.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">End</span> <a class="idref" href="schedulability.html#Schedulability.BasicLemmas.AllJobs"><span class="id" type="section">AllJobs</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" type="keyword">End</span> <a class="idref" href="schedulability.html#Schedulability.BasicLemmas"><span class="id" type="section">BasicLemmas</span></a>.<br/>
+
+<br/>
+<span class="id" type="keyword">End</span> <a class="idref" href="schedulability.html#"><span class="id" type="module">Schedulability</span></a>.<br/>
+</div>
+</div>
+
+<div id="footer">
+<hr/><a href="index.html">Index</a><hr/>This page has been generated by <a href="http://coq.inria.fr/">coqdoc</a>
+</div>
+
+</div>
+
+</body>
+</html>

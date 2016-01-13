@@ -1,0 +1,132 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1"/>
+<link href="coqdoc.css" rel="stylesheet" type="text/css"/>
+<title>task</title>
+</head>
+
+<body>
+
+<div id="page">
+
+<div id="header">
+</div>
+
+<div id="main">
+
+<h1 class="libtitle">Library task</h1>
+
+<div class="code">
+<span class="id" type="keyword">Require</span> <span class="id" type="keyword">Import</span> <a class="idref" href="Vbase.html#"><span class="id" type="library">Vbase</span></a> <a class="idref" href="util_lemmas.html#"><span class="id" type="library">util_lemmas</span></a> <span class="id" type="library">ssrnat</span> <span class="id" type="library">ssrbool</span> <span class="id" type="library">eqtype</span> <span class="id" type="library">fintype</span> <span class="id" type="library">seq</span>.<br/>
+
+<br/>
+<span class="comment">(*&nbsp;Attributes&nbsp;of&nbsp;a&nbsp;valid&nbsp;sporadic&nbsp;task.&nbsp;*)</span><br/>
+<span class="id" type="keyword">Module</span> <a name="SporadicTask"><span class="id" type="module">SporadicTask</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" type="keyword">Section</span> <a name="SporadicTask.BasicTask"><span class="id" type="section">BasicTask</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Context</span> {<span class="id" type="var">Task</span>: <span class="id" type="abbreviation">eqType</span>}.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Variable</span> <a name="SporadicTask.BasicTask.task_cost"><span class="id" type="variable">task_cost</span></a>: <a class="idref" href="task.html#SporadicTask.BasicTask.Task"><span class="id" type="variable">Task</span></a> -&gt; <a class="idref" href="http://coq.inria.fr/distrib/8.4pl4/stdlib/Coq.Init.Datatypes.html#nat"><span class="id" type="inductive">nat</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Variable</span> <a name="SporadicTask.BasicTask.task_period"><span class="id" type="variable">task_period</span></a>: <a class="idref" href="task.html#SporadicTask.BasicTask.Task"><span class="id" type="variable">Task</span></a> -&gt; <a class="idref" href="http://coq.inria.fr/distrib/8.4pl4/stdlib/Coq.Init.Datatypes.html#nat"><span class="id" type="inductive">nat</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Variable</span> <a name="SporadicTask.BasicTask.task_deadline"><span class="id" type="variable">task_deadline</span></a>: <a class="idref" href="task.html#SporadicTask.BasicTask.Task"><span class="id" type="variable">Task</span></a> -&gt; <a class="idref" href="http://coq.inria.fr/distrib/8.4pl4/stdlib/Coq.Init.Datatypes.html#nat"><span class="id" type="inductive">nat</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Section</span> <a name="SporadicTask.BasicTask.ValidParameters"><span class="id" type="section">ValidParameters</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Variable</span> <a name="SporadicTask.BasicTask.ValidParameters.tsk"><span class="id" type="variable">tsk</span></a>: <a class="idref" href="task.html#SporadicTask.BasicTask.Task"><span class="id" type="variable">Task</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;The&nbsp;cost,&nbsp;period&nbsp;and&nbsp;deadline&nbsp;of&nbsp;the&nbsp;task&nbsp;must&nbsp;be&nbsp;positive.&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Definition</span> <a name="SporadicTask.task_cost_positive"><span class="id" type="definition">task_cost_positive</span></a> := <a class="idref" href="task.html#SporadicTask.BasicTask.task_cost"><span class="id" type="variable">task_cost</span></a> <a class="idref" href="task.html#SporadicTask.BasicTask.ValidParameters.tsk"><span class="id" type="variable">tsk</span></a> <span class="id" type="notation">&gt;</span> 0.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Definition</span> <a name="SporadicTask.task_period_positive"><span class="id" type="definition">task_period_positive</span></a> := <a class="idref" href="task.html#SporadicTask.BasicTask.task_period"><span class="id" type="variable">task_period</span></a> <a class="idref" href="task.html#SporadicTask.BasicTask.ValidParameters.tsk"><span class="id" type="variable">tsk</span></a> <span class="id" type="notation">&gt;</span> 0.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Definition</span> <a name="SporadicTask.task_deadline_positive"><span class="id" type="definition">task_deadline_positive</span></a> := <a class="idref" href="task.html#SporadicTask.BasicTask.task_deadline"><span class="id" type="variable">task_deadline</span></a> <a class="idref" href="task.html#SporadicTask.BasicTask.ValidParameters.tsk"><span class="id" type="variable">tsk</span></a> <span class="id" type="notation">&gt;</span> 0.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;The&nbsp;task&nbsp;cost&nbsp;cannot&nbsp;be&nbsp;larger&nbsp;than&nbsp;the&nbsp;deadline&nbsp;or&nbsp;the&nbsp;period.&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Definition</span> <a name="SporadicTask.task_cost_le_deadline"><span class="id" type="definition">task_cost_le_deadline</span></a> := <a class="idref" href="task.html#SporadicTask.BasicTask.task_cost"><span class="id" type="variable">task_cost</span></a> <a class="idref" href="task.html#SporadicTask.BasicTask.ValidParameters.tsk"><span class="id" type="variable">tsk</span></a> <span class="id" type="notation">&lt;=</span> <a class="idref" href="task.html#SporadicTask.BasicTask.task_deadline"><span class="id" type="variable">task_deadline</span></a> <a class="idref" href="task.html#SporadicTask.BasicTask.ValidParameters.tsk"><span class="id" type="variable">tsk</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Definition</span> <a name="SporadicTask.task_cost_le_period"><span class="id" type="definition">task_cost_le_period</span></a> := <a class="idref" href="task.html#SporadicTask.BasicTask.task_cost"><span class="id" type="variable">task_cost</span></a> <a class="idref" href="task.html#SporadicTask.BasicTask.ValidParameters.tsk"><span class="id" type="variable">tsk</span></a> <span class="id" type="notation">&lt;=</span> <a class="idref" href="task.html#SporadicTask.BasicTask.task_period"><span class="id" type="variable">task_period</span></a> <a class="idref" href="task.html#SporadicTask.BasicTask.ValidParameters.tsk"><span class="id" type="variable">tsk</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Definition</span> <a name="SporadicTask.is_valid_sporadic_task"><span class="id" type="definition">is_valid_sporadic_task</span></a> :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="task.html#SporadicTask.task_cost_positive"><span class="id" type="definition">task_cost_positive</span></a> <a class="idref" href="http://coq.inria.fr/distrib/8.4pl4/stdlib/Coq.Init.Logic.html#:type_scope:x_'/\'_x"><span class="id" type="notation">/\</span></a> <a class="idref" href="task.html#SporadicTask.task_period_positive"><span class="id" type="definition">task_period_positive</span></a> <a class="idref" href="http://coq.inria.fr/distrib/8.4pl4/stdlib/Coq.Init.Logic.html#:type_scope:x_'/\'_x"><span class="id" type="notation">/\</span></a> <a class="idref" href="task.html#SporadicTask.task_deadline_positive"><span class="id" type="definition">task_deadline_positive</span></a> <a class="idref" href="http://coq.inria.fr/distrib/8.4pl4/stdlib/Coq.Init.Logic.html#:type_scope:x_'/\'_x"><span class="id" type="notation">/\</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="task.html#SporadicTask.task_cost_le_deadline"><span class="id" type="definition">task_cost_le_deadline</span></a> <a class="idref" href="http://coq.inria.fr/distrib/8.4pl4/stdlib/Coq.Init.Logic.html#:type_scope:x_'/\'_x"><span class="id" type="notation">/\</span></a> <a class="idref" href="task.html#SporadicTask.task_cost_le_period"><span class="id" type="definition">task_cost_le_period</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">End</span> <a class="idref" href="task.html#SporadicTask.BasicTask.ValidParameters"><span class="id" type="section">ValidParameters</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" type="keyword">End</span> <a class="idref" href="task.html#SporadicTask.BasicTask"><span class="id" type="section">BasicTask</span></a>.<br/>
+
+<br/>
+<span class="id" type="keyword">End</span> <a class="idref" href="task.html#"><span class="id" type="module">SporadicTask</span></a>.<br/>
+
+<br/>
+<span class="comment">(*&nbsp;Definition&nbsp;and&nbsp;properties&nbsp;of&nbsp;a&nbsp;task&nbsp;set.&nbsp;*)</span><br/>
+<span class="id" type="keyword">Module</span> <a name="SporadicTaskset"><span class="id" type="module">SporadicTaskset</span></a>.<br/>
+&nbsp;&nbsp;<span class="id" type="keyword">Export</span> <span class="id" type="var">SporadicTask</span>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" type="keyword">Section</span> <a name="SporadicTaskset.TasksetDefs"><span class="id" type="section">TasksetDefs</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;A&nbsp;task&nbsp;set&nbsp;is&nbsp;just&nbsp;a&nbsp;sequence&nbsp;of&nbsp;tasks.&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Definition</span> <a name="SporadicTaskset.taskset_of"><span class="id" type="definition">taskset_of</span></a> (<span class="id" type="var">Task</span>: <span class="id" type="abbreviation">eqType</span>) := <span class="id" type="abbreviation">seq</span> <a class="idref" href="task.html#Task"><span class="id" type="variable">Task</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;Next,&nbsp;we&nbsp;define&nbsp;some&nbsp;properties&nbsp;of&nbsp;a&nbsp;task&nbsp;set.&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Section</span> <a name="SporadicTaskset.TasksetDefs.TasksetProperties"><span class="id" type="section">TasksetProperties</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Context</span> {<span class="id" type="var">Task</span>: <span class="id" type="abbreviation">eqType</span>}.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Variable</span> <a name="SporadicTaskset.TasksetDefs.TasksetProperties.task_cost"><span class="id" type="variable">task_cost</span></a>: <a class="idref" href="task.html#SporadicTaskset.TasksetDefs.TasksetProperties.Task"><span class="id" type="variable">Task</span></a> -&gt; <a class="idref" href="http://coq.inria.fr/distrib/8.4pl4/stdlib/Coq.Init.Datatypes.html#nat"><span class="id" type="inductive">nat</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Variable</span> <a name="SporadicTaskset.TasksetDefs.TasksetProperties.task_period"><span class="id" type="variable">task_period</span></a>: <a class="idref" href="task.html#SporadicTaskset.TasksetDefs.TasksetProperties.Task"><span class="id" type="variable">Task</span></a> -&gt; <a class="idref" href="http://coq.inria.fr/distrib/8.4pl4/stdlib/Coq.Init.Datatypes.html#nat"><span class="id" type="inductive">nat</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Variable</span> <a name="SporadicTaskset.TasksetDefs.TasksetProperties.task_deadline"><span class="id" type="variable">task_deadline</span></a>: <a class="idref" href="task.html#SporadicTaskset.TasksetDefs.TasksetProperties.Task"><span class="id" type="variable">Task</span></a> -&gt; <a class="idref" href="http://coq.inria.fr/distrib/8.4pl4/stdlib/Coq.Init.Datatypes.html#nat"><span class="id" type="inductive">nat</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Let</span> <a name="SporadicTaskset.TasksetDefs.TasksetProperties.is_valid_task"><span class="id" type="variable">is_valid_task</span></a> :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="task.html#SporadicTask.is_valid_sporadic_task"><span class="id" type="definition">is_valid_sporadic_task</span></a> <a class="idref" href="task.html#SporadicTaskset.TasksetDefs.TasksetProperties.task_cost"><span class="id" type="variable">task_cost</span></a> <a class="idref" href="task.html#SporadicTaskset.TasksetDefs.TasksetProperties.task_period"><span class="id" type="variable">task_period</span></a> <a class="idref" href="task.html#SporadicTaskset.TasksetDefs.TasksetProperties.task_deadline"><span class="id" type="variable">task_deadline</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Variable</span> <a name="SporadicTaskset.TasksetDefs.TasksetProperties.ts"><span class="id" type="variable">ts</span></a>: <a class="idref" href="task.html#SporadicTaskset.taskset_of"><span class="id" type="definition">taskset_of</span></a> <a class="idref" href="task.html#SporadicTaskset.TasksetDefs.TasksetProperties.Task"><span class="id" type="variable">Task</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;A&nbsp;valid&nbsp;sporadic&nbsp;taskset&nbsp;only&nbsp;contains&nbsp;valid&nbsp;tasks.&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Definition</span> <a name="SporadicTaskset.valid_sporadic_taskset"><span class="id" type="definition">valid_sporadic_taskset</span></a> :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">forall</span> <span class="id" type="var">tsk</span>,<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="task.html#tsk"><span class="id" type="variable">tsk</span></a> <span class="id" type="notation">\</span><span class="id" type="keyword">in</span> <a class="idref" href="task.html#SporadicTaskset.TasksetDefs.TasksetProperties.ts"><span class="id" type="variable">ts</span></a> -&gt; <a class="idref" href="task.html#SporadicTaskset.TasksetDefs.TasksetProperties.is_valid_task"><span class="id" type="variable">is_valid_task</span></a> <a class="idref" href="task.html#tsk"><span class="id" type="variable">tsk</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;A&nbsp;task&nbsp;set&nbsp;can&nbsp;satisfy&nbsp;one&nbsp;of&nbsp;three&nbsp;deadline&nbsp;models:<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;implicit,&nbsp;restricted,&nbsp;or&nbsp;arbitrary.&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Definition</span> <a name="SporadicTaskset.implicit_deadline_model"><span class="id" type="definition">implicit_deadline_model</span></a> :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">forall</span> <span class="id" type="var">tsk</span>,<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="task.html#tsk"><span class="id" type="variable">tsk</span></a> <span class="id" type="notation">\</span><span class="id" type="keyword">in</span> <a class="idref" href="task.html#SporadicTaskset.TasksetDefs.TasksetProperties.ts"><span class="id" type="variable">ts</span></a> -&gt; <a class="idref" href="task.html#SporadicTaskset.TasksetDefs.TasksetProperties.task_deadline"><span class="id" type="variable">task_deadline</span></a> <a class="idref" href="task.html#tsk"><span class="id" type="variable">tsk</span></a> <a class="idref" href="http://coq.inria.fr/distrib/8.4pl4/stdlib/Coq.Init.Logic.html#:type_scope:x_'='_x"><span class="id" type="notation">=</span></a> <a class="idref" href="task.html#SporadicTaskset.TasksetDefs.TasksetProperties.task_period"><span class="id" type="variable">task_period</span></a> <a class="idref" href="task.html#tsk"><span class="id" type="variable">tsk</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Definition</span> <a name="SporadicTaskset.restricted_deadline_model"><span class="id" type="definition">restricted_deadline_model</span></a> :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">forall</span> <span class="id" type="var">tsk</span>,<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="task.html#tsk"><span class="id" type="variable">tsk</span></a> <span class="id" type="notation">\</span><span class="id" type="keyword">in</span> <a class="idref" href="task.html#SporadicTaskset.TasksetDefs.TasksetProperties.ts"><span class="id" type="variable">ts</span></a> -&gt; <a class="idref" href="task.html#SporadicTaskset.TasksetDefs.TasksetProperties.task_deadline"><span class="id" type="variable">task_deadline</span></a> <a class="idref" href="task.html#tsk"><span class="id" type="variable">tsk</span></a> <span class="id" type="notation">&lt;=</span> <a class="idref" href="task.html#SporadicTaskset.TasksetDefs.TasksetProperties.task_period"><span class="id" type="variable">task_period</span></a> <a class="idref" href="task.html#tsk"><span class="id" type="variable">tsk</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">Definition</span> <a name="SporadicTaskset.arbitrary_deadline_model"><span class="id" type="definition">arbitrary_deadline_model</span></a> := <a class="idref" href="http://coq.inria.fr/distrib/8.4pl4/stdlib/Coq.Init.Logic.html#True"><span class="id" type="inductive">True</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" type="keyword">End</span> <a class="idref" href="task.html#SporadicTaskset.TasksetDefs.TasksetProperties"><span class="id" type="section">TasksetProperties</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" type="keyword">End</span> <a class="idref" href="task.html#SporadicTaskset.TasksetDefs"><span class="id" type="section">TasksetDefs</span></a>.<br/>
+
+<br/>
+<span class="id" type="keyword">End</span> <a class="idref" href="task.html#"><span class="id" type="module">SporadicTaskset</span></a>.<br/>
+</div>
+</div>
+
+<div id="footer">
+<hr/><a href="index.html">Index</a><hr/>This page has been generated by <a href="http://coq.inria.fr/">coqdoc</a>
+</div>
+
+</div>
+
+</body>
+</html>
