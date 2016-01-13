@@ -19,13 +19,12 @@ Module ResponseTime.
 
     (* ... and a particular schedule, ...*)
     Context {num_cpus : nat}.
-    Variable rate: Job -> processor num_cpus -> nat.
     Variable sched: schedule num_cpus arr_seq.
 
     (* ... R is a response-time bound of tsk in this schedule ... *)
     Variable R: time.
 
-    Let job_has_completed_by := completed job_cost rate sched.
+    Let job_has_completed_by := completed job_cost sched.
 
     (* ... iff any job j of tsk in this arrival sequence has
        completed by (job_arrival j + R). *)
@@ -48,13 +47,12 @@ Module ResponseTime.
     (* Consider any valid schedule... *)
     Context {num_cpus : nat}.
     Variable sched: schedule num_cpus arr_seq.
-    Variable rate: Job -> processor num_cpus -> nat.
 
-    Let job_has_completed_by := completed job_cost rate sched.
+    Let job_has_completed_by := completed job_cost sched.
 
     (* ... where jobs dont execute after completion. *)
     Hypothesis H_completed_jobs_dont_execute:
-      completed_jobs_dont_execute job_cost rate sched.
+      completed_jobs_dont_execute job_cost sched.
 
     Section SpecificJob.
 
@@ -70,7 +68,7 @@ Module ResponseTime.
       Lemma service_after_job_rt_zero :
         forall t',
           t' >= job_arrival j + R ->
-          service_at rate sched j t' = 0.
+          service_at sched j t' = 0.
       Proof.
         rename response_time_bound into RT,
                H_completed_jobs_dont_execute into EXEC; ins.
@@ -79,7 +77,7 @@ Module ResponseTime.
         apply/eqP; rewrite -leqn0.
         rewrite <- leq_add2l with (p := job_cost j).
         move: RT => /eqP RT; rewrite -{1}RT addn0.
-        apply leq_trans with (n := service rate sched j t'.+1);
+        apply leq_trans with (n := service sched j t'.+1);
           last by apply EXEC.
         unfold service; rewrite -> big_cat_nat with
                                    (p := t'.+1) (n := job_arrival j + R);
@@ -91,7 +89,7 @@ Module ResponseTime.
       Lemma cumulative_service_after_job_rt_zero :
         forall t' t'',
           t' >= job_arrival j + R ->
-          \sum_(t' <= t < t'') service_at rate sched j t = 0.
+          \sum_(t' <= t < t'') service_at sched j t = 0.
       Proof.
         ins; apply/eqP; rewrite -leqn0.
         rewrite big_nat_cond; rewrite -> eq_bigr with (F2 := fun i => 0);
@@ -111,7 +109,7 @@ Module ResponseTime.
       (* ... for which a response-time bound R is known. *)
       Variable R: time.
       Hypothesis response_time_bound:
-        is_response_time_bound_of_task job_cost job_task tsk rate sched R.
+        is_response_time_bound_of_task job_cost job_task tsk sched R.
 
       (* Then, for any job j of this task, ...*)
       Variable j: JobIn arr_seq.
@@ -121,7 +119,7 @@ Module ResponseTime.
       Lemma service_after_task_rt_zero :
         forall t',
           t' >= job_arrival j + R ->
-          service_at rate sched j t' = 0.
+          service_at sched j t' = 0.
       Proof.
         by ins; apply service_after_job_rt_zero with (R := R); [apply response_time_bound |].
       Qed.
@@ -130,7 +128,7 @@ Module ResponseTime.
       Lemma cumulative_service_after_task_rt_zero :
         forall t' t'',
           t' >= job_arrival j + R ->
-          \sum_(t' <= t < t'') service_at rate sched j t = 0.
+          \sum_(t' <= t < t'') service_at sched j t = 0.
       Proof.
         by ins; apply cumulative_service_after_job_rt_zero with (R := R);
           first by apply response_time_bound. 

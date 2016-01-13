@@ -34,9 +34,8 @@ Module Schedule.
     
     Variable job_cost: Job -> nat. (* ... a job cost function, ... *)
 
-    (* ... a rate function for each job/processor, ...*)
+    (* ... and the number of processors, ...*)
     Context {num_cpus: nat}.
-    Variable rate: Job -> processor num_cpus -> nat.
 
     (* ... we define the following properties for job j in schedule sched. *)
     Variable sched: schedule num_cpus arr_seq.
@@ -50,10 +49,11 @@ Module Schedule.
     Definition is_idle (cpu: 'I_(num_cpus)) (t: time) :=
       sched cpu t = None.
 
-    (* The instantaneous service of job j at time t is the sum of the rate of every cpu where
-       it is scheduled on. Note that although we use a sum, we usually assume no parallelism. *)
+    (* The instantaneous service of job j at time t is the number of cpus
+       where it is scheduled on. Note that we use a sum to account for
+       parallelism if required. *)
     Definition service_at (t: time) :=
-      \sum_(cpu < num_cpus | sched cpu t == Some j) rate j cpu.
+      \sum_(cpu < num_cpus | sched cpu t == Some j) 1.
 
     (* The cumulative service received by job j during [0, t'). *)
     Definition service (t': time) := \sum_(0 <= t < t') service_at t.
@@ -95,15 +95,14 @@ Module Schedule.
 
     Context {Job: eqType}. (* Assume a job type with decidable equality, ...*)
     Context {arr_seq: arrival_sequence Job}. (* ..., an arrival sequence, ...*)
-    Context {num_cpus: nat}.
-    
+
     Variable job_cost: Job -> nat. (* ... a cost function, .... *)
 
-    (* ... a rate function and a schedule. Then we define...*)
-    Variable rate: Job -> processor num_cpus -> nat.
+    (* ... and a schedule. *)
+    Context {num_cpus: nat}.
     Variable sched: schedule num_cpus arr_seq.
 
-    (* ... whether job parallelism is disallowed, ... *)
+    (* Next, we define whether job parallelism is disallowed, ... *)
     Definition jobs_dont_execute_in_parallel :=
       forall j t cpu1 cpu2,
         sched cpu1 t = Some j -> sched cpu2 t = Some j -> cpu1 = cpu2.
@@ -114,7 +113,7 @@ Module Schedule.
 
     (* ... whether a job can be scheduled after it completes. *)
     Definition completed_jobs_dont_execute :=
-      forall j t, service rate sched j t <= job_cost j.
+      forall j t, service sched j t <= job_cost j.
 
   End ValidSchedules.
 
@@ -129,8 +128,7 @@ Module Schedule.
     Variable job_cost: Job -> nat.
 
     (* ..., and a particular schedule. *)
-    Variable num_cpus: nat.
-    Variable rate: Job -> processor num_cpus -> nat.
+    Context {num_cpus: nat}.
     Variable sched: schedule num_cpus arr_seq.
 
     (* Next, we prove some lemmas about the service received by a job j. *)
@@ -141,7 +139,7 @@ Module Schedule.
       (* At any time t, if job j is not scheduled, it doesn't get service. *)
       Lemma not_scheduled_no_service :
         forall t,
-          ~~ scheduled sched j t -> service_at rate sched j t = 0.
+          ~~ scheduled sched j t -> service_at sched j t = 0.
       Proof.
         unfold scheduled, service_at; intros t NOTSCHED.
         rewrite negb_exists_in in NOTSCHED.
@@ -158,13 +156,13 @@ Module Schedule.
          must be a time t in this interval where the service is not 0. *) 
       Lemma job_scheduled_during_interval :
         forall t1 t2,
-          service_during rate sched j t1 t2 != 0 ->
+          service_during sched j t1 t2 != 0 ->
           exists t,
             t1 <= t < t2 /\ 
-            service_at rate sched j t != 0.
+            service_at sched j t != 0.
       Proof.
         intros t1 t2 NONZERO.
-        destruct ([exists t: 'I_t2, (t >= t1) && (service_at rate sched j t != 0)]) eqn:EX.
+        destruct ([exists t: 'I_t2, (t >= t1) && (service_at sched j t != 0)]) eqn:EX.
         {
           move: EX => /existsP EX; destruct EX as [x EX]. move: EX => /andP [GE SERV].
           exists x; split; last by done.
@@ -183,20 +181,15 @@ Module Schedule.
       
     End Basic.
     
-    Section MaxRate.
+    Section NoParallelism.
 
-      (* Assume a maximum rate for all jobs/processors, ... *)
-      Variable max_rate: nat.
-      Hypothesis there_is_max_rate:
-        forall j cpu, rate j cpu <= max_rate.
-
-      (* ... and assume that a job cannot execute in parallel. Then... *)
+      (* If jobs cannot execute in parallel, then... *)
       Hypothesis no_parallelism:
         jobs_dont_execute_in_parallel sched.
 
-      (* ..., the service received by job j at any time t is limited by the rate. *)
-      Lemma service_at_le_max_rate :
-        forall t, service_at rate sched j t <= max_rate.
+      (* ..., the service received by job j at any time t is at most 1, ... *)
+      Lemma service_at_most_one :
+        forall t, service_at sched j t <= 1.
       Proof.
         unfold service_at, jobs_dont_execute_in_parallel in *; ins.
         destruct (scheduled sched j t) eqn:SCHED; unfold scheduled in SCHED.
@@ -212,7 +205,7 @@ Module Schedule.
           }
           rewrite -big_filter -filter_predI big_filter.
           rewrite -> eq_bigr with (F2 := fun cpu => 0);
-            first by rewrite big_const_seq iter_addn /= mul0n 2!addn0 there_is_max_rate.
+            first by rewrite /= big_const_seq iter_addn mul0n 2!addn0.
           intro i; move => /andP [/eqP NEQ /eqP SCHEDi].
           by apply no_parallelism with (cpu1 := x) in SCHEDi; subst.
         }
@@ -222,45 +215,62 @@ Module Schedule.
           by rewrite big_pred0; red; ins; apply negbTE, SCHED.
         }
       Qed.
+
+      (* ..., which implies that the service receive during a interval
+         of length delta is at most delta. *)
+      Lemma cumulative_service_le_delta :
+        forall t delta, service_during sched j t (t + delta) <= delta.
+      Proof.
+        unfold service_at, jobs_dont_execute_in_parallel in *; ins.
+        generalize dependent t.
+        induction delta.
+        {
+          ins; unfold service_during; rewrite addn0.
+          by rewrite big_geq.
+        }
+        {
+          unfold service_during; intro t.
+          rewrite -addn1 addnA addn1 big_nat_recr; last by apply leq_addr.
+          apply leq_add; first by apply IHdelta.
+          by apply service_at_most_one.
+        }
+      Qed.
         
-    End MaxRate.
+    End NoParallelism.
         
     Section Completion.
 
       (* Assume that completed jobs do not execute. *)
       Hypothesis H_completed_jobs:
-        completed_jobs_dont_execute job_cost rate sched.
-
+        completed_jobs_dont_execute job_cost sched.
 
       (* Then, after job j completes, it remains completed. *)
       Lemma completion_monotonic :
         forall t t',
           t <= t' ->
-          completed job_cost rate sched j t ->
-          completed job_cost rate sched j t'.
+          completed job_cost sched j t ->
+          completed job_cost sched j t'.
       Proof.
         unfold completed; move => t t' LE /eqP COMPt.
         rewrite eqn_leq; apply/andP; split; first by apply H_completed_jobs.
-        by apply leq_trans with (n := service rate sched j t);
+        by apply leq_trans with (n := service sched j t);
           [by rewrite COMPt | by apply extend_sum].
       Qed.
       
       (* Also, the service received by job j in any interval is no larger than its cost. *)
       Lemma cumulative_service_le_job_cost :
         forall t t',
-          service_during rate sched j t t' <= job_cost j.
+          service_during sched j t t' <= job_cost j.
       Proof.
         unfold service_during; rename H_completed_jobs into COMP; red in COMP; ins.
         destruct (t > t') eqn:GT.
           by rewrite big_geq // -ltnS; apply ltn_trans with (n := t); ins.
           apply leq_trans with
-              (n := \sum_(0 <= t0 < t') service_at rate sched j t0);
+              (n := \sum_(0 <= t0 < t') service_at sched j t0);
             last by apply COMP.
           rewrite -> big_cat_nat with (m := 0) (n := t);
             [by apply leq_addl | by ins | by rewrite leqNgt negbT //].
       Qed.
-
-
       
     End Completion.
 
@@ -273,7 +283,7 @@ Module Schedule.
       (* Then, job j does not receive service at any time t prior to its arrival. *)
       Lemma service_before_job_arrival_zero :
         forall t (LT: t < job_arrival j),
-          service_at rate sched j t = 0.
+          service_at sched j t = 0.
       Proof.
         rename H_jobs_must_arrive into ARR; red in ARR; ins.
         specialize (ARR j t).
@@ -290,7 +300,7 @@ Module Schedule.
       (* The same applies for the cumulative service received by job j. *)
       Lemma cumulative_service_before_job_arrival_zero :
         forall t1 t2 (LT: t2 <= job_arrival j),
-          \sum_(t1 <= i < t2) service_at rate sched j i = 0.
+          \sum_(t1 <= i < t2) service_at sched j i = 0.
       Proof.
         ins; apply/eqP; rewrite -leqn0.
         apply leq_trans with (n := \sum_(t1 <= i < t2) 0);
@@ -304,8 +314,8 @@ Module Schedule.
       (* Hence, you can ignore the service received by a job before its arrival time. *)
       Lemma service_before_arrival_eq_service_during :
         forall t0 t (LT: t0 <= job_arrival j),
-          \sum_(t0 <= t < job_arrival j + t) service_at rate sched j t =
-          \sum_(job_arrival j <= t < job_arrival j + t) service_at rate sched j t.
+          \sum_(t0 <= t < job_arrival j + t) service_at sched j t =
+          \sum_(job_arrival j <= t < job_arrival j + t) service_at sched j t.
       Proof.
         ins; rewrite -> big_cat_nat with (n := job_arrival j); [| by ins | by apply leq_addr].
         by rewrite /= cumulative_service_before_job_arrival_zero; [rewrite add0n | apply leqnn].
@@ -359,12 +369,11 @@ Module ScheduleOfSporadicTask.
     (* Then, in a valid schedule of sporadic tasks ...*)
     Context {arr_seq: arrival_sequence Job}.
     Context {num_cpus: nat}.
-    Variable rate: Job -> processor num_cpus -> nat.
     Variable sched: schedule num_cpus arr_seq.
 
     (* ...such that jobs do not execute after completion, ...*)
     Hypothesis jobs_dont_execute_after_completion :
-       completed_jobs_dont_execute job_cost rate sched.
+       completed_jobs_dont_execute job_cost sched.
 
     Variable tsk: sporadic_task.
     
@@ -376,7 +385,7 @@ Module ScheduleOfSporadicTask.
     (* Remember that for any job of tsk, service <= task_cost tsk *)
     Lemma cumulative_service_le_task_cost :
         forall t t',
-          service_during rate sched j t t' <= task_cost tsk.
+          service_during sched j t t' <= task_cost tsk.
     Proof.
       rename valid_job into VALID; unfold valid_sporadic_job in *; ins; des.
       apply leq_trans with (n := job_cost j);

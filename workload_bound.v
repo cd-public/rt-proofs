@@ -128,10 +128,8 @@ Module WorkloadBound.
       forall (j: JobIn arr_seq),
         valid_sporadic_job task_cost task_deadline job_cost job_deadline job_task j.
     
-    Variable num_cpus: nat.
-    Variable rate: Job -> processor num_cpus -> nat.
-
-    (* Consider any schedule of a given platform. *)
+    (* Consider any schedule. *)
+    Context {num_cpus: nat}.
     Variable sched: schedule num_cpus arr_seq.
 
     (* Assumption: jobs only execute if they arrived.
@@ -142,16 +140,12 @@ Module WorkloadBound.
     (* Assumption: jobs do not execute after they completed.
        This is used to eliminate jobs that complete before the start of the interval t1. *)
     Hypothesis H_completed_jobs_dont_execute:
-      completed_jobs_dont_execute job_cost rate sched.
+      completed_jobs_dont_execute job_cost sched.
 
-    (* Assumptions:
-         1) A job does not execute in parallel.
-         2) The service rate of the platform is at most 1.
+    (* Assumptiom: Jobs do not execute in parallel.
        This is required to use interval lengths as a measure of service. *)
     Hypothesis H_no_parallelism:
       jobs_dont_execute_in_parallel sched.
-    Hypothesis H_rate_at_most_one :
-      forall j cpu, rate j cpu <= 1.
 
     (* Assumption: sporadic task model.
        This is necessary to conclude that consecutive jobs ordered by arrival times
@@ -159,12 +153,12 @@ Module WorkloadBound.
     Hypothesis H_sporadic_tasks: sporadic_task_model task_period arr_seq job_task.
 
     (* Before starting the proof, let's give simpler names to the definitions. *)
-    Let job_has_completed_by := completed job_cost rate sched.
+    Let job_has_completed_by := completed job_cost sched.
     Let no_deadline_misses_by (tsk: sporadic_task) (t: time) :=
       task_misses_no_deadline_before job_cost job_deadline job_task
-                                     rate sched tsk t.
+                                     sched tsk t.
     Let workload_of (tsk: sporadic_task) (t1 t2: time) :=
-      workload job_task rate sched tsk t1 t2.
+      workload job_task sched tsk t1 t2.
 
     (* Now we define the theorem. Let tsk be any task in the taskset. *)
     Variable tsk: sporadic_task.
@@ -216,7 +210,7 @@ Module WorkloadBound.
       (* Identify the subset of jobs that actually cause interference *)
       Let interfering_jobs :=
             filter (fun (j: JobIn arr_seq) =>
-                     (job_task j == tsk) && (service_during rate sched j t1 t2 != 0))
+                     (job_task j == tsk) && (service_during sched j t1 t2 != 0))
                    (jobs_scheduled_between sched t1 t2).
 
       (* Now, let's consider the list of interfering jobs sorted by arrival time. *)
@@ -230,19 +224,19 @@ Module WorkloadBound.
         (* Remove the elements that we don't care about from the sum *)
         Lemma workload_bound_simpl_by_filtering_interfering_jobs :
           \sum_(i <- jobs_scheduled_between sched t1 t2 | job_task i == tsk)
-             service_during rate sched i t1 t2 =
-          \sum_(i <- interfering_jobs) service_during rate sched i t1 t2.
+             service_during sched i t1 t2 =
+          \sum_(i <- interfering_jobs) service_during sched i t1 t2.
         Proof.
           unfold interfering_jobs.
-          rewrite (bigID (fun x => service_during rate sched x t1 t2 == 0)) /=.
+          rewrite (bigID (fun x => service_during sched x t1 t2 == 0)) /=.
           rewrite (eq_bigr (fun x => 0)); last by move => j_i /andP JOBi; des; apply /eqP.
           by rewrite big_const_seq iter_addn mul0n add0n add0n big_filter.
         Qed.
 
         (* Consider the sum over the sorted sequence of jobs. *)
         Lemma workload_bound_simpl_by_sorting_interfering_jobs :
-          \sum_(i <- interfering_jobs) service_during rate sched i t1 t2 =
-           \sum_(i <- sorted_jobs) service_during rate sched i t1 t2.
+          \sum_(i <- interfering_jobs) service_during sched i t1 t2 =
+           \sum_(i <- sorted_jobs) service_during sched i t1 t2.
         Proof.
           by rewrite (eq_big_perm sorted_jobs) /=; last by rewrite -(perm_sort order).
         Qed.
@@ -261,7 +255,7 @@ Module WorkloadBound.
           forall j_i,
             j_i \in sorted_jobs ->
             job_task j_i = tsk /\
-            service_during rate sched j_i t1 t2 != 0 /\
+            service_during sched j_i t1 t2 != 0 /\
             j_i \in jobs_scheduled_between sched t1 t2.
         Proof.
           intros j_i LTi.
@@ -289,7 +283,7 @@ Module WorkloadBound.
 
         Lemma workload_bound_holds_for_at_most_n_k_jobs :
           size sorted_jobs <= n_k ->
-          \sum_(i <- sorted_jobs) service_during rate sched i t1 t2 <=
+          \sum_(i <- sorted_jobs) service_during sched i t1 t2 <=
             workload_bound.
         Proof.
         intros LEnk.
@@ -297,7 +291,7 @@ Module WorkloadBound.
         apply leq_trans with (n := \sum_(x <- sorted_jobs) task_cost tsk);
           last by rewrite big_const_seq iter_addn addn0 mulnC leq_mul2r; apply/orP; right.
         {
-          rewrite [\sum_(_ <- _) service_during _ _ _ _ _]big_seq_cond.
+          rewrite [\sum_(_ <- _) service_during _ _ _ _]big_seq_cond.
           rewrite [\sum_(_ <- _) task_cost _]big_seq_cond.
           apply leq_sum; intros j_i; move/andP => [INi _].
           apply workload_bound_all_jobs_from_tsk in INi; des. 
@@ -322,7 +316,7 @@ Module WorkloadBound.
         (* The first job is an interfering job of task tsk. *)
         Lemma workload_bound_j_fst_is_job_of_tsk :
           job_task j_fst = tsk /\
-          service_during rate sched j_fst t1 t2 != 0 /\
+          service_during sched j_fst t1 t2 != 0 /\
           j_fst \in jobs_scheduled_between sched t1 t2.
         Proof.
           by apply workload_bound_all_jobs_from_tsk, mem_nth.
@@ -330,7 +324,7 @@ Module WorkloadBound.
 
         (* The workload bound holds for the single job. *)
         Lemma workload_bound_holds_for_a_single_job :
-          \sum_(0 <= i < 1) service_during rate sched (nth elem sorted_jobs i) t1 t2 <=
+          \sum_(0 <= i < 1) service_during sched (nth elem sorted_jobs i) t1 t2 <=
           workload_bound.
         Proof.
           unfold workload_bound, W; fold n_k.
@@ -338,8 +332,8 @@ Module WorkloadBound.
           rewrite big_nat_recr // big_geq // [nth]lock /= -lock add0n.
           destruct n_k; last first.
           {
-            rewrite -[service_during _ _ _ _ _]add0n; rewrite leq_add //.
-            rewrite -[service_during _ _ _ _ _]add0n [_* task_cost tsk]mulSnr.
+            rewrite -[service_during _ _ _ _]add0n; rewrite leq_add //.
+            rewrite -[service_during _ _ _ _]add0n [_* task_cost tsk]mulSnr.
             apply leq_add; first by done.
             by eapply cumulative_service_le_task_cost;
               [| by apply INfst
@@ -353,11 +347,9 @@ Module WorkloadBound.
                 | by apply H_jobs_have_valid_parameters].
             }
             {
-              rewrite -addnBA // -[service_during _ _ _ _ _]addn0.
+              rewrite -addnBA // -[service_during _ _ _ _]addn0.
               apply leq_add; last by done.
-              apply leq_trans with (n := \sum_(t1 <= t < t2) 1).
-                by apply leq_sum; ins; apply service_at_le_max_rate.
-                by unfold t2; rewrite big_const_nat iter_addn mul1n addn0 addnC -addnBA// subnn addn0.
+              by apply cumulative_service_le_delta.
             }
           }
         Qed.
@@ -379,7 +371,7 @@ Module WorkloadBound.
         (* The last job is an interfering job of task tsk. *)
         Lemma workload_bound_j_lst_is_job_of_tsk :
           job_task j_lst = tsk /\
-          service_during rate sched j_lst t1 t2 != 0 /\
+          service_during sched j_lst t1 t2 != 0 /\
           j_lst \in jobs_scheduled_between sched t1 t2.
         Proof.
           apply workload_bound_all_jobs_from_tsk, mem_nth.
@@ -420,16 +412,16 @@ Module WorkloadBound.
 
         (* Next, we upper-bound the service of the first and last jobs using their arrival times. *)
         Lemma workload_bound_service_of_first_and_last_jobs :
-          service_during rate sched j_fst t1 t2 +
-          service_during rate sched j_lst t1 t2 <=
+          service_during sched j_fst t1 t2 +
+          service_during sched j_lst t1 t2 <=
             (job_arrival j_fst  + R_tsk - t1) + (t2 - job_arrival j_lst).
         Proof.
           apply leq_add; unfold service_during.
           {
             rewrite -[_ + _ - _]mul1n -[1*_]addn0 -iter_addn -big_const_nat.
             apply leq_trans with (n := \sum_(t1 <= t < job_arrival j_fst + R_tsk)
-                                           service_at rate sched j_fst t);
-              last by apply leq_sum; ins; apply service_at_le_max_rate.
+                                        service_at sched j_fst t);
+              last by apply leq_sum; ins; apply service_at_most_one.
             destruct (job_arrival j_fst + R_tsk < t2) eqn:LEt2; last first.
             {
               unfold t2; apply negbT in LEt2; rewrite -ltnNge in LEt2.
@@ -454,10 +446,10 @@ Module WorkloadBound.
             destruct (job_arrival j_lst <= t1) eqn:LT.
             {
               apply leq_trans with (n := \sum_(job_arrival j_lst <= t < t2)
-                                          service_at rate sched j_lst t);
+                                          service_at sched j_lst t);
                 first by rewrite -> big_cat_nat with (m := job_arrival j_lst) (n := t1);
                   [by apply leq_addl | by ins | by apply leq_addr].
-              by apply leq_sum; ins; apply service_at_le_max_rate.
+              by apply leq_sum; ins; apply service_at_most_one.
             }
             {
               apply negbT in LT; rewrite -ltnNge in LT.
@@ -467,7 +459,7 @@ Module WorkloadBound.
               rewrite /= -[\sum_(_ <= _ < _) 1]add0n; apply leq_add.
               rewrite cumulative_service_before_job_arrival_zero;
                 [by apply leqnn | by ins | by apply leqnn].
-              by apply leq_sum; ins; apply service_at_le_max_rate.
+              by apply leq_sum; ins; apply service_at_most_one.
             }
           }
         Qed.
@@ -492,7 +484,7 @@ Module WorkloadBound.
         (* Bound the service of the middle jobs. *)
         Lemma workload_bound_service_of_middle_jobs :
           \sum_(0 <= i < num_mid_jobs)
-            service_during rate sched (nth elem sorted_jobs i.+1) t1 t2 <=
+            service_during sched (nth elem sorted_jobs i.+1) t1 t2 <=
             num_mid_jobs * task_cost tsk.
         Proof.
           apply leq_trans with (n := num_mid_jobs * task_cost tsk);
@@ -598,7 +590,7 @@ Module WorkloadBound.
               unfold service_during; apply/eqP; rewrite -leqn0.
               rewrite <- leq_add2l with (p := job_cost j_fst); rewrite addn0.
               move: COMP => /eqP COMP; unfold service in COMP; rewrite -{1}COMP.
-              apply leq_trans with (n := service rate sched j_fst t2); last by apply EXEC.
+              apply leq_trans with (n := service sched j_fst t2); last by apply EXEC.
               unfold service; rewrite -> big_cat_nat with (m := 0) (p := t2) (n := t1);
                 [rewrite leq_add2r /= | by ins | by apply leq_addr].
               rewrite -> big_cat_nat with (p := t1) (n := job_arrival j_fst + job_deadline j_fst);
@@ -649,10 +641,10 @@ Module WorkloadBound.
         (* If n_k = num_mid_jobs, then the workload bound holds. *)
         Lemma workload_bound_n_k_equals_num_mid_jobs :
           num_mid_jobs = n_k ->
-          service_during rate sched j_lst t1 t2 +
-            service_during rate sched j_fst t1 t2 +
+          service_during sched j_lst t1 t2 +
+            service_during sched j_fst t1 t2 +
             \sum_(0 <= i < num_mid_jobs)
-             service_during rate sched (nth elem sorted_jobs i.+1) t1 t2
+             service_during sched (nth elem sorted_jobs i.+1) t1 t2
           <= workload_bound.
         Proof.
           rename H_valid_task_parameters into PARAMS.
@@ -687,10 +679,10 @@ Module WorkloadBound.
         (* If n_k = num_mid_jobs + 1, then the workload bound holds. *)
         Lemma workload_bound_n_k_equals_num_mid_jobs_plus_1 :
           num_mid_jobs.+1 = n_k ->
-          service_during rate sched j_lst t1 t2 +
-            service_during rate sched j_fst t1 t2 +
+          service_during sched j_lst t1 t2 +
+            service_during sched j_fst t1 t2 +
             \sum_(0 <= i < num_mid_jobs)
-             service_during rate sched (nth elem sorted_jobs i.+1) t1 t2
+             service_during sched (nth elem sorted_jobs i.+1) t1 t2
           <= workload_bound.
         Proof.
           unfold workload_bound, W; fold n_k.

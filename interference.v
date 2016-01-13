@@ -3,7 +3,7 @@ Require Import Vbase task job schedule priority workload util_divround
 
 Module Interference.
 
-  Import Schedule Priority Workload.
+  Import ScheduleOfSporadicTask Priority Workload.
 
   Section InterferingTasks.
 
@@ -45,9 +45,8 @@ Module Interference.
     (* Assume any job arrival sequence...*)
     Context {arr_seq: arrival_sequence Job}.
 
-    (* ... and any platform. *)
+    (* ... and any schedule. *)
     Context {num_cpus: nat}.
-    Variable rate: Job -> processor num_cpus -> nat.
     Variable sched: schedule num_cpus arr_seq.
 
     (* Consider any job j that incurs interference. *)
@@ -55,7 +54,7 @@ Module Interference.
 
     (* Recall the definition of backlogged (pending and not scheduled). *)
     Let job_is_backlogged (t: time) :=
-      backlogged job_cost rate sched j t.
+      backlogged job_cost sched j t.
 
     Section TotalInterference.
       
@@ -134,12 +133,10 @@ Module Interference.
           first by apply leq_sum; ins; apply leq_b1.
         by rewrite big_const_nat iter_addn mul1n addn0 addKn leqnn.
       Qed.
-      
-      Hypothesis rate_positive: forall cpu t, rate cpu t > 0.
 
       Lemma job_interference_le_service :
         forall j_other t1 t2,
-          job_interference j_other t1 t2 <= service_during rate sched j_other t1 t2.
+          job_interference j_other t1 t2 <= service_during sched j_other t1 t2.
       Proof.
         intros j_other t1 t2; unfold job_interference, service_during.
         apply leq_trans with (n := \sum_(t1 <= t < t2) scheduled sched j_other t);
@@ -148,13 +145,12 @@ Module Interference.
         destruct (scheduled sched j_other t) eqn:SCHED; last by done.
         move: SCHED => /existsP EX; destruct EX as [cpu]; move: H => /andP [IN SCHED].
         unfold service_at; rewrite (bigD1 cpu); last by done.
-        by apply leq_trans with (n := rate j_other cpu);
-          [by apply rate_positive | apply leq_addr].
+        by apply leq_trans with (n := 1).
       Qed.
       
       Lemma task_interference_le_workload :
         forall tsk t1 t2,
-          task_interference tsk t1 t2 <= workload job_task rate sched tsk t1 t2.
+          task_interference tsk t1 t2 <= workload job_task sched tsk t1 t2.
       Proof.
         unfold task_interference, workload; intros tsk t1 t2.
         apply leq_sum; intros t _.
@@ -166,17 +162,15 @@ Module Interference.
         destruct SCHED as [cpu _ HAScpu].
         rewrite -> bigD1 with (j := cpu); simpl; last by ins.
         apply ltn_addr; unfold service_of_task, schedules_job_of_tsk in *.
-        by destruct (sched cpu t); [rewrite HAScpu mul1n rate_positive | by ins].
+        by destruct (sched cpu t); [rewrite HAScpu | by done].
       Qed.
 
     End BasicLemmas.
 
     Section EquivalenceTaskInterference.
-      
+
       Hypothesis H_no_intratask_parallelism:
-        forall (j j': JobIn arr_seq) t,
-          job_task j = job_task j' ->
-            scheduled sched j t -> scheduled sched j' t -> False.
+        jobs_of_same_task_dont_execute_in_parallel job_task sched.
       
       Lemma interference_eq_interference_joblist :
         forall tsk t1 t2,
@@ -202,6 +196,7 @@ Module Interference.
               first by rewrite big_const_seq iter_addn mul0n addn0 addn0.
             intros j1 _; desf; [rewrite andTb | by done].
             apply/eqP; rewrite eqb0; apply/negP; unfold not; intro SCHEDULED'.
+            exploit (H_no_intratask_parallelism j0 j1 t).
             apply (H_no_intratask_parallelism j0 j1 t); try (by done).
             by move: Heq0 => /eqP Heq0; rewrite Heq0.
           }
@@ -243,40 +238,32 @@ Module Interference.
       Hypothesis no_parallelism:
         jobs_dont_execute_in_parallel sched.
 
-      (* and that processors have unit speed. *)
-      Hypothesis rate_equals_one :
-        forall j cpu, rate j cpu = 1.
-
-      (* Also assume that jobs only execute after they arrived
+      (* ..., and that jobs only execute after they arrived
          and no longer than their execution costs. *)
       Hypothesis jobs_must_arrive_to_execute:
         jobs_must_arrive_to_execute sched.
       Hypothesis completed_jobs_dont_execute:
-        completed_jobs_dont_execute job_cost rate sched.
+        completed_jobs_dont_execute job_cost sched.
 
       (* If job j had already arrived at time t1 and did not yet
          complete by time t2, ...*)
       Hypothesis job_has_arrived :
         has_arrived j t1.
       Hypothesis job_is_not_complete :
-        ~~ completed job_cost rate sched j t2.
+        ~~ completed job_cost sched j t2.
 
       (* then the service received by j during [t1, t2) equals
          the cumulative time in which it did not incur interference. *)
       Lemma complement_of_interf_equals_service :
-        \sum_(t1 <= t < t2) service_at rate sched j t =
+        \sum_(t1 <= t < t2) service_at sched j t =
           t2 - t1 - total_interference t1 t2.
       Proof.
         unfold completed, total_interference, job_is_backlogged,
                backlogged, service_during, pending.
         rename no_parallelism into NOPAR,
-               rate_equals_one into RATE,
                jobs_must_arrive_to_execute into MUSTARRIVE,
                completed_jobs_dont_execute into COMP,
                job_is_not_complete into NOTCOMP.
-
-        assert (SERVICE_ONE: forall j t, service_at rate sched j t <= 1).
-          by ins; apply service_at_le_max_rate; ins; rewrite RATE.
 
         (* Reorder terms... *)
         apply/eqP; rewrite subh4; first last.
@@ -286,23 +273,23 @@ Module Interference.
         }
         {
           rewrite -[t2 - t1]mul1n -[1*_]addn0 -iter_addn -big_const_nat.
-          by apply leq_sum; ins; apply service_at_le_max_rate; ins; rewrite RATE.
+          by apply leq_sum; ins; apply service_at_most_one. 
         }
         apply/eqP.
         
         apply eq_trans with (y := \sum_(t1 <= t < t2)
-                                    (1 - service_at rate sched j t));
+                                    (1 - service_at sched j t));
           last first.
         {
           apply/eqP; rewrite <- eqn_add2r with (p := \sum_(t1 <= t < t2)
-                                               service_at rate sched j t).
+                                               service_at sched j t).
           rewrite subh1; last first.
             rewrite -[t2 - t1]mul1n -[1*_]addn0 -iter_addn -big_const_nat.
-            by apply leq_sum; ins; apply SERVICE_ONE.
+            by apply leq_sum; ins; apply service_at_most_one.
           rewrite -addnBA // subnn addn0 -big_split /=.
           rewrite -[t2 - t1]mul1n -[1*_]addn0 -iter_addn -big_const_nat.
           apply/eqP; apply eq_bigr; ins; rewrite subh1;
-            [by rewrite -addnBA // subnn addn0 | by apply SERVICE_ONE].
+            [by rewrite -addnBA // subnn addn0 | by apply service_at_most_one].
         }
         rewrite big_nat_cond [\sum_(_ <= _ < _ | true)_]big_nat_cond.
         apply eq_bigr; intro t; rewrite andbT; move => /andP [GEt1 LTt2].
@@ -311,15 +298,14 @@ Module Interference.
           apply negbFE in SCHED; unfold scheduled in *.
           move: SCHED => /exists_inP SCHED; destruct SCHED as [cpu INcpu SCHEDcpu].
           rewrite andbF; apply/eqP.
-          rewrite -(eqn_add2r (service_at rate sched j t)) add0n.
-          rewrite subh1; last by apply SERVICE_ONE.
+          rewrite -(eqn_add2r (service_at sched j t)) add0n.
+          rewrite subh1; last by apply service_at_most_one.
           rewrite -addnBA // subnn addn0.
-          rewrite eqn_leq; apply/andP; split; first by apply SERVICE_ONE.
+          rewrite eqn_leq; apply/andP; split; first by apply service_at_most_one.
           unfold service_at; rewrite (bigD1 cpu) /=; last by apply SCHEDcpu.
-          apply leq_trans with (n := rate j cpu);
-            [by rewrite RATE | by apply leq_addr].
+          by apply leq_trans with (n := 1).
         }
-        apply not_scheduled_no_service with (rate0 := rate) in SCHED.
+        apply not_scheduled_no_service in SCHED.
         rewrite SCHED subn0 andbT; apply/eqP; rewrite eqb1.
         apply/andP; split; first by apply leq_trans with (n := t1).
         apply/negP; unfold not; intro BUG.

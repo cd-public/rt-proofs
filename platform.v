@@ -20,9 +20,8 @@ Module Platform.
     (* Assume any job arrival sequence... *)
     Context {arr_seq: arrival_sequence Job}.
 
-    (* Consider any schedule such that...*)
+    (* Consider any schedule. *)
     Variable num_cpus: nat.
-    Variable rate: Job -> processor num_cpus -> nat.
     Variable sched: schedule num_cpus arr_seq.
 
     (* Assume that we have a task set where all tasks have valid
@@ -41,7 +40,7 @@ Module Platform.
         forall (tsk: sporadic_task) (j: JobIn arr_seq) (t: time),
           tsk \in ts ->
           job_task j = tsk ->
-          backlogged job_cost rate sched j t ->
+          backlogged job_cost sched j t ->
           count
             (fun tsk_other : sporadic_task =>
                is_interfering_task_fp higher_eq_priority tsk tsk_other &&
@@ -59,7 +58,7 @@ Module Platform.
          jobs of higher-priority. *)
       Definition JLFP_JLDP_scheduling_invariant_holds :=
         forall (j: JobIn arr_seq) (t: time),
-          backlogged job_cost rate sched j t ->
+          backlogged job_cost sched j t ->
           count
               (fun j_other => higher_eq_priority t j_other j)
               (jobs_scheduled_at sched t)
@@ -73,7 +72,7 @@ Module Platform.
         (* The job which is interfering has higher or equal priority to the interfered one. *)
         Lemma interfering_job_has_higher_eq_prio :
           forall j j_other t,
-            backlogged job_cost rate sched j t ->
+            backlogged job_cost sched j t ->
             scheduled sched j_other t ->
             higher_eq_priority t j_other j.
         Proof.
@@ -167,7 +166,7 @@ Module Platform.
         Lemma cpus_busy_with_interfering_tasks :
           forall (j: JobIn arr_seq) tsk t,
             job_task j = tsk ->
-            backlogged job_cost rate sched j t ->
+            backlogged job_cost sched j t ->
             count
               (fun j : sporadic_task =>
                  is_interfering_task_jlfp tsk j &&

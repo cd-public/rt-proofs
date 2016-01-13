@@ -15,7 +15,6 @@ Module Workload.
     Context {arr_seq: arrival_sequence Job}.
     
     Context {num_cpus: nat}.
-    Variable rate: Job -> processor num_cpus -> nat.
     Variable sched: schedule num_cpus arr_seq.
 
     (* Consider some task *)
@@ -24,9 +23,9 @@ Module Workload.
     (* First, we define a function that returns the amount of service
        received by this task in a particular processor. *)
     Definition service_of_task (cpu: processor num_cpus)
-                               (j: option (JobIn arr_seq)) :=
+                               (j: option (JobIn arr_seq)) : nat :=
       match j with
-        | Some j' => (job_task j' == tsk) * (rate j' cpu)
+        | Some j' => (job_task j' == tsk)
         | None => 0
       end.
 
@@ -42,7 +41,7 @@ Module Workload.
        by the task that we care about. *)
     Definition workload_joblist (t1 t2: time) :=
       \sum_(j <- jobs_scheduled_between sched t1 t2 | job_task j == tsk)
-        service_during rate sched j t1 t2.
+        service_during sched j t1 t2.
 
 
     (* Next, we show that the two definitions are equivalent. *)
@@ -54,41 +53,43 @@ Module Workload.
       rewrite [\sum_(j <- jobs_scheduled_between _ _ _ | _) _]exchange_big /=.
       apply eq_big_nat; unfold service_at; intros t LEt.
       rewrite [\sum_(i <- jobs_scheduled_between _ _ _ | _) _](eq_bigr (fun i =>
-               \sum_(cpu < num_cpus) (sched cpu t == Some i) * rate i cpu));
+               \sum_(cpu < num_cpus) (sched cpu t == Some i)));
         last by ins; rewrite big_mkcond; apply eq_bigr; ins; rewrite mulnbl.
       rewrite exchange_big /=; apply eq_bigr.
       intros cpu LEcpu; rewrite -big_filter.
-      destruct (sched cpu t) eqn:SCHED; simpl; last first.
-        by rewrite -> eq_bigr with (F2 := fun i => 0);
-          [by rewrite big_const_seq iter_addn | by ins].
-        {
-          destruct (job_task j == tsk) eqn:EQtsk;
-            try rewrite mul1n; try rewrite mul0n.
-          {  
-            rewrite -> bigD1_seq with (j := j); last by rewrite filter_undup undup_uniq.
-            { 
-              rewrite -> eq_bigr with (F2 := fun i => 0);
-                first by rewrite big_const_seq iter_addn /= mul0n 2!addn0 eq_refl mul1n.
-                intros i NEQ; destruct (Some j == Some i) eqn:SOMEeq; last by rewrite SOMEeq mul0n.
-                by move: SOMEeq => /eqP SOMEeq; inversion SOMEeq; subst; rewrite eq_refl in NEQ.
-            }
-            {
-              rewrite mem_filter; apply/andP; split; first by ins.
-              rewrite mem_undup.
-              apply mem_bigcat_nat with (j := t); first by ins.
-              apply mem_bigcat_ord with (j := cpu); first by apply ltn_ord.
-              by rewrite SCHED inE; apply/eqP.
-            }
-          }
+      destruct (sched cpu t) eqn:SCHED; simpl;
+        last by rewrite big_const_seq iter_addn mul0n addn0. 
+      destruct (job_task j == tsk) eqn:EQtsk;
+        try rewrite mul1n; try rewrite mul0n.
+      {  
+        rewrite -> bigD1_seq with (j := j); last by rewrite filter_undup undup_uniq.
+        { 
+          rewrite -> eq_bigr with (F2 := fun i => 0); last first.
           {
-            rewrite big_filter; rewrite -> eq_bigr with (F2 := fun i => 0);
-              first by rewrite big_const_seq iter_addn mul0n addn0.
-            intros i EQtsk2; destruct (Some j == Some i) eqn:SOMEeq; last by rewrite mul0n.
-            by move: SOMEeq => /eqP SOMEeq; inversion SOMEeq;
-              subst; rewrite EQtsk2 in EQtsk.
+            intros i DIFF.
+            destruct (Some j == Some i) eqn:SOME; rewrite SOME; last by done.
+            move: SOME => /eqP SOME; inversion SOME as [EQ].
+            by rewrite EQ eq_refl in DIFF.
           }
+          by rewrite /= big_const_seq iter_addn mul0n 2!addn0 eq_refl.
         }
-      Qed.
+        {
+          rewrite mem_filter; apply/andP; split; first by ins.
+          rewrite mem_undup.
+          apply mem_bigcat_nat with (j := t); first by ins.
+          apply mem_bigcat_ord with (j := cpu); first by apply ltn_ord.
+          by rewrite SCHED inE; apply/eqP.
+        }
+      }
+      {
+        rewrite big_filter; rewrite -> eq_bigr with (F2 := fun i => 0);
+          first by rewrite big_const_seq iter_addn mul0n addn0.
+        intros i EQtsk2; destruct (Some j == Some i) eqn:SOME; last by done.
+        move: SOME => /eqP SOME; inversion SOME; subst.
+        by rewrite EQtsk2 in EQtsk. 
+      }
+    Qed.
  
   End WorkloadDef.
+
 End Workload.

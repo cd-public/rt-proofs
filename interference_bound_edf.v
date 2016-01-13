@@ -65,7 +65,6 @@ Module EDFSpecificBound.
 
     (* Consider any schedule such that...*)
     Variable num_cpus: nat.
-    Variable rate: Job -> processor num_cpus -> nat.
     Variable sched: schedule num_cpus arr_seq.
 
     (* ...jobs do not execute before their arrival times nor longer
@@ -73,14 +72,12 @@ Module EDFSpecificBound.
     Hypothesis H_jobs_must_arrive_to_execute:
       jobs_must_arrive_to_execute sched.
     Hypothesis H_completed_jobs_dont_execute:
-      completed_jobs_dont_execute job_cost rate sched.
+      completed_jobs_dont_execute job_cost sched.
 
-    (* Also assume that jobs do not execute in parallel, processors have
-       unit speed, and that there exists at least one processor. *)
+    (* Also assume that jobs do not execute in parallel and that
+       there exists at least one processor. *)
     Hypothesis H_no_parallelism:
       jobs_dont_execute_in_parallel sched.
-    Hypothesis H_rate_equals_one :
-      forall j cpu, rate j cpu = 1.
     Hypothesis H_at_least_one_cpu :
       num_cpus > 0.
 
@@ -105,16 +102,16 @@ Module EDFSpecificBound.
       forall tsk, tsk \in ts -> task_deadline tsk <= task_period tsk.
 
     Let no_deadline_is_missed_by_tsk (tsk: sporadic_task) :=
-      task_misses_no_deadline job_cost job_deadline job_task rate sched tsk.
+      task_misses_no_deadline job_cost job_deadline job_task sched tsk.
     Let response_time_bounded_by (tsk: sporadic_task) :=
-      is_response_time_bound_of_task job_cost job_task tsk rate sched.
+      is_response_time_bound_of_task job_cost job_task tsk sched.
 
     (* Assume that the schedule satisfies the global scheduling invariant
        for EDF, i.e., if any job of tsk is backlogged, every processor
        must be busy with jobs with no larger absolute deadline. *)
     Let higher_eq_priority := @EDF Job arr_seq job_deadline. (* TODO: implicit params broken *)    
     Hypothesis H_global_scheduling_invariant:
-      JLFP_JLDP_scheduling_invariant_holds job_cost num_cpus rate sched higher_eq_priority.
+      JLFP_JLDP_scheduling_invariant_holds job_cost num_cpus sched higher_eq_priority.
 
     (* Let tsk_i be the task to be analyzed, ...*)
     Variable tsk_i: sporadic_task.
@@ -141,7 +138,7 @@ Module EDFSpecificBound.
       forall (j_k: JobIn arr_seq),
         job_task j_k = tsk_k ->
         job_arrival j_k + R_k < job_arrival j_i + delta ->
-        completed job_cost rate sched j_k (job_arrival j_k + R_k).
+        completed job_cost sched j_k (job_arrival j_k + R_k).
 
     (* In this section, we prove that Bertogna and Cirinei's EDF interference bound
        indeed bounds the interference caused by task tsk_k in the interval [t1, t1 + delta). *)
@@ -149,7 +146,7 @@ Module EDFSpecificBound.
                                     
       (* Let's call x the task interference incurred by job j due to tsk_k. *)
       Let x :=
-        task_interference job_cost job_task rate sched j_i
+        task_interference job_cost job_task sched j_i
                           tsk_k (job_arrival j_i) (job_arrival j_i + delta).
 
       (* Also, recall the EDF-specific interference bound for EDF. *)
@@ -168,11 +165,11 @@ Module EDFSpecificBound.
       (* Identify the subset of jobs that actually cause interference *)
       Let interfering_jobs :=
         filter (fun (x: JobIn arr_seq) =>
-                 (job_task x == tsk_k) && (job_interference job_cost rate sched j_i x t1 t2 != 0))
+                 (job_task x == tsk_k) && (job_interference job_cost sched j_i x t1 t2 != 0))
                (jobs_scheduled_between sched t1 t2).
 
       (* Let's give a simpler name to job interference. *)
-      Let interference_caused_by := job_interference job_cost rate sched j_i.
+      Let interference_caused_by := job_interference job_cost sched j_i.
       
       (* Now, consider the list of interfering jobs sorted by arrival time. *)
       Let order := fun (x y: JobIn arr_seq) => job_arrival x <= job_arrival y.
@@ -185,10 +182,11 @@ Module EDFSpecificBound.
         (* Use the alternative definition of task interference, based on
            individual job interference. *)
         Lemma interference_bound_edf_use_another_definition :
-          x = \sum_(j <- jobs_scheduled_between sched t1 t2 | job_task j == tsk_k)
+          x <= \sum_(j <- jobs_scheduled_between sched t1 t2 | job_task j == tsk_k)
                 interference_caused_by j t1 t2.
         Proof.
-          by apply interference_eq_interference_joblist.
+          apply interference_eq_interference_joblist.
+          
         Qed.
 
         (* Remove the elements that we don't care about from the sum *)
@@ -201,7 +199,7 @@ Module EDFSpecificBound.
           rewrite big_mkcond; rewrite [\sum_(_ <- _ | _) _]big_mkcond /=.
           apply eq_bigr; intros i _; clear -i.
           destruct (job_task i == tsk_k); rewrite ?andTb ?andFb; last by done.
-          destruct (job_interference job_cost rate sched j_i i t1 t2 != 0) eqn:DIFF; first by done.
+          destruct (job_interference job_cost sched j_i i t1 t2 != 0) eqn:DIFF; first by done.
           by apply negbT in DIFF; rewrite negbK in DIFF; apply/eqP.
         Qed.
 
@@ -251,8 +249,7 @@ Module EDFSpecificBound.
           forall j (INi: j \in interfering_jobs),
             interference_caused_by j t1 t2 <= task_cost tsk_k.
         Proof.
-          rename H_valid_job_parameters into PARAMS,
-                 H_rate_equals_one into RATE.
+          rename H_valid_job_parameters into PARAMS.
           intros j; rewrite mem_filter; move => /andP [/andP [/eqP JOBj _] _].
           specialize (PARAMS j); des.
           apply leq_trans with (n := service_during rate sched j t1 t2);
