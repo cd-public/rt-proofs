@@ -167,7 +167,9 @@ Module Interference.
 
     End BasicLemmas.
 
-    Section EquivalenceTaskInterference.
+    (* If we assume no intra-task parallelism, the two definitions
+       of interference are the same. *)
+    Section EquivalenceWithPerJobInterference.
 
       Hypothesis H_no_intratask_parallelism:
         jobs_of_same_task_dont_execute_in_parallel job_task sched.
@@ -196,9 +198,9 @@ Module Interference.
               first by rewrite big_const_seq iter_addn mul0n addn0 addn0.
             intros j1 _; desf; [rewrite andTb | by done].
             apply/eqP; rewrite eqb0; apply/negP; unfold not; intro SCHEDULED'.
-            exploit (H_no_intratask_parallelism j0 j1 t).
-            apply (H_no_intratask_parallelism j0 j1 t); try (by done).
-            by move: Heq0 => /eqP Heq0; rewrite Heq0.
+            exploit (H_no_intratask_parallelism j0 j1 t); try (by done).
+              by move: Heq0 => /eqP EQtsk; rewrite EQtsk.
+            by intros EQj; rewrite EQj eq_refl in Heq.
           }
           {
             rewrite mem_undup.
@@ -228,7 +230,44 @@ Module Interference.
         }
       Qed.
 
-    End EquivalenceTaskInterference.
+    End EquivalenceWithPerJobInterference.
+
+    (* If we don't assume intra-task parallelism, the per-job interference
+       bounds the actual interference. *)
+    Section BoundUsingPerJobInterference.
+
+      Lemma interference_le_interference_joblist :
+        forall tsk t1 t2,
+          task_interference tsk t1 t2 <= task_interference_joblist tsk t1 t2.
+      Proof.
+        intros tsk t1 t2; unfold task_interference, task_interference_joblist, job_interference.
+        rewrite [\sum_(j <- jobs_scheduled_between _ _ _ | _) _]exchange_big /=.
+        rewrite big_nat_cond [\sum_(_ <= _ < _ | true)_]big_nat_cond.
+        apply leq_sum; intro t; rewrite andbT; intro LT.
+        destruct (job_is_backlogged t && task_is_scheduled tsk t) eqn:BACK;
+          last by done.
+        move: BACK => /andP [BACK SCHED].
+        move: SCHED => /existsP SCHED; destruct SCHED as [x IN]; move: IN => /andP [IN SCHED].
+        unfold schedules_job_of_tsk in SCHED; desf.
+        rename SCHED into EQtsk0, Heq into SCHED; move: EQtsk0 => /eqP EQtsk0.
+        rewrite big_mkcond (bigD1_seq j0) /=; last by rewrite undup_uniq.
+        {
+          rewrite -addn1 addnC; apply leq_add; last by done.
+          rewrite EQtsk0 eq_refl BACK andTb.
+          apply eq_leq; symmetry; apply/eqP; rewrite eqb1.
+          by apply/exists_inP; exists x; [by done | by rewrite SCHED].
+        }
+        {
+          unfold jobs_scheduled_between.
+          rewrite mem_undup.
+          apply mem_bigcat_nat with (j := t); first by done.
+          unfold jobs_scheduled_at.
+          apply mem_bigcat_ord with (j := x); first by apply ltn_ord.
+          by unfold make_sequence; rewrite SCHED mem_seq1 eq_refl.
+        }
+      Qed.
+        
+    End BoundUsingPerJobInterference.
 
     Section CorrespondenceWithService.
 
