@@ -26,6 +26,13 @@ Reserved Notation "\cat_ ( m <= i < n ) F"
 Notation "\cat_ ( m <= i < n ) F" :=
   (\big[cat/[::]]_(m <= i < n) F%N) : nat_scope.
 
+Reserved Notation "\cat_ ( m <= i < n | P ) F"
+  (at level 41, F at level 41, P at level 41, i, m, n at level 50,
+   format "'[' \cat_ ( m <= i < n | P ) '/ ' F ']'").
+
+Notation "\cat_ ( m <= i < n | P ) F" :=
+  (\big[cat/[::]]_(m <= i < n | P) F%N) : nat_scope.
+
 Reserved Notation "\sum_ ( ( m , n ) <- r ) F"
   (at level 41, F at level 41, m, n at level 50,
    format "'[' \sum_ ( ( m , n ) <- r ) '/ ' F ']'").
@@ -67,6 +74,13 @@ Reserved Notation "\cat_ ( i < n ) F"
 
 Notation "\cat_ ( i < n ) F" :=
   (\big[cat/[::]]_(i < n) F%N) : nat_scope.
+
+Reserved Notation "\cat_ ( i < n | P ) F"
+  (at level 41, F at level 41, i, n at level 50,
+   format "'[' \cat_ ( i < n | P ) '/ ' F ']'").
+
+Notation "\cat_ ( i < n | P ) F" :=
+  (\big[cat/[::]]_(i < n | P) F%N) : nat_scope.
 
 Reserved Notation "x \In A"
   (at level 70, format "'[hv' x '/ ' \In A ']'", no associativity).
@@ -145,6 +159,59 @@ Proof.
   rewrite -(big_mkord (fun x => true)).
   apply mem_bigcat_nat with (j := j);
     [by apply/andP; split | by rewrite eq_fun_ord_to_nat].
+Qed.
+
+Lemma mem_bigcat_ord_exists :
+  forall (T: eqType) x n (f: 'I_n -> list T),
+    x \in \cat_(i < n) (f i) ->
+    exists i, x \in (f i).
+Proof.
+  intros T x n f IN.
+  induction n; first by rewrite big_ord0 in_nil in IN.
+  {
+    rewrite big_ord_recr /= mem_cat in IN.
+    move: IN => /orP [HEAD | TAIL].
+    {
+      apply IHn in HEAD; destruct HEAD.
+      by eexists (widen_ord _ x0); desf.
+    }
+    {
+      by exists ord_max; desf.
+    }
+  }
+Qed.
+
+Lemma bigcat_ord_uniq :
+  forall (T: eqType) n (f: 'I_n -> list T),
+    (forall i, uniq (f i)) ->
+    (forall x i1 i2,
+       x \in (f i1) -> x \in (f i2) -> i1 = i2) ->
+    uniq (\cat_(i < n) (f i)).
+Proof.
+  intros T n f SINGLE UNIQ.
+  induction n; first by rewrite big_ord0.
+  {
+    rewrite big_ord_recr cat_uniq; apply/andP; split.
+    {
+      apply IHn; first by done.
+      intros x i1 i2 IN1 IN2.
+      exploit (UNIQ x);
+        [by apply IN1 | by apply IN2 | intro EQ; inversion EQ].
+      by apply ord_inj.
+    }
+    apply /andP; split; last by apply SINGLE.
+    {
+      rewrite -all_predC; apply/allP; intros x INx.
+       
+      simpl; apply/negP; unfold not; intro BUG.
+      rewrite -big_ord_narrow in BUG.
+      rewrite big_mkcond /= in BUG.
+      have EX := mem_bigcat_ord_exists T x n.+1 _.
+      apply EX in BUG; clear EX; desf.
+      apply UNIQ with (i1 := ord_max) in BUG; last by done.
+      by desf; unfold ord_max in *; rewrite /= ltnn in Heq.
+    }
+  }
 Qed.
 
 Lemma addnb (b1 b2 : bool) : (b1 + b2) != 0 = b1 || b2.
