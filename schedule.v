@@ -106,7 +106,7 @@ Module Schedule.
     (* ... whether job parallelism is disallowed, ... *)
     Definition jobs_dont_execute_in_parallel :=
       forall j t cpu1 cpu2,
-        sched cpu1 t == Some j -> sched cpu2 t == Some j -> cpu1 = cpu2.
+        sched cpu1 t = Some j -> sched cpu2 t = Some j -> cpu1 = cpu2.
 
     (* ... whether a job can only be scheduled if it has arrived, ... *)
     Definition jobs_must_arrive_to_execute :=
@@ -202,16 +202,19 @@ Module Schedule.
         destruct (scheduled sched j t) eqn:SCHED; unfold scheduled in SCHED.
         {
           move: SCHED => /exists_inP SCHED; des.
+          move: H2 => /eqP SCHED.
           rewrite -big_filter.
           rewrite (bigD1_seq x);
-            [simpl | | by rewrite filter_index_enum enum_uniq];
-              last by rewrite mem_filter; apply/andP; split;
-                [by ins | by rewrite mem_index_enum].
+            [simpl | | by rewrite filter_index_enum enum_uniq]; last first.
+          {
+            by rewrite mem_filter; apply/andP; split;
+              [by apply/eqP | by rewrite mem_index_enum].
+          }
           rewrite -big_filter -filter_predI big_filter.
           rewrite -> eq_bigr with (F2 := fun cpu => 0);
             first by rewrite big_const_seq iter_addn /= mul0n 2!addn0 there_is_max_rate.
-          intro i; move => /andP [/eqP NEQ SCHEDi].
-          apply no_parallelism with (cpu1 := x) in SCHEDi; [by subst | by ins].
+          intro i; move => /andP [/eqP NEQ /eqP SCHEDi].
+          by apply no_parallelism with (cpu1 := x) in SCHEDi; subst.
         }
         {
           apply negbT in SCHED; rewrite negb_exists_in in SCHED.
@@ -337,7 +340,7 @@ Module ScheduleOfSporadicTask.
     Definition jobs_of_same_task_dont_execute_in_parallel :=
       forall (j j': JobIn arr_seq) t,
         job_task j = job_task j' ->
-        scheduled sched j t -> scheduled sched j' t -> False.
+        scheduled sched j t -> scheduled sched j' t -> j = j'.
     
   End ValidSchedule.
 
