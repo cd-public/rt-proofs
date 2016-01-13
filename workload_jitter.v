@@ -19,7 +19,6 @@ Module WorkloadWithJitter.
     Context {arr_seq: arrival_sequence Job}.
     
     Context {num_cpus: nat}.
-    Variable rate: Job -> processor num_cpus -> nat.
     Variable sched: schedule num_cpus arr_seq.
 
     (* Consider some task *)
@@ -136,7 +135,6 @@ Module WorkloadWithJitter.
         valid_sporadic_job_with_jitter task_cost task_deadline task_jitter job_cost job_deadline job_task job_jitter j.
     
     Variable num_cpus: nat.
-    Variable rate: Job -> processor num_cpus -> nat.
     Variable schedule_of_platform: schedule num_cpus arr_seq -> Prop.
 
     (* Assume any schedule of a given platform. *)
@@ -151,16 +149,12 @@ Module WorkloadWithJitter.
     (* Assumption: jobs do not execute after they completed.
        This is used to eliminate jobs that complete before the start of the interval t1. *)
     Hypothesis H_completed_jobs_dont_execute:
-      completed_jobs_dont_execute job_cost rate sched.
+      completed_jobs_dont_execute job_cost sched.
 
-    (* Assumptions:
-         1) A job does not execute in parallel.
-         2) The service rate of the platform is at most 1.
+    (* Assumptiom: A job does not execute in parallel.
        This is required to use interval lengths as a measure of service. *)
     Hypothesis no_parallelism:
       jobs_dont_execute_in_parallel sched.
-    Hypothesis rate_at_most_one :
-      forall j cpu, rate j cpu <= 1.
 
     (* Assumption: sporadic task model.
        This is necessary to conclude that consecutive jobs ordered by arrival times
@@ -172,12 +166,12 @@ Module WorkloadWithJitter.
     Section CleanerDefinitions.
       Variable tsk: sporadic_task_with_jitter.
       Definition response_time_bound_of (R: time) :=
-      is_response_time_bound_of_task job_cost job_task tsk rate sched R.
+      is_response_time_bound_of_task job_cost job_task tsk sched R.
     Definition no_deadline_misses_by (t: time) :=
       task_misses_no_deadline_before job_cost job_deadline job_task
-                                     rate sched tsk t.
+                                     sched tsk t.
     Definition workload_of (t1 t2: time) :=
-      workload job_task rate sched tsk t1 t2.
+      workload job_task sched tsk t1 t2.
     End CleanerDefinitions.
     
     (* Now we define the theorem. Let tsk be any task in the taskset. *)
@@ -235,17 +229,17 @@ Module WorkloadWithJitter.
       (* Identify the subset of jobs that actually cause interference *)
       set interfering_jobs :=
         filter (fun (x: JobIn arr_seq) =>
-                  (job_task x == tsk) && (service_during rate sched x t1 t2 != 0))
+                  (job_task x == tsk) && (service_during sched x t1 t2 != 0))
                     (jobs_scheduled_between sched t1 t2).
   
       (* Remove the elements that we don't care about from the sum *)
       assert (SIMPL:
         \sum_(i <- jobs_scheduled_between sched t1 t2 | job_task i == tsk)
-           service_during rate sched i t1 t2 =
-        \sum_(i <- interfering_jobs) service_during rate sched i t1 t2).
+           service_during sched i t1 t2 =
+        \sum_(i <- interfering_jobs) service_during sched i t1 t2).
       {
         unfold interfering_jobs.
-        rewrite (bigID (fun x => service_during rate sched x t1 t2 == 0)) /=.
+        rewrite (bigID (fun x => service_during sched x t1 t2 == 0)) /=.
         rewrite (eq_bigr (fun x => 0)); last by move => j_i /andP JOBi; des; apply /eqP.
         rewrite big_const_seq iter_addn mul0n add0n add0n.
         by rewrite big_filter.
@@ -253,7 +247,7 @@ Module WorkloadWithJitter.
 
       (* Remember that for any job of tsk, service <= task_cost tsk *)
       assert (LTserv: forall j_i (INi: j_i \in interfering_jobs),
-                        service_during rate sched j_i t1 t2 <= task_cost tsk).
+                        service_during sched j_i t1 t2 <= task_cost tsk).
       {
         ins; apply cumulative_service_le_task_cost with (task_deadline0 := task_deadline) (job_cost0 := job_cost) (job_deadline0 := job_deadline) (job_task0 := job_task); try (by done);
           last by apply job_properties.
@@ -293,7 +287,7 @@ Module WorkloadWithJitter.
         apply leq_trans with (n := \sum_(x <- sorted_jobs) task_cost tsk);
           last by rewrite big_const_seq iter_addn addn0 mulnC leq_mul2r; apply/orP; right.
         {
-          rewrite [\sum_(_ <- _) service_during _ _ _ _ _]big_seq_cond.
+          rewrite [\sum_(_ <- _) service_during _ _ _ _]big_seq_cond.
           rewrite [\sum_(_ <- _) task_cost _]big_seq_cond.
           by apply leq_sum; intros j_i; move/andP => xxx; des; apply LTserv; rewrite INboth.
         }
@@ -315,14 +309,6 @@ Module WorkloadWithJitter.
       move: FST => /andP FST; des; move: FST => /eqP FST.
       rename FST0 into FSTin, FST into FSTtask, FST1 into FSTserv.
 
-      (* Since there is at least one job of the task, we show that R_tsk >= cost tsk. *)
-      (*assert (GEcost: R_tsk >= task_cost tsk).
-      {
-
-        apply (response_time_ub_ge_task_cost job_task) with (sched0 := sched) (rate0 := rate); ins.
-        by exists (nth elem sorted_jobs 0); rewrite FSTtask.
-      }*)
-                                
       (* Now we show that the bound holds for a singleton set of interfering jobs. *)
       destruct n.
       {
@@ -337,11 +323,11 @@ Module WorkloadWithJitter.
           }
           {
             rewrite -addnBA; last by ins.
-            rewrite -[service_during _ _ _ _ _]addn0.
+            rewrite -[service_during _ _ _ _]addn0.
             apply leq_add; last by ins.
-            apply leq_trans with (n := \sum_(t1 <= t < t2) 1).
-              by apply leq_sum; ins; apply service_at_le_max_rate.
-              by unfold t2; rewrite big_const_nat iter_addn mul1n addn0 addnC -addnBA // subnn addn0 leq_addr.
+            apply leq_trans with (n := \sum_(t1 <= t < t2) 1);
+              first by apply leq_sum; intros i _; apply service_at_most_one.
+            by unfold t2; rewrite big_const_nat iter_addn mul1n addn0 addnC -addnBA // subnn addn0 leq_addr.
           }
         }
       } rewrite [nth]lock /= -lock in ALL.
@@ -378,16 +364,16 @@ Module WorkloadWithJitter.
       }
 
       (* Next, we upper-bound the service of the first and last jobs using their arrival times. *)
-      assert (BOUNDend: service_during rate sched j_fst t1 t2 +
-                        service_during rate sched j_lst t1 t2 <=
+      assert (BOUNDend: service_during sched j_fst t1 t2 +
+                        service_during sched j_lst t1 t2 <=
                         (job_arrival j_fst + R_tsk - t1) + (t2 - job_arrival j_lst)).
       {
         apply leq_add; unfold service_during.
         {
           rewrite -[_ + _ - _]mul1n -[1*_]addn0 -iter_addn -big_const_nat.
           apply leq_trans with (n := \sum_(t1 <= t < job_arrival j_fst + R_tsk)
-                                         service_at rate sched j_fst t);
-            last by apply leq_sum; ins; apply service_at_le_max_rate.
+                                         service_at sched j_fst t);
+            last by apply leq_sum; ins; apply service_at_most_one.
           destruct (job_arrival j_fst + R_tsk <= t2) eqn:LEt2; last first.
           {
             unfold t2; apply negbT in LEt2; rewrite -ltnNge in LEt2.
@@ -408,10 +394,10 @@ Module WorkloadWithJitter.
           destruct (job_arrival j_lst <= t1) eqn:LT.
           {
             apply leq_trans with (n := \sum_(job_arrival j_lst <= t < t2)
-                                        service_at rate sched j_lst t);
+                                        service_at sched j_lst t);
               first by rewrite -> big_cat_nat with (m := job_arrival j_lst) (n := t1);
                 [by apply leq_addl | by ins | by apply leq_addr].
-            by apply leq_sum; ins; apply service_at_le_max_rate.
+            by apply leq_sum; ins; apply service_at_most_one.
           }
           {
             apply negbT in LT; rewrite -ltnNge in LT.
@@ -422,7 +408,7 @@ Module WorkloadWithJitter.
                 [by ins| |by apply leqnn].
               by apply arrival_before_jitter with (job_jitter0 := job_jitter).
             }
-            by apply leq_sum; ins; apply service_at_le_max_rate.
+            by apply leq_sum; ins; apply service_at_most_one.
           }
         }
       }
@@ -444,7 +430,7 @@ Module WorkloadWithJitter.
 
       (* Now we upper-bound the service of the middle jobs. *)
       assert (BOUNDmid: \sum_(0 <= i < n)
-                         service_during rate sched (nth elem sorted_jobs i.+1) t1 t2 <=
+                         service_during sched (nth elem sorted_jobs i.+1) t1 t2 <=
                            n * task_cost tsk).
       {
         apply leq_trans with (n := n * task_cost tsk);
@@ -556,7 +542,7 @@ Module WorkloadWithJitter.
             unfold service_during; apply/eqP; rewrite -leqn0.
             rewrite <- leq_add2l with (p := job_cost j_fst); rewrite addn0.
             move: COMP => /eqP COMP; unfold service in COMP; rewrite -{1}COMP.
-            apply leq_trans with (n := service rate sched j_fst t2); last by apply EXEC.
+            apply leq_trans with (n := service sched j_fst t2); last by apply EXEC.
             unfold service; rewrite -> big_cat_nat with (m := 0) (p := t2) (n := t1);
               [rewrite leq_add2r /= | by ins | by apply leq_addr].
             rewrite -> big_cat_nat with (p := t1) (n := job_arrival j_fst + job_deadline j_fst);

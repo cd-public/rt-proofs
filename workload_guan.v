@@ -183,7 +183,6 @@ Module WorkloadBoundGuan.
         valid_sporadic_job task_cost task_deadline job_cost job_deadline job_task j.
     
     Variable num_cpus: nat.
-    Variable rate: Job -> processor num_cpus -> nat.
     Variable schedule_of_platform: schedule num_cpus arr_seq -> Prop.
 
     (* Assume any schedule of a given platform. *)
@@ -198,16 +197,12 @@ Module WorkloadBoundGuan.
     (* Assumption: jobs do not execute after they completed.
        This is used to eliminate jobs that complete before the start of the interval t1. *)
     Hypothesis H_completed_jobs_dont_execute:
-      completed_jobs_dont_execute job_cost rate sched.
+      completed_jobs_dont_execute job_cost sched.
 
-    (* Assumptions:
-         1) A job does not execute in parallel.
-         2) The service rate of the platform is at most 1.
+    (* Assumptiom: A job does not execute in parallel.
        This is required to use interval lengths as a measure of service. *)
     Hypothesis H_no_parallelism:
       jobs_dont_execute_in_parallel sched.
-    Hypothesis H_rate_at_most_one :
-      forall j cpu, rate j cpu <= 1.
 
     (* Assumption: sporadic task model.
        This is necessary to conclude that consecutive jobs ordered by arrival times
@@ -215,12 +210,12 @@ Module WorkloadBoundGuan.
     Hypothesis H_sporadic_tasks: sporadic_task_model task_period arr_seq job_task.
 
     (* Before starting the proof, let's give simpler names to the definitions. *)
-    Let job_has_completed_by := completed job_cost rate sched.
+    Let job_has_completed_by := completed job_cost sched.
     Let no_deadline_misses_by (tsk: sporadic_task) (t: time) :=
       task_misses_no_deadline_before job_cost job_deadline job_task
-                                     rate sched tsk t.
+                                     sched tsk t.
     Let workload_of (tsk: sporadic_task) (t1 t2: time) :=
-      workload job_task rate sched tsk t1 t2.
+      workload job_task sched tsk t1 t2.
 
     (* Now we define the theorem. Let tsk be any task in the taskset. *)
     Variable tsk: sporadic_task.
@@ -259,78 +254,10 @@ Module WorkloadBoundGuan.
       job_arrival j + R_tsk < t1 + delta ->
       job_has_completed_by j (job_arrival j + R_tsk).
 
-    (* If a job i scheduled in an time interval, it will get service in this interval. *)
-    (*Lemma scheduled_between_implies_service :
-      forall j t1 t2,
-        (forall j cpu, rate j cpu > 0) ->
-        (j \in jobs_scheduled_between sched t1 t2) =
-        (service_during rate sched j t1 t2 != 0).
-    Proof.
-      intros j t1 t2 RATE; unfold service_during; rewrite mem_undup.
-      induction t2;
-        first by rewrite 2?big_geq //.      
-      destruct (leqP t1 t2) as [LE | GT]; last by rewrite 2?big_geq //.
-      unfold service_during; rewrite 2?big_nat_recr ?mem_cat /= //.
-      rewrite IHt2.
-      destruct (\sum_(t1 <= t < t2) service_at rate sched j t);
-        last by done.
-      rewrite eq_refl orFb add0n.
-      by apply scheduled_between_helper, RATE.
-    Qed.*)
-
-        (* ??? *)
-    (*Lemma scheduled_between_helper :
-      forall j t,
-        (forall cpu t, rate cpu t > 0) ->
-        (j \in \big[cat/[::]]_(cpu < num_cpus) make_sequence (sched cpu t))
-          = (service_at rate sched j t != 0).
-    Proof.
-      unfold service_at; intros j t RATE.
-      rewrite [\sum_(_ < _ | _) _]big_mkcond.
-      destruct num_cpus; first by rewrite 2!big_ord0 in_nil.
-      assert (LT0: 0 < n.+1); first by done.
-      rewrite 2!(big_nth (Ordinal LT0)).
-      set m := size (index_enum (ordinal_finType n.+1)).
-      induction m; first by rewrite big_geq // big_geq //.
-      {
-        rewrite big_nat_recr; last by done.
-        rewrite big_nat_recr; last by done.
-        rewrite mem_cat IHm.
-        destruct ( (j
-         \in make_sequence
-               (sched
-                  (nth (Ordinal (n:=n.+1) (m:=0) LT0)
-                       (index_enum (ordinal_finType n.+1)) m) t))) eqn: SUBST.
-        {
-          rewrite orbT.
-          unfold make_sequence in SUBST.
-          destruct (sched (nth (Ordinal LT0) (index_enum (ordinal_finType n.+1)) m) t); last by done.
-          rewrite mem_seq1 in SUBST.
-          move: SUBST => /eqP SUBST; subst.
-          rewrite eq_refl.
-          symmetry; rewrite -lt0n.
-          apply leq_trans with (0 + 1); first by done.
-          apply leq_add; first by done.
-          by rewrite RATE.
-        }
-        {
-          unfold make_sequence in SUBST.
-          destruct (sched (nth (Ordinal LT0) (index_enum (ordinal_finType n.+1)) m ) t);
-            last by desf; rewrite orbF /= addn0.
-          {
-            rewrite mem_seq1 in SUBST.
-            destruct (Some j0 == Some j) eqn:SOME;
-              last by rewrite SOME orbF /= addn0.
-            move: SOME SUBST => /eqP SOME /eqP SUBST; inversion SOME.
-            by rewrite H0 in SUBST.
-          }
-        }
-      }
-    Qed.*)
 
    (*Section GuanNoCarry.
        
-      Let is_carry_in_job := carried_in job_cost rate sched.
+      Let is_carry_in_job := carried_in job_cost sched.
 
       (* Assume that task tsk has no carry-in job in the interval delta. *)
       Hypothesis H_no_carry_in:
@@ -363,17 +290,17 @@ Module WorkloadBoundGuan.
         (* Identify the subset of jobs that actually cause interference *)
         set interfering_jobs :=
           filter (fun (x: JobIn arr_seq) =>
-                    (job_task x == tsk) && (service_during rate sched x t1 t2 != 0))
+                    (job_task x == tsk) && (service_during sched x t1 t2 != 0))
                       (jobs_scheduled_between sched t1 t2).
     
         (* Remove the elements that we don't care about from the sum *)
         assert (SIMPL:
           \sum_(i <- jobs_scheduled_between sched t1 t2 | job_task i == tsk)
-             service_during rate sched i t1 t2 =
-          \sum_(i <- interfering_jobs) service_during rate sched i t1 t2).
+             service_during sched i t1 t2 =
+          \sum_(i <- interfering_jobs) service_during sched i t1 t2).
         {
           unfold interfering_jobs.
-          rewrite (bigID (fun x => service_during rate sched x t1 t2 == 0)) /=.
+          rewrite (bigID (fun x => service_during sched x t1 t2 == 0)) /=.
           rewrite (eq_bigr (fun x => 0)); last by move => j_i /andP JOBi; des; apply /eqP.
           rewrite big_const_seq iter_addn mul0n add0n add0n.
           by rewrite big_filter.
@@ -381,7 +308,7 @@ Module WorkloadBoundGuan.
 
         (* Remember that for any job of tsk, service <= task_cost tsk *)
         assert (LTserv: forall j_i (INi: j_i \in interfering_jobs),
-                          service_during rate sched j_i t1 t2 <= task_cost tsk).
+                          service_during sched j_i t1 t2 <= task_cost tsk).
         {
           ins; move: INi; rewrite mem_filter; move => /andP xxx; des.
           move: xxx; move => /andP JOBi; des; clear xxx0 JOBi0.
@@ -462,7 +389,7 @@ Module WorkloadBoundGuan.
             }
             {
               apply leq_trans with (n := \sum_(t1 <= t < t2) 1).
-                by apply leq_sum; ins; apply service_at_le_max_rate.
+                by apply leq_sum.
                 by unfold t2; rewrite big_const_nat iter_addn mul1n addn0 addnC -addnBA// subnn addn0.
             }
           }
@@ -499,7 +426,7 @@ Module WorkloadBoundGuan.
           unfold service; rewrite -> big_cat_nat with (n := t1);
             [simpl | by done | by apply leq_addr].
           move: COMPLETED => /eqP COMPLETED; rewrite -COMPLETED.
-          apply leq_trans with (n := service rate sched j_fst t1 + 1);
+          apply leq_trans with (n := service sched j_fst t1 + 1);
             first by rewrite addn1.
           by rewrite leq_add2l lt0n.
         }
@@ -516,7 +443,7 @@ Module WorkloadBoundGuan.
           unfold service; rewrite -> big_cat_nat with (n := t1);
             [simpl | by done | by apply leq_addr].
           move: COMPLETED => /eqP COMPLETED; rewrite -COMPLETED.
-          apply leq_trans with (n := service rate sched j_lst t1 + 1);
+          apply leq_trans with (n := service sched j_lst t1 + 1);
             first by rewrite addn1.
           by rewrite leq_add2l lt0n.
         }
@@ -543,7 +470,7 @@ Module WorkloadBoundGuan.
         
         (* Now we upper-bound the service of the middle jobs. *)
         assert (BOUNDmid: \sum_(0 <= i < n)
-                           service_during rate sched (nth elem sorted_jobs i.+1) t1 t2 <=
+                           service_during sched (nth elem sorted_jobs i.+1) t1 t2 <=
                              n * task_cost tsk).
         {
           apply leq_trans with (n := n * task_cost tsk);
@@ -663,7 +590,7 @@ Module WorkloadBoundGuan.
               try (by ins); last by apply ltnW.            
             rewrite cumulative_service_before_job_arrival_zero ?leqnn // add0n.
             apply leq_trans with (n := \sum_(job_arrival j_lst <= i < t2) 1).
-            apply leq_sum; first by ins; apply service_at_le_max_rate.
+            apply leq_sum.
             rewrite big_const_nat iter_addn mul1n addn0.
             rewrite -(leq_add2r (job_arrival j_lst)).
             rewrite [t2 - _ + _]subh1; last by apply ltnW.
@@ -687,7 +614,7 @@ Module WorkloadBoundGuan.
 
    Section GuanCarry.
 
-      Let is_carry_in_job := carried_in job_cost rate sched.
+      Let is_carry_in_job := carried_in job_cost sched.
       Let is_idle_at := is_idle sched.
 
       (* Assume task precedence constraints. *)
@@ -696,7 +623,7 @@ Module WorkloadBoundGuan.
           job_task j = job_task j' ->
           job_arrival j < job_arrival j' ->
           scheduled sched j' t ->
-          completed job_cost rate sched j t.
+          completed job_cost sched j t.
 
       (* Assume that task tsk has a carry-in job in the interval. *)
       Hypothesis H_has_carry_in:
@@ -741,11 +668,11 @@ Module WorkloadBoundGuan.
         (* Remove the elements that we don't care about from the sum *)
         (*assert (SIMPL:
           \sum_(i <- jobs_scheduled_between sched t1 t2 | job_task i == tsk)
-             service_during rate sched i t1 t2 =
-          \sum_(i <- interfering_jobs) service_during rate sched i t1 t2).
+             service_during sched i t1 t2 =
+          \sum_(i <- interfering_jobs) service_during sched i t1 t2).
         {
           unfold interfering_jobs.
-          rewrite (bigID (fun x => service_during rate sched x t1 t2 == 0)) /=.
+          rewrite (bigID (fun x => service_during sched x t1 t2 == 0)) /=.
           rewrite (eq_bigr (fun x => 0)); last by move => j_i /andP JOBi; des; apply /eqP.
           rewrite big_const_seq iter_addn mul0n add0n add0n.
           by rewrite big_filter.
@@ -753,7 +680,7 @@ Module WorkloadBoundGuan.
 
         (* Remember that for any job of tsk, service <= task_cost tsk *)
         assert (LTserv: forall j_i (INi: j_i \in interfering_jobs),
-                          service_during rate sched j_i t1 t2 <= task_cost tsk).
+                          service_during sched j_i t1 t2 <= task_cost tsk).
         {
           intros j_i; rewrite mem_filter; move => /andP [JOBi _].
           have PROP := job_properties j_i; des.
@@ -815,7 +742,7 @@ Module WorkloadBoundGuan.
           by instantiate (1:= sorted_jobs); instantiate (1 := 0); rewrite SIZE.
 
 
-        move: FST (FST) => FSTin; rewrite -INboth mem_filter (scheduled_between_implies_service rate);
+        move: FST (FST) => FSTin; rewrite -INboth mem_filter (scheduled_between_implies_service);
           last by admit.  
         move => /andP [FSTtsk FSTserv].  
 
@@ -836,7 +763,7 @@ Module WorkloadBoundGuan.
             }
             {
               apply leq_trans with (n := \sum_(t1 <= t < t2) 1).
-                by apply leq_sum; ins; apply service_at_le_max_rate.
+                by apply leq_sum.
                 by unfold t2; rewrite big_const_nat iter_addn mul1n addn0 addnC -addnBA// subnn addn0.
             }
           }
@@ -854,8 +781,8 @@ Module WorkloadBoundGuan.
             by unfold j_lst; rewrite INboth; apply mem_nth; rewrite SIZE.
         }
         move: LST (LST) => LSTin.
-        rewrite mem_filter (scheduled_between_implies_service rate);
-          last by admit. (* RATE bug *)
+        rewrite mem_filter (scheduled_between_implies_service);
+          last by admit. (* bug *)
 
         move => /andP [LSTtsk LSTserv].
         
@@ -881,7 +808,7 @@ Module WorkloadBoundGuan.
           unfold service; rewrite -> big_cat_nat with (n := t1);
             [simpl | by done | by apply leq_addr].
           move: COMPLETED => /eqP COMPLETED; rewrite -COMPLETED.
-          apply leq_trans with (n := service rate sched j_fst t1 + 1);
+          apply leq_trans with (n := service sched j_fst t1 + 1);
             first by rewrite addn1.
           by rewrite leq_add2l lt0n.
         }*)
@@ -898,7 +825,7 @@ Module WorkloadBoundGuan.
           unfold service; rewrite -> big_cat_nat with (n := t1);
             [simpl | by done | by apply leq_addr].
           move: COMPLETED => /eqP COMPLETED; rewrite -COMPLETED.
-          apply leq_trans with (n := service rate sched j_lst t1 + 1);
+          apply leq_trans with (n := service sched j_lst t1 + 1);
             first by rewrite addn1.
           by rewrite leq_add2l lt0n.
         }*)
@@ -919,7 +846,7 @@ Module WorkloadBoundGuan.
         
         (* Now we upper-bound the service of the middle jobs. *)
         assert (BOUNDmid: \sum_(0 <= i < n)
-                           service_during rate sched (nth elem sorted_jobs i.+1) t1 t2 <=
+                           service_during sched (nth elem sorted_jobs i.+1) t1 t2 <=
                              n * task_cost tsk).
         {
           apply leq_trans with (n := n * task_cost tsk);
@@ -1032,7 +959,7 @@ Module WorkloadBoundGuan.
             apply/andP; split; first by done.
             unfold completed; apply/negP; move => /eqP EQcost.
             move: FSTserv => /negP FSTserv; apply FSTserv.
-            rewrite -leqn0 -(leq_add2l (service rate sched j_fst t1)); rewrite addn0.
+            rewrite -leqn0 -(leq_add2l (service sched j_fst t1)); rewrite addn0.
             rewrite {2}[service _ _ _ _]EQcost.
             by unfold service, service_during; rewrite <- big_cat_nat with (n := t1);
               [by apply COMP | by done | by apply leq_addr].
@@ -1043,11 +970,11 @@ Module WorkloadBoundGuan.
             apply negbT in LEQ; rewrite -ltnNge in LEQ.
             assert (LISTin: j_in \in sorted_jobs).
             {
-              destruct (service_during rate sched j_in t1 t2 != 0) eqn:SERV.
+              destruct (service_during sched j_in t1 t2 != 0) eqn:SERV.
               {
                 (* If j_in executes in the interval, then it automatically belongs to sorted_jobs.*)
                 rewrite -INboth mem_filter JOBin eq_refl andTb.
-                by rewrite (scheduled_between_implies_service rate);
+                by rewrite (scheduled_between_implies_service);
                   last by admit.
               }
               {
@@ -1060,23 +987,23 @@ Module WorkloadBoundGuan.
                   [by rewrite FSTtsk JOBin | by apply LEQ | | intro COMPin].
                 {
                   rewrite -[scheduled _ _ _]negbK; apply/negP; intro BUG.
-                  apply not_scheduled_no_service with (rate0 := rate) in BUG.                 by rewrite BUG in FSTserv.
+                  apply not_scheduled_no_service in BUG.                 by rewrite BUG in FSTserv.
                 }
                 clear PREC SPO EQ.
                 apply negbT in SERV; rewrite negbK in SERV.
                 unfold completed, service, service_during in NOTCOMPin, COMPin, SERV.
-                assert (BUG: \sum_(0 <= t0 < t) service_at rate sched j_in t0 < job_cost j_in).
+                assert (BUG: \sum_(0 <= t0 < t) service_at sched j_in t0 < job_cost j_in).
                 {
                   rewrite -> big_cat_nat with (n := t1);
                     [simpl |  by done | by apply LEt].
-                  assert (TMP: \sum_(0 <= t0 < t1) service_at rate sched j_in t0 < job_cost j_in).
+                  assert (TMP: \sum_(0 <= t0 < t1) service_at sched j_in t0 < job_cost j_in).
                   {
                     rewrite ltn_neqAle; apply/andP; split; first by done.
                     by apply COMP.
                   }
                   rewrite addnC -addn1 -[job_cost _]addn0 -addnA addnC.
                   apply leq_add; first by rewrite addn1.
-                  apply leq_trans with (n := \sum_(t1 <= i < t) service_at rate sched j_in i + \sum_(t <= i < t2) service_at rate sched j_in i);
+                  apply leq_trans with (n := \sum_(t1 <= i < t) service_at sched j_in i + \sum_(t <= i < t2) service_at sched j_in i);
                     first by apply leq_addr.
                   by rewrite <- big_cat_nat;
                     [by rewrite leqn0 | by apply LEt | by apply ltnW, GTt].
@@ -1104,6 +1031,5 @@ Module WorkloadBoundGuan.
    End GuanCarry.*)
    
   End ProofWorkloadBound.
-
 
 End WorkloadBoundGuan.

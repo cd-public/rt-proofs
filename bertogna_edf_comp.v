@@ -912,21 +912,17 @@ Module ResponseTimeIterationEDF.
       Hypothesis H_sporadic_tasks:
         sporadic_task_model task_period arr_seq job_task.
       
-      (* Then, consider any platform with at least one CPU and unit
-         unit execution rate, where...*)
-      Variable rate: Job -> processor num_cpus -> nat.
+      (* Then, consider any platform with at least one CPU such that...*)
       Variable sched: schedule num_cpus arr_seq.
       Hypothesis H_at_least_one_cpu :
         num_cpus > 0.
-      Hypothesis H_rate_equals_one :
-        forall j cpu, rate j cpu = 1.
 
       (* ...jobs only execute after they arrived and no longer
          than their execution costs,... *)
       Hypothesis H_jobs_must_arrive_to_execute:
         jobs_must_arrive_to_execute sched.
       Hypothesis H_completed_jobs_dont_execute:
-        completed_jobs_dont_execute job_cost rate sched.
+        completed_jobs_dont_execute job_cost sched.
 
       (* ...and do not execute in parallel. *)
       Hypothesis H_no_parallelism:
@@ -949,12 +945,12 @@ Module ResponseTimeIterationEDF.
       Let higher_eq_priority :=
         @EDF Job arr_seq job_deadline. (* TODO: implicit params seems broken *)    
       Hypothesis H_global_scheduling_invariant:
-        JLFP_JLDP_scheduling_invariant_holds job_cost num_cpus rate sched higher_eq_priority.
+        JLFP_JLDP_scheduling_invariant_holds job_cost num_cpus sched higher_eq_priority.
 
       Definition no_deadline_missed_by_task (tsk: sporadic_task) :=
-        task_misses_no_deadline job_cost job_deadline job_task rate sched tsk.
+        task_misses_no_deadline job_cost job_deadline job_task sched tsk.
       Definition no_deadline_missed_by_job :=
-        job_misses_no_deadline job_cost job_deadline rate sched.
+        job_misses_no_deadline job_cost job_deadline sched.
 
       (* In the following theorem, we prove that any response-time bound contained
          in edf_claimed_bounds is safe. The proof follows by direct application of
@@ -964,7 +960,7 @@ Module ResponseTimeIterationEDF.
           (tsk, R) \In edf_claimed_bounds ts ->
           forall j : JobIn arr_seq,
             job_task j = tsk ->
-            completed job_cost rate sched j (job_arrival j + R).
+            completed job_cost sched j (job_arrival j + R).
       Proof.
         intros tsk R IN j JOBj.
         destruct (edf_claimed_bounds ts) as [rt_bounds |] eqn:SOME; last by done.
@@ -1011,7 +1007,7 @@ Module ResponseTimeIterationEDF.
           [by ins | by ins | clear DL; intro DL].
    
         rewrite eqn_leq; apply/andP; split; first by apply cumulative_service_le_job_cost.
-        apply leq_trans with (n := service rate sched j (job_arrival j + R)); last first.
+        apply leq_trans with (n := service sched j (job_arrival j + R)); last first.
         {
           unfold valid_sporadic_taskset, is_valid_sporadic_task in *.
           apply extend_sum; rewrite // leq_add2l.

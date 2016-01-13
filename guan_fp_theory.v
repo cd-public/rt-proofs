@@ -98,7 +98,6 @@ Module ResponseTimeAnalysisGuan.
 
     (* Consider any schedule such that...*)
     Variable num_cpus: nat.
-    Variable rate: Job -> processor num_cpus -> nat.
     Variable sched: schedule num_cpus arr_seq.
 
     (* ...jobs do not execute before their arrival times nor longer
@@ -106,14 +105,12 @@ Module ResponseTimeAnalysisGuan.
     Hypothesis H_jobs_execute_after_jitter:
       jobs_must_arrive_to_execute sched.
     Hypothesis H_completed_jobs_dont_execute:
-      completed_jobs_dont_execute job_cost rate sched.
+      completed_jobs_dont_execute job_cost sched.
 
-    (* Also assume that jobs do not execute in parallel, processors have
-       unit speed, and that there exists at least one processor. *)
+    (* Also assume that jobs do not execute in parallel and that
+       there exists at least one processor. *)
     Hypothesis H_no_parallelism:
       jobs_dont_execute_in_parallel sched.
-    Hypothesis H_rate_equals_one :
-      forall j cpu, rate j cpu = 1.
     Hypothesis H_at_least_one_cpu :
       num_cpus > 0.
 
@@ -130,9 +127,9 @@ Module ResponseTimeAnalysisGuan.
     Hypothesis task_in_ts: tsk \in ts.
 
     Let no_deadline_is_missed_by_tsk (tsk: sporadic_task) :=
-      task_misses_no_deadline job_cost job_deadline job_task rate sched tsk.
+      task_misses_no_deadline job_cost job_deadline job_task sched tsk.
     Let is_response_time_bound (tsk: sporadic_task) :=
-      is_response_time_bound_of_task job_cost job_task tsk rate sched.
+      is_response_time_bound_of_task job_cost job_task tsk sched.
 
     (* Assume a known response-time bound for any interfering task *)
     Let task_with_response_time := (sporadic_task * time)%type.
@@ -151,7 +148,7 @@ Module ResponseTimeAnalysisGuan.
     Hypothesis H_response_time_of_interfering_tasks_is_known:
       forall hp_tsk R,
         (hp_tsk, R) \in hp_bounds ->
-        is_response_time_bound_of_task job_cost job_task hp_tsk rate sched R.
+        is_response_time_bound_of_task job_cost job_task hp_tsk sched R.
       
       (* Assume that the response-time bounds are larger than task costs. *)
       Hypothesis H_response_time_bounds_ge_cost:
@@ -171,7 +168,7 @@ Module ResponseTimeAnalysisGuan.
       Hypothesis H_global_scheduling_invariant:
         forall (j: JobIn arr_seq) (t: time),
           job_task j = tsk ->
-          backlogged job_cost rate sched j t ->
+          backlogged job_cost sched j t ->
           count
             (fun tsk_other : sporadic_task =>
                is_interfering_task_fp higher_eq_priority tsk tsk_other &&
@@ -208,7 +205,6 @@ Module ResponseTimeAnalysisGuan.
                H_response_time_of_interfering_tasks_is_known into RESP,
                H_hp_bounds_has_interfering_tasks into HAS,
                H_interfering_tasks_miss_no_deadlines into NOMISS,
-               H_rate_equals_one into RATE,
                H_global_scheduling_invariant into INVARIANT,
                H_response_time_bounds_ge_cost into GE_COST.
         intros j JOBtsk.
@@ -217,10 +213,10 @@ Module ResponseTimeAnalysisGuan.
            scheduling, and let X denote the total interference. *)
         set x := fun hp_tsk =>
           if (hp_tsk \in ts) && interferes_with_tsk hp_tsk then
-            task_interference job_cost job_task rate sched j
+            task_interference job_cost job_task sched j
                      hp_tsk (job_arrival j) (job_arrival j + R)
           else 0.
-        set X := total_interference job_cost rate sched j (job_arrival j) (job_arrival j + R).
+        set X := total_interference job_cost sched j (job_arrival j) (job_arrival j + R).
 
         admit.
 
@@ -233,12 +229,12 @@ Module ResponseTimeAnalysisGuan.
         
         (* Now we start the proof. Assume by contradiction that job j
            is not complete at time (job_arrival j + R). *)
-        destruct (completed job_cost rate sched j (job_arrival j + R')) eqn:COMPLETED;
+        destruct (completed job_cost sched j (job_arrival j + R')) eqn:COMPLETED;
           first by move: COMPLETED => /eqP COMPLETED; rewrite COMPLETED eq_refl.
         apply negbT in COMPLETED; exfalso.
 
         (* Note that j cannot have completed by job_arrival j + R either. *)
-        assert (COMPLETED': ~~ completed job_cost rate sched j (job_arrival j + R)).
+        assert (COMPLETED': ~~ completed job_cost sched j (job_arrival j + R)).
         {
           apply/negP; unfold not; intro BUG.
           apply completion_monotonic with (t' := job_arrival j + R') in BUG;
@@ -249,7 +245,7 @@ Module ResponseTimeAnalysisGuan.
         
         (* Since j has not completed, recall the time when it is not
            executing is the total interference. *)
-        exploit (complement_of_interf_equals_service job_cost rate sched j (job_arrival j)
+        exploit (complement_of_interf_equals_service job_cost sched j (job_arrival j)
                                                      (job_arrival j + R));
           last intro EQinterf; ins; unfold has_arrived;
             first by apply leqnn.
@@ -279,7 +275,7 @@ Module ResponseTimeAnalysisGuan.
       Qed.      
 
           exploit (exists_R tsk_k); [by ins | by ins | intro INhp; des].
-          apply leq_trans with (n := workload job_task rate sched tsk_k
+          apply leq_trans with (n := workload job_task sched tsk_k
                                     (job_arrival j) (job_arrival j + R)).
           {
             unfold task_interference, workload.
@@ -292,12 +288,11 @@ Module ResponseTimeAnalysisGuan.
             destruct SCHED as [cpu _ HAScpu].
             rewrite -> bigD1 with (j := cpu); simpl; last by ins.
             apply ltn_addr; unfold service_of_task, schedules_job_of_tsk in *.
-            by destruct (sched cpu t);[by rewrite HAScpu mul1n RATE|by ins].
+            by destruct (sched cpu t);[by rewrite HAScpu mul1n|by ins].
           }
           {
             apply workload_bounded_by_W_jitter with (task_deadline0 := task_deadline) (job_cost0 := job_cost) (job_deadline0 := job_deadline) (job_jitter0 := job_jitter); ins;
-              [ by rewrite RATE
-              | by apply TASK_PARAMS
+              [ by apply TASK_PARAMS
               | by apply RESTR
               | by red; red; ins; apply (RESP tsk_k)  
               | by apply GE_COST |].
@@ -325,7 +320,7 @@ Module ResponseTimeAnalysisGuan.
             apply (leq_ltn_trans (COMP j (job_arrival j + R))) in COMPLETED'.
             by rewrite ltnn in COMPLETED'.
           }
-          apply leq_trans with (n := R - service rate sched j (job_arrival j + R)); last first.
+          apply leq_trans with (n := R - service sched j (job_arrival j + R)); last first.
           {
             unfold service.
             rewrite service_before_arrival_eq_service_during; ins;
@@ -360,7 +355,7 @@ Module ResponseTimeAnalysisGuan.
           unfold x, X, total_interference, task_interference.
           rewrite -big_mkcond -exchange_big big_distrl /=.
           apply eq_big_nat; move => t LTt.
-          destruct (backlogged job_cost rate sched j t) eqn:BACK;
+          destruct (backlogged job_cost sched j t) eqn:BACK;
             last by rewrite (eq_bigr (fun i => 0));
               [by rewrite big_const_seq iter_addn mul0n addn0 mul0n|by ins].
           rewrite big_mkcond mul1n /=.
@@ -422,12 +417,12 @@ Module ResponseTimeAnalysisGuan.
                            (R - task_cost tsk + 1) * (num_cpus - cardA)).
           {
             set some_interference_A := fun t =>
-              backlogged job_cost rate sched j t &&
+              backlogged job_cost sched j t &&
               has (fun tsk_k => (interferes_with_tsk tsk_k &&
                               ((x tsk_k) >= R - task_cost tsk + 1) &&
                               task_is_scheduled job_task sched tsk_k t)) ts.      
             set total_interference_B := fun t =>
-              backlogged job_cost rate sched j t *
+              backlogged job_cost sched j t *
               count (fun tsk_k =>
                 interferes_with_tsk tsk_k &&
                 ((x tsk_k) < R - task_cost tsk + 1) &&
@@ -444,7 +439,7 @@ Module ResponseTimeAnalysisGuan.
                 last by ins.
               move: INTERFa => /andP INTERFa; des.
               apply leq_sum; ins.
-              destruct (backlogged job_cost rate sched j i);
+              destruct (backlogged job_cost sched j i);
                 [rewrite 2!andTb | by ins].
               destruct (task_is_scheduled job_task sched tsk_a i) eqn:SCHEDa;
                 [apply eq_leq; symmetry | by ins].
@@ -459,7 +454,7 @@ Module ResponseTimeAnalysisGuan.
               rewrite big_distrl /=.
               apply leq_sum; intros t _.
               unfold some_interference_A, total_interference_B. 
-              destruct (backlogged job_cost rate sched j t) eqn:BACK;
+              destruct (backlogged job_cost sched j t) eqn:BACK;
                 [rewrite andTb mul1n | by ins].
               destruct (has (fun tsk_k : sporadic_task_with_jitter =>
                        interferes_with_tsk tsk_k &&
@@ -525,7 +520,7 @@ Module ResponseTimeAnalysisGuan.
               rewrite [\sum_(i <- ts | _) _](eq_bigr
                 (fun i => \sum_(job_arrival j <= t < job_arrival j + R)
                              (i \in ts) && interferes_with_tsk i &&
-                             backlogged job_cost rate sched j t &&
+                             backlogged job_cost sched j t &&
                              task_is_scheduled job_task sched i t));
                 last first.
               {
@@ -537,7 +532,7 @@ Module ResponseTimeAnalysisGuan.
               {
                 rewrite exchange_big /=; apply leq_sum; intros t _.
                 unfold total_interference_B.
-                destruct (backlogged job_cost rate sched j t); last by ins.
+                destruct (backlogged job_cost sched j t); last by ins.
                 rewrite mul1n -sum1_count.
                 rewrite big_seq_cond big_mkcond [\sum_(i <- ts | _ < _) _]big_mkcond.
                 apply leq_sum; ins; destruct (x i<R - task_cost tsk + 1);

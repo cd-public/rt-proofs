@@ -544,21 +544,17 @@ Module ResponseTimeIterationFPGuan.
       Hypothesis H_sporadic_tasks:
         sporadic_task_model task_period arr_seq job_task.
       
-      (* Then, consider any platform with at least one CPU and unit
-         unit execution rate, where...*)
-      Variable rate: Job -> processor num_cpus -> nat.
+      (* Then, consider any platform with at least one CPU such that...*)
       Variable sched: schedule num_cpus arr_seq.
       Hypothesis H_at_least_one_cpu :
         num_cpus > 0.
-      Hypothesis H_rate_equals_one :
-        forall j cpu, rate j cpu = 1.
 
       (* ...jobs only execute after the jitter and no longer
          than their execution costs,... *)
       Hypothesis H_jobs_execute_after_jitter:
         jobs_must_arrive_to_execute sched.
       Hypothesis H_completed_jobs_dont_execute:
-        completed_jobs_dont_execute job_cost rate sched.
+        completed_jobs_dont_execute job_cost sched.
 
       (* ...and do not execute in parallel. *)
       Hypothesis H_no_parallelism:
@@ -566,12 +562,12 @@ Module ResponseTimeIterationFPGuan.
 
       (* Assume the platform satisfies the global scheduling invariant. *)
       Hypothesis H_global_scheduling_invariant:
-        FP_scheduling_invariant_holds job_cost job_task num_cpus rate sched ts higher_eq_priority.
+        FP_scheduling_invariant_holds job_cost job_task num_cpus sched ts higher_eq_priority.
 
       Definition no_deadline_missed_by_task (tsk: sporadic_task) :=
-        task_misses_no_deadline job_cost job_deadline job_task rate sched tsk.
+        task_misses_no_deadline job_cost job_deadline job_task sched tsk.
       Definition no_deadline_missed_by_job :=
-        job_misses_no_deadline job_cost job_deadline rate sched.
+        job_misses_no_deadline job_cost job_deadline sched.
 
       Section HelperLemma.
         
@@ -583,7 +579,7 @@ Module ResponseTimeIterationFPGuan.
             (tsk, R) \in rt_bounds ->
             forall j : JobIn arr_seq,
               job_task j = tsk ->
-              completed job_cost rate sched j (job_arrival j + R).
+              completed job_cost sched j (job_arrival j + R).
         Proof.
           unfold valid_fp_policy, fp_is_transitive, fp_is_reflexive,
                  fp_is_total in *.
@@ -726,7 +722,7 @@ Module ResponseTimeIterationFPGuan.
         exploit (DL rt_bounds tsk R); [by ins | by ins | clear DL; intro DL].
         
         rewrite eqn_leq; apply/andP; split; first by apply cumulative_service_le_job_cost.
-        apply leq_trans with (n := service rate sched j (job_arrival j + R)); last first.
+        apply leq_trans with (n := service sched j (job_arrival j + R)); last first.
         {
           unfold valid_sporadic_taskset, is_valid_sporadic_task in *.
           apply extend_sum; rewrite // leq_add2l.
@@ -746,7 +742,7 @@ Module ResponseTimeIterationFPGuan.
             R <= task_deadline tsk /\
             forall (j: JobIn arr_seq),
               job_task j = tsk ->
-              completed job_cost rate sched j (job_arrival j + R).
+              completed job_cost sched j (job_arrival j + R).
       Proof.
         intros tsk IN.
         unfold guan_fp_schedulable in *.
