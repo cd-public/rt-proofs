@@ -151,15 +151,15 @@ Module EDFSpecificBound.
       Let p_k := task_period tsk_k.
 
       Let n_k := div_floor D_i p_k.
+
+      (* Let's give a simpler name to job interference. *)
+      Let interference_caused_by := job_interference job_cost sched j_i.
       
       (* Identify the subset of jobs that actually cause interference *)
       Let interfering_jobs :=
         filter (fun (x: JobIn arr_seq) =>
-                 (job_task x == tsk_k) && (job_interference job_cost sched j_i x t1 t2 != 0))
+                 (job_task x == tsk_k) && (interference_caused_by x t1 t2 != 0))
                (jobs_scheduled_between sched t1 t2).
-
-      (* Let's give a simpler name to job interference. *)
-      Let interference_caused_by := job_interference job_cost sched j_i.
       
       (* Now, consider the list of interfering jobs sorted by arrival time. *)
       Let order := fun (x y: JobIn arr_seq) => job_arrival x <= job_arrival y.
@@ -188,7 +188,7 @@ Module EDFSpecificBound.
           rewrite big_mkcond; rewrite [\sum_(_ <- _ | _) _]big_mkcond /=.
           apply eq_bigr; intros i _; clear -i.
           destruct (job_task i == tsk_k); rewrite ?andTb ?andFb; last by done.
-          destruct (job_interference job_cost sched j_i i t1 t2 != 0) eqn:DIFF; first by done.
+          destruct (interference_caused_by i t1 t2 != 0) eqn:DIFF; first by done.
           by apply negbT in DIFF; rewrite negbK in DIFF; apply/eqP.
         Qed.
 
@@ -235,11 +235,12 @@ Module EDFSpecificBound.
 
         (* Also, for any job of task tsk_k, the interference is bounded by the task cost. *)
         Lemma interference_bound_edf_interference_le_task_cost :
-          forall j (INi: j \in interfering_jobs),
+          forall j,
+            j \in interfering_jobs ->
             interference_caused_by j t1 t2 <= task_cost tsk_k.
         Proof.
           rename H_valid_job_parameters into PARAMS.
-          intros j; rewrite mem_filter; move => /andP [/andP [/eqP JOBj _] _].
+          intros j INi; rewrite mem_filter; move => /andP [/andP [/eqP JOBj _] _].
           specialize (PARAMS j); des.
           apply leq_trans with (n := service_during sched j t1 t2);
             first by apply job_interference_le_service.
@@ -381,7 +382,7 @@ Module EDFSpecificBound.
         End FactsAboutFirstJob.
         
         (* Now, let's prove the interference bound for the particular case of a single job.
-           This case must be solved separately because the single job can symultaneously
+           This case must be solved separately because the single job can simultaneously
            be carry-in and carry-out job, so its response time is not necessarily
            bounded by R_k (from the hypothesis H_all_previous_jobs_completed_on_time). *)
         Section InterferenceSingleJob.
