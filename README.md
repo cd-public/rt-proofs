@@ -25,3 +25,5 @@ Going forward, the goal is to both
 4. It's usually a good idea to ask first on the mailing list before merging a substantial change.
 
 5. Pushing fixes, small improvements, etc. is always ok. 
+
+6. Document the tactics that you use in the [list of tactics](doc/tactics.md).
