@@ -240,7 +240,7 @@ Module EDFSpecificBound.
             interference_caused_by j t1 t2 <= task_cost tsk_k.
         Proof.
           rename H_valid_job_parameters into PARAMS.
-          intros j INi; rewrite mem_filter; move => /andP [/andP [/eqP JOBj _] _].
+          intros j; rewrite mem_filter; move => /andP [/andP [/eqP JOBj _] _].
           specialize (PARAMS j); des.
           apply leq_trans with (n := service_during sched j t1 t2);
             first by apply job_interference_le_service.
