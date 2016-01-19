@@ -883,3 +883,140 @@ Proof.
   rewrite -> big_cat_nat with (p := t2') (n := t2); try (by done); simpl.
   by rewrite addnC -addnA; apply leq_addr.
 Qed.
+
+Lemma exists_ord0:
+  forall (T: eqType) P,
+    [exists x in 'I_0, P x] = false.
+Proof.
+  intros T P.
+  apply negbTE; rewrite negb_exists; apply/forall_inP.
+  intros x; destruct x as [x LT].
+  by exfalso; rewrite ltn0 in LT.
+Qed.
+
+Lemma exists_recr:
+  forall (T: eqType) n P,
+    [exists x in 'I_n.+1, P x] =
+    [exists x in 'I_n, P (widen_ord (leqnSn n) x)] || P (ord_max).
+Proof.
+  intros t n P.
+  apply/idP/idP.
+  {
+    move => /exists_inP EX; destruct EX as [x IN Px].
+    destruct x as [x LT].
+    remember LT as LT'; clear HeqLT'. 
+    rewrite ltnS leq_eqVlt in LT; move: LT => /orP [/eqP EQ | LT].
+    {
+      apply/orP; right.
+      unfold ord_max; subst x.
+      apply eq_trans with (y := P (Ordinal LT')); last by done.
+      by f_equal; apply ord_inj.
+    }
+    {
+      apply/orP; left.
+      apply/exists_inP; exists (Ordinal LT); first by done.
+      apply eq_trans with (y := P (Ordinal LT')); last by done.
+      by f_equal; apply ord_inj.
+    }
+  }
+  {
+    intro OR; apply/exists_inP.
+    move: OR => /orP [/exists_inP EX | MAX].
+    {
+      by destruct EX as [x IN Px]; exists (widen_ord (leqnSn n) x).
+    }
+    by exists ord_max.
+  }
+Qed.
+
+Lemma count_or :
+  forall (T: eqType) (l: seq T) P Q,
+    count (fun x => P x || Q x) l <= count P l + count Q l. 
+Proof.
+  intros T l P Q; rewrite -count_predUI.
+  apply leq_trans with (n := count (predU P Q) l);
+    last by apply leq_addr.
+  by apply sub_count; red; unfold predU; simpl.
+Qed.
+
+Lemma count_sub_uniqr :
+  forall (T: eqType) (l1 l2: seq T) P,
+    uniq l1 ->
+    {subset l1 <= l2} ->
+    count P l1 <= count P l2.
+Proof.
+  intros T l1 l2 P UNIQ SUB.
+  rewrite -!size_filter uniq_leq_size ?filter_uniq // => x.
+  by rewrite !mem_filter =>/andP [-> /SUB].
+Qed.
+
+Lemma count_pred_inj :
+  forall (T: eqType) (l: seq T) (P: T -> bool),
+    uniq l ->
+    (forall x1 x2, P x1 -> P x2 -> x1 = x2) ->
+    count P l <= 1.
+Proof.
+  intros T l P UNIQ INJ.
+  induction l as [| x l']; [by done | simpl in *].
+  {
+    move: UNIQ => /andP [NOTIN UNIQ].
+    specialize (IHl' UNIQ).
+    rewrite leq_eqVlt in IHl'.
+    move: IHl' => /orP [/eqP ONE | ZERO]; last first.
+    {
+      rewrite ltnS leqn0 in ZERO.
+      by move: ZERO => /eqP ->; rewrite addn0 leq_b1.
+    }
+    destruct (P x) eqn:Px; last by rewrite add0n ONE.
+    {
+      move: ONE => /eqP ONE.
+      rewrite eqn_leq in ONE; move: ONE => /andP [_ ONE].
+      rewrite -has_count in ONE.
+      move: ONE => /hasP ONE; destruct ONE as [y IN Py].
+      specialize (INJ x y Px Py); subst.
+      by rewrite IN in NOTIN.
+    }
+  }
+Qed.
+
+Lemma count_exists :
+  forall (T: eqType) (l: seq T) n (P: T -> 'I_n -> bool),
+    uniq l ->
+    (forall y x1 x2, P x1 y -> P x2 y -> x1 = x2) ->
+    (forall x y1 y2, P x y1 -> P x y2 -> y1 = y2) ->
+    count (fun (y: T) => [exists x in 'I_n, P y x]) l <= n.
+Proof.
+  intros T l n P UNIQ INJ FUN.
+  induction n.
+  {
+    apply leq_trans with (n := count pred0 l); last by rewrite count_pred0.
+    apply sub_count; red; intro x.
+    by rewrite exists_ord0 //.
+  }
+  {
+    apply leq_trans with (n := n + 1); last by rewrite addn1.
+    apply leq_trans with (n := count (fun y => [exists x in 'I_n, P y (widen_ord (leqnSn n) x)] || P y ord_max) l).
+    {
+      apply eq_leq, eq_count; red; intro x.
+      by rewrite exists_recr //.
+    }
+    eapply (leq_trans (count_or _ _ _ _)).
+    apply leq_add.
+    {
+      apply IHn.
+      {
+        intros y x1 x2 P1 P2.
+        by specialize (INJ (widen_ord (leqnSn n) y) x1 x2 P1 P2).
+      }
+      {
+        intros x y1 y2 P1 P2.
+        specialize (FUN x (widen_ord (leqnSn n) y1) (widen_ord (leqnSn n) y2) P1 P2).
+        by inversion FUN; apply ord_inj.
+      }
+    }
+    {
+      apply count_pred_inj; first by done.
+      by intros x1 x2 P1 P2; apply INJ with (y := ord_max). 
+    }
+  }
+Qed.
