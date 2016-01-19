@@ -117,8 +117,8 @@ Module Schedule.
 
   End ValidSchedules.
 
-  (* In this section, we prove some basic lemmas about service. *)
-  Section ServiceLemmas.
+  (* In this section, we prove some basic lemmas about a job. *)
+  Section JobLemmas.
 
     (* Consider an arrival sequence, ...*)
     Context {Job: eqType}.
@@ -253,7 +253,7 @@ Module Schedule.
       (* Assume that completed jobs do not execute. *)
       Hypothesis H_completed_jobs:
         completed_jobs_dont_execute job_cost sched.
-
+              
       (* Then, after job j completes, it remains completed. *)
       Lemma completion_monotonic :
         forall t t',
@@ -333,7 +333,41 @@ Module Schedule.
       
     End Arrival.
 
-  End ServiceLemmas.
+    Section Pending.
+
+      (* Assume that jobs must arrive to execute. *)
+      Hypothesis H_jobs_must_arrive:
+        jobs_must_arrive_to_execute sched.
+      
+     (* Assume that completed jobs do not execute. *)
+      Hypothesis H_completed_jobs:
+        completed_jobs_dont_execute job_cost sched.
+
+      (* Then, if job j is scheduled, it must be pending. *)
+      Lemma scheduled_implies_pending:
+        forall t,
+          scheduled sched j t ->
+          pending job_cost sched j t.
+      Proof.
+        rename H_jobs_must_arrive into ARRIVE,
+               H_completed_jobs into COMP.
+        unfold jobs_must_arrive_to_execute, completed_jobs_dont_execute in *.
+        intros t SCHED.
+        unfold pending; apply/andP; split; first by apply ARRIVE.
+        apply/negP; unfold not; intro COMPLETED.
+        have BUG := COMP j t.+1.
+        rewrite leqNgt in BUG; move: BUG => /negP BUG; apply BUG.
+        unfold service; rewrite -addn1 big_nat_recr // /=.
+        apply leq_add;
+          first by move: COMPLETED => /eqP COMPLETED; rewrite -COMPLETED.
+        rewrite lt0n; apply/eqP; red; move => /eqP NOSERV.
+        rewrite -not_scheduled_no_service in NOSERV.
+        by rewrite SCHED in NOSERV.
+      Qed.
+
+    End Pending.
+    
+  End JobLemmas.
 
   (* In this section, we prove some lemmas about the list of jobs
      scheduled at time t. *)
@@ -347,6 +381,7 @@ Module Schedule.
     Context {num_cpus: nat}.
     Variable sched: schedule num_cpus arr_seq.
 
+    (* A job is in the list of scheduled jobs iff it is scheduled. *)
     Lemma mem_scheduled_jobs_eq_scheduled :
       forall j t,
         j \in jobs_scheduled_at sched t = scheduled sched j t.
@@ -369,9 +404,11 @@ Module Schedule.
     
     Section Uniqueness.
 
+      (* Suppose there's no job parallelism. *)
       Hypothesis H_no_parallelism :
         jobs_dont_execute_in_parallel sched.
-      
+
+      (* Then, the list of jobs scheduled at any time t has no duplicates. *)
       Lemma scheduled_jobs_uniq :
         forall t,
           uniq (jobs_scheduled_at sched t).
