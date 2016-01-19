@@ -121,11 +121,7 @@ Module Platform.
         
         (* Assume the task set has no duplicates, ... *)
         Hypothesis H_ts_is_a_set: uniq ts.
-        (* ... all jobs have valid parameters ...*)
-          Hypothesis H_valid_job_parameters:
-            forall (j: JobIn arr_seq),
-              valid_sporadic_job task_cost task_deadline job_cost job_deadline job_task j.
-        (* ... and come from the taskset. *)
+        (* ... and all jobs come from the taskset. *)
         Hypothesis H_all_jobs_from_taskset:
           forall (j: JobIn arr_seq), job_task j \in ts.
 
@@ -184,8 +180,7 @@ Module Platform.
                  H_sporadic_tasks into SPO,
                  H_valid_task into PARAMS,
                  H_all_previous_jobs_completed into PREV,
-                 H_completed_jobs_dont_execute into COMP,
-                 H_valid_job_parameters into JOBPARAMS.
+                 H_completed_jobs_dont_execute into COMP.
           unfold JLFP_JLDP_scheduling_invariant_holds,
                  valid_sporadic_job, valid_realtime_job,
                  task_precedence_constraints, completed_jobs_dont_execute,
@@ -206,18 +201,6 @@ Module Platform.
               move: SCHED1 SCHED2 => /eqP SCHED1 /eqP SCHED2.
               by rewrite -SCHED1 -SCHED2.
             }
-            {
-              intros x cpu1 cpu2 SCHED1 SCHED2.
-              unfold schedules_job_of_tsk in *.
-              destruct (sched cpu1 t) eqn:SCHED1'; last by done.
-              destruct (sched cpu2 t) eqn:SCHED2'; last by done.
-              move: SCHED1 SCHED2 => /eqP SCHED1 /eqP SCHED2; subst x.
-              exploit (NOINTRA j1 j0 t SCHED2);
-              [ by apply/exists_inP; exists cpu2; last by apply/eqP
-              | by apply/exists_inP; exists cpu1; last by apply/eqP
-              | intro SAMEjob; subst ].
-              by apply SEQUENTIAL with (j := j0) (t := t).
-            }
           }
           {
             apply leq_trans with (n := count ((higher_eq_priority t)^~ j) (jobs_scheduled_at sched t)).
@@ -234,7 +217,14 @@ Module Platform.
               apply sub_count; red; move => j_hp /andP [HP IN].
               rewrite mem_scheduled_jobs_eq_scheduled in IN.
               rename IN into SCHED.
-              apply/andP; split.
+              apply/andP; split; last first.
+              {
+                move: SCHED => /exists_inP SCHED.
+                destruct SCHED as [cpu INcpu SCHED].
+                move: SCHED => /eqP SCHED.
+                apply/exists_inP; exists cpu; first by done.
+                by unfold schedules_job_of_tsk; rewrite SCHED.
+              }
               {
                 unfold is_interfering_task_jlfp.
                 destruct (j == j_hp) eqn:EQjob.
@@ -270,13 +260,6 @@ Module Platform.
                   last by rewrite lt0n -not_scheduled_no_service negbK.
                 move: COMPLETED => /eqP COMPLETED.
                 by rewrite -COMPLETED leqnn.
-              }
-              {
-                move: SCHED => /exists_inP SCHED.
-                destruct SCHED as [cpu INcpu SCHED].
-                move: SCHED => /eqP SCHED.
-                apply/exists_inP; exists cpu; first by done.
-                by unfold schedules_job_of_tsk; rewrite SCHED.
               }
             }
             have MAP := count_map (fun (x: JobIn arr_seq) => job_task x) (fun x => is_interfering_task_jlfp tsk x && task_is_scheduled job_task sched x t). 

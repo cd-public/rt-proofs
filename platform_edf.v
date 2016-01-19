@@ -142,6 +142,210 @@ Module PlatformEDF.
 
     End IntraTaskParallelismAndTaskPrecedenceUnderEDF.
 
+    (*Section JobInvariantAsTaskInvariant.
+
+      (* Consider task set ts. *)
+      Variable ts: taskset_of sporadic_task.
+      
+      (* Assume the task set has no duplicates, ... *)
+      Hypothesis H_ts_is_a_set: uniq ts.
+      (* ... and all jobs come from the taskset. *)
+      Hypothesis H_all_jobs_from_taskset:
+        forall (j: JobIn arr_seq), job_task j \in ts.
+
+      (* Suppose that a single job does not execute in parallel, ...*)
+      Hypothesis H_no_parallelism:
+        jobs_dont_execute_in_parallel sched.
+      (* ... jobs from the same task do not execute in parallel, ... *)
+      (*Hypothesis H_no_intra_task_parallelism:
+        jobs_of_same_task_dont_execute_in_parallel job_task sched.*)
+      (* ... and jobs do not execute after completion. *)
+      Hypothesis H_completed_jobs_dont_execute:
+        completed_jobs_dont_execute job_cost sched.
+      Hypothesis H_jobs_must_arrive_to_execute:
+        jobs_must_arrive_to_execute sched.
+
+      (* Assume that the schedule satisfies the sporadic task model ...*)
+      Hypothesis H_sporadic_tasks:
+        sporadic_task_model task_period arr_seq job_task.
+
+      (* and task precedence constraints. *)
+      (*Hypothesis H_task_precedence:
+        task_precedence_constraints job_cost job_task sched.*)
+
+      (* Consider a valid task tsk, ...*)
+      Variable tsk: sporadic_task.
+      Hypothesis H_valid_task: is_valid_sporadic_task task_cost task_period task_deadline tsk.
+
+      (*... whose job j ... *)
+      Variable j: JobIn arr_seq.
+      Variable H_job_of_tsk: job_task j = tsk.
+
+      (*... is backlogged at time t. *)
+      Variable t: time.
+      Hypothesis H_j_backlogged: backlogged job_cost sched j t.
+
+      (* Assume that any previous jobs of tsk have completed by time t. *)
+      Hypothesis H_all_previous_jobs_completed :
+        forall (j_other: JobIn arr_seq),
+          job_arrival j_other < job_arrival j ->
+          completed job_cost sched j_other (job_arrival j_other + task_period (job_task j_other)).
+
+      (* If a job isn't scheduled, the processor are busy with interfering tasks. *)
+      Lemma cpus_busy_with_interfering_tasks :      
+        count
+          (fun j : sporadic_task =>
+             is_interfering_task_jlfp tsk j &&
+             task_is_scheduled job_task sched j t)
+          ts = num_cpus.
+      Proof.
+        rename H_all_jobs_from_taskset into FROMTS,
+               H_no_parallelism into SEQUENTIAL,
+               (*H_no_intra_task_parallelism into NOINTRA,*)
+               H_global_scheduling_invariant into INV,
+               H_j_backlogged into BACK,
+               H_job_of_tsk into JOBtsk,
+               (*H_task_precedence into PREC,*)
+               H_valid_job_parameters into JOBPARAMS,
+               H_sporadic_tasks into SPO,
+               H_valid_task into TASKPARAMS,
+               H_all_previous_jobs_completed into PREV,
+               H_completed_jobs_dont_execute into COMP,
+               H_jobs_must_arrive_to_execute into ARRIVE.
+        unfold JLFP_JLDP_scheduling_invariant_holds,
+               valid_sporadic_job, valid_realtime_job,
+               task_precedence_constraints, completed_jobs_dont_execute,
+               sporadic_task_model, is_valid_sporadic_task,
+               jobs_of_same_task_dont_execute_in_parallel,
+               jobs_dont_execute_in_parallel in *.
+
+        apply/eqP; rewrite eqn_leq; apply/andP; split.
+        {
+          apply leq_trans with (n := count (fun x => task_is_scheduled job_task sched x t) ts);
+            first by apply sub_count; first by red; move => x /andP [_ SCHED].    
+          unfold task_is_scheduled.
+          apply count_exists; first by done.
+          {
+            intros cpu x1 x2 SCHED1 SCHED2.
+            unfold schedules_job_of_tsk in *.
+            destruct (sched cpu t); last by done.
+            move: SCHED1 SCHED2 => /eqP SCHED1 /eqP SCHED2.
+            by rewrite -SCHED1 -SCHED2.
+          }
+        }
+        {
+          apply leq_trans with (n := count ((higher_eq_priority t)^~ j) (jobs_scheduled_at sched t));
+            first by rewrite -> INV with (j := j) (t := t);
+              [by apply leqnn | by done]. 
+
+          apply leq_trans with (n := count (fun j: JobIn arr_seq => is_interfering_task_jlfp tsk (job_task j) && task_is_scheduled job_task sched (job_task j) t) (jobs_scheduled_at sched t)).
+          {
+            assert (SUBST: count ((higher_eq_priority t)^~ j) (jobs_scheduled_at sched t) = count (fun x => (higher_eq_priority t x j) && (x \in jobs_scheduled_at sched t)) (jobs_scheduled_at sched t)).
+            {
+              by apply eq_in_count; red; intros x IN; rewrite IN andbT.
+            } rewrite SUBST; clear SUBST.
+
+            apply sub_count; red; move => j_hp /andP [HP IN].
+            rewrite mem_scheduled_jobs_eq_scheduled in IN.
+            rename IN into SCHED.
+            apply/andP; split; last first.
+            {
+              move: SCHED => /exists_inP SCHED.
+              destruct SCHED as [cpu INcpu SCHED].
+            move: SCHED => /eqP SCHED.
+            apply/exists_inP; exists cpu; first by done.
+            by unfold schedules_job_of_tsk; rewrite SCHED.
+          }
+          {   
+            unfold is_interfering_task_jlfp.
+            destruct (j == j_hp) eqn:EQjob.
+            {
+              move: EQjob => /eqP EQjob; subst.
+              unfold backlogged in *.
+              by rewrite SCHED andbF in BACK. 
+            }
+            apply negbT in EQjob; move: EQjob => /eqP DIFF.
+            apply/negP; unfold not; move => /eqP SAMEtsk.
+            assert (INTERF: job_interference job_cost sched j j_hp t t.+1 != 0).
+            {
+              move: BACK => /andP [PENDING NOTSCHED].
+              unfold job_interference; rewrite -lt0n.
+              rewrite big_nat_recr // /=.
+              by unfold backlogged; rewrite PENDING NOTSCHED SCHED 2!andbT addn1.
+            }
+            apply interference_under_edf_implies_shorter_deadlines
+              with (job_deadline0 := job_deadline) in INTERF; last by done.
+            have PARAMS := (JOBPARAMS j); have PARAMS' := (JOBPARAMS j_hp); des.
+            rewrite PARAMS1 PARAMS'1 JOBtsk SAMEtsk leq_add2r in INTERF.
+            exploit (SPO j_hp j);
+              [ by red; ins; subst | by rewrite JOBtsk SAMEtsk | by done |].
+            intros LEarr.
+            assert (LTarr: job_arrival j_hp < job_arrival j).
+            {
+              eapply leq_trans with (n := job_arrival j_hp + task_period (job_task j_hp));
+                last by done.
+              by rewrite -addn1 leq_add2l SAMEtsk.
+            }
+            specialize (PREV j_hp LTarr).
+            apply completion_monotonic with (t' := t) in PREV;
+              try (by done); last first.
+            {
+              move: BACK => /andP [/andP [ARRIVED NOTCOMP] NOTSCHED].
+              by apply leq_trans with (n := job_arrival j);
+                [by apply LEarr | by apply ARRIVED].
+            }
+            apply completed_implies_not_scheduled in PREV; try (by done).
+            by rewrite SCHED in PREV.
+          }
+        }
+        have MAP := count_map (fun (x: JobIn arr_seq) => job_task x) (fun x => is_interfering_task_jlfp tsk x && task_is_scheduled job_task sched x t). 
+        rewrite -MAP; clear MAP.
+        apply count_sub_uniqr.
+        {
+          rewrite map_inj_in_uniq; first by apply scheduled_jobs_uniq.
+          red; intros j1 j2 SCHED1 SCHED2 SAMEtsk.
+          rewrite mem_scheduled_jobs_eq_scheduled in SCHED1.
+          rewrite mem_scheduled_jobs_eq_scheduled in SCHED2.
+  
+          move: (SCHED1) (SCHED2) => PENDING1 PENDING2.
+          apply scheduled_implies_pending with (job_cost0 := job_cost) in PENDING1.
+          apply scheduled_implies_pending with (job_cost0 := job_cost) in PENDING2.
+          move: BACK => /andP [PENDING NOTSCHED].
+          assert (INTERF1: job_interference job_cost sched j j1 t t.+1 != 0).
+          {
+            unfold job_interference; rewrite -lt0n.
+            rewrite big_nat_recr // /=.
+            by unfold backlogged; rewrite PENDING NOTSCHED SCHED1 2!andbT addn1.
+          }
+          assert (INTERF2: job_interference job_cost sched j j2 t t.+1 != 0).
+          {
+            unfold job_interference; rewrite -lt0n.
+            rewrite big_nat_recr // /=.
+            by unfold backlogged; rewrite PENDING NOTSCHED SCHED2 2!andbT addn1.
+          }
+          apply interference_under_edf_implies_shorter_deadlines with (job_deadline0 := job_deadline) in INTERF1.
+          apply interference_under_edf_implies_shorter_deadlines with (job_deadline0 := job_deadline) in INTERF2.
+
+          destruct (job_arrival j1 < job_arrival j2) eqn:LEarr.
+          {
+            assert (DIFF: j1 <> j2). admit.
+            specialize (SPO j1 j2 DIFF SAMEtsk).
+            specialize (PREV j2).
+          Print task_precedence_constraints.
+          (*by red; ins; apply NOINTRA with (t := t);
+            rewrite // -mem_scheduled_jobs_eq_scheduled.*)
+          
+        }
+        {
+          red; intros x IN.
+          move: IN => /mapP IN; destruct IN as [j' _ EQx].
+          by rewrite EQx; apply FROMTS.
+        }
+      }
+    Qed.
+
+    End JobInvariantAsTaskInvariant.*)
+
   End Lemmas.
   
 End PlatformEDF.
