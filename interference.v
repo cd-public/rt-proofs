@@ -344,7 +344,8 @@ Module Interference.
           unfold service_at; rewrite (bigD1 cpu) /=; last by apply SCHEDcpu.
           by apply leq_trans with (n := 1).
         }
-        apply not_scheduled_no_service in SCHED.
+        rewrite not_scheduled_no_service in SCHED.
+        move: SCHED => /eqP SCHED.
         rewrite SCHED subn0 andbT; apply/eqP; rewrite eqb1.
         apply/andP; split; first by apply leq_trans with (n := t1).
         apply/negP; unfold not; intro BUG.

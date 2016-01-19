@@ -136,20 +136,30 @@ Module Schedule.
 
     Section Basic.
 
-      (* At any time t, if job j is not scheduled, it doesn't get service. *)
+      (* At any time t, job j is not scheduled iff it doesn't get service. *)
       Lemma not_scheduled_no_service :
         forall t,
-          ~~ scheduled sched j t -> service_at sched j t = 0.
+          ~~ scheduled sched j t = (service_at sched j t == 0).
       Proof.
-        unfold scheduled, service_at; intros t NOTSCHED.
-        rewrite negb_exists_in in NOTSCHED.
-        move: NOTSCHED => /forall_inP NOTSCHED.
-        rewrite big_seq_cond.
-        rewrite -> eq_bigr with (F2 := fun i => 0);
-          first by rewrite big_const_seq iter_addn mul0n addn0.
-        move => cpu /andP [_ SCHED].
-        exploit (NOTSCHED cpu); [by ins | clear NOTSCHED].
-        by move: SCHED => /eqP SCHED; rewrite SCHED eq_refl.
+        unfold scheduled, service_at; intros t; apply/idP/idP.
+        {
+          intros NOTSCHED.
+          rewrite negb_exists_in in NOTSCHED.
+          move: NOTSCHED => /forall_inP NOTSCHED.
+          rewrite big_seq_cond.
+          rewrite -> eq_bigr with (F2 := fun i => 0);
+            first by rewrite big_const_seq iter_addn mul0n addn0.
+          move => cpu /andP [_ SCHED].
+          exploit (NOTSCHED cpu); [by ins | clear NOTSCHED].
+          by move: SCHED => /eqP SCHED; rewrite SCHED eq_refl.
+        }
+        {
+          intros NOSERV; rewrite big_mkcond -sum_nat_eq0_nat in NOSERV.
+          move: NOSERV => /allP ALL.
+          rewrite negb_exists; apply/forall_inP.
+          move => x /andP [IN SCHED].
+          by exploit (ALL x); [by apply mem_index_enum | by desf].
+        }
       Qed.
 
       (* If the cumulative service during a time interval is not zero, there
@@ -325,6 +335,92 @@ Module Schedule.
 
   End ServiceLemmas.
 
+  (* In this section, we prove some lemmas about the list of jobs
+     scheduled at time t. *)
+  Section ScheduledJobsLemmas.
+
+    (* Consider an arrival sequence ...*)
+    Context {Job: eqType}.
+    Context {arr_seq: arrival_sequence Job}.
+
+    (* ... and some schedule. *)
+    Context {num_cpus: nat}.
+    Variable sched: schedule num_cpus arr_seq.
+
+    Lemma mem_scheduled_jobs_eq_scheduled :
+      forall j t,
+        j \in jobs_scheduled_at sched t = scheduled sched j t.
+    Proof.
+      unfold jobs_scheduled_at, scheduled.
+      intros j t; apply/idP/idP.
+      {
+        intros IN.
+        apply mem_bigcat_ord_exists in IN; des.
+        apply/exists_inP; exists i; first by done.
+        destruct (sched i t); last by done.
+        by rewrite mem_seq1 in IN; move: IN => /eqP IN; subst.
+      }
+      {
+        move => /exists_inP EX; destruct EX as [i IN SCHED].
+        apply mem_bigcat_ord with (j := i); first by apply ltn_ord.
+        by move: SCHED => /eqP SCHED; rewrite SCHED /= mem_seq1 eq_refl.
+      }
+    Qed.
+    
+    Section Uniqueness.
+
+      Hypothesis H_no_parallelism :
+        jobs_dont_execute_in_parallel sched.
+      
+      Lemma scheduled_jobs_uniq :
+        forall t,
+          uniq (jobs_scheduled_at sched t).
+      Proof.
+        intros t; rename H_no_parallelism into SEQUENTIAL.
+        unfold jobs_dont_execute_in_parallel in SEQUENTIAL.
+        clear -SEQUENTIAL.
+        unfold jobs_scheduled_at.
+        induction num_cpus; first by rewrite big_ord0.
+        {
+
+          rewrite big_ord_recr cat_uniq; apply/andP; split.
+          {
+            apply bigcat_ord_uniq;
+              first by intro i; unfold make_sequence; desf.
+            intros x i1 i2 IN1 IN2; unfold make_sequence in *.
+            desf; move: Heq0 Heq => SOME1 SOME2.
+            rewrite mem_seq1 in IN1; rewrite mem_seq1 in IN2.
+            move: IN1 IN2 => /eqP IN1 /eqP IN2; subst x j0.
+            specialize (SEQUENTIAL j t (widen_ord (leqnSn n) i1)
+                           (widen_ord (leqnSn n) i2) SOME1 SOME2).
+            by inversion SEQUENTIAL; apply ord_inj.
+          }
+          apply/andP; split; last by unfold make_sequence; destruct (sched ord_max).
+          {
+            rewrite -all_predC; apply/allP; unfold predC; simpl.
+            intros x INx.
+            unfold make_sequence in INx.
+            destruct (sched ord_max t) eqn:SCHED;
+              last by rewrite in_nil in INx.
+            apply/negP; unfold not; intro IN'.
+            have EX := mem_bigcat_ord_exists _ x n.
+            apply EX in IN'; des; clear EX.
+            unfold make_sequence in IN'.
+            desf; rename Heq into SCHEDi.
+            rewrite mem_seq1 in INx; rewrite mem_seq1 in IN'.
+            move: INx IN' => /eqP INx /eqP IN'; subst x j0.
+            specialize (SEQUENTIAL j t ord_max (widen_ord (leqnSn n) i) SCHED SCHEDi).
+            inversion SEQUENTIAL; destruct i as [i EQ]; simpl in *.
+            clear SEQUENTIAL SCHEDi.
+            by rewrite H0 ltnn in EQ.
+          }
+        }
+      Qed.
+
+    End Uniqueness.
+    
+  End ScheduledJobsLemmas.
+
 End Schedule.
 
 (* Specific properties of a schedule of sporadic jobs. *)
@@ -333,26 +429,32 @@ Module ScheduleOfSporadicTask.
   Import SporadicTask Job.
   Export Schedule.
 
-  Section ValidSchedule.
+  Section Properties.
 
-    (* Assume the job cost and task are known. *)
     Context {sporadic_task: eqType}.
     Context {Job: eqType}.    
     Variable job_cost: Job -> nat.
     Variable job_task: Job -> sporadic_task.
 
-    (* Then, in a valid schedule of sporadic tasks, ...*)
+    (* Consider any schedule. *)
     Context {arr_seq: arrival_sequence Job}.
     Context {num_cpus: nat}.
     Variable sched: schedule num_cpus arr_seq.
 
-    (* ... jobs of the same task cannot execute in parallel. *)
+    (* Next we define intra-task parallelism, ... *)
     Definition jobs_of_same_task_dont_execute_in_parallel :=
       forall (j j': JobIn arr_seq) t,
         job_task j = job_task j' ->
         scheduled sched j t -> scheduled sched j' t -> j = j'.
+
+    (* ... and task precedence constraints. *)
+    Definition task_precedence_constraints :=
+      forall (j j': JobIn arr_seq) t,
+        job_task j = job_task j' ->
+        job_arrival j < job_arrival j' ->
+        pending job_cost sched j t -> ~~ scheduled sched j' t.
     
-  End ValidSchedule.
+  End Properties.
 
   Section BasicLemmas.
 
