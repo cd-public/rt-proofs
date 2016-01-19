@@ -983,10 +983,9 @@ Lemma count_exists :
   forall (T: eqType) (l: seq T) n (P: T -> 'I_n -> bool),
     uniq l ->
     (forall y x1 x2, P x1 y -> P x2 y -> x1 = x2) ->
-    (forall x y1 y2, P x y1 -> P x y2 -> y1 = y2) ->
     count (fun (y: T) => [exists x in 'I_n, P y x]) l <= n.
 Proof.
-  intros T l n P UNIQ INJ FUN.
+  intros T l n P UNIQ INJ.
   induction n.
   {
     apply leq_trans with (n := count pred0 l); last by rewrite count_pred0.
@@ -1007,11 +1006,6 @@ Proof.
       {
         intros y x1 x2 P1 P2.
         by specialize (INJ (widen_ord (leqnSn n) y) x1 x2 P1 P2).
-      }
-      {
-        intros x y1 y2 P1 P2.
-        specialize (FUN x (widen_ord (leqnSn n) y1) (widen_ord (leqnSn n) y2) P1 P2).
-        by inversion FUN; apply ord_inj.
       }
     }
     {
