@@ -117,7 +117,7 @@ Module ResponseTimeAnalysisEDF.
     (* Assume that we have a task set where all tasks have valid
        parameters and restricted deadlines. *)
     Variable ts: taskset_of sporadic_task.
-    Hypothesis all_jobs_from_taskset:
+    Hypothesis H_all_jobs_from_taskset:
       forall (j: JobIn arr_seq), job_task j \in ts.
     Hypothesis H_valid_task_parameters:
       valid_sporadic_taskset task_cost task_period task_deadline ts.
@@ -151,13 +151,42 @@ Module ResponseTimeAnalysisEDF.
 
     Let higher_eq_priority := @EDF Job arr_seq job_deadline. (* TODO: implicit params broken *)
 
-
     (* Assume that the schedule satisfies the global scheduling invariant
        for EDF, i.e., if any job of tsk is backlogged, every processor
        must be busy with jobs with no larger absolute deadline. *)
     Hypothesis H_global_scheduling_invariant:
       JLFP_JLDP_scheduling_invariant_holds job_cost num_cpus sched higher_eq_priority.
 
+    (* The EDF scheduling invariant together with no intra-task
+       parallelism imply task precedence constraints. *)
+    Lemma edf_no_intratask_parallelism_implies_task_precedence :
+      task_precedence_constraints job_cost job_task sched.
+    Proof.
+      rename H_no_intra_task_parallelism into NOINTRA,
+             H_valid_job_parameters into JOBPARAMS.
+      unfold task_precedence_constraints, valid_sporadic_job,
+             jobs_of_same_task_dont_execute_in_parallel in *.
+      intros j j' t SAMEtsk BEFORE PENDING.
+      apply/negP; unfold not; intro SCHED'.
+      destruct (scheduled sched j t) eqn:SCHED.
+      {
+        specialize (NOINTRA j j' t SAMEtsk SCHED SCHED'); subst.
+        by rewrite ltnn in BEFORE.
+      }
+      apply negbT in SCHED.
+      assert (INTERF: job_interference job_cost sched j j' t t.+1 != 0).
+      {
+        unfold job_interference; rewrite -lt0n.
+        rewrite big_nat_recr // /=.
+        by unfold backlogged; rewrite PENDING SCHED SCHED' 2!andbT addn1.
+      }
+      apply interference_under_edf_implies_shorter_deadlines
+        with (job_deadline0 := job_deadline) in INTERF; last by done.
+      have PARAMS := (JOBPARAMS j); have PARAMS' := (JOBPARAMS j'); des.
+      rewrite PARAMS1 PARAMS'1 SAMEtsk leq_add2r in INTERF.
+      by apply (leq_trans BEFORE) in INTERF; rewrite ltnn in INTERF.
+    Qed.
+    
     (* Assume that the task set has no duplicates. Otherwise, counting
        the number of tasks that have some property does not make sense
        (for example, for stating the global scheduling invariant as
@@ -332,11 +361,20 @@ Module ResponseTimeAnalysisEDF.
       Lemma bertogna_edf_all_cpus_busy :
         \sum_(tsk_k <- ts_interf) x tsk_k = X * num_cpus.
       Proof.
-        rename H_global_scheduling_invariant into INV.
+        rename H_global_scheduling_invariant into INV,
+               H_all_jobs_from_taskset into FROMTS,
+               H_valid_task_parameters into PARAMS,
+               H_job_of_tsk into JOBtsk,
+               H_sporadic_tasks into SPO,
+               H_tsk_R_in_rt_bounds into INbounds,
+               H_all_previous_jobs_completed_on_time into BEFOREok,
+               H_tasks_miss_no_deadlines into NOMISS,
+               H_restricted_deadlines into RESTR.
+        unfold sporadic_task_model in *.
         unfold x, X, total_interference, task_interference.
         rewrite -big_mkcond -exchange_big big_distrl /=.
         rewrite [\sum_(_ <= _ < _ | backlogged _ _ _ _) _]big_mkcond.
-        apply eq_big_nat; move => t LTt.
+        apply eq_big_nat; move => t /andP [LEt LTt].
         destruct (backlogged job_cost sched j t) eqn:BACK;
           last by rewrite (eq_bigr (fun i => 0));
             [by rewrite big_const_seq iter_addn mul0n addn0 | by done].
@@ -346,8 +384,32 @@ Module ResponseTimeAnalysisEDF.
                     task_is_scheduled job_task sched i t) then 1 else 0));
           last by intro i; clear -i; desf.
         rewrite -big_mkcond sum1_count.
-        by eapply cpus_busy_with_interfering_tasks; try (by done);
-          [by apply INV | by apply H_job_of_tsk | by apply BACK].
+        eapply cpus_busy_with_interfering_tasks; try (by done);
+          [ by apply INV
+          | by red; apply SPO
+          | by apply edf_no_intratask_parallelism_implies_task_precedence
+          | by apply PARAMS; rewrite -JOBtsk FROMTS
+          | by apply JOBtsk
+          | by apply BACK | ].
+        {
+          intros j0 TSK0 LT0.
+          unfold pending in *.
+          apply completion_monotonic with (t0 := job_arrival j0 + R);
+            try (by done).
+          {
+            apply leq_trans with (n := job_arrival j); last by done.
+            apply leq_trans with (n := job_arrival j0 + task_period tsk).
+            {
+              rewrite leq_add2l.
+              apply leq_trans with (n := task_deadline tsk);
+                [by apply NOMISS | by apply RESTR; rewrite -JOBtsk FROMTS].
+            }
+            rewrite -TSK0; apply SPO;
+              [| by rewrite JOBtsk TSK0 | by apply ltnW ].
+            by unfold not; intro BUG; rewrite BUG ltnn in LT0.
+          }
+          by apply BEFOREok with (tsk_other := tsk); rewrite ?ltn_add2r.
+        }
       Qed.
 
       (* Let (cardGE delta) be the number of interfering tasks whose interference
@@ -362,7 +424,16 @@ Module ResponseTimeAnalysisEDF.
           cardGE delta > 0 ->
           \sum_(i <- ts_interf | x i < delta) x i >= delta * (num_cpus - cardGE delta).
       Proof.
-        rename H_global_scheduling_invariant into INVARIANT.
+        rename H_global_scheduling_invariant into INV,
+               H_all_jobs_from_taskset into FROMTS,
+               H_valid_task_parameters into PARAMS,
+               H_job_of_tsk into JOBtsk,
+               H_sporadic_tasks into SPO,
+               H_tsk_R_in_rt_bounds into INbounds,
+               H_all_previous_jobs_completed_on_time into BEFOREok,
+               H_tasks_miss_no_deadlines into NOMISS,
+               H_restricted_deadlines into RESTR.
+        unfold sporadic_task_model in *.
         intros delta HAS.
         set some_interference_A := fun t =>
             backlogged job_cost sched j t &&
@@ -403,10 +474,35 @@ Module ResponseTimeAnalysisEDF.
           rewrite mul1n; move: HAS => /hasP HAS.
           destruct HAS as [tsk_k INk LEk].
 
-          generalize INVARIANT; intro COUNT.
-          apply cpus_busy_with_interfering_tasks with (job_task0 := job_task) (ts0 := ts) (j0 := j) (tsk0 := tsk) (t0 := t) in COUNT;
-                try by done.
-
+          generalize INV; intro COUNT.
+          apply cpus_busy_with_interfering_tasks with
+            (job_task0:=job_task) (ts0:=ts) (j0:=j) (tsk0:=tsk) (t0:=t)
+            (task_cost0 := task_cost) (task_period0 := task_period)
+            (task_deadline0 := task_deadline) in COUNT; try (by done);
+          [
+          | by apply edf_no_intratask_parallelism_implies_task_precedence
+          | by apply PARAMS; rewrite -JOBtsk FROMTS | ]; last first.
+          {
+            intros j0 TSK0 LT0.
+            unfold pending in *.
+            apply completion_monotonic with (t0 := job_arrival j0 + R);
+              try (by done).
+            {
+              move: BACK => /andP [/andP [ARRIVED NOTCOMP] NOTSCHED].
+              apply leq_trans with (n := job_arrival j); last by done.
+              apply leq_trans with (n := job_arrival j0 + task_period tsk).
+              {
+                rewrite leq_add2l.
+                apply leq_trans with (n := task_deadline tsk);
+                  [by apply NOMISS | by apply RESTR; rewrite -JOBtsk FROMTS].
+              }
+              rewrite -TSK0; apply SPO;
+                [| by rewrite JOBtsk TSK0 | by apply ltnW ].
+              by unfold not; intro BUG; rewrite BUG ltnn in LT0.
+            }
+            by apply BEFOREok with (tsk_other := tsk); rewrite ?ltn_add2r.
+          }
+        
           unfold cardGE.
           set interfering_tasks_at_t :=
             [seq tsk_k <- ts_interf | task_is_scheduled job_task
