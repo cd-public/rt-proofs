@@ -266,8 +266,25 @@ Module Schedule.
         by apply leq_trans with (n := service sched j t);
           [by rewrite COMPt | by apply extend_sum].
       Qed.
-      
-      (* Also, the service received by job j in any interval is no larger than its cost. *)
+
+      (* A completed job cannot be scheduled. *)
+      Lemma completed_implies_not_scheduled :
+        forall t,
+          completed job_cost sched j t ->
+          ~~ scheduled sched j t.
+      Proof.
+        rename H_completed_jobs into COMP.
+        unfold completed_jobs_dont_execute in *.
+        intros t COMPLETED.
+        apply/negP; red; intro SCHED.
+        have BUG := COMP j t.+1.
+        rewrite leqNgt in BUG; move: BUG => /negP BUG; apply BUG.
+        unfold service; rewrite big_nat_recr // /= -addn1.
+        apply leq_add; first by move: COMPLETED => /eqP [<-].
+        by rewrite lt0n -not_scheduled_no_service negbK.
+      Qed.
+        
+      (* The service received by job j in any interval is no larger than its cost. *)
       Lemma cumulative_service_le_job_cost :
         forall t t',
           service_during sched j t t' <= job_cost j.
