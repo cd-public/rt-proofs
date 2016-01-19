@@ -87,8 +87,10 @@ VFILES:=arrival_sequence.v\
   bertogna_fp_theory.v\
   interference_bound_edf.v\
   interference.v\
+  interference_edf.v\
   job.v\
   platform.v\
+  platform_edf.v\
   priority.v\
   response_time.v\
   schedulability.v\

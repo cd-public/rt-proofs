@@ -1,12 +1,14 @@
 Require Import Vbase task job task_arrival schedule platform interference
-        workload workload_bound schedulability priority response_time
+        workload workload_bound schedulability priority platform
+        platform_edf response_time
         bertogna_fp_theory interference_bound_edf util_divround util_lemmas
         ssreflect ssrbool eqtype ssrnat seq fintype bigop div path.
 
 Module ResponseTimeAnalysisEDF.
 
   Import Job SporadicTaskset ScheduleOfSporadicTask Workload Schedulability ResponseTime
-         Priority SporadicTaskArrival WorkloadBound EDFSpecificBound ResponseTimeAnalysisFP.
+         Priority SporadicTaskArrival WorkloadBound EDFSpecificBound ResponseTimeAnalysisFP
+         PlatformEDF.
 
   (* In the following section, we define Bertogna and Cirinei's
      interference bound for EDF scheduling. *)
@@ -157,35 +159,6 @@ Module ResponseTimeAnalysisEDF.
     Hypothesis H_global_scheduling_invariant:
       JLFP_JLDP_scheduling_invariant_holds job_cost num_cpus sched higher_eq_priority.
 
-    (* The EDF scheduling invariant together with no intra-task
-       parallelism imply task precedence constraints. *)
-    Lemma edf_no_intratask_parallelism_implies_task_precedence :
-      task_precedence_constraints job_cost job_task sched.
-    Proof.
-      rename H_no_intra_task_parallelism into NOINTRA,
-             H_valid_job_parameters into JOBPARAMS.
-      unfold task_precedence_constraints, valid_sporadic_job,
-             jobs_of_same_task_dont_execute_in_parallel in *.
-      intros j j' t SAMEtsk BEFORE PENDING.
-      apply/negP; unfold not; intro SCHED'.
-      destruct (scheduled sched j t) eqn:SCHED.
-      {
-        specialize (NOINTRA j j' t SAMEtsk SCHED SCHED'); subst.
-        by rewrite ltnn in BEFORE.
-      }
-      apply negbT in SCHED.
-      assert (INTERF: job_interference job_cost sched j j' t t.+1 != 0).
-      {
-        unfold job_interference; rewrite -lt0n.
-        rewrite big_nat_recr // /=.
-        by unfold backlogged; rewrite PENDING SCHED SCHED' 2!andbT addn1.
-      }
-      apply interference_under_edf_implies_shorter_deadlines
-        with (job_deadline0 := job_deadline) in INTERF; last by done.
-      have PARAMS := (JOBPARAMS j); have PARAMS' := (JOBPARAMS j'); des.
-      rewrite PARAMS1 PARAMS'1 SAMEtsk leq_add2r in INTERF.
-      by apply (leq_trans BEFORE) in INTERF; rewrite ltnn in INTERF.
-    Qed.
     
     (* Assume that the task set has no duplicates. Otherwise, counting
        the number of tasks that have some property does not make sense
@@ -387,7 +360,7 @@ Module ResponseTimeAnalysisEDF.
         eapply cpus_busy_with_interfering_tasks; try (by done);
           [ by apply INV
           | by red; apply SPO
-          | by apply edf_no_intratask_parallelism_implies_task_precedence
+          | by eapply edf_no_intratask_parallelism_implies_task_precedence 
           | by apply PARAMS; rewrite -JOBtsk FROMTS
           | by apply JOBtsk
           | by apply BACK | ].
@@ -480,7 +453,7 @@ Module ResponseTimeAnalysisEDF.
             (task_cost0 := task_cost) (task_period0 := task_period)
             (task_deadline0 := task_deadline) in COUNT; try (by done);
           [
-          | by apply edf_no_intratask_parallelism_implies_task_precedence
+          | by eapply edf_no_intratask_parallelism_implies_task_precedence
           | by apply PARAMS; rewrite -JOBtsk FROMTS | ]; last first.
           {
             intros j0 TSK0 LT0.
