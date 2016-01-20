@@ -250,18 +250,13 @@ Module ResponseTimeAnalysisEDF.
           apply leq_trans with (n := workload job_task sched tsk_other
                                          (job_arrival j) (job_arrival j + R));
             first by apply task_interference_le_workload.
-          apply workload_bounded_by_W with (task_deadline0 := task_deadline) (job_cost0 := job_cost) (job_deadline0 := job_deadline); try (by ins); last 2 first;
+          by apply workload_bounded_by_W with (task_deadline0 := task_deadline)
+               (job_cost0 := job_cost) (job_deadline0 := job_deadline); try (by ins); last 2 first;
             [ by apply bertogna_edf_R_other_ge_cost
-            | by ins; apply BEFOREok with (tsk_other := tsk_other)
+            | by ins; apply NOMISS
             | by ins; apply TASK_PARAMS
-            | by ins; apply RESTR |].
-          red; move => j' JOBtsk' LEdl; unfold job_misses_no_deadline.
-          assert (PARAMS' := PARAMS j'); des; rewrite PARAMS'1 JOBtsk'.
-          apply completion_monotonic with (t := job_arrival j' + (R_other)); ins;
-            first by rewrite leq_add2l; apply NOMISS.
-          apply BEFOREok with (tsk_other := tsk_other); ins.
-          apply leq_ltn_trans with (n := job_arrival j' + job_deadline j'); last by done.
-          by specialize (PARAMS j'); des; rewrite leq_add2l PARAMS1 JOBtsk'; apply NOMISS.
+            | by ins; apply RESTR
+            | by ins; apply BEFOREok with (tsk_other := tsk_other)].
         Qed.
 
         (* Recall that the edf-specific interference bound also holds. *)

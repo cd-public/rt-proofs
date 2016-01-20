@@ -237,18 +237,14 @@ Module ResponseTimeAnalysisFP.
           apply leq_trans with (n := workload job_task sched tsk_other
                                               (job_arrival j) (job_arrival j + R));
             first by apply task_interference_le_workload.
-          apply workload_bounded_by_W with (task_deadline0 := task_deadline)
+          by apply workload_bounded_by_W with (task_deadline0 := task_deadline)
                     (job_cost0 := job_cost) (job_deadline0 := job_deadline);
             try (by ins); last 2 first;
               [ by ins; apply GE_COST 
-              | by ins; apply RESP with (hp_tsk := tsk_other)
+              | by ins; apply NOMISS
               | by ins; apply TASK_PARAMS
-              | by ins; apply RESTR |].
-          red; red; move => j' JOBtsk' _; unfold job_misses_no_deadline.
-          specialize (PARAMS j'); des.
-          rewrite PARAMS1 JOBtsk'.
-          by apply completion_monotonic with (t := job_arrival j' + R_other); ins;
-            [by rewrite leq_add2l; apply NOMISS | by apply (RESP tsk_other)].
+              | by ins; apply RESTR
+              | by ins; apply RESP with (hp_tsk := tsk_other)].
         Qed.
 
       End LemmasAboutInterferingTasks.

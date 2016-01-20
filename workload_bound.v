@@ -154,9 +154,7 @@ Module WorkloadBound.
 
     (* Before starting the proof, let's give simpler names to the definitions. *)
     Let job_has_completed_by := completed job_cost sched.
-    Let no_deadline_misses_by (tsk: sporadic_task) (t: time) :=
-      task_misses_no_deadline_before job_cost job_deadline job_task
-                                     sched tsk t.
+
     Let workload_of (tsk: sporadic_task) (t1 t2: time) :=
       workload job_task sched tsk t1 t2.
 
@@ -180,22 +178,22 @@ Module WorkloadBound.
        middle jobs (i.e., number of jobs - 2 in the worst case). *)
     Hypothesis H_restricted_deadline: task_deadline tsk <= task_period tsk.
       
-    (* Consider an interval [t1, t1 + delta), with no deadline misses. *)
+    (* Consider an interval [t1, t1 + delta). *)
     Variable t1 delta: time.
-    Hypothesis H_no_deadline_misses_during_interval: no_deadline_misses_by tsk (t1 + delta).
 
     (* Assume that a response-time bound R_tsk for that task in any
-       schedule of this processor platform is also given,
-       such that R_tsk >= task_cost tsk. *)
+       schedule of this processor platform is also given, ... *)
     Variable R_tsk: time.
-
-    Hypothesis H_response_time_ge_cost: R_tsk >= task_cost tsk.
 
     Hypothesis H_response_time_bound :    
       forall (j: JobIn arr_seq),
       job_task j = tsk ->
       job_arrival j + R_tsk < t1 + delta ->
       job_has_completed_by j (job_arrival j + R_tsk).
+
+    (* ... such that R_tsk >= task_cost tsk and R_tsk <= task_deadline tsk. *)    
+    Hypothesis H_response_time_ge_cost: R_tsk >= task_cost tsk.
+    Hypothesis H_no_deadline_miss: R_tsk <= task_deadline tsk.
     
     Section MainProof.
 
@@ -546,55 +544,6 @@ Module WorkloadBound.
           by rewrite subh3 // addnC; move: INnth => /eqP INnth; rewrite -INnth.
         Qed.
 
-        (* Now, we prove an auxiliary lemma for the next result.
-           The statement is not meaningful, since it's part of a proof
-           by contradiction. *)
-        Lemma workload_bound_helper_lemma :
-          job_arrival j_fst + task_period tsk + delta <= job_arrival j_lst ->
-          t1 <= job_arrival j_fst + task_deadline tsk.
-        Proof.
-          intros LE.
-          rename H_jobs_have_valid_parameters into PARAMS,
-                 H_completed_jobs_dont_execute into EXEC,
-                 H_no_deadline_misses_during_interval into NOMISS.
-          unfold task_misses_no_deadline_before, valid_sporadic_job,
-                 job_misses_no_deadline, completed in *; des.
-          exploit workload_bound_all_jobs_from_tsk.
-          {
-            apply mem_nth; instantiate (1 := 0).
-            apply ltn_trans with (n := 1); [by done | by rewrite H_at_least_two_jobs].
-          }
-          instantiate (1 := elem); move => [FSTtsk [/eqP FSTserv FSTin]].
-          exploit (NOMISS j_fst FSTtsk); last intros COMP.
-          { 
-            (* Prove that arr_fst + d_k <= t2 *)
-            apply leq_ltn_trans with (n := job_arrival j_lst);
-              last by apply workload_bound_last_job_arrives_before_end_of_interval.
-            apply leq_trans with (n := job_arrival j_fst + task_period tsk + delta); last by done.
-            rewrite -addnA leq_add2l -[job_deadline _]addn0.
-            apply leq_add; last by ins.
-            specialize (PARAMS j_fst); des.
-            by rewrite PARAMS1 FSTtsk H_restricted_deadline.
-          }
-          rewrite leqNgt; apply/negP; unfold not; intro LTt1.
-          (* Now we assume that (job_arrival j_fst + d_k < t1) and reach a contradiction.
-             Since j_fst doesn't miss deadlines, then the service it receives between t1 and t2
-             equals 0, which contradicts the previous assumption that j_fst interferes in
-             the scheduling window. *)
-          apply FSTserv.
-          {
-              unfold service_during; apply/eqP; rewrite -leqn0.
-              rewrite <- leq_add2l with (p := job_cost j_fst); rewrite addn0.
-              move: COMP => /eqP COMP; unfold service in COMP; rewrite -{1}COMP.
-              apply leq_trans with (n := service sched j_fst t2); last by apply EXEC.
-              unfold service; rewrite -> big_cat_nat with (m := 0) (p := t2) (n := t1);
-                [rewrite leq_add2r /= | by ins | by apply leq_addr].
-              rewrite -> big_cat_nat with (p := t1) (n := job_arrival j_fst + job_deadline j_fst);
-                [by rewrite /= -{1}[\sum_(_ <= _ < _) _]addn0 leq_add2l | by ins | ].
-              by apply ltnW; specialize (PARAMS j_fst); des; rewrite PARAMS1 FSTtsk.
-          }
-        Qed.
-        
         (* Prove that n_k is at least the number of the middle jobs *)
         Lemma workload_bound_n_k_covers_middle_jobs :
           n_k >= num_mid_jobs.
@@ -631,7 +580,9 @@ Module WorkloadBound.
             last by apply leq_trans with (n := job_arrival j_fst + task_period tsk + delta);
               [rewrite leq_add2r leq_add2l; apply H_restricted_deadline | apply DISTmax].
           unfold t2; rewrite leq_add2r.
-          by apply workload_bound_helper_lemma.
+          apply leq_trans with (n := job_arrival j_fst + R_tsk);
+            last by rewrite leq_add2l.
+          by apply workload_bound_response_time_of_first_job_inside_interval.
         Qed.
 
         (* If n_k = num_mid_jobs, then the workload bound holds. *)
@@ -719,12 +670,7 @@ Module WorkloadBound.
       Theorem workload_bounded_by_W :
         workload_of tsk t1 (t1 + delta) <= workload_bound.
       Proof.
-        rename H_jobs_have_valid_parameters into job_properties,
-               H_no_deadline_misses_during_interval into no_dl_misses,
-               H_valid_task_parameters into task_properties.
-        unfold valid_sporadic_job, valid_realtime_job, restricted_deadline_model,
-               valid_sporadic_taskset, is_valid_sporadic_task, sporadic_task_model,
-               workload_of, no_deadline_misses_by, workload_bound, W in *; ins; des.
+        unfold workload_of, workload_bound, W in *; ins; des.
         fold n_k.
 
         (* Use the definition of workload based on list of jobs. *)
