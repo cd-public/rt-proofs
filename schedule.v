@@ -76,7 +76,7 @@ Module Schedule.
 
     (* Job j is carry-out in interval [t1, t2) iff it arrives after t1 and is
        not complete at time t2 *)
-    Definition carried_out (t1 t2: time) := arrived_between j t1 t2 && ~~ completed t2.
+    Definition carried_out (t1 t2: time) := arrived_before j t2 && ~~ completed t2.
 
     (* The list of scheduled jobs at time t is the concatenation of the jobs
        scheduled on each processor. *)
