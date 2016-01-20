@@ -360,7 +360,6 @@ Module ResponseTimeAnalysisEDF.
         eapply cpus_busy_with_interfering_tasks; try (by done);
           [ by apply INV
           | by red; apply SPO
-          | by eapply edf_no_intratask_parallelism_implies_task_precedence 
           | by apply PARAMS; rewrite -JOBtsk FROMTS
           | by apply JOBtsk
           | by apply BACK | ].
@@ -452,9 +451,7 @@ Module ResponseTimeAnalysisEDF.
             (job_task0:=job_task) (ts0:=ts) (j0:=j) (tsk0:=tsk) (t0:=t)
             (task_cost0 := task_cost) (task_period0 := task_period)
             (task_deadline0 := task_deadline) in COUNT; try (by done);
-          [
-          | by eapply edf_no_intratask_parallelism_implies_task_precedence
-          | by apply PARAMS; rewrite -JOBtsk FROMTS | ]; last first.
+          [| by apply PARAMS; rewrite -JOBtsk FROMTS | ]; last first.
           {
             intros j0 TSK0 LT0.
             unfold pending in *.
