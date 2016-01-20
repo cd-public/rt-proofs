@@ -4,7 +4,7 @@ Require Import Vbase job task schedule task_arrival response_time
 
 Module Workload.
 
-  Import Job SporadicTaskset Schedule SporadicTaskArrival ResponseTime Schedulability.
+  Import Job SporadicTaskset ScheduleOfSporadicTask SporadicTaskArrival ResponseTime Schedulability.
 
   (* Let's define the workload. *)
   Section WorkloadDef.
@@ -40,9 +40,8 @@ Module Workload.
        during [t1,t2) of the scheduled jobs, but only those spawned
        by the task that we care about. *)
     Definition workload_joblist (t1 t2: time) :=
-      \sum_(j <- jobs_scheduled_between sched t1 t2 | job_task j == tsk)
+      \sum_(j <- jobs_of_task_scheduled_between job_task sched tsk t1 t2)
         service_during sched j t1 t2.
-
 
     (* Next, we show that the two definitions are equivalent. *)
     Lemma workload_eq_workload_joblist :
@@ -50,7 +49,7 @@ Module Workload.
       workload t1 t2 = workload_joblist t1 t2.
     Proof.
       intros t1 t2; unfold workload, workload_joblist, service_during.
-      rewrite [\sum_(j <- jobs_scheduled_between _ _ _ | _) _]exchange_big /=.
+      rewrite big_filter [\sum_(j <- jobs_scheduled_between _ _ _ | _) _]exchange_big /=.
       apply eq_big_nat; unfold service_at; intros t LEt.
       rewrite [\sum_(i <- jobs_scheduled_between _ _ _ | _) _](eq_bigr (fun i =>
                \sum_(cpu < num_cpus) (sched cpu t == Some i)));

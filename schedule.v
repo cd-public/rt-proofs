@@ -163,8 +163,8 @@ Module Schedule.
       Qed.
 
       (* If the cumulative service during a time interval is not zero, there
-         must be a time t in this interval where the service is not 0. *) 
-      Lemma job_scheduled_during_interval :
+         must be a time t in this interval where the service is not 0, ... *) 
+      Lemma cumulative_service_implies_service :
         forall t1 t2,
           service_during sched j t1 t2 != 0 ->
           exists t,
@@ -188,6 +188,21 @@ Module Schedule.
           by rewrite GT andTb negbK in EX; apply/eqP.
         }
       Qed.
+
+      (* ... and vice versa. *)
+      Lemma service_implies_cumulative_service:
+        forall t t1 t2,
+          t1 <= t < t2 ->
+          service_at sched j t != 0 ->
+          service_during sched j t1 t2 != 0.
+      Proof.
+        intros t t1 t2 LE NONZERO.
+        unfold service_during.
+        rewrite (bigD1_seq t) /=;
+          [| by rewrite mem_index_iota | by apply iota_uniq].
+        rewrite -lt0n -addn1 addnC.
+        by apply leq_add; first by rewrite lt0n.
+      Qed. 
       
     End Basic.
     
@@ -506,7 +521,28 @@ Module ScheduleOfSporadicTask.
   Import SporadicTask Job.
   Export Schedule.
 
-  Section Properties.
+  Section ScheduledJobs.
+
+    Context {sporadic_task: eqType}.
+    Context {Job: eqType}.
+    Variable job_task: Job -> sporadic_task.
+    
+    (* Consider any schedule. *)
+    Context {arr_seq: arrival_sequence Job}.
+    Context {num_cpus: nat}.
+    Variable sched: schedule num_cpus arr_seq.
+
+    (* Given a task tsk, ...*)
+    Variable tsk: sporadic_task.
+
+    (* ..., we define the list of jobs scheduled during [t1, t2). *)
+    Definition jobs_of_task_scheduled_between (t1 t2: time) :=
+      filter (fun (j: JobIn arr_seq) => job_task j == tsk)
+             (jobs_scheduled_between sched t1 t2).
+
+  End ScheduledJobs.
+  
+  Section ScheduleProperties.
 
     Context {sporadic_task: eqType}.
     Context {Job: eqType}.    
@@ -531,7 +567,7 @@ Module ScheduleOfSporadicTask.
         job_arrival j < job_arrival j' ->
         pending job_cost sched j t -> ~~ scheduled sched j' t.
     
-  End Properties.
+  End ScheduleProperties.
 
   Section BasicLemmas.
 

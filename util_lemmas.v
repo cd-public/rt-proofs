@@ -178,15 +178,23 @@ Section BigCatLemmas.
   Lemma mem_bigcat_nat_exists :
     forall (T: eqType) x m n (f: nat -> list T),
       x \in \cat_(m <= i < n) (f i) ->
-      exists i, x \in (f i).
+      exists i, x \in (f i) /\
+                m <= i < n.
   Proof.
     intros T x m n f IN.
     induction n; first by rewrite big_geq // in IN.
     destruct (leqP m n); last by rewrite big_geq ?in_nil // ltnW in IN.
     rewrite big_nat_recr // /= mem_cat in IN.
     move: IN => /orP [HEAD | TAIL].
-      by apply IHn in HEAD; destruct HEAD; exists x0.
-      by exists n.
+    {
+      apply IHn in HEAD; destruct HEAD; exists x0; des.
+      split; first by done.
+      by apply/andP; split; [by done | by apply ltnW].
+    }
+    {
+      exists n; split; first by done.
+      apply/andP; split; [by done | by apply ltnSn].
+    }
   Qed.
   
   Lemma mem_bigcat_ord:

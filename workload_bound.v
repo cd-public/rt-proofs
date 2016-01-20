@@ -207,11 +207,10 @@ Module WorkloadBound.
       Let n_k := max_jobs task_cost task_period tsk R_tsk delta.
       Let workload_bound := W task_cost task_period tsk R_tsk delta.
       
-      (* Identify the subset of jobs that actually cause interference *)
+      (* Since we only care about the interference caused by tsk,
+         we identify the set of jobs of that task in [t1, t2). *)
       Let interfering_jobs :=
-            filter (fun (j: JobIn arr_seq) =>
-                     (job_task j == tsk) && (service_during sched j t1 t2 != 0))
-                   (jobs_scheduled_between sched t1 t2).
+        jobs_of_task_scheduled_between job_task sched tsk t1 t2.
 
       (* Now, let's consider the list of interfering jobs sorted by arrival time. *)
       Let earlier_arrival := fun (x y: JobIn arr_seq) => job_arrival x <= job_arrival y.
@@ -220,25 +219,16 @@ Module WorkloadBound.
       (* The first step consists in simplifying the sum corresponding
          to the workload. *)
       Section SimplifyJobSequence.
- 
-        (* Remove the elements that we don't care about from the sum *)
-        Lemma workload_bound_simpl_by_filtering_interfering_jobs :
-          \sum_(i <- jobs_scheduled_between sched t1 t2 | job_task i == tsk)
-             service_during sched i t1 t2 =
-          \sum_(i <- interfering_jobs) service_during sched i t1 t2.
-        Proof.
-          unfold interfering_jobs.
-          rewrite (bigID (fun x => service_during sched x t1 t2 == 0)) /=.
-          rewrite (eq_bigr (fun x => 0)); last by move => j_i /andP JOBi; des; apply /eqP.
-          by rewrite big_const_seq iter_addn mul0n add0n add0n big_filter.
-        Qed.
 
-        (* Consider the sum over the sorted sequence of jobs. *)
+        (* After switching to the definition of workload based on a list
+           of jobs, we show that sorting the list preserves the sum. *)
         Lemma workload_bound_simpl_by_sorting_interfering_jobs :
-          \sum_(i <- interfering_jobs) service_during sched i t1 t2 =
+          workload_joblist job_task sched tsk t1 t2 =
            \sum_(i <- sorted_jobs) service_during sched i t1 t2.
         Proof.
-          by rewrite (eq_big_perm sorted_jobs) /=; last by rewrite -(perm_sort earlier_arrival).
+          unfold workload_joblist; fold interfering_jobs.
+          rewrite (eq_big_perm sorted_jobs) /= //.
+          by rewrite -(perm_sort earlier_arrival).
         Qed.
 
         (* Remember that both sequences have the same set of elements *)
@@ -259,8 +249,14 @@ Module WorkloadBound.
             j_i \in jobs_scheduled_between sched t1 t2.
         Proof.
           intros j_i LTi.
-          rewrite -workload_bound_job_in_same_sequence mem_filter in LTi.
-          by move: LTi => /andP [/andP [/eqP JOBi SERVi] INi]; repeat split.
+          rewrite -workload_bound_job_in_same_sequence mem_filter in LTi; des.
+          repeat split; [by apply/eqP | | by done].
+          unfold jobs_scheduled_between in *; rewrite mem_undup in LTi0.
+          apply mem_bigcat_nat_exists in LTi0; des.
+          rewrite mem_scheduled_jobs_eq_scheduled in LTi0.
+          apply service_implies_cumulative_service with (t := i);
+            first by apply/andP; split.
+          by rewrite -not_scheduled_no_service negbK.
         Qed.
 
         (* Remember that consecutive jobs are ordered by arrival. *)
@@ -732,10 +728,7 @@ Module WorkloadBound.
         fold n_k.
 
         (* Use the definition of workload based on list of jobs. *)
-        rewrite workload_eq_workload_joblist; unfold workload_joblist.
-
-        (* We only care about the jobs that cause interference. *)
-        rewrite workload_bound_simpl_by_filtering_interfering_jobs.
+        rewrite workload_eq_workload_joblist.
 
         (* Now we order the list by job arrival time. *)
         rewrite workload_bound_simpl_by_sorting_interfering_jobs.
