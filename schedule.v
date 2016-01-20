@@ -401,26 +401,30 @@ Module Schedule.
     Context {num_cpus: nat}.
     Variable sched: schedule num_cpus arr_seq.
 
+    Section Membership.
+      
     (* A job is in the list of scheduled jobs iff it is scheduled. *)
-    Lemma mem_scheduled_jobs_eq_scheduled :
-      forall j t,
-        j \in jobs_scheduled_at sched t = scheduled sched j t.
-    Proof.
-      unfold jobs_scheduled_at, scheduled.
-      intros j t; apply/idP/idP.
-      {
-        intros IN.
-        apply mem_bigcat_ord_exists in IN; des.
-        apply/exists_inP; exists i; first by done.
-        destruct (sched i t); last by done.
-        by rewrite mem_seq1 in IN; move: IN => /eqP IN; subst.
-      }
-      {
-        move => /exists_inP EX; destruct EX as [i IN SCHED].
-        apply mem_bigcat_ord with (j := i); first by apply ltn_ord.
-        by move: SCHED => /eqP SCHED; rewrite SCHED /= mem_seq1 eq_refl.
-      }
-    Qed.
+      Lemma mem_scheduled_jobs_eq_scheduled :
+        forall j t,
+          j \in jobs_scheduled_at sched t = scheduled sched j t.
+      Proof.
+        unfold jobs_scheduled_at, scheduled.
+        intros j t; apply/idP/idP.
+        {
+          intros IN.
+          apply mem_bigcat_ord_exists in IN; des.
+          apply/exists_inP; exists i; first by done.
+          destruct (sched i t); last by done.
+          by rewrite mem_seq1 in IN; move: IN => /eqP IN; subst.
+        }
+        {
+          move => /exists_inP EX; destruct EX as [i IN SCHED].
+          apply mem_bigcat_ord with (j := i); first by apply ltn_ord.
+          by move: SCHED => /eqP SCHED; rewrite SCHED /= mem_seq1 eq_refl.
+        }
+      Qed.
+
+    End Membership.
     
     Section Uniqueness.
 
@@ -475,6 +479,22 @@ Module Schedule.
       Qed.
 
     End Uniqueness.
+
+    Section NumberOfJobs.
+
+      (* The number of scheduled jobs is no larger than the number of cpus. *)
+      Lemma num_scheduled_jobs_le_num_cpus :
+        forall t,
+          size (jobs_scheduled_at sched t) <= num_cpus.
+      Proof.
+        intros t.
+        unfold jobs_scheduled_at.
+        destruct num_cpus; first by rewrite big_ord0.
+        apply size_bigcat_ord; first by apply (Ordinal (ltnSn n)).
+        by ins; unfold make_sequence; desf.
+      Qed.
+
+    End NumberOfJobs.
     
   End ScheduledJobsLemmas.
 
