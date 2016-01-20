@@ -346,6 +346,27 @@ Module PlatformEDF.
 
     End JobInvariantAsTaskInvariant.*)
 
+    Section WorkConserving.
+
+      (* We show that the EDF scheduling invariant implies work conservation. *)
+      Lemma edf_invariant_implies_work_conservation:
+        is_work_conserving job_cost num_cpus sched.
+      Proof.
+        rename H_global_scheduling_invariant into INV.
+        unfold is_work_conserving,
+               JLFP_JLDP_scheduling_invariant_holds in *.
+        intros j t BACK.
+        specialize (INV j t BACK).
+        apply/eqP; rewrite eqn_leq; apply/andP; split;
+          first by apply num_scheduled_jobs_le_num_cpus.
+        eapply leq_trans;
+          first by apply eq_leq; symmetry; apply INV.
+        by apply leq_trans with (n := count predT (jobs_scheduled_at sched t));
+          [by apply sub_count | by apply count_size].
+      Qed.
+      
+    End WorkConserving.
+    
   End Lemmas.
   
 End PlatformEDF.

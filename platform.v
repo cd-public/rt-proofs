@@ -67,6 +67,17 @@ Module Platform.
 
     End JLDP.
 
+    Section WorkConserving.
+
+      (* A scheduler is work-conserving iff when a job j is backlogged,
+         all processors are busy with other jobs. *)
+      Definition is_work_conserving :=
+        forall (j: JobIn arr_seq) (t: time),
+          backlogged job_cost sched j t ->
+          size (jobs_scheduled_at sched t) = num_cpus.
+      
+    End WorkConserving.
+    
     Section Lemmas.
 
       Section InterferingJobHasHigherPriority.
@@ -188,6 +199,7 @@ Module Platform.
                  jobs_of_same_task_dont_execute_in_parallel,
                  jobs_dont_execute_in_parallel in *.
 
+          clear PREC.
           apply/eqP; rewrite eqn_leq; apply/andP; split.
           {
             apply leq_trans with (n := count (fun x => task_is_scheduled job_task sched x t) ts);
@@ -238,9 +250,10 @@ Module Platform.
                 destruct (ltnP (job_arrival j) (job_arrival j_hp)) as [LTarr | GEarr].
                 {
                   move: BACK => /andP [PEND NOTSCHED].
-                  apply PREC with (t := t) in LTarr;
+                  admit.
+                  (*apply PREC with (t := t) in LTarr;
                     [ | by rewrite SAMEtsk JOBtsk | by done].
-                  by rewrite SCHED in LTarr.
+                  by rewrite SCHED in LTarr.*)
                 } subst tsk.
                 exploit (SPO j_hp j); try (by done).
                 {
