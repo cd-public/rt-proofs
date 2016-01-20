@@ -1,24 +1,35 @@
 Require Import Vbase ssreflect ssrbool eqtype ssrnat seq fintype bigop tuple path div ssromega.
 
+(* Here we define a more verbose notation for projections of pairs... *)
 Section Pair.
 
-Context {A B: Type}.
-Variable p: A * B.
-Definition pair_1st := fst p.
-Definition pair_2nd := snd p.
+  Context {A B: Type}.
+  Variable p: A * B.
+  Definition pair_1st := fst p.
+  Definition pair_2nd := snd p.
 
 End Pair.
 
+(* ...and triples. *)
 Section Triple.
 
-Context {A B C: Type}.
-Variable p: A * B * C.
-Definition triple_1st (p: A * B * C) := fst (fst p).
-Definition triple_2nd := snd (fst p).
-Definition triple_3rd := snd p.
+  Context {A B C: Type}.
+  Variable p: A * B * C.
+  Definition triple_1st (p: A * B * C) := fst (fst p).
+  Definition triple_2nd := snd (fst p).
+  Definition triple_3rd := snd p.
 
 End Triple.
 
+(* Define a wrapper from an element to a singleton list. *)
+Definition make_sequence {T: Type} (opt: option T) :=
+  match opt with
+    | Some j => [:: j]
+    | None => [::]
+  end.
+
+(* Next we define a notation for the big concatenation operator.*)
+  
 Reserved Notation "\cat_ ( m <= i < n ) F"
   (at level 41, F at level 41, i, m, n at level 50,
    format "'[' \cat_ ( m <= i < n ) '/ ' F ']'").
@@ -32,6 +43,22 @@ Reserved Notation "\cat_ ( m <= i < n | P ) F"
 
 Notation "\cat_ ( m <= i < n | P ) F" :=
   (\big[cat/[::]]_(m <= i < n | P) F%N) : nat_scope.
+
+Reserved Notation "\cat_ ( i < n ) F"
+  (at level 41, F at level 41, i, n at level 50,
+   format "'[' \cat_ ( i < n ) '/ ' F ']'").
+
+Notation "\cat_ ( i < n ) F" :=
+  (\big[cat/[::]]_(i < n) F%N) : nat_scope.
+
+Reserved Notation "\cat_ ( i < n | P ) F"
+  (at level 41, F at level 41, i, n at level 50,
+   format "'[' \cat_ ( i < n | P ) '/ ' F ']'").
+
+Notation "\cat_ ( i < n | P ) F" :=
+  (\big[cat/[::]]_(i < n | P) F%N) : nat_scope.
+  
+(* Let's define big operators for lists of pairs. *)
 
 Reserved Notation "\sum_ ( ( m , n ) <- r ) F"
   (at level 41, F at level 41, m, n at level 50,
@@ -68,26 +95,15 @@ Notation "[ 'seq' ( x , y ) <- s | C ]" :=
  (at level 0, x at level 99,
   format "[ '[hv' 'seq' ( x , y ) <- s '/ ' | C ] ']'") : seq_scope.
 
-Reserved Notation "\cat_ ( i < n ) F"
-  (at level 41, F at level 41, i, n at level 50,
-   format "'[' \cat_ ( i < n ) '/ ' F ']'").
-
-Notation "\cat_ ( i < n ) F" :=
-  (\big[cat/[::]]_(i < n) F%N) : nat_scope.
-
-Reserved Notation "\cat_ ( i < n | P ) F"
-  (at level 41, F at level 41, i, n at level 50,
-   format "'[' \cat_ ( i < n | P ) '/ ' F ']'").
-
-Notation "\cat_ ( i < n | P ) F" :=
-  (\big[cat/[::]]_(i < n | P) F%N) : nat_scope.
-
+(* In case we use an (option list T), we can define membership
+   without having to match the option type. *)
 Reserved Notation "x \In A"
   (at level 70, format "'[hv' x '/ ' \In A ']'", no associativity).
-
 Notation "x \In A" :=
   (if A is Some B then in_mem x (mem B) else false) : bool_scope.
 
+(* The following tactic does dependent pattern matching of
+   a bool (in case we use the result of the bool as a proof term). *)
 Ltac des_eqrefl2 :=
   match goal with
     | H: context[match ?X as id return (?X = id -> _) with _ => _ end Logic.eq_refl] |- _ =>
@@ -103,914 +119,789 @@ Ltac des_eqrefl2 :=
     intros id' EQ; destruct id'
   end.
 
-Lemma mem_bigcat_nat:
-  forall (T: eqType) x m n j (f: _ -> list T)
-         (LE: m <= j < n) (IN: x \in (f j)),
-  x \in \cat_(m <= i < n) (f i).
-Proof.
-  ins; move: LE => /andP LE; des.
-  rewrite -> big_cat_nat with (n := j); simpl; [| by ins | by apply ltnW].
-  rewrite mem_cat; apply/orP; right.
-  destruct n; first by rewrite ltn0 in LE0.
-  rewrite big_nat_recl; last by ins.
-  by rewrite mem_cat; apply/orP; left.
-Qed.
+(* Lemmas about big operators over Ordinals that use Ordinal functions. *)
+Section BigOrdFunOrd.
 
-Definition fun_ord_to_nat {n} {T} (x0: T) (f: 'I_n -> T) : nat -> T.
-(* if x < n, apply the function f in the (Ordinal x: 'I_n), else return default x0. *)
-  intro x; destruct (x < n) eqn:LT;
-    [by apply (f (Ordinal LT)) | by apply x0].
-Defined.
+  Definition fun_ord_to_nat {n} {T} (x0: T) (f: 'I_n -> T) : nat -> T.
+  (* if x < n, apply the function f in the (Ordinal x: 'I_n), else return default x0. *)
+    intro x; destruct (x < n) eqn:LT;
+      [by apply (f (Ordinal LT)) | by apply x0].
+  Defined.
 
-Lemma eq_fun_ord_to_nat :
-  forall n {T: Type} x0 (f: 'I_n -> T) (x: 'I_n),
-    (fun_ord_to_nat x0 f) x = f x.
-Proof.
-  ins; unfold fun_ord_to_nat.
-  des_eqrefl2.
-    by f_equal; apply ord_inj.
-    by destruct x; ins; rewrite i in EQ.
-Qed.
+  Lemma eq_fun_ord_to_nat :
+    forall n {T: Type} x0 (f: 'I_n -> T) (x: 'I_n),
+      (fun_ord_to_nat x0 f) x = f x.
+  Proof.
+    ins; unfold fun_ord_to_nat.
+    des_eqrefl2.
+      by f_equal; apply ord_inj.
+      by destruct x; ins; rewrite i in EQ.
+  Qed.
 
-Lemma eq_bigr_ord T n op idx r (P : pred 'I_n)
-                  (F1: nat -> T) (F2: 'I_n -> T) :
-  (forall i, P i -> F1 i = F2 i) ->
-  \big[op/idx]_(i <- r | P i) F1 i = \big[op/idx]_(i <- r | P i) F2 i.
-Proof.
-  induction r; ins; first by rewrite 2!big_nil.
-  rewrite 2!big_cons; destruct (P a) eqn:EQ;
-    by rewrite IHr; ins; rewrite H; ins.
-Qed.
+  Lemma eq_bigr_ord T n op idx r (P : pred 'I_n)
+                    (F1: nat -> T) (F2: 'I_n -> T) :
+    (forall i, P i -> F1 i = F2 i) ->
+    \big[op/idx]_(i <- r | P i) F1 i = \big[op/idx]_(i <- r | P i) F2 i.
+  Proof.
+    induction r; ins; first by rewrite 2!big_nil.
+    rewrite 2!big_cons; destruct (P a) eqn:EQ;
+      by rewrite IHr; ins; rewrite H; ins.
+  Qed.
 
-Lemma big_mkord_ord {T} {n} {op} {idx} x0 (P : pred 'I_n) (F: 'I_n -> T) :
-  \big[op/idx]_(i < n | P i) F i =
-    \big[op/idx]_(i < n | P i) (fun_ord_to_nat x0 F) i.
-Proof.
-  have EQ := eq_bigr_ord T n op idx _ _ (fun_ord_to_nat x0 F) F.
-  rewrite EQ; [by ins | by ins; rewrite eq_fun_ord_to_nat].
-Qed.
+  Lemma big_mkord_ord {T} {n} {op} {idx} x0 (P : pred 'I_n) (F: 'I_n -> T) :
+    \big[op/idx]_(i < n | P i) F i =
+      \big[op/idx]_(i < n | P i) (fun_ord_to_nat x0 F) i.
+  Proof.
+    have EQ := eq_bigr_ord T n op idx _ _ (fun_ord_to_nat x0 F) F.
+    rewrite EQ; [by ins | by ins; rewrite eq_fun_ord_to_nat].
+  Qed.
 
-Lemma mem_bigcat_ord:
-  forall (T: eqType) x n (j: 'I_n) (f: 'I_n -> list T)
-         (LE: j < n) (IN: x \in (f j)),
-    x \in \cat_(i < n) (f i).
-Proof.
-  ins; rewrite (big_mkord_ord nil).
-  rewrite -(big_mkord (fun x => true)).
-  apply mem_bigcat_nat with (j := j);
-    [by apply/andP; split | by rewrite eq_fun_ord_to_nat].
-Qed.
-
-Lemma mem_bigcat_ord_exists :
-  forall (T: eqType) x n (f: 'I_n -> list T),
-    x \in \cat_(i < n) (f i) ->
-    exists i, x \in (f i).
-Proof.
-  intros T x n f IN.
-  induction n; first by rewrite big_ord0 in_nil in IN.
-  {
-    rewrite big_ord_recr /= mem_cat in IN.
-    move: IN => /orP [HEAD | TAIL].
-    {
-      apply IHn in HEAD; destruct HEAD.
-      by eexists (widen_ord _ x0); desf.
-    }
-    {
-      by exists ord_max; desf.
-    }
-  }
-Qed.
-
-Lemma bigcat_ord_uniq :
-  forall (T: eqType) n (f: 'I_n -> list T),
-    (forall i, uniq (f i)) ->
-    (forall x i1 i2,
-       x \in (f i1) -> x \in (f i2) -> i1 = i2) ->
-    uniq (\cat_(i < n) (f i)).
-Proof.
-  intros T n f SINGLE UNIQ.
-  induction n; first by rewrite big_ord0.
-  {
-    rewrite big_ord_recr cat_uniq; apply/andP; split.
-    {
-      apply IHn; first by done.
-      intros x i1 i2 IN1 IN2.
-      exploit (UNIQ x);
-        [by apply IN1 | by apply IN2 | intro EQ; inversion EQ].
-      by apply ord_inj.
-    }
-    apply /andP; split; last by apply SINGLE.
-    {
-      rewrite -all_predC; apply/allP; intros x INx.
-       
-      simpl; apply/negP; unfold not; intro BUG.
-      rewrite -big_ord_narrow in BUG.
-      rewrite big_mkcond /= in BUG.
-      have EX := mem_bigcat_ord_exists T x n.+1 _.
-      apply EX in BUG; clear EX; desf.
-      apply UNIQ with (i1 := ord_max) in BUG; last by done.
-      by desf; unfold ord_max in *; rewrite /= ltnn in Heq.
-    }
-  }
-Qed.
-
-Lemma addnb (b1 b2 : bool) : (b1 + b2) != 0 = b1 || b2.
-Proof.
-  by destruct b1,b2;
-  rewrite ?addn0 ?add0n ?addn1 ?orTb ?orbT ?orbF ?orFb.
-Qed.
-
-Lemma strong_ind :
-  forall (P: nat -> Prop),
-    P 0 -> (forall n, (forall k, k <= n -> P k) -> P n.+1) ->
-    forall n, P n.
-Proof.
-  intros P P0 ALL; destruct n; first by apply P0.
-  apply ALL;  generalize dependent n; induction n.
-    by intros k LE0; move: LE0; rewrite leqn0; move => /eqP LE0; subst k.
-    intros k LESn; destruct (ltngtP k n.+1) as [LT | GT | EQ].
-      by rewrite ltnS in LT; apply IHn.
-      by rewrite leqNgt GT in LESn.
-      by rewrite EQ; apply ALL, IHn.
-Qed.
-
-Lemma strong_ind_lt :
-  forall (P: nat -> Prop),
-    (forall n, (forall k, k < n -> P k) -> P n) ->
-    forall n, P n.
-Proof.
-  intros P ALL n; apply ALL.
-  induction n; first by ins; apply ALL.
-  intros k LTkSn; apply ALL.
-  by intros k0 LTk0k; apply IHn, leq_trans with (n := k).
-Qed.
-
-Lemma exists_inP_nat t (P: nat -> bool):
-  reflect (exists x, x < t /\ P x) [exists (x | x \in 'I_t), P x].
-Proof.
-  destruct [exists x0 in 'I_t, P x0] eqn:EX; [apply ReflectT | apply ReflectF]; ins.
-    move: EX => /exists_inP EX; des.
-    by exists x; split; [by apply ltn_ord |].
-
-    apply negbT in EX; rewrite negb_exists_in in EX.
-    move: EX => /forall_inP ALL.
-    unfold not; ins; des.
-    specialize (ALL (Ordinal H)).
-    by exploit ALL; unfold negb; try rewrite H0.
-Qed.
-
-Lemma forall_inP_nat (t: nat) (P: nat -> bool):
-  reflect ((forall (x: nat) (LT: x < t), P x)) [forall (x | x \in 'I_t), P x].
-Proof.
-  destruct [forall x0 in 'I_t, P x0] eqn:ALL; [apply ReflectT | apply ReflectF]; ins.
-    move: ALL => /forall_inP ALL; des.
-    by exploit (ALL (Ordinal LT)). 
-
-    apply negbT in ALL; rewrite negb_forall_in in ALL.
-    move: ALL => /exists_inP ALL; des.
-    unfold not; ins; des.
-    by exploit (H x); [by apply ltn_ord | by apply/negP].
-Qed.
-
-Lemma exists_inPQ_nat t (P Q: nat -> bool):
-  reflect (exists x, x < t /\ P x /\ Q x) [exists (x | x \in 'I_t), P x && Q x].
-Proof.
-  destruct [exists x0 in 'I_t, P x0 && Q x0] eqn:EX; [apply ReflectT | apply ReflectF]; ins.
-    move: EX => /exists_inP EX; des.
-    move: H2 => /andP H2; des.
-    by exists x; split; [by apply ltn_ord |].
-
-    apply negbT in EX; rewrite negb_exists_in in EX.
-    move: EX => /forall_inP ALL.
-    unfold not; ins; des.
-    specialize (ALL (Ordinal H)).
-    by exploit ALL; unfold negb; try rewrite H0 H1.
-Qed.
-
-Lemma subh1 : forall m n p (GE: m >= n), m - n + p = m + p - n.
-Proof.
-  by ins; ssromega.
-Qed.
-
-Lemma subh2 : forall m1 m2 n1 n2 (GE1: m1 >= m2) (GE2: n1 >= n2),
-  (m1 + n1) - (m2 + n2) = m1 - m2 + (n1 - n2).
-Proof.
-  by ins; ssromega.
-Qed.
-
-Lemma subh3 : forall m n p (GE1: m + p <= n) (GE: n >= p),
-                    (m <= n - p).
-Proof.
-  ins. rewrite <- leq_add2r with (p := p).
-  by rewrite subh1 // -addnBA // subnn addn0.
-Qed.
-
-Lemma subh4: forall m n p (LE1: m <= n) (LE2: p <= n),
-             (m == n - p) = (p == n - m).
-  intros.
-  apply/eqP.
-  destruct (p == n - m) eqn:EQ.
-    by move: EQ => /eqP EQ; rewrite EQ subKn.
-    by apply negbT in EQ; unfold not; intro BUG;
-      rewrite BUG subKn ?eq_refl in EQ.
-Qed.
-
-Lemma ltn_div_trunc :
-  forall m n d (NONZERO: d > 0) (DIV: m %/ d < n %/ d), m < n.
-Proof.
-  ins.
-  rewrite ltn_divLR in DIV; last by ins.
-  by apply leq_trans with (n := n %/ d * d);
-    [by ins| by apply leq_trunc_div].
-Qed.
+End BigOrdFunOrd.
   
-Lemma addmovr: forall m n p (GE: m >= n), m - n = p <-> m = p + n.
-Proof.
-  split; ins; ssromega.
-Qed.
+(* Lemmas about the big concatenation operator. *)
+Section BigCatLemmas.
 
-Lemma addmovl: forall m n p (GE: m >= n), p = m - n <-> p + n = m.
-Proof.
-  split; ins; ssromega.
-Qed.
+  Lemma mem_bigcat_nat:
+    forall (T: eqType) x m n j (f: _ -> list T),
+      m <= j < n ->
+      x \in (f j) ->
+      x \in \cat_(m <= i < n) (f i).
+  Proof.
+    intros T x m n j f LE IN; move: LE => /andP LE; des.
+    rewrite -> big_cat_nat with (n := j); simpl; [| by ins | by apply ltnW].
+    rewrite mem_cat; apply/orP; right.
+    destruct n; first by rewrite ltn0 in LE0.
+    rewrite big_nat_recl; last by ins.
+    by rewrite mem_cat; apply/orP; left.
+  Qed.
 
-Lemma subndiv_eq_mod: forall n d, n - n %/ d * d = n %% d.
-Proof.
-  by ins; rewrite {1}(divn_eq n d) addnC -addnBA // subnn addn0.
-Qed.
+  Lemma mem_bigcat_nat_exists :
+    forall (T: eqType) x m n (f: nat -> list T),
+      x \in \cat_(m <= i < n) (f i) ->
+      exists i, x \in (f i).
+  Proof.
+    intros T x m n f IN.
+    induction n; first by rewrite big_geq // in IN.
+    destruct (leqP m n); last by rewrite big_geq ?in_nil // ltnW in IN.
+    rewrite big_nat_recr // /= mem_cat in IN.
+    move: IN => /orP [HEAD | TAIL].
+      by apply IHn in HEAD; destruct HEAD; exists x0.
+      by exists n.
+  Qed.
+  
+  Lemma mem_bigcat_ord:
+    forall (T: eqType) x n (j: 'I_n) (f: 'I_n -> list T),
+      j < n ->
+      x \in (f j) ->
+      x \in \cat_(i < n) (f i).
+  Proof.
+    intros T x n j f LE IN; rewrite (big_mkord_ord nil).
+    rewrite -(big_mkord (fun x => true)).
+    apply mem_bigcat_nat with (j := j);
+      [by apply/andP; split | by rewrite eq_fun_ord_to_nat].
+  Qed.
 
-Lemma sum_diff_monotonic :
-  forall n G F (ALL: forall i : nat, i < n -> G i <= F i),
-    (\sum_(0 <= i < n) (G i)) <= (\sum_(0 <= i < n) (F i)).
-Proof.
-  ins; rewrite big_nat_cond [\sum_(0 <= i < n) F i]big_nat_cond.
-  apply leq_sum; intros i LT; rewrite andbT in LT.
-  move: LT => /andP LT; des.
-  apply ALL, leq_trans with (n := n); ins.
-Qed.
-
-Lemma sum_diff : forall n F G (ALL: forall i (LT: i < n), F i >= G i),
-    \sum_(0 <= i < n) (F i - G i) =
-    (\sum_(0 <= i < n) (F i)) -
-    (\sum_(0 <= i < n) (G i)).       
-Proof.
-  induction n; ins; first by rewrite 3?big_geq.
-  assert (ALL': forall i, i < n -> G i <= F i).
-    by ins; apply ALL, leq_trans with (n := n); ins.
-  rewrite 3?big_nat_recr // IHn //; simpl.
-  rewrite subh1; last by apply sum_diff_monotonic.
-  rewrite subh2 //; try apply sum_diff_monotonic; ins.
-  rewrite subh1; ins; apply sum_diff_monotonic; ins.
-  by apply ALL; rewrite ltnS leqnn. 
-Qed.
-
-Lemma prev_le_next :
-  forall (T: Type) (F: T->nat) r (x0: T)
-  (ALL: forall i, i < (size r).-1 -> F (nth x0 r i) <= F (nth x0 r i.+1))
-  i k (LT: i + k <= (size r).-1),
-    F (nth x0 r i) <= F (nth x0 r (i+k)).
-Proof.
-  intros.
-  generalize dependent i. generalize dependent k.
-  induction k; intros; first by rewrite addn0 leqnn.
-  specialize (IHk i.+1); exploit IHk; [by rewrite addSnnS | intro LE].
-  apply leq_trans with (n := F (nth x0 r (i.+1))); last by rewrite -addSnnS.
-  apply ALL, leq_trans with (n := i + k.+1); last by ins.
-  by rewrite addnS ltnS leq_addr.
-Qed.
-
-Lemma telescoping_sum :
-  forall (T: Type) (F: T->nat) r (x0: T)
-  (ALL: forall i, i < (size r).-1 -> F (nth x0 r i) <= F (nth x0 r i.+1)), 
-    F (nth x0 r (size r).-1) - F (nth x0 r 0) =
-      \sum_(0 <= i < (size r).-1) (F (nth x0 r (i.+1)) - F (nth x0 r i)).
-Proof.
-  intros T F r x0 ALL.
-  have ADD1 := big_add1.
-  have RECL := big_nat_recl.
-  specialize (ADD1 nat 0 addn 0 (size r) (fun x => true) (fun i => F (nth x0 r i))).
-  specialize (RECL nat 0 addn (size r).-1 0 (fun i => F (nth x0 r i))).
-  rewrite sum_diff; last by ins.
-  rewrite addmovr; last by rewrite -[_.-1]add0n; apply prev_le_next; try rewrite add0n leqnn.
-  rewrite subh1; last by apply sum_diff_monotonic.
-  rewrite addnC -RECL //.
-  rewrite addmovl; last by rewrite big_nat_recr // -{1}[\sum_(_ <= _ < _) _]addn0; apply leq_add.
-  by rewrite addnC -big_nat_recr.
-Qed.
-
-Definition make_sequence {T: Type} (opt: option T) :=
-  match opt with
-    | Some j => [:: j]
-    | None => [::]
-  end.
-
-Lemma ltSnm : forall n m, n.+1 < m -> n < m.
-Proof.
-  by ins; apply ltn_trans with (n := n.+1); [by apply ltnSn |by ins].
-Qed.
-
-Lemma iter_fix T (F : T -> T) x k n :
-  iter k F x = iter k.+1 F x -> k <= n -> iter n F x = iter n.+1 F x.
-Proof.
-  move => e. elim: n. rewrite leqn0. by move/eqP<-.
-  move => n IH. rewrite leq_eqVlt; case/orP; first by move/eqP<-.
-  move/IH => /= IHe. by rewrite -!IHe.
-Qed.
-
-Lemma leq_as_delta :
-  forall x1 (P: nat -> Prop),
-    (forall x2, x1 <= x2 -> P x2) <->
-    (forall delta, P (x1 + delta)).
-Proof.
-  ins; split; last by intros ALL x2 LE; rewrite -(subnK LE) addnC; apply ALL.
-  {
-    intros ALL; induction delta.
-      by rewrite addn0; apply ALL, leqnn. 
-      by apply ALL; rewrite -{1}[x1]addn0; apply leq_add; [by apply leqnn | by ins]. 
-  }
-Qed.
-
-Lemma fun_mon_iter_mon :
-  forall (f: nat -> nat) x0 x1 x2 (LE: x1 <= x2)
-         (MIN: f x0 >= x0)
-         (MON: forall x1 x2, x1 <= x2 -> f x1 <= f x2),
-    iter x1 f x0 <= iter x2 f x0.
-Proof.
-  ins; revert LE; revert x2; rewrite leq_as_delta; intros delta.
-  induction x1; try rewrite add0n.
-  {
-    induction delta; first by apply leqnn.
-    apply leq_trans with (n := iter delta f x0); first by done.
-    clear IHdelta.
-    induction delta; first by done.
+  Lemma mem_bigcat_ord_exists :
+    forall (T: eqType) x n (f: 'I_n -> list T),
+      x \in \cat_(i < n) (f i) ->
+      exists i, x \in (f i).
+  Proof.
+    intros T x n f IN.
+    induction n; first by rewrite big_ord0 in_nil in IN.
     {
-      rewrite 2!iterS; apply MON.
-      apply IHdelta.
-    }
-  }
-  {
-    rewrite iterS -addn1 -addnA [1 + delta]addnC addnA addn1 iterS.
-    by apply MON, IHx1.
-  }
-Qed.
-
-Lemma fun_mon_iter_mon_helper :
-  forall T (f: T -> T) (le: rel T)
-         (REFL: reflexive le) (TRANS: transitive le)
-         x0 x1 (MIN: forall x2, le x0 (iter x2 f x0))
-         (MON: forall x1 x2, le x0 x1 -> le x1 x2 -> le (f x1) (f x2)),
-    le (iter x1 f x0) (iter x1.+1 f x0).
-Proof.
-  ins; generalize dependent x0.
-  induction x1; first by ins; apply (MIN 1).
-  by ins; apply MON; [by apply MIN | by apply IHx1].
-Qed.
-
-Lemma fun_mon_iter_mon_generic :
-  forall T (f: T -> T) (le: rel T)
-         (REFL: reflexive le) (TRANS: transitive le)
-         x0 x1 x2 (LE: x1 <= x2)
-         (MON: forall x1 x2, le x0 x1 -> le x1 x2 -> le (f x1) (f x2))
-         (MIN: forall x2 : nat, le x0 (iter x2 f x0)),
-    le (iter x1 f x0) (iter x2 f x0).
-Proof.
-  ins; revert LE; revert x2; rewrite leq_as_delta; intros delta.
-  induction delta; first by rewrite addn0; apply REFL.
-  apply (TRANS) with (y := iter (x1 + delta) f x0); first by apply IHdelta.
-  by rewrite addnS; apply fun_mon_iter_mon_helper.
-Qed.
-
-Lemma divSn_cases :
-  forall n d (GT1: d > 1),
-    (n %/ d = n.+1 %/d /\ n %% d + 1 = n.+1 %% d) \/
-    (n %/ d + 1 = n.+1 %/ d).
-Proof.
-  ins; set x := n %/ d; set y := n %% d.
-  assert (GT0: d > 0); first by apply ltn_trans with (n := 1).
-  destruct (ltngtP y (d - 1)) as [LTN | BUG | GE]; [left | | right];
-    first 1 last.
-  {
-    exploit (@ltn_pmod n d); [by apply GT0 | intro LTd; fold y in LTd].
-    rewrite -(ltn_add2r 1) [y+1]addn1 ltnS in BUG.
-    rewrite subh1 in BUG; last by apply GT0.
-    rewrite -addnBA // subnn addn0 in BUG.
-    by apply (leq_ltn_trans BUG) in LTd; rewrite ltnn in LTd.
-  }
-
-  {
-    (* Case 1: y = d - 1*)
-    move: GE => /eqP GE; rewrite -(eqn_add2r 1) in GE.
-    rewrite subh1 in GE; last by apply GT0.
-    rewrite -addnBA // subnn addn0 in GE.
-    move: GE => /eqP GE.
-    apply f_equal with (f := fun x => x %/ d) in GE.
-    rewrite divnn GT0 /= in GE.
-    unfold x; rewrite -GE.
-    rewrite -divnMDl; last by apply GT0.
-    f_equal; rewrite addnA.
-    by rewrite -divn_eq addn1.
-  }
-  {
-    assert (EQDIV: n %/ d = n.+1 %/ d).
-    {
-      apply/eqP; rewrite eqn_leq; apply/andP; split;
-        first by apply leq_div2r, leqnSn.
-      rewrite leq_divRL; last by apply GT0.
-      rewrite -ltnS {2}(divn_eq n.+1 d).
-      rewrite -{1}[_ %/ d * d]addn0 ltn_add2l.
-      unfold y in *.
-      rewrite ltnNge; apply/negP; unfold not; intro BUG.
-      rewrite leqn0 in BUG; move: BUG => /eqP BUG.
-      rewrite -(modnn d) -addn1 in BUG.
-      destruct d; first by rewrite sub0n in LTN.
-      move: BUG; move/eqP; rewrite -[d.+1]addn1 eqn_modDr [d+1]addn1; move => /eqP BUG.
-      rewrite BUG -[d.+1]addn1 -addnBA // subnn addn0 in LTN.
-      by rewrite modn_small in LTN;
-        [by rewrite ltnn in LTN | by rewrite addn1 ltnSn].
-    }
-    (* Case 2: y < d - 1 *)
-    split; first by rewrite -EQDIV.
-    {
-      unfold x, y in *.
-      rewrite -2!subndiv_eq_mod.
-      rewrite subh1 ?addn1; last by apply leq_trunc_div.
-      rewrite EQDIV; apply/eqP.
-      rewrite -(eqn_add2r (n%/d*d)).
-      by rewrite subh1; last by apply leq_trunc_div.
-    }
-  }
-Qed.
-
-Definition total_over_seq {T: eqType} (leT: rel T) (s: seq T) :=
-  forall x y (INx: x \in s) (INy: y \in s),
-    leT x y \/ leT y x.
-
-Definition antisymmetric_over_seq {T: eqType} (leT: rel T) (s: seq T) :=
-  forall x y (INx: x \in s) (INy: y \in s)
-             (LEx: leT x y) (LEy: leT y x),
-    x = y.
-
-Lemma before_ij_implies_leq_ij :
-  forall {T: eqType} (s: seq T) (leT: rel T)
-         (SORT: sorted leT s) (REFL: reflexive leT)
-         (TRANS: transitive leT)
-         (i j: 'I_(size s)) (LE: i <= j),
-         leT (tnth (in_tuple s) i) (tnth (in_tuple s) j).
-Proof.
-  destruct i as [i Hi], j as [j Hj]; ins.
-  destruct s; first by exfalso; rewrite ltn0 in Hi.
-  rewrite 2!(tnth_nth s) /=.
-  move: SORT => /pathP SORT.
-  assert (EQ: j = i + (j - i)); first by rewrite subnKC.
-  remember (j - i) as delta; rewrite EQ; rewrite EQ in LE Hj.
-  clear EQ Heqdelta LE.
-  induction delta; first by rewrite addn0; apply REFL.
-  {
-    unfold transitive in *.
-    apply TRANS with (y := (nth s (s :: s0) (i + delta))).
-    {
-      apply IHdelta.
-      apply ltn_trans with (n := i + delta.+1); last by apply Hj.
-      by rewrite ltn_add2l ltnSn.
-    }
-    {
-      rewrite -addn1 addnA addn1.
-      rewrite -nth_behead /=.
-      by apply SORT, leq_trans with (n := i + delta.+1);
-        [ rewrite ltn_add2l ltnSn | by ins].
-    }
-  }
-Qed.
-
-Lemma leq_ij_implies_before_ij :
-  forall {T: eqType} (s: seq T) (leT: rel T)
-         (SORT: sorted leT s)
-         (REFL: reflexive leT)
-         (TRANS: transitive leT)
-         (ANTI: antisymmetric_over_seq leT s)
-         (i j: 'I_(size s)) (UNIQ: uniq s)
-         (REL: leT (tnth (in_tuple s) i) (tnth (in_tuple s) j)),
-           i <= j.
-Proof.
-  ins; destruct i as [i Hi], j as [j Hj]; simpl.
-  destruct s; [by clear REL; rewrite ltn0 in Hi | simpl in SORT].
-  destruct (leqP i j) as [| LT]; first by ins.
-  assert (EQ: i = j + (i - j)).
-    by rewrite subnKC; [by ins | apply ltnW].
-  unfold antisymmetric_over_seq in *.
-  assert (REL': leT (tnth (in_tuple (s :: s0)) (Ordinal Hj)) (tnth (in_tuple (s :: s0)) (Ordinal Hi))).
-    by apply before_ij_implies_leq_ij; try by ins; apply ltnW.
-  apply ANTI in REL'; try (by ins); try apply mem_tnth.
-  move: REL'; rewrite 2!(tnth_nth s) /=; move/eqP.
-  rewrite nth_uniq //; move => /eqP REL'.
-  by subst; rewrite ltnn in LT.
-Qed.
-
-Definition ext_tuple_to_fun_index {T} {ts: seq T} {idx: 'I_(size ts)} (hp: idx.-tuple nat) : 'I_(size ts) -> nat.
-  intros tsk; destruct (tsk < idx) eqn:LT.
-    by apply (tnth hp (Ordinal LT)).
-    by apply 0.
-Defined.
-
-Definition extend_ord {max} (y: 'I_max) (x: 'I_y) :=
-  Ordinal (ltn_trans (ltn_ord x) (ltn_ord y)).
-
-Lemma eq_ext_tuple_to_fun_index :
-  forall {T: Type} {ts: seq T} {idx: 'I_(size ts)} (tp: idx.-tuple nat) (x: 'I_idx),
-    (ext_tuple_to_fun_index tp) (extend_ord idx x) = tnth tp x.
-Proof.
-  ins; unfold ext_tuple_to_fun_index.
-  des_eqrefl2; first by f_equal; apply ord_inj.
-  {
-    move: EQ => /negP EQ; exfalso; apply EQ.
-    by simpl; apply ltn_ord.
-  }
-Qed.
-
-Definition comp_relation {T} (R: rel T) : rel T :=
-  fun x y => ~~ (R x y).
-
-Definition reverse_sorted {T: eqType} (R: rel T) (s: seq T) :=
-  sorted (comp_relation R) s. 
-
-Lemma revert_comp_relation:
-  forall {T: eqType} (R: rel T)
-         (ANTI: antisymmetric R)
-         (TOTAL: total R)
-         x y (DIFF: x != y),
-    ~~ R x y = R y x.
-Proof.
-  unfold comp_relation, antisymmetric, total.
-  ins; specialize (ANTI x y).
-  destruct (R x y) eqn:Rxy, (R y x) eqn:Ryx; try (by ins).
-    by exploit ANTI; ins; subst x; rewrite eq_refl in DIFF.
-    by specialize (TOTAL x y); move: TOTAL => /orP TOTAL; des; rewrite ?Rxy ?Ryx in TOTAL.
-Qed.
-
-Lemma comp_relation_trans:
-  forall {T: eqType} (R: rel T)
-         (ANTI: antisymmetric R)
-         (TOTAL: total R)
-         (TRANS: transitive R),
-    transitive (comp_relation R).
-Proof.
-  unfold comp_relation; ins; red; intros y x z XY YZ.
-  unfold transitive, total in *.
-  destruct (R x y) eqn:Rxy, (R y x) eqn:Ryx, (R x z) eqn:Rxz; try (by ins).
-    by apply TRANS with (x := y) in Rxz; [by rewrite Rxz in YZ | by ins].
-    by destruct (orP (TOTAL x y)) as [XY' | YX'];
-      [by rewrite Rxy in XY' | by rewrite Ryx in YX']. 
-Qed.
-
-Lemma sorted_rcons_prefix :
-  forall {T: eqType} (leT: rel T) s x
-         (SORT: sorted leT (rcons s x)),
-    sorted leT s.
-Proof.
-  ins; destruct s; simpl; first by ins.
-  rewrite rcons_cons /= rcons_path in SORT.
-  by move: SORT => /andP [PATH _].
-Qed.
-
-Lemma order_sorted_rcons :
-  forall {T: eqType} (leT: rel T) (s: seq T) (x last: T)
-         (TRANS: transitive leT) (SORT: sorted leT (rcons s last))
-         (IN: x \in s),
-    leT x last.
-Proof.
-  ins; induction s; first by rewrite in_nil in IN.
-  simpl in SORT; move: IN; rewrite in_cons; move => /orP IN.
-  destruct IN as [HEAD | TAIL];
-    last by apply IHs; [by apply path_sorted in SORT| by ins].                                        
-  move: HEAD => /eqP HEAD; subst a.
-  apply order_path_min in SORT; last by ins.
-  move: SORT => /allP SORT.
-  by apply SORT; rewrite mem_rcons in_cons; apply/orP; left.
-Qed.
-
-Lemma exists_unzip2 :
-  forall {T1 T2: eqType} (l: seq (T1 * T2)) x (IN: x \in (unzip1 l)),
-    exists y, (x, y) \in l.
-Proof.
-  intros T1 T2 l; induction l as [| (x', y') l']; first by ins.
-  {
-    intros x IN; simpl in IN.
-    rewrite in_cons in IN; move: IN => /orP [/eqP HEAD | TAIL];
-      first by subst x'; exists y'; rewrite in_cons; apply/orP; left. 
-    {
-      specialize (IHl' x TAIL); des; exists y.
-      by rewrite in_cons; apply/orP; right.
-    }
-  }
-Qed.
-
-(* Based on https://www.ps.uni-saarland.de/formalizations/fset/html/libs.fset.html *)
-Definition powerset {T: eqType} (l: seq T) : seq (seq T) :=
-  let mT := ((size l).-tuple bool) in
-    (map (fun m : mT => (mask m l)) (enum {: mT})).
-
-Lemma mem_powerset {T: eqType} (x: seq T) y :
-  y \in (powerset x) -> {subset y <= x}.          
-Proof.
-  intros POW; red; intros z IN; unfold powerset in POW.
-  move: POW => /mapP POW; destruct POW as [pair POW EQ]; subst.
-  by apply mem_mask with (m := pair).
-Qed.
-
-(*Lemma in_powerset {T: eqType} (x: seq T) y :
-  y \in (powerset x) -> {subset y <= x}.
-Proof.
-  intros POW; red; intros z IN; unfold powerset in POW.
-  move: POW => /mapP POW; destruct POW as [pair POW EQ]; subst.
-  by apply mem_mask with (m := pair).
-Qed.*)
-
-(* Based on http://www.ps.uni-saarland.de/~doczkal/cpp11/html/base.html *)
-Lemma ex2E X (p q : pred X) : (exists2 x , p x & q x) <-> exists x, p x && q x.
-Proof.
-  by split; ins; des; exists x; try (apply/andP; split).
-Qed.
-
-Lemma mem_zip {T: eqType} (X Y: seq T) x y :
-  (x, y) \in zip X Y ->
-   x \in X /\ y \in Y.
-Proof.
-  generalize dependent Y.
-  induction X.
-  {
-    intros Y.
-    destruct Y; first by rewrite 2!in_nil.
-    by rewrite 2!in_nil.
-  }
-  {
-    intros Y.
-    destruct Y; first by rewrite 2!in_nil.
-    simpl; rewrite 3!in_cons.
-    move => /orP [/eqP OR | OR];
-      first by inversion OR; subst; rewrite 2!eq_refl orTb.
-    by apply IHX in OR; des; rewrite OR OR0 2!orbT.
-  }
-Qed.
-
-Lemma zipP {T: eqType} (P: _ -> _ -> bool) (X Y: seq T) x0:
-  size X = size Y ->
-  reflect (forall i, i < size (zip X Y) -> P (nth x0 X i) (nth x0 Y i))
-          (all (fun p => P (fst p) (snd p)) (zip X Y)).
-Proof.
-  intro SIZE; apply/introP.
-  {
-    move => /allP ALL i LT.
-    apply (ALL (nth x0 X i,nth x0 Y i)).
-    by rewrite -nth_zip; [by apply mem_nth | by done].
-  }
-  {
-    rewrite -has_predC; unfold predC.
-    move => /hasP HAS; simpl in *; destruct HAS as [x IN NOT].
-    unfold not; intro BUG.
-    exploit (BUG (index x (zip X Y))).
-      by rewrite index_mem.
-    have NTH := @nth_zip _ _ x0 x0 X Y (index x (zip X Y)) SIZE.
-    destruct x as [x1 x2].
-    rewrite {1}nth_index in NTH; last by done.
-    clear BUG; intros BUG.
-    inversion NTH as [[NTH0 NTH1]]; rewrite -NTH0 in NTH1.
-    by rewrite -NTH0 -NTH1 in BUG; rewrite BUG in NOT.
-  }
-Qed.
-
-Lemma mem_zip_exists :
-  forall (T T': eqType) (x1: T) (x2: T') l1 l2 elem elem',
-    size l1 = size l2 ->
-    (x1, x2) \in zip l1 l2 ->
-    exists idx,
-      idx < size l1 /\
-      idx < size l2 /\
-      x1 = nth elem l1 idx /\
-      x2 = nth elem' l2 idx.
-Proof.
-  intros T T' x1 x2 l1 l2 elem elem' SIZE IN.
-  assert (LT: index (x1, x2) (zip l1 l2) < size l1).
-  {
-    apply leq_trans with (n := size (zip l1 l2)); first by rewrite index_mem.
-    by rewrite size_zip; apply geq_minl.
-  }
-  have NTH := @nth_index _ (elem,elem') (x1, x2) (zip l1 l2) IN.
-  rewrite nth_zip in NTH; last by done.
-  inversion NTH; rewrite H1 H0; rewrite H0 in H1.
-  by exists (index (x1, x2) (zip l1 l2)); repeat split; try (by done); rewrite -?SIZE.
-Qed.
-
-Definition no_intersection {T: eqType} (l1 l2: seq T) :=
-  ~~ has (mem l1) l2.
-
-Lemma leq_big_max I r (P : pred I) (E1 E2 : I -> nat) :
-  (forall i, P i -> E1 i <= E2 i) ->
-    \max_(i <- r | P i) E1 i <= \max_(i <- r | P i) E2 i.
-Proof.
-  move => leE12; elim/big_ind2 : _ => // m1 m2 n1 n2.
-  intros LE1 LE2; rewrite leq_max; unfold maxn.
-  by destruct (m2 < n2) eqn:LT; [by apply/orP; right | by apply/orP; left].
-Qed.
-
-Variable l: list nat.
-
-Lemma sum_nat_eq0_nat (T : eqType) (F : T -> nat) (r: seq T) :
-  all (fun x => F x == 0) r = (\sum_(i <- r) F i == 0).
-Proof.
-  destruct (all (fun x => F x == 0) r) eqn:ZERO.
-  {
-    move: ZERO => /allP ZERO; rewrite -leqn0.
-    rewrite big_seq_cond (eq_bigr (fun x => 0));
-      first by rewrite big_const_seq iter_addn mul0n addn0 leqnn.
-    intro i; rewrite andbT; intros IN.
-    specialize (ZERO i); rewrite IN in ZERO.
-    by move: ZERO => /implyP ZERO; apply/eqP; apply ZERO.
-  }
-  {
-    apply negbT in ZERO; rewrite -has_predC in ZERO.
-    move: ZERO => /hasP ZERO; destruct ZERO as [x IN NEQ]; simpl in NEQ.
-    rewrite (big_rem x) /=; last by done.
-    symmetry; apply negbTE; rewrite neq_ltn; apply/orP; right.
-    apply leq_trans with (n := F x); last by apply leq_addr.
-    by rewrite lt0n.
-  }
-Qed.
-
-Lemma min_lt_same :
-  forall x y z,
-    minn x z < minn y z -> x < y.
-Proof.
-  unfold minn; ins; desf.
-  {
-    apply negbT in Heq0; rewrite -ltnNge in Heq0.
-    by apply leq_trans with (n := z).
-  }
-  {
-    apply negbT in Heq; rewrite -ltnNge in Heq.
-    by apply (ltn_trans H) in Heq0; rewrite ltnn in Heq0.
-  }
-  by rewrite ltnn in H.
-Qed.
-
-Lemma size_bigcat_ord {T} n (i: 'I_n) (f: 'I_n -> seq T) :
-  (forall x, size (f x) <= 1) ->
-  size (\cat_(i < n) (f i)) <= n.
-Proof.
-  intros SIZE.
-  destruct n; first by rewrite big_ord0.
-  induction n; first by rewrite big_ord_recl big_ord0 size_cat addn0.
-  rewrite big_ord_recr size_cat.
-  apply leq_trans with (n.+1 + 1); last by rewrite addn1.
-  apply leq_add; last by apply SIZE.
-  apply IHn; last by ins; apply SIZE.
-  {
-    assert (LT: 0 < n.+1). by done.
-    by apply (Ordinal LT).
-  }
-Qed.
-
-Lemma extend_sum :
-  forall t1 t2 t1' t2' F,
-    t1' <= t1 ->
-    t2 <= t2' ->
-    \sum_(t1 <= t < t2) F t <= \sum_(t1' <= t < t2') F t.
-Proof.
-  intros t1 t2 t1' t2' F LE1 LE2.
-  destruct (t1 <= t2) eqn:LE12;
-    last by apply negbT in LE12; rewrite -ltnNge in LE12; rewrite big_geq // ltnW.
-  rewrite -> big_cat_nat with (m := t1') (n := t1); try (by done); simpl;
-    last by apply leq_trans with (n := t2).
-  rewrite -> big_cat_nat with (p := t2') (n := t2); try (by done); simpl.
-  by rewrite addnC -addnA; apply leq_addr.
-Qed.
-
-Lemma exists_ord0:
-  forall (T: eqType) P,
-    [exists x in 'I_0, P x] = false.
-Proof.
-  intros T P.
-  apply negbTE; rewrite negb_exists; apply/forall_inP.
-  intros x; destruct x as [x LT].
-  by exfalso; rewrite ltn0 in LT.
-Qed.
-
-Lemma exists_recr:
-  forall (T: eqType) n P,
-    [exists x in 'I_n.+1, P x] =
-    [exists x in 'I_n, P (widen_ord (leqnSn n) x)] || P (ord_max).
-Proof.
-  intros t n P.
-  apply/idP/idP.
-  {
-    move => /exists_inP EX; destruct EX as [x IN Px].
-    destruct x as [x LT].
-    remember LT as LT'; clear HeqLT'. 
-    rewrite ltnS leq_eqVlt in LT; move: LT => /orP [/eqP EQ | LT].
-    {
-      apply/orP; right.
-      unfold ord_max; subst x.
-      apply eq_trans with (y := P (Ordinal LT')); last by done.
-      by f_equal; apply ord_inj.
-    }
-    {
-      apply/orP; left.
-      apply/exists_inP; exists (Ordinal LT); first by done.
-      apply eq_trans with (y := P (Ordinal LT')); last by done.
-      by f_equal; apply ord_inj.
-    }
-  }
-  {
-    intro OR; apply/exists_inP.
-    move: OR => /orP [/exists_inP EX | MAX].
-    {
-      by destruct EX as [x IN Px]; exists (widen_ord (leqnSn n) x).
-    }
-    by exists ord_max.
-  }
-Qed.
-
-Lemma count_or :
-  forall (T: eqType) (l: seq T) P Q,
-    count (fun x => P x || Q x) l <= count P l + count Q l. 
-Proof.
-  intros T l P Q; rewrite -count_predUI.
-  apply leq_trans with (n := count (predU P Q) l);
-    last by apply leq_addr.
-  by apply sub_count; red; unfold predU; simpl.
-Qed.
-
-Lemma count_sub_uniqr :
-  forall (T: eqType) (l1 l2: seq T) P,
-    uniq l1 ->
-    {subset l1 <= l2} ->
-    count P l1 <= count P l2.
-Proof.
-  intros T l1 l2 P UNIQ SUB.
-  rewrite -!size_filter uniq_leq_size ?filter_uniq // => x.
-  by rewrite !mem_filter =>/andP [-> /SUB].
-Qed.
-
-Lemma count_pred_inj :
-  forall (T: eqType) (l: seq T) (P: T -> bool),
-    uniq l ->
-    (forall x1 x2, P x1 -> P x2 -> x1 = x2) ->
-    count P l <= 1.
-Proof.
-  intros T l P UNIQ INJ.
-  induction l as [| x l']; [by done | simpl in *].
-  {
-    move: UNIQ => /andP [NOTIN UNIQ].
-    specialize (IHl' UNIQ).
-    rewrite leq_eqVlt in IHl'.
-    move: IHl' => /orP [/eqP ONE | ZERO]; last first.
-    {
-      rewrite ltnS leqn0 in ZERO.
-      by move: ZERO => /eqP ->; rewrite addn0 leq_b1.
-    }
-    destruct (P x) eqn:Px; last by rewrite add0n ONE.
-    {
-      move: ONE => /eqP ONE.
-      rewrite eqn_leq in ONE; move: ONE => /andP [_ ONE].
-      rewrite -has_count in ONE.
-      move: ONE => /hasP ONE; destruct ONE as [y IN Py].
-      specialize (INJ x y Px Py); subst.
-      by rewrite IN in NOTIN.
-    }
-  }
-Qed.
-
-Lemma count_exists :
-  forall (T: eqType) (l: seq T) n (P: T -> 'I_n -> bool),
-    uniq l ->
-    (forall y x1 x2, P x1 y -> P x2 y -> x1 = x2) ->
-    count (fun (y: T) => [exists x in 'I_n, P y x]) l <= n.
-Proof.
-  intros T l n P UNIQ INJ.
-  induction n.
-  {
-    apply leq_trans with (n := count pred0 l); last by rewrite count_pred0.
-    apply sub_count; red; intro x.
-    by rewrite exists_ord0 //.
-  }
-  {
-    apply leq_trans with (n := n + 1); last by rewrite addn1.
-    apply leq_trans with (n := count (fun y => [exists x in 'I_n, P y (widen_ord (leqnSn n) x)] || P y ord_max) l).
-    {
-      apply eq_leq, eq_count; red; intro x.
-      by rewrite exists_recr //.
-    }
-    eapply (leq_trans (count_or _ _ _ _)).
-    apply leq_add.
-    {
-      apply IHn.
+      rewrite big_ord_recr /= mem_cat in IN.
+      move: IN => /orP [HEAD | TAIL].
       {
-        intros y x1 x2 P1 P2.
-        by specialize (INJ (widen_ord (leqnSn n) y) x1 x2 P1 P2).
+        apply IHn in HEAD; destruct HEAD.
+        by eexists (widen_ord _ x0); desf.
+      }
+      {
+        by exists ord_max; desf.
+      }
+    }
+  Qed.
+
+  Lemma bigcat_ord_uniq :
+    forall (T: eqType) n (f: 'I_n -> list T),
+      (forall i, uniq (f i)) ->
+      (forall x i1 i2,
+         x \in (f i1) -> x \in (f i2) -> i1 = i2) ->
+      uniq (\cat_(i < n) (f i)).
+  Proof.
+    intros T n f SINGLE UNIQ.
+    induction n; first by rewrite big_ord0.
+    {
+      rewrite big_ord_recr cat_uniq; apply/andP; split.
+      {
+        apply IHn; first by done.
+        intros x i1 i2 IN1 IN2.
+        exploit (UNIQ x);
+          [by apply IN1 | by apply IN2 | intro EQ; inversion EQ].
+        by apply ord_inj.
+      }
+      apply /andP; split; last by apply SINGLE.
+      {
+        rewrite -all_predC; apply/allP; intros x INx.
+
+        simpl; apply/negP; unfold not; intro BUG.
+        rewrite -big_ord_narrow in BUG.
+        rewrite big_mkcond /= in BUG.
+        have EX := mem_bigcat_ord_exists T x n.+1 _.
+        apply EX in BUG; clear EX; desf.
+        apply UNIQ with (i1 := ord_max) in BUG; last by done.
+        by desf; unfold ord_max in *; rewrite /= ltnn in Heq.
+      }
+    }
+  Qed.
+
+  Lemma size_bigcat_ord {T} n (i: 'I_n) (f: 'I_n -> seq T) :
+    (forall x, size (f x) <= 1) ->
+    size (\cat_(i < n) (f i)) <= n.
+  Proof.
+    intros SIZE.
+    destruct n; first by rewrite big_ord0.
+    induction n; first by rewrite big_ord_recl big_ord0 size_cat addn0.
+    rewrite big_ord_recr size_cat.
+    apply leq_trans with (n.+1 + 1); last by rewrite addn1.
+    apply leq_add; last by apply SIZE.
+    apply IHn; last by ins; apply SIZE.
+    {
+      assert (LT: 0 < n.+1). by done.
+      by apply (Ordinal LT).
+    }
+  Qed.
+  
+End BigCatLemmas.
+
+(* Induction lemmas for natural numbers. *)
+Section NatInduction.
+  
+  Lemma strong_ind :
+    forall (P: nat -> Prop),
+      (forall n, (forall k, k < n -> P k) -> P n) ->
+      forall n, P n.
+  Proof.
+    intros P ALL n; apply ALL.
+    induction n; first by ins; apply ALL.
+    intros k LTkSn; apply ALL.
+    by intros k0 LTk0k; apply IHn, leq_trans with (n := k).
+  Qed.
+
+  Lemma leq_as_delta :
+    forall x1 (P: nat -> Prop),
+      (forall x2, x1 <= x2 -> P x2) <->
+      (forall delta, P (x1 + delta)).
+  Proof.
+    ins; split; last by intros ALL x2 LE; rewrite -(subnK LE) addnC; apply ALL.
+    {
+      intros ALL; induction delta.
+        by rewrite addn0; apply ALL, leqnn. 
+        by apply ALL; rewrite -{1}[x1]addn0; apply leq_add; [by apply leqnn | by ins]. 
+    }
+  Qed.
+  
+End NatInduction.
+
+(* Lemmas about basic arithmetic. *)
+Section Arithmetic.
+  
+  Lemma addnb (b1 b2 : bool) : (b1 + b2) != 0 = b1 || b2.
+  Proof.
+    by destruct b1,b2;
+    rewrite ?addn0 ?add0n ?addn1 ?orTb ?orbT ?orbF ?orFb.
+  Qed.
+
+  Lemma subh1 :
+    forall m n p,
+      m >= n ->
+      m - n + p = m + p - n.
+  Proof.
+    by ins; ssromega.
+  Qed.
+
+  Lemma subh2 :
+    forall m1 m2 n1 n2,
+      m1 >= m2 ->
+      n1 >= n2 ->
+      (m1 + n1) - (m2 + n2) = m1 - m2 + (n1 - n2).
+  Proof.
+    by ins; ssromega.
+  Qed.
+
+  Lemma subh3 :
+    forall m n p,
+      m + p <= n ->
+      n >= p ->
+      m <= n - p.
+  Proof.
+    ins. rewrite <- leq_add2r with (p := p).
+    by rewrite subh1 // -addnBA // subnn addn0.
+  Qed.
+
+  Lemma subh4:
+    forall m n p,
+      m <= n ->
+      p <= n ->
+      (m == n - p) = (p == n - m).
+  Proof.
+    intros; apply/eqP.
+    destruct (p == n - m) eqn:EQ.
+      by move: EQ => /eqP EQ; rewrite EQ subKn.
+      by apply negbT in EQ; unfold not; intro BUG;
+        rewrite BUG subKn ?eq_refl in EQ.
+  Qed.
+
+  Lemma addmovr:
+    forall m n p,
+      m >= n ->
+      (m - n = p <-> m = p + n).
+  Proof.
+    by split; ins; ssromega.
+  Qed.
+
+  Lemma addmovl:
+    forall m n p,
+      m >= n ->
+      (p = m - n <-> p + n = m).
+  Proof.
+    by split; ins; ssromega.
+  Qed.
+
+  Lemma ltn_div_trunc :
+    forall m n d,
+      d > 0 ->
+      m %/ d < n %/ d ->
+      m < n.
+  Proof.
+    intros m n d GT0 DIV; rewrite ltn_divLR in DIV; last by ins.
+    by apply leq_trans with (n := n %/ d * d);
+      [by ins| by apply leq_trunc_div].
+  Qed.
+  
+  Lemma subndiv_eq_mod:
+    forall n d, n - n %/ d * d = n %% d.
+  Proof.
+    by ins; rewrite {1}(divn_eq n d) addnC -addnBA // subnn addn0.
+  Qed.
+
+  Lemma ltSnm : forall n m, n.+1 < m -> n < m.
+  Proof.
+    by ins; apply ltn_trans with (n := n.+1); [by apply ltnSn |by ins].
+  Qed.
+
+  Lemma divSn_cases :
+    forall n d,
+      d > 1 ->
+      (n %/ d = n.+1 %/d /\ n %% d + 1 = n.+1 %% d) \/
+      (n %/ d + 1 = n.+1 %/ d).
+  Proof.
+    ins; set x := n %/ d; set y := n %% d.
+    assert (GT0: d > 0); first by apply ltn_trans with (n := 1).
+    destruct (ltngtP y (d - 1)) as [LTN | BUG | GE]; [left | | right];
+      first 1 last.
+    {
+      exploit (@ltn_pmod n d); [by apply GT0 | intro LTd; fold y in LTd].
+      rewrite -(ltn_add2r 1) [y+1]addn1 ltnS in BUG.
+      rewrite subh1 in BUG; last by apply GT0.
+      rewrite -addnBA // subnn addn0 in BUG.
+      by apply (leq_ltn_trans BUG) in LTd; rewrite ltnn in LTd.
+    }
+
+    {
+      (* Case 1: y = d - 1*)
+      move: GE => /eqP GE; rewrite -(eqn_add2r 1) in GE.
+      rewrite subh1 in GE; last by apply GT0.
+      rewrite -addnBA // subnn addn0 in GE.
+      move: GE => /eqP GE.
+      apply f_equal with (f := fun x => x %/ d) in GE.
+      rewrite divnn GT0 /= in GE.
+      unfold x; rewrite -GE.
+      rewrite -divnMDl; last by apply GT0.
+      f_equal; rewrite addnA.
+      by rewrite -divn_eq addn1.
+    }
+    {
+      assert (EQDIV: n %/ d = n.+1 %/ d).
+      {
+        apply/eqP; rewrite eqn_leq; apply/andP; split;
+          first by apply leq_div2r, leqnSn.
+        rewrite leq_divRL; last by apply GT0.
+        rewrite -ltnS {2}(divn_eq n.+1 d).
+        rewrite -{1}[_ %/ d * d]addn0 ltn_add2l.
+        unfold y in *.
+        rewrite ltnNge; apply/negP; unfold not; intro BUG.
+        rewrite leqn0 in BUG; move: BUG => /eqP BUG.
+        rewrite -(modnn d) -addn1 in BUG.
+        destruct d; first by rewrite sub0n in LTN.
+        move: BUG; move/eqP; rewrite -[d.+1]addn1 eqn_modDr [d+1]addn1; move => /eqP BUG.
+        rewrite BUG -[d.+1]addn1 -addnBA // subnn addn0 in LTN.
+        by rewrite modn_small in LTN;
+          [by rewrite ltnn in LTN | by rewrite addn1 ltnSn].
+      }
+      (* Case 2: y < d - 1 *)
+      split; first by rewrite -EQDIV.
+      {
+        unfold x, y in *.
+        rewrite -2!subndiv_eq_mod.
+        rewrite subh1 ?addn1; last by apply leq_trunc_div.
+        rewrite EQDIV; apply/eqP.
+        rewrite -(eqn_add2r (n%/d*d)).
+        by rewrite subh1; last by apply leq_trunc_div.
+      }
+    }
+  Qed.
+
+  Lemma min_lt_same :
+    forall x y z,
+      minn x z < minn y z -> x < y.
+  Proof.
+    unfold minn; ins; desf.
+    {
+      apply negbT in Heq0; rewrite -ltnNge in Heq0.
+      by apply leq_trans with (n := z).
+    }
+    {
+      apply negbT in Heq; rewrite -ltnNge in Heq.
+      by apply (ltn_trans H) in Heq0; rewrite ltnn in Heq0.
+    }
+    by rewrite ltnn in H.
+  Qed.
+  
+End Arithmetic.
+
+(* Lemmas about arithmetic with sums. *)
+Section SumArithmetic.
+
+  (* Inequality with sums is monotonic with their functions. *)
+  Lemma sum_diff_monotonic :
+    forall n G F,
+      (forall i : nat, i < n -> G i <= F i) ->
+      (\sum_(0 <= i < n) (G i)) <= (\sum_(0 <= i < n) (F i)).
+  Proof.
+    intros n G F ALL.
+    rewrite big_nat_cond [\sum_(0 <= i < n) F i]big_nat_cond.
+    apply leq_sum; intros i LT; rewrite andbT in LT.
+    move: LT => /andP LT; des.
+    by apply ALL, leq_trans with (n := n); ins.
+  Qed.
+
+  Lemma sum_diff :
+    forall n F G,
+      (forall i (LT: i < n), F i >= G i) ->
+      \sum_(0 <= i < n) (F i - G i) =
+        (\sum_(0 <= i < n) (F i)) - (\sum_(0 <= i < n) (G i)).       
+  Proof.
+    intros n F G ALL.
+    induction n; ins; first by rewrite 3?big_geq.
+    assert (ALL': forall i, i < n -> G i <= F i).
+      by ins; apply ALL, leq_trans with (n := n); ins.
+    rewrite 3?big_nat_recr // IHn //; simpl.
+    rewrite subh1; last by apply sum_diff_monotonic.
+    rewrite subh2 //; try apply sum_diff_monotonic; ins.
+    rewrite subh1; ins; apply sum_diff_monotonic; ins.
+    by apply ALL; rewrite ltnS leqnn. 
+  Qed.
+
+  Lemma prev_le_next :
+    forall (T: Type) (F: T->nat) r (x0: T) i k,
+      (forall i, i < (size r).-1 -> F (nth x0 r i) <= F (nth x0 r i.+1)) ->
+      (i + k <= (size r).-1) ->
+      F (nth x0 r i) <= F (nth x0 r (i+k)).
+  Proof.
+    intros T F r x0 i k ALL SIZE.
+    generalize dependent i. generalize dependent k.
+    induction k; intros; first by rewrite addn0 leqnn.
+    specialize (IHk i.+1); exploit IHk; [by rewrite addSnnS | intro LE].
+    apply leq_trans with (n := F (nth x0 r (i.+1)));
+      last by rewrite -addSnnS.
+    apply ALL, leq_trans with (n := i + k.+1); last by ins.
+    by rewrite addnS ltnS leq_addr.
+  Qed.
+
+  Lemma telescoping_sum :
+    forall (T: Type) (F: T->nat) r (x0: T),
+    (forall i, i < (size r).-1 -> F (nth x0 r i) <= F (nth x0 r i.+1)) ->
+      F (nth x0 r (size r).-1) - F (nth x0 r 0) =
+        \sum_(0 <= i < (size r).-1) (F (nth x0 r (i.+1)) - F (nth x0 r i)).
+  Proof.
+    intros T F r x0 ALL.
+    have ADD1 := big_add1.
+    have RECL := big_nat_recl.
+    specialize (ADD1 nat 0 addn 0 (size r) (fun x => true) (fun i => F (nth x0 r i))).
+    specialize (RECL nat 0 addn (size r).-1 0 (fun i => F (nth x0 r i))).
+    rewrite sum_diff; last by ins.
+    rewrite addmovr; last by rewrite -[_.-1]add0n; apply prev_le_next; try rewrite add0n leqnn.
+    rewrite subh1; last by apply sum_diff_monotonic.
+    rewrite addnC -RECL //.
+    rewrite addmovl; last by rewrite big_nat_recr // -{1}[\sum_(_ <= _ < _) _]addn0; apply leq_add.
+    by rewrite addnC -big_nat_recr.
+  Qed.
+
+End SumArithmetic.
+
+
+Section FixedPoint.
+  
+  Lemma iter_fix T (F : T -> T) x k n :
+    iter k F x = iter k.+1 F x ->
+    k <= n ->
+    iter n F x = iter n.+1 F x.
+  Proof.
+    move => e. elim: n. rewrite leqn0. by move/eqP<-.
+    move => n IH. rewrite leq_eqVlt; case/orP; first by move/eqP<-.
+    move/IH => /= IHe. by rewrite -!IHe.
+  Qed.
+
+  Lemma fun_mon_iter_mon :
+    forall (f: nat -> nat) x0 x1 x2,
+      x1 <= x2 ->
+      f x0 >= x0 ->
+      (forall x1 x2, x1 <= x2 -> f x1 <= f x2) ->
+      iter x1 f x0 <= iter x2 f x0.
+  Proof.
+    intros f x0 x1 x2 LE MIN MON.
+    revert LE; revert x2; rewrite leq_as_delta; intros delta.
+    induction x1; try rewrite add0n.
+    {
+      induction delta; first by apply leqnn.
+      apply leq_trans with (n := iter delta f x0); first by done.
+      clear IHdelta.
+      induction delta; first by done.
+      {
+        rewrite 2!iterS; apply MON.
+        apply IHdelta.
       }
     }
     {
-      apply count_pred_inj; first by done.
-      by intros x1 x2 P1 P2; apply INJ with (y := ord_max). 
+      rewrite iterS -addn1 -addnA [1 + delta]addnC addnA addn1 iterS.
+      by apply MON, IHx1.
     }
-  }
-Qed.
+  Qed.
+
+  Lemma fun_mon_iter_mon_helper :
+    forall T (f: T -> T) (le: rel T) x0 x1,
+      reflexive le ->
+      transitive le ->
+      (forall x2, le x0 (iter x2 f x0)) ->
+      (forall x1 x2, le x0 x1 -> le x1 x2 -> le (f x1) (f x2)) ->
+      le (iter x1 f x0) (iter x1.+1 f x0).
+  Proof.
+    intros T f le x0 x1 REFL TRANS MIN MON.
+    generalize dependent x0.
+    induction x1; first by ins; apply (MIN 1).
+    by ins; apply MON; [by apply MIN | by apply IHx1].
+  Qed.
+
+  Lemma fun_mon_iter_mon_generic :
+    forall T (f: T -> T) (le: rel T) x0 x1 x2,
+      reflexive le ->
+      transitive le ->
+      x1 <= x2 ->
+      (forall x1 x2, le x0 x1 -> le x1 x2 -> le (f x1) (f x2)) ->
+      (forall x2 : nat, le x0 (iter x2 f x0)) ->
+      le (iter x1 f x0) (iter x2 f x0).
+  Proof.
+    intros T f le x0 x1 x2 REFL TRANS LE MON MIN.
+    revert LE; revert x2; rewrite leq_as_delta; intros delta.
+    induction delta; first by rewrite addn0; apply REFL.
+    apply (TRANS) with (y := iter (x1 + delta) f x0);
+      first by apply IHdelta.
+    by rewrite addnS; apply fun_mon_iter_mon_helper.
+  Qed.
+
+End FixedPoint.
+
+(* Lemmas about sorted lists. *)
+Section Sorting.
+  
+  Lemma sorted_rcons_prefix :
+    forall {T: eqType} (leT: rel T) s x,
+      sorted leT (rcons s x) ->
+      sorted leT s.
+  Proof.
+    intros T leT s x SORT; destruct s; simpl; first by ins.
+    rewrite rcons_cons /= rcons_path in SORT.
+    by move: SORT => /andP [PATH _].
+  Qed.
+
+  Lemma order_sorted_rcons :
+    forall {T: eqType} (leT: rel T) (s: seq T) (x last: T),
+      transitive leT ->
+      sorted leT (rcons s last) ->
+      x \in s ->
+      leT x last.
+  Proof.
+    intros T leT s x last TRANS SORT IN.
+    induction s; first by rewrite in_nil in IN.
+    simpl in SORT; move: IN; rewrite in_cons; move => /orP IN.
+    destruct IN as [HEAD | TAIL];
+      last by apply IHs; [by apply path_sorted in SORT| by ins].
+    move: HEAD => /eqP HEAD; subst a.
+    apply order_path_min in SORT; last by ins.
+    move: SORT => /allP SORT.
+    by apply SORT; rewrite mem_rcons in_cons; apply/orP; left.
+  Qed.
+
+End Sorting.
+  
+Section PowerSet.
+  
+  (* Based on https://www.ps.uni-saarland.de/formalizations/fset/html/libs.fset.html *)
+  Definition powerset {T: eqType} (l: seq T) : seq (seq T) :=
+    let mT := ((size l).-tuple bool) in
+      (map (fun m : mT => (mask m l)) (enum {: mT})).
+
+  Lemma mem_powerset {T: eqType} (x: seq T) y :
+    y \in (powerset x) -> {subset y <= x}.          
+  Proof.
+    intros POW; red; intros z IN; unfold powerset in POW.
+    move: POW => /mapP POW; destruct POW as [pair POW EQ]; subst.
+    by apply mem_mask with (m := pair).
+  Qed.
+
+End PowerSet.
+
+(* Additional lemmas about list zip. *)
+Section Zip.
+  
+  Lemma zipP {T: eqType} (P: _ -> _ -> bool) (X Y: seq T) x0:
+    size X = size Y ->
+    reflect (forall i, i < size (zip X Y) -> P (nth x0 X i) (nth x0 Y i))
+            (all (fun p => P (fst p) (snd p)) (zip X Y)).
+  Proof.
+    intro SIZE; apply/introP.
+    {
+      move => /allP ALL i LT.
+      apply (ALL (nth x0 X i,nth x0 Y i)).
+      by rewrite -nth_zip; [by apply mem_nth | by done].
+    }
+    {
+      rewrite -has_predC; unfold predC.
+      move => /hasP HAS; simpl in *; destruct HAS as [x IN NOT].
+      unfold not; intro BUG.
+      exploit (BUG (index x (zip X Y))).
+        by rewrite index_mem.
+      have NTH := @nth_zip _ _ x0 x0 X Y (index x (zip X Y)) SIZE.
+      destruct x as [x1 x2].
+      rewrite {1}nth_index in NTH; last by done.
+      clear BUG; intros BUG.
+      inversion NTH as [[NTH0 NTH1]]; rewrite -NTH0 in NTH1.
+      by rewrite -NTH0 -NTH1 in BUG; rewrite BUG in NOT.
+    }
+  Qed.
+
+  Lemma mem_zip_exists :
+    forall (T T': eqType) (x1: T) (x2: T') l1 l2 elem elem',
+      size l1 = size l2 ->
+      (x1, x2) \in zip l1 l2 ->
+      exists idx,
+        idx < size l1 /\
+        idx < size l2 /\
+        x1 = nth elem l1 idx /\
+        x2 = nth elem' l2 idx.
+  Proof.
+    intros T T' x1 x2 l1 l2 elem elem' SIZE IN.
+    assert (LT: index (x1, x2) (zip l1 l2) < size l1).
+    {
+      apply leq_trans with (n := size (zip l1 l2)); first by rewrite index_mem.
+      by rewrite size_zip; apply geq_minl.
+    }
+    have NTH := @nth_index _ (elem,elem') (x1, x2) (zip l1 l2) IN.
+    rewrite nth_zip in NTH; last by done.
+    inversion NTH; rewrite H1 H0; rewrite H0 in H1.
+    by exists (index (x1, x2) (zip l1 l2)); repeat split; try (by done); rewrite -?SIZE.
+  Qed.
+
+End Zip.
+
+(* Additional lemmas about sum and max big operators. *)
+Section ExtraLemmasSumMax.
+  
+  Lemma leq_big_max I r (P : pred I) (E1 E2 : I -> nat) :
+    (forall i, P i -> E1 i <= E2 i) ->
+      \max_(i <- r | P i) E1 i <= \max_(i <- r | P i) E2 i.
+  Proof.
+    move => leE12; elim/big_ind2 : _ => // m1 m2 n1 n2.
+    intros LE1 LE2; rewrite leq_max; unfold maxn.
+    by destruct (m2 < n2) eqn:LT; [by apply/orP; right | by apply/orP; left].
+  Qed.
+
+  Lemma sum_nat_eq0_nat (T : eqType) (F : T -> nat) (r: seq T) :
+    all (fun x => F x == 0) r = (\sum_(i <- r) F i == 0).
+  Proof.
+    destruct (all (fun x => F x == 0) r) eqn:ZERO.
+    {
+      move: ZERO => /allP ZERO; rewrite -leqn0.
+      rewrite big_seq_cond (eq_bigr (fun x => 0));
+        first by rewrite big_const_seq iter_addn mul0n addn0 leqnn.
+      intro i; rewrite andbT; intros IN.
+      specialize (ZERO i); rewrite IN in ZERO.
+      by move: ZERO => /implyP ZERO; apply/eqP; apply ZERO.
+    }
+    {
+      apply negbT in ZERO; rewrite -has_predC in ZERO.
+      move: ZERO => /hasP ZERO; destruct ZERO as [x IN NEQ]; simpl in NEQ.
+      rewrite (big_rem x) /=; last by done.
+      symmetry; apply negbTE; rewrite neq_ltn; apply/orP; right.
+      apply leq_trans with (n := F x); last by apply leq_addr.
+      by rewrite lt0n.
+    }
+  Qed.
+
+  Lemma extend_sum :
+    forall t1 t2 t1' t2' F,
+      t1' <= t1 ->
+      t2 <= t2' ->
+      \sum_(t1 <= t < t2) F t <= \sum_(t1' <= t < t2') F t.
+  Proof.
+    intros t1 t2 t1' t2' F LE1 LE2.
+    destruct (t1 <= t2) eqn:LE12;
+      last by apply negbT in LE12; rewrite -ltnNge in LE12; rewrite big_geq // ltnW.
+    rewrite -> big_cat_nat with (m := t1') (n := t1); try (by done); simpl;
+      last by apply leq_trans with (n := t2).
+    rewrite -> big_cat_nat with (p := t2') (n := t2); try (by done); simpl.
+    by rewrite addnC -addnA; apply leq_addr.
+  Qed.
+  
+End ExtraLemmasSumMax.
+
+(* Lemmas about the finite existencial for Ordinals [exists, ...]. *)
+Section OrdExists.
+
+  Lemma exists_ord0:
+    forall (T: eqType) P,
+      [exists x in 'I_0, P x] = false.
+  Proof.
+    intros T P.
+    apply negbTE; rewrite negb_exists; apply/forall_inP.
+    intros x; destruct x as [x LT].
+    by exfalso; rewrite ltn0 in LT.
+  Qed.
+
+  Lemma exists_recr:
+    forall (T: eqType) n P,
+      [exists x in 'I_n.+1, P x] =
+      [exists x in 'I_n, P (widen_ord (leqnSn n) x)] || P (ord_max).
+  Proof.
+    intros t n P.
+    apply/idP/idP.
+    {
+      move => /exists_inP EX; destruct EX as [x IN Px].
+      destruct x as [x LT].
+      remember LT as LT'; clear HeqLT'. 
+      rewrite ltnS leq_eqVlt in LT; move: LT => /orP [/eqP EQ | LT].
+      {
+        apply/orP; right.
+        unfold ord_max; subst x.
+        apply eq_trans with (y := P (Ordinal LT')); last by done.
+        by f_equal; apply ord_inj.
+      }
+      {
+        apply/orP; left.
+        apply/exists_inP; exists (Ordinal LT); first by done.
+        apply eq_trans with (y := P (Ordinal LT')); last by done.
+        by f_equal; apply ord_inj.
+      }
+    }
+    {
+      intro OR; apply/exists_inP.
+      move: OR => /orP [/exists_inP EX | MAX].
+      {
+        by destruct EX as [x IN Px]; exists (widen_ord (leqnSn n) x).
+      }
+      by exists ord_max.
+    }
+  Qed.
+
+End OrdExists.
+
+(* Additional lemmas about counting. *)
+Section Counting.
+  
+  Lemma count_or :
+    forall (T: eqType) (l: seq T) P Q,
+      count (fun x => P x || Q x) l <= count P l + count Q l. 
+  Proof.
+    intros T l P Q; rewrite -count_predUI.
+    apply leq_trans with (n := count (predU P Q) l);
+      last by apply leq_addr.
+    by apply sub_count; red; unfold predU; simpl.
+  Qed.
+
+  Lemma count_sub_uniqr :
+    forall (T: eqType) (l1 l2: seq T) P,
+      uniq l1 ->
+      {subset l1 <= l2} ->
+      count P l1 <= count P l2.
+  Proof.
+    intros T l1 l2 P UNIQ SUB.
+    rewrite -!size_filter uniq_leq_size ?filter_uniq // => x.
+    by rewrite !mem_filter =>/andP [-> /SUB].
+  Qed.
+
+  Lemma count_pred_inj :
+    forall (T: eqType) (l: seq T) (P: T -> bool),
+      uniq l ->
+      (forall x1 x2, P x1 -> P x2 -> x1 = x2) ->
+      count P l <= 1.
+  Proof.
+    intros T l P UNIQ INJ.
+    induction l as [| x l']; [by done | simpl in *].
+    {
+      move: UNIQ => /andP [NOTIN UNIQ].
+      specialize (IHl' UNIQ).
+      rewrite leq_eqVlt in IHl'.
+      move: IHl' => /orP [/eqP ONE | ZERO]; last first.
+      {
+        rewrite ltnS leqn0 in ZERO.
+        by move: ZERO => /eqP ->; rewrite addn0 leq_b1.
+      }
+      destruct (P x) eqn:Px; last by rewrite add0n ONE.
+      {
+        move: ONE => /eqP ONE.
+        rewrite eqn_leq in ONE; move: ONE => /andP [_ ONE].
+        rewrite -has_count in ONE.
+        move: ONE => /hasP ONE; destruct ONE as [y IN Py].
+        specialize (INJ x y Px Py); subst.
+        by rewrite IN in NOTIN.
+      }
+    }
+  Qed.
+
+  Lemma count_exists :
+    forall (T: eqType) (l: seq T) n (P: T -> 'I_n -> bool),
+      uniq l ->
+      (forall y x1 x2, P x1 y -> P x2 y -> x1 = x2) ->
+      count (fun (y: T) => [exists x in 'I_n, P y x]) l <= n.
+  Proof.
+    intros T l n P UNIQ INJ.
+    induction n.
+    {
+      apply leq_trans with (n := count pred0 l); last by rewrite count_pred0.
+      apply sub_count; red; intro x.
+      by rewrite exists_ord0 //.
+    }
+    {
+      apply leq_trans with (n := n + 1); last by rewrite addn1.
+      apply leq_trans with (n := count (fun y => [exists x in 'I_n, P y (widen_ord (leqnSn n) x)] || P y ord_max) l).
+      {
+        apply eq_leq, eq_count; red; intro x.
+        by rewrite exists_recr //.
+      }
+      eapply (leq_trans (count_or _ _ _ _)).
+      apply leq_add.
+      {
+        apply IHn.
+        {
+          intros y x1 x2 P1 P2.
+          by specialize (INJ (widen_ord (leqnSn n) y) x1 x2 P1 P2).
+        }
+      }
+      {
+        apply count_pred_inj; first by done.
+        by intros x1 x2 P1 P2; apply INJ with (y := ord_max). 
+      }
+    }
+  Qed.
+
+End Counting.

@@ -280,7 +280,7 @@ Module Schedule.
         have BUG := COMP j t.+1.
         rewrite leqNgt in BUG; move: BUG => /negP BUG; apply BUG.
         unfold service; rewrite big_nat_recr // /= -addn1.
-        apply leq_add; first by move: COMPLETED => /eqP [<-].
+        apply leq_add; first by move: COMPLETED => /eqP <-.
         by rewrite lt0n -not_scheduled_no_service negbK.
       Qed.
         
@@ -309,10 +309,11 @@ Module Schedule.
 
       (* Then, job j does not receive service at any time t prior to its arrival. *)
       Lemma service_before_job_arrival_zero :
-        forall t (LT: t < job_arrival j),
+        forall t,
+          t < job_arrival j ->
           service_at sched j t = 0.
       Proof.
-        rename H_jobs_must_arrive into ARR; red in ARR; ins.
+        rename H_jobs_must_arrive into ARR; red in ARR; intros t LT.
         specialize (ARR j t).
         apply contra with (c := scheduled sched j t)
                             (b := has_arrived j t) in ARR;
@@ -326,10 +327,11 @@ Module Schedule.
 
       (* The same applies for the cumulative service received by job j. *)
       Lemma cumulative_service_before_job_arrival_zero :
-        forall t1 t2 (LT: t2 <= job_arrival j),
+        forall t1 t2,
+          t2 <= job_arrival j ->
           \sum_(t1 <= i < t2) service_at sched j i = 0.
       Proof.
-        ins; apply/eqP; rewrite -leqn0.
+        intros t1 t2 LE; apply/eqP; rewrite -leqn0.
         apply leq_trans with (n := \sum_(t1 <= i < t2) 0);
           last by rewrite big_const_nat iter_addn mul0n addn0.
         rewrite big_nat_cond [\sum_(_ <= _ < _) 0]big_nat_cond.
@@ -340,11 +342,12 @@ Module Schedule.
 
       (* Hence, you can ignore the service received by a job before its arrival time. *)
       Lemma service_before_arrival_eq_service_during :
-        forall t0 t (LT: t0 <= job_arrival j),
+        forall t0 t,
+          t0 <= job_arrival j ->
           \sum_(t0 <= t < job_arrival j + t) service_at sched j t =
           \sum_(job_arrival j <= t < job_arrival j + t) service_at sched j t.
       Proof.
-        ins; rewrite -> big_cat_nat with (n := job_arrival j); [| by ins | by apply leq_addr].
+        intros t0 t LE; rewrite -> big_cat_nat with (n := job_arrival j); [| by ins | by apply leq_addr].
         by rewrite /= cumulative_service_before_job_arrival_zero; [rewrite add0n | apply leqnn].
       Qed.
       

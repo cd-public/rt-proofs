@@ -693,7 +693,7 @@ Module ResponseTimeAnalysisEDF.
         generalize dependent R; generalize dependent tsk; generalize dependent j.
       
         (* Now, we apply strong induction on the absolute response-time bound. *)
-        induction ctime as [ctime IH] using strong_ind_lt.
+        induction ctime as [ctime IH] using strong_ind.
 
         intros j tsk' JOBtsk R' EQc INbounds; subst ctime.
 
