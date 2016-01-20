@@ -207,14 +207,14 @@ Module WorkloadBound.
       Let n_k := max_jobs task_cost task_period tsk R_tsk delta.
       Let workload_bound := W task_cost task_period tsk R_tsk delta.
       
-      (* Since we only care about the interference caused by tsk,
-         we identify the set of jobs of that task in [t1, t2). *)
-      Let interfering_jobs :=
+      (* Since we only care about the workload of tsk, we restrict
+         our view to the set of jobs of tsk scheduled in [t1, t2). *)
+      Let scheduled_jobs :=
         jobs_of_task_scheduled_between job_task sched tsk t1 t2.
 
       (* Now, let's consider the list of interfering jobs sorted by arrival time. *)
       Let earlier_arrival := fun (x y: JobIn arr_seq) => job_arrival x <= job_arrival y.
-      Let sorted_jobs := (sort earlier_arrival interfering_jobs).
+      Let sorted_jobs := (sort earlier_arrival scheduled_jobs).
 
       (* The first step consists in simplifying the sum corresponding
          to the workload. *)
@@ -222,11 +222,11 @@ Module WorkloadBound.
 
         (* After switching to the definition of workload based on a list
            of jobs, we show that sorting the list preserves the sum. *)
-        Lemma workload_bound_simpl_by_sorting_interfering_jobs :
+        Lemma workload_bound_simpl_by_sorting_scheduled_jobs :
           workload_joblist job_task sched tsk t1 t2 =
            \sum_(i <- sorted_jobs) service_during sched i t1 t2.
         Proof.
-          unfold workload_joblist; fold interfering_jobs.
+          unfold workload_joblist; fold scheduled_jobs.
           rewrite (eq_big_perm sorted_jobs) /= //.
           by rewrite -(perm_sort earlier_arrival).
         Qed.
@@ -234,7 +234,7 @@ Module WorkloadBound.
         (* Remember that both sequences have the same set of elements *)
         Lemma workload_bound_job_in_same_sequence :
           forall j,
-            (j \in interfering_jobs) = (j \in sorted_jobs).
+            (j \in scheduled_jobs) = (j \in sorted_jobs).
         Proof.
           by apply perm_eq_mem; rewrite -(perm_sort earlier_arrival).
         Qed.
@@ -521,7 +521,7 @@ Module WorkloadBound.
             by unfold cur, next; apply workload_bound_jobs_ordered_by_arrival.
              
           (* Show that both cur and next are in the arrival sequence *)
-          assert (INnth: cur \in interfering_jobs /\ next \in interfering_jobs).
+          assert (INnth: cur \in scheduled_jobs /\ next \in scheduled_jobs).
           {
             rewrite 2!workload_bound_job_in_same_sequence; split.
               by apply mem_nth, (ltn_trans LT0); destruct sorted_jobs; ins.
@@ -540,7 +540,7 @@ Module WorkloadBound.
             rewrite nth_uniq in EQ; first by move: EQ => /eqP EQ; intuition.
               by apply ltn_trans with (n := (size sorted_jobs).-1); destruct sorted_jobs; ins.
               by destruct sorted_jobs; ins.
-              by rewrite sort_uniq -/interfering_jobs filter_uniq // undup_uniq.
+              by rewrite sort_uniq -/scheduled_jobs filter_uniq // undup_uniq.
               by move: INnth INnth0 => /eqP INnth /eqP INnth0; rewrite INnth INnth0.  
           }
           by rewrite subh3 // addnC; move: INnth => /eqP INnth; rewrite -INnth.
@@ -731,7 +731,7 @@ Module WorkloadBound.
         rewrite workload_eq_workload_joblist.
 
         (* Now we order the list by job arrival time. *)
-        rewrite workload_bound_simpl_by_sorting_interfering_jobs.
+        rewrite workload_bound_simpl_by_sorting_scheduled_jobs.
 
         (* Next, we show that the workload bound holds if n_k
            is no larger than the number of interferings jobs. *)
