@@ -1,6 +1,6 @@
 Require Import Vbase task job task_arrival schedule platform interference
         workload workload_bound schedulability priority response_time
-        bertogna_fp_theory util_divround util_lemmas
+        bertogna_fp_theory util_divround interference_edf util_lemmas
         ssreflect ssrbool eqtype ssrnat seq fintype bigop div path.
 
   (* In the following section, we define Bertogna and Cirinei's
@@ -8,7 +8,7 @@ Require Import Vbase task job task_arrival schedule platform interference
 Module EDFSpecificBound.
 
   Import Job SporadicTaskset ScheduleOfSporadicTask Schedulability ResponseTime
-         Priority SporadicTaskArrival Interference.
+         Priority SporadicTaskArrival Interference InterferenceEDF.
 
   Section EDFBoundDef.
     
@@ -162,8 +162,8 @@ Module EDFSpecificBound.
                (jobs_scheduled_between sched t1 t2).
       
       (* Now, consider the list of interfering jobs sorted by arrival time. *)
-      Let order := fun (x y: JobIn arr_seq) => job_arrival x <= job_arrival y.
-      Let sorted_jobs := (sort order interfering_jobs).
+      Let earlier_arrival := fun (x y: JobIn arr_seq) => job_arrival x <= job_arrival y.
+      Let sorted_jobs := (sort earlier_arrival interfering_jobs).
 
       (* Now we proceed with the proof.
          The first step consists in simplifying the sum corresponding to the workload. *)
@@ -197,7 +197,7 @@ Module EDFSpecificBound.
           \sum_(j <- interfering_jobs) interference_caused_by j t1 t2 =
            \sum_(j <- sorted_jobs) interference_caused_by j t1 t2.
         Proof.
-          by rewrite (eq_big_perm sorted_jobs) /=; last by rewrite -(perm_sort order).
+          by rewrite (eq_big_perm sorted_jobs) /=; last by rewrite -(perm_sort earlier_arrival).
         Qed.
 
         (* Note that both sequences have the same set of elements. *)
@@ -205,7 +205,7 @@ Module EDFSpecificBound.
           forall j,
             (j \in interfering_jobs) = (j \in sorted_jobs).
         Proof.
-          by apply perm_eq_mem; rewrite -(perm_sort order).
+          by apply perm_eq_mem; rewrite -(perm_sort earlier_arrival).
         Qed.
 
         (* Also recall that all jobs in the sorted sequence is an interfering job of tsk_k, ... *)
@@ -225,11 +225,11 @@ Module EDFSpecificBound.
         Lemma interference_bound_edf_jobs_ordered_by_arrival :
           forall i elem,
             i < (size sorted_jobs).-1 ->
-            order (nth elem sorted_jobs i) (nth elem sorted_jobs i.+1).
+            earlier_arrival (nth elem sorted_jobs i) (nth elem sorted_jobs i.+1).
         Proof.
           intros i elem LT.
-          assert (SORT: sorted order sorted_jobs).
-            by apply sort_sorted; unfold total, order; ins; apply leq_total.
+          assert (SORT: sorted earlier_arrival sorted_jobs).
+            by apply sort_sorted; unfold total, earlier_arrival; ins; apply leq_total.
           by destruct sorted_jobs; simpl in *; [by rewrite ltn0 in LT | by apply/pathP].
         Qed.
 
@@ -250,42 +250,6 @@ Module EDFSpecificBound.
         Qed.
 
       End SimplifyJobSequence.
-
-      (* Next, we prove some facts relating job deadlines and interference under EDF.*)
-      Section FactsAboutEDF.
-
-        (* Under EDF scheduling, a job only causes interference if its deadline
-           is not larger than the deadline of the analyzed job. 
-           TODO: Should this be in the interference.v file? *)
-        Lemma interference_under_edf_implies_shorter_deadlines :
-          forall (j j': JobIn arr_seq) t1 t2,
-            job_interference job_cost sched j' j t1 t2 != 0 ->
-            job_arrival j + job_deadline j <= job_arrival j' + job_deadline j'.
-        Proof.
-          rename H_global_scheduling_invariant into INV.
-          clear - t1 t2 INV; clear t1 t2.
-          intros j j' t1 t2 INTERF.
-          unfold job_interference in INTERF.
-          destruct ([exists t': 'I_t2, (t' >= t1) && backlogged job_cost sched j' t' &&
-                                                  scheduled sched j t']) eqn:EX.
-          {
-            move: EX => /existsP EX; destruct EX as [t' EX];move: EX => /andP [/andP [LE BACK] SCHED].
-            eapply interfering_job_has_higher_eq_prio in BACK;
-              [ | by apply INV | by apply SCHED].
-            by apply BACK.
-          }
-          {
-            apply negbT in EX; rewrite negb_exists in EX; move: EX => /forallP ALL. 
-            rewrite big_nat_cond (eq_bigr (fun x => 0)) in INTERF;
-              first by rewrite -big_nat_cond big_const_nat iter_addn mul0n  addn0 eq_refl in INTERF.
-            intros i; rewrite andbT; move => /andP [GT LT].
-            specialize (ALL (Ordinal LT)); simpl in ALL.
-            rewrite -andbA negb_and -implybE in ALL; move: ALL => /implyP ALL.
-            by specialize (ALL GT); apply/eqP; rewrite eqb0.
-          }
-        Qed.
-
-      End FactsAboutEDF.
 
       (* Next, we show that if the number of jobs is no larger than n_k,
          the workload bound trivially holds. *)
@@ -422,7 +386,8 @@ Module EDFSpecificBound.
                 interference_bound_edf_j_fst_completion_implies_rt_bound_inside_interval RBOUND.
               have FST := interference_bound_edf_j_fst_is_job_of_tsk_k.
               destruct FST as [_ [ LEdl _]].            
-              apply interference_under_edf_implies_shorter_deadlines in LEdl.
+              apply interference_under_edf_implies_shorter_deadlines with
+                   (job_deadline0 := job_deadline) in LEdl; try (by done).
               destruct (D_k - R_k <= D_i) eqn:LEdk; last first.
               {
                 apply negbT in LEdk; rewrite -ltnNge in LEdk.
@@ -545,7 +510,8 @@ Module EDFSpecificBound.
                 by apply interference_bound_edf_response_time_bound_of_j_fst_after_interval.
               }
               apply/eqP; rewrite -[_ _ _ _ == 0]negbK; apply/negP; red; intro BUG.
-              apply interference_under_edf_implies_shorter_deadlines in BUG.
+              apply interference_under_edf_implies_shorter_deadlines with
+                     (job_deadline0 := job_deadline) in BUG; try (by done).
               rewrite interference_bound_edf_j_fst_deadline
                       interference_bound_edf_j_i_deadline in BUG.
               by apply (leq_trans LTdk) in BUG; rewrite ltnn in BUG.
@@ -583,7 +549,8 @@ Module EDFSpecificBound.
               rewrite big_const_nat iter_addn mul1n addn0 leq_subLR.
               unfold D_i, D_k, t1, a_fst; rewrite -interference_bound_edf_j_fst_deadline
                                                   -interference_bound_edf_j_i_deadline.
-              by apply interference_under_edf_implies_shorter_deadlines in LEdl.
+              by apply interference_under_edf_implies_shorter_deadlines with
+                (job_deadline0 := job_deadline) in LEdl.
             Qed.
 
           End ResponseTimeOfSingleJobNotBounded.
@@ -804,7 +771,8 @@ Module EDFSpecificBound.
             }
             have LST := interference_bound_edf_j_lst_is_job_of_tsk_k.
             destruct LST as [_ [ LEdl _]].  
-            apply interference_under_edf_implies_shorter_deadlines in LEdl.
+            apply interference_under_edf_implies_shorter_deadlines with
+                (job_deadline0 := job_deadline) in LEdl; try (by done).
             unfold D_i, D_k in DIST; rewrite interference_bound_edf_j_lst_deadline
                                              interference_bound_edf_j_i_deadline in LEdl.
             by rewrite ltnNge LEdl in DIST.
@@ -889,7 +857,8 @@ Module EDFSpecificBound.
               destruct LST as [_ [ LSTserv _]].
               unfold D_i, D_k, a_lst, t1; rewrite -interference_bound_edf_j_lst_deadline
                                                   -interference_bound_edf_j_i_deadline.
-              by apply interference_under_edf_implies_shorter_deadlines in LSTserv.
+              by apply interference_under_edf_implies_shorter_deadlines with
+                                (job_deadline0 := job_deadline) in LSTserv.
             Qed.
 
             (* To conclude that the interference bound holds, it suffices to show that
@@ -1006,7 +975,8 @@ Module EDFSpecificBound.
               destruct LST as [_ [ LSTserv _]].
               unfold D_i, D_k, a_lst, t1; rewrite -interference_bound_edf_j_lst_deadline
                                                   -interference_bound_edf_j_i_deadline.
-              by apply interference_under_edf_implies_shorter_deadlines in LSTserv.
+              by apply interference_under_edf_implies_shorter_deadlines
+                with (job_deadline0 := job_deadline) in LSTserv.
             Qed.
 
           End InterferenceOfFirstJob.

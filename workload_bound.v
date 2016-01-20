@@ -214,8 +214,8 @@ Module WorkloadBound.
                    (jobs_scheduled_between sched t1 t2).
 
       (* Now, let's consider the list of interfering jobs sorted by arrival time. *)
-      Let order := fun (x y: JobIn arr_seq) => job_arrival x <= job_arrival y.
-      Let sorted_jobs := (sort order interfering_jobs).
+      Let earlier_arrival := fun (x y: JobIn arr_seq) => job_arrival x <= job_arrival y.
+      Let sorted_jobs := (sort earlier_arrival interfering_jobs).
 
       (* The first step consists in simplifying the sum corresponding
          to the workload. *)
@@ -238,7 +238,7 @@ Module WorkloadBound.
           \sum_(i <- interfering_jobs) service_during sched i t1 t2 =
            \sum_(i <- sorted_jobs) service_during sched i t1 t2.
         Proof.
-          by rewrite (eq_big_perm sorted_jobs) /=; last by rewrite -(perm_sort order).
+          by rewrite (eq_big_perm sorted_jobs) /=; last by rewrite -(perm_sort earlier_arrival).
         Qed.
 
         (* Remember that both sequences have the same set of elements *)
@@ -246,7 +246,7 @@ Module WorkloadBound.
           forall j,
             (j \in interfering_jobs) = (j \in sorted_jobs).
         Proof.
-          by apply perm_eq_mem; rewrite -(perm_sort order).
+          by apply perm_eq_mem; rewrite -(perm_sort earlier_arrival).
         Qed.
 
         (* Remember that all jobs in the sorted sequence is an
@@ -267,11 +267,11 @@ Module WorkloadBound.
         Lemma workload_bound_jobs_ordered_by_arrival :
           forall i elem,
             i < (size sorted_jobs).-1 ->
-            order (nth elem sorted_jobs i) (nth elem sorted_jobs i.+1).
+            earlier_arrival (nth elem sorted_jobs i) (nth elem sorted_jobs i.+1).
         Proof.
           intros i elem LT.
-          assert (SORT: sorted order sorted_jobs).
-            by apply sort_sorted; unfold total, order; ins; apply leq_total.
+          assert (SORT: sorted earlier_arrival sorted_jobs).
+            by apply sort_sorted; unfold total, earlier_arrival; ins; apply leq_total.
           by destruct sorted_jobs; simpl in *; [by rewrite ltn0 in LT | by apply/pathP].
         Qed.
 
