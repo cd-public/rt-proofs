@@ -1,4 +1,6 @@
-Require Import Vbase ssreflect ssrbool eqtype ssrnat seq fintype bigop tuple path div ssromega.
+Add LoadPath ".." as rt.
+Require Import util.Vbase util.ssromega.
+Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop tuple path div.
 
 (* Here we define a more verbose notation for projections of pairs... *)
 Section Pair.
@@ -118,6 +120,96 @@ Ltac des_eqrefl2 :=
     generalize (Logic.eq_refl X); generalize X at 2 3;
     intros id' EQ; destruct id'
   end.
+
+(* Restate nth_error function from Coq library. *)
+Fixpoint nth_or_none {T: Type} (l: seq T) (n:nat) {struct n} : option T :=
+  match n, l with
+  | 0, x :: _ => Some x
+  | n.+1, _ :: l => nth_or_none l n
+  | _, _ => None
+end.
+
+(* Lemmas about nth_or_none. *)
+Section NthOrNone.
+
+  Context {T: eqType}.
+  
+  Lemma nth_or_none_mem :
+    forall (l: seq T) n x, nth_or_none l n = Some x -> x \in l.
+  Proof.
+    induction l; first by unfold nth_or_none; ins; destruct n; ins.
+    {
+      ins; destruct n.
+      {
+        inversion H; subst.
+        by rewrite in_cons eq_refl orTb.
+      }
+      simpl in H; rewrite in_cons; apply/orP; right.
+      by apply IHl with (n := n).
+    }
+  Qed. 
+    
+  Lemma nth_or_none_mem_exists :
+    forall (l: seq T) x, x \in l -> exists n, nth_or_none l n = Some x.
+  Proof.
+    induction l; first by intros x IN; rewrite in_nil in IN.
+    {
+      intros x IN; rewrite in_cons in IN.
+      move: IN => /orP [/eqP EQ | IN]; first by subst; exists 0.
+      specialize (IHl x IN); des.
+      by exists n.+1.
+    }
+  Qed.
+  
+  Lemma nth_or_none_size_none :
+    forall (l: seq T) n,
+      nth_or_none l n = None <-> n >= size l.
+  Proof.
+    induction l; first by split; destruct n. 
+    by destruct n; simpl; [by split; last by rewrite ltn0 | by rewrite ltnS].
+  Qed.
+
+  Lemma nth_or_none_size_some :
+    forall (l: seq T) n x,
+      nth_or_none l n = Some x -> n < size l.
+  Proof.
+    induction l; first by destruct n. 
+    by intros n x; destruct n; simpl; last by rewrite ltnS; apply IHl.
+  Qed.
+  
+  Lemma nth_or_none_uniq :
+    forall (l: seq T) i j x,
+      uniq l ->
+      nth_or_none l i = Some x ->
+      nth_or_none l j = Some x ->
+      i = j.
+  Proof.
+    intros l i j x UNIQ SOMEi SOMEj.
+    {
+      generalize dependent j.
+      generalize dependent i.
+      induction l;
+        first by ins; destruct i, j; simpl in *; inversion SOMEi.
+      intros i SOMEi j SOMEj.
+      simpl in UNIQ; move: UNIQ => /andP [NOTIN UNIQ].
+      feed IHl; first by done.
+      destruct i, j; simpl in *; first by done.
+      - by inversion SOMEi; subst; apply nth_or_none_mem in SOMEj; rewrite SOMEj in NOTIN. 
+      - by inversion SOMEj; subst; apply nth_or_none_mem in SOMEi; rewrite SOMEi in NOTIN.
+      - by f_equal; apply IHl.
+    }
+  Qed.
+
+Lemma nth_or_none_nth :
+    forall (l: seq T) n x x0,
+      nth_or_none l n = Some x ->
+      nth x0 l n = x.
+  Proof.
+    induction l; first by destruct n.
+    by intros n x x0 SOME; destruct n; simpl in *; [by inversion SOME | by apply IHl].
+  Qed.
+
+End NthOrNone.
 
 (* Lemmas about big operators over Ordinals that use Ordinal functions. *)
 Section BigOrdFunOrd.
@@ -649,7 +741,7 @@ Section Sorting.
     move: SORT => /allP SORT.
     by apply SORT; rewrite mem_rcons in_cons; apply/orP; left.
   Qed.
-
+  
   Lemma sorted_lt_idx_implies_rel :
     forall {T: eqType} (leT: rel T) (s: seq T) x0 i1 i2,
       transitive leT ->
@@ -910,7 +1002,7 @@ Section ExtraLemmasSumMax.
       by rewrite lt0n.
     }
   Qed.
-
+  
   Lemma extend_sum :
     forall t1 t2 t1' t2' F,
       t1' <= t1 ->
