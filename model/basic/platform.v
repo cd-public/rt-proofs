@@ -34,6 +34,14 @@ Module Platform.
       Definition work_conserving :=
         forall (j: JobIn arr_seq) t,
           backlogged job_cost sched j t ->
+          forall cpu, exists j_other,
+            scheduled_on sched j_other cpu t.
+
+      (* We also provide an alternative, equivalent definition of work-conserving
+         based on counting the number of scheduled jobs. *)
+      Definition work_conserving_count :=
+        forall (j: JobIn arr_seq) t,
+          backlogged job_cost sched j t ->
           size (jobs_scheduled_at sched t) = num_cpus.
       
     End WorkConserving.
@@ -73,6 +81,83 @@ Module Platform.
         forall (j: JobIn arr_seq),
           valid_sporadic_job task_cost task_deadline job_cost job_deadline job_task j.
 
+      (* In this section, we prove that the two definitions of work-conserving are equivalent. *)
+      Section EquivalentDefinitions.
+
+        Lemma work_conserving_eq_work_conserving_count :
+          work_conserving <-> work_conserving_count.
+        Proof.
+          unfold work_conserving, work_conserving_count; split.
+          {
+            intros EX j t BACK.
+            specialize (EX j t BACK).
+            apply eq_trans with (y := size (enum (processor num_cpus)));
+              last by rewrite size_enum_ord.
+            unfold jobs_scheduled_at.
+            apply eq_trans with (y := size ((\cat_(cpu < num_cpus) map (fun x => Some x)
+                                              (make_sequence (sched cpu t)))));
+              first by rewrite -map_bigcat_ord size_map.
+            apply eq_trans with (y := size (\cat_(cpu < num_cpus) [:: sched cpu t])).
+            {
+              f_equal; apply eq_bigr; intros cpu _.
+              destruct (sched cpu t) eqn:SCHED; first by done.
+              by specialize (EX cpu); des; move: EX => /eqP EX; rewrite EX in SCHED.
+            }
+            rewrite size_bigcat_ord.
+            apply eq_trans with (y := \sum_(i < num_cpus) 1);
+              last by rewrite big_const_ord iter_addn mul1n addn0 size_enum_ord.
+            by apply eq_bigr.
+          }
+          {
+            intros SIZE j t BACK cpu.
+            specialize (SIZE j t BACK).
+            destruct ([exists cpu, sched cpu t == None]) eqn:EX; last first.
+            {
+              apply negbT in EX; rewrite negb_exists in EX.
+              move: EX => /forallP ALL; specialize (ALL cpu).
+              destruct (sched cpu t) eqn:SOME; last by done.
+              by exists j0; apply/eqP.
+            }
+            {
+              move: EX => /existsP [cpu' /eqP EX].
+              unfold jobs_scheduled_at in SIZE.
+              move: SIZE => /eqP SIZE; rewrite -[size _ == _]negbK in SIZE.
+              move: SIZE => /negP SIZE; exfalso; apply SIZE; clear SIZE.
+              rewrite neq_ltn; apply/orP; left.
+              rewrite size_bigcat_ord.
+              rewrite -> big_mkord_ord with (x0 := 0).
+              have MKORD := big_mkord (fun x => true); rewrite -MKORD.
+              have CAT := big_cat_nat _ (fun x => true).
+              rewrite -> CAT with (n := cpu'); [simpl | by done | by apply ltnW, ltn_ord].   
+              assert (DIFF: exists k, num_cpus = (cpu' + k).+1).
+              {
+                exists (num_cpus - cpu').-1.
+                rewrite -addnS prednK; last by rewrite ltn_subRL addn0 ltn_ord.
+                rewrite addnBA; last by apply ltnW, ltn_ord.
+                by rewrite addnC -addnBA // subnn addn0.
+              } 
+              des; rewrite {5}DIFF.
+              rewrite big_nat_recl; last by apply leq_addr.
+              apply leq_trans with (n := (\sum_(0 <= i < cpu') 1) + 1 + (\sum_(cpu' <= i < cpu' + k) 1));
+                last first.
+              {
+                rewrite 2!big_const_nat 2!iter_addn 2!mul1n addn0 subn0.
+                rewrite [cpu' + k]addnC -addnBA // subnn 2!addn0.
+                by rewrite -addnA [1 + k]addnC addnA addn1 -DIFF.
+              }
+              {
+                rewrite -addn1 addnC [_ + 1]addnC -addnA.
+                apply leq_add; first by done.
+                rewrite eq_fun_ord_to_nat; unfold make_sequence at 2; rewrite EX /= add0n. 
+                apply leq_add; apply leq_sum; ins; unfold fun_ord_to_nat; des_eqrefl2; try done;
+                by unfold make_sequence; desf.
+              }
+            }
+          }
+        Qed.
+          
+      End EquivalentDefinitions.
+      
       Section JobInvariantAsTaskInvariant.
 
         (* Assume any work-conserving priority-based scheduler. *)
@@ -174,6 +259,7 @@ Module Platform.
                  H_all_previous_jobs_completed into PREV,
                  H_completed_jobs_dont_execute into COMP,
                  H_jobs_must_arrive_to_execute into ARRIVE.
+          apply work_conserving_eq_work_conserving_count in WORK.
           unfold valid_sporadic_job, valid_realtime_job,
                  enforces_JLDP_policy,
                  task_precedence_constraints, completed_jobs_dont_execute,

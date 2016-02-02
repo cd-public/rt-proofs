@@ -43,6 +43,10 @@ Module Schedule.
     Variable sched: schedule num_cpus arr_seq.
     Variable j: JobIn arr_seq.
 
+    (* A job j is scheduled on processor cpu at time t iff such a mapping exists. *)
+    Definition scheduled_on (cpu: processor num_cpus) (t: time) :=
+      sched cpu t == Some j.
+    
     (* A job j is scheduled at time t iff there exists a cpu where it is mapped.*)
     Definition scheduled (t: time) :=
       [exists cpu in 'I_(num_cpus), sched cpu t == Some j].
@@ -507,7 +511,8 @@ Module Schedule.
         intros t.
         unfold jobs_scheduled_at.
         destruct num_cpus; first by rewrite big_ord0.
-        apply size_bigcat_ord; first by apply (Ordinal (ltnSn n)).
+        apply leq_trans with (1*n.+1); last by rewrite mul1n.
+        apply size_bigcat_ord_max.
         by ins; unfold make_sequence; desf.
       Qed.
 

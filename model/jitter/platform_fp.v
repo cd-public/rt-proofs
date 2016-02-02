@@ -200,6 +200,7 @@ Module PlatformFP.
                H_completed_jobs_dont_execute into COMP,
                H_all_previous_jobs_of_tsk_completed into PREVtsk,
                H_jobs_execute_after_jitter into JITTER.
+        apply work_conserving_eq_work_conserving_count in WORK.
         unfold valid_sporadic_job, valid_realtime_job,
                enforces_FP_policy, enforces_JLDP_policy, FP_to_JLDP,
                task_precedence_constraints, completed_jobs_dont_execute,
