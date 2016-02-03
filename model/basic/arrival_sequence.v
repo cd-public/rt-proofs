@@ -1,6 +1,6 @@
 Add LoadPath "../../" as rt.
 Require Import rt.util.Vbase rt.util.lemmas rt.model.basic.job rt.model.basic.task.
-Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop.
+Require Import ssreflect ssrbool ssrfun eqtype ssrnat seq fintype bigop.
 
 (* Definitions and properties of job arrival sequences. *)
 Module ArrivalSequence.
@@ -86,5 +86,98 @@ Module ArrivalSequence.
     Definition arrived_between (t1 t2: nat) := t1 <= job_arrival j < t2.
 
   End ArrivingJobs.
+
+  (* In this section, we define prefixes of arrival sequences based on JobIn.
+     This is not required in the main proofs, but important for instantiating
+     a concrete schedule. Feel free to skip this section. *)
+  Section ArrivalSequencePrefix.
+
+    Context {Job: eqType}.
+    Variable arr_seq: arrival_sequence Job.
+
+    (* Let's define a function that takes a job j and converts it to
+       Some JobIn (if j arrives at time t), or None otherwise. *)
+    Program Definition is_JobIn (t: time) (j: Job) :=
+      if (j \in arr_seq t) is true then
+        Some (Build_JobIn arr_seq j t _)
+      else None.
+    Next Obligation.
+      by done.
+    Qed.
+
+    (* Now we define the list of JobIn that arrive at time t as the partial
+       map of is_JobIn.  *)
+    Definition jobs_arriving_at (t: time) := pmap (is_JobIn t) (arr_seq t).
+
+    (* The list of JobIn that have arrived up to time t follows by concatenation. *)
+    Definition jobs_arrived_up_to (t': time) :=
+      \cat_(t < t'.+1) jobs_arriving_at t.
+
+    Section Lemmas.
+      
+      (* There's an inverse function for recovering the original Job from JobIn. *)
+      Lemma is_JobIn_inverse :
+        forall t,
+          ocancel (is_JobIn t) (_job_in arr_seq).
+      Proof.
+        by intros t; red; intros x; unfold is_JobIn; des_eqrefl.
+      Qed.
+
+      (* Prove that a member of the list indeed satisfies the property. *)
+      Lemma JobIn_has_arrived :
+        forall j t,
+          j \in jobs_arrived_up_to t <-> has_arrived j t.
+      Proof.
+        intros j t; split.
+        {
+          intros IN; apply mem_bigcat_ord_exists in IN; destruct IN as [t0 IN].
+          unfold jobs_arriving_at in IN.
+          rewrite mem_pmap in IN.
+          move: IN => /mapP [j' IN SOME].
+          unfold is_JobIn in SOME.
+          des_eqrefl; last by done.
+          inversion SOME; subst.
+          unfold has_arrived; simpl.
+          by rewrite -ltnS; apply ltn_ord.
+        }
+        {
+          unfold has_arrived; intros ARRIVED.
+          rewrite -ltnS in ARRIVED.
+          apply mem_bigcat_ord with (j := Ordinal ARRIVED); first by done.
+          rewrite mem_pmap; apply/mapP; exists j;
+            first by destruct j as [j arr_j ARR].
+          destruct j as [j arr_j ARR].
+          unfold is_JobIn; des_eqrefl; first by repeat f_equal; apply proof_irrelevance.
+          by simpl in *; unfold arrives_at in *; rewrite ARR in EQ.
+        }
+      Qed.
+
+      (* If the arrival sequence doesn't allow duplicates,
+         the same applies for the list of JobIn that arrive. *)
+      Lemma JobIn_uniq :
+        arrival_sequence_is_a_set arr_seq ->
+        forall t, uniq (jobs_arrived_up_to t).
+      Proof.
+        unfold jobs_arrived_up_to; intros SET t.
+        apply bigcat_ord_uniq.
+        {
+          intros i; unfold jobs_arriving_at.
+          apply pmap_uniq with (g := (_job_in arr_seq)); first by apply is_JobIn_inverse.
+          by apply SET.
+        }
+        {
+          intros x t1 t2 IN1 IN2.
+          rewrite 2!mem_pmap in IN1 IN2.
+          move: IN1 IN2 => /mapP IN1 /mapP IN2.
+          destruct IN1 as [j1 IN1 SOME1], IN2 as [j2 IN2 SOME2].
+          unfold is_JobIn in SOME1; des_eqrefl; last by done.
+          unfold is_JobIn in SOME2; des_eqrefl; last by done.
+          by rewrite SOME1 in SOME2; inversion SOME2; apply ord_inj.
+        }
+      Qed.
+      
+    End Lemmas.
+    
+  End ArrivalSequencePrefix.
 
 End ArrivalSequence.
