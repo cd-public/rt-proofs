@@ -354,21 +354,33 @@ Section BigCatLemmas.
     }
   Qed.
 
-  Lemma size_bigcat_ord {T} n (i: 'I_n) (f: 'I_n -> seq T) :
-    (forall x, size (f x) <= 1) ->
-    size (\cat_(i < n) (f i)) <= n.
+  Lemma map_bigcat_ord {T} {T'} n (f: 'I_n -> seq T) (g: T -> T') :
+    map g (\cat_(i < n) (f i)) = \cat_(i < n) (map g (f i)).
+  Proof.
+    destruct n; first by rewrite 2!big_ord0. 
+    induction n; first by rewrite 2!big_ord_recr 2!big_ord0.
+    rewrite big_ord_recr [\cat_(cpu < n.+2)_]big_ord_recr /=.
+    by rewrite map_cat; f_equal; apply IHn.
+  Qed.
+
+  Lemma size_bigcat_ord {T} n (f: 'I_n -> seq T) :
+    size (\cat_(i < n) (f i)) = \sum_(i < n) (size (f i)).
+  Proof.
+    destruct n; first by rewrite 2!big_ord0.
+    induction n; first by rewrite 2!big_ord_recr 2!big_ord0 /= add0n.
+    rewrite big_ord_recr [\sum_(i0 < n.+2)_]big_ord_recr size_cat /=.
+    by f_equal; apply IHn.
+  Qed.
+
+  Lemma size_bigcat_ord_max {T} n (f: 'I_n -> seq T) m :
+    (forall x, size (f x) <= m) ->
+    size (\cat_(i < n) (f i)) <= m*n.
   Proof.
     intros SIZE.
-    destruct n; first by rewrite big_ord0.
-    induction n; first by rewrite big_ord_recl big_ord0 size_cat addn0.
-    rewrite big_ord_recr size_cat.
-    apply leq_trans with (n.+1 + 1); last by rewrite addn1.
-    apply leq_add; last by apply SIZE.
-    apply IHn; last by ins; apply SIZE.
-    {
-      assert (LT: 0 < n.+1). by done.
-      by apply (Ordinal LT).
-    }
+    rewrite size_bigcat_ord.
+    apply leq_trans with (n := \sum_(i0 < n) m);
+      last by rewrite big_const_ord iter_addn addn0.
+    by apply leq_sum; ins; apply SIZE. 
   Qed.
   
 End BigCatLemmas.
