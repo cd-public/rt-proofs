@@ -320,6 +320,15 @@ Module ResponseTimeIterationEDF.
           by simpl in EQtsk; rewrite -EQtsk; subst; apply leq_addr.
         Qed.
 
+        (* The application of the function is inductive. *)
+        Lemma bertogna_edf_comp_iteration_inductive (P : seq task_with_response_time -> Type) :
+          P (initial_state ts) ->
+          (forall k, P (f k) -> P (f (k.+1))) ->
+          P (f (max_steps ts)).
+        Proof.
+          by intros P0 Pn; induction (max_steps ts); last by apply Pn.
+        Qed.
+
         (* As a last step, we show that edf_rta_iteration preserves order, i.e., for any
            list l1 no smaller than the initial state, and list l2 such that
            l1 <= l2, we have (edf_rta_iteration l1) <= (edf_rta_iteration l2). *)
@@ -708,13 +717,13 @@ Module ResponseTimeIterationEDF.
 
       End DerivingContradiction. 
 
-      (* Using the lemmas above, we prove that edf_rta_iteration reaches a fixed point
-         after (max_steps ts) iterations, ... *)
-      Lemma edf_claimed_bounds_converges_helper :
+      (* Using the lemmas above, we prove that edf_rta_iteration reaches
+         a fixed point after (max_steps ts) step, ... *)
+      Lemma edf_claimed_bounds_finds_fixed_point_of_list :
         forall rt_bounds,
           edf_claimed_bounds ts = Some rt_bounds ->
           valid_sporadic_taskset task_cost task_period task_deadline ts ->
-          f (max_steps ts) = f (max_steps ts).+1. 
+          f (max_steps ts) = edf_rta_iteration (f (max_steps ts)). 
       Proof.
         intros rt_bounds SOME VALID.
         unfold valid_sporadic_taskset, is_valid_sporadic_task in *.
@@ -794,16 +803,37 @@ Module ResponseTimeIterationEDF.
         by apply (leq_ltn_trans SUM) in BUG; rewrite ltnn in BUG. 
       Qed.
 
-      (* ..., which in turn implies that the response-time bound is the fixed
-         point from Bertogna and Cirinei's equation. *)
-      Lemma edf_claimed_bounds_converges :
+      (* ...and since there cannot be a vector of response-time bounds with values less than
+         the task costs, this solution is also the least fixed point. *)
+      Lemma edf_claimed_bounds_finds_least_fixed_point :
+        forall v,
+          all_le (initial_state ts) v ->
+          v = edf_rta_iteration v ->
+          all_le (f (max_steps ts)) v.
+      Proof.
+        intros v GE0 EQ.
+        apply bertogna_edf_comp_iteration_inductive; first by done.
+        intros k GEk.
+        rewrite EQ.
+        apply bertogna_edf_comp_iteration_preserves_order; last by done.
+        by apply bertogna_edf_comp_iteration_preserves_minimum.
+      Qed.
+
+      (* Therefore, with regard to the response-time bound recurrence, ...*)
+      Let rt_recurrence (tsk: sporadic_task) (rt_bounds: seq task_with_response_time) (R: time) :=
+        task_cost tsk + div_floor (I rt_bounds tsk R) num_cpus.
+      
+      (* ..., the individual response-time bounds (elements of the list) are also fixed points. *)
+      Theorem edf_claimed_bounds_finds_fixed_point_for_each_bound :
         forall tsk R rt_bounds,
           edf_claimed_bounds ts = Some rt_bounds ->
           (tsk, R) \in rt_bounds ->
-          R = task_cost tsk + div_floor (I rt_bounds tsk R) num_cpus.
+          R = rt_recurrence tsk rt_bounds R.
       Proof.
+        unfold least_fixed_point.
         intros tsk R rt_bounds SOME IN.
-        have CONV := edf_claimed_bounds_converges_helper rt_bounds.
+        have CONV := edf_claimed_bounds_finds_fixed_point_of_list rt_bounds.
+        rewrite -iterS in CONV; fold (f (max_steps ts).+1) in CONV.
         unfold edf_claimed_bounds in *; desf.
         exploit (CONV); [by done | by done | intro ITER; clear CONV].
         unfold f in ITER.
@@ -824,7 +854,7 @@ Module ResponseTimeIterationEDF.
         have MAP := @nth_map _ (tsk,0) _ _ (update_bound s). 
         by rewrite MAP // EQ' in EQ; rewrite EQ.
       Qed.
-
+      
     End Convergence.
 
     Section MainProof.
@@ -903,7 +933,7 @@ Module ResponseTimeIterationEDF.
            (task_deadline := task_deadline) (job_deadline := job_deadline)
            (job_task := job_task) (ts := ts) (tsk := tsk) (rt_bounds := rt_bounds); try (by ins).
           by unfold edf_claimed_bounds in SOME; desf; rewrite edf_claimed_bounds_unzip1_iteration.
-          by ins; apply edf_claimed_bounds_converges with (ts := ts).
+          by ins; apply edf_claimed_bounds_finds_fixed_point_for_each_bound with (ts := ts).
           by ins; rewrite (edf_claimed_bounds_le_deadline ts rt_bounds).
       Qed.
       
