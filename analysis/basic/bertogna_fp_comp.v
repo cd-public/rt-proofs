@@ -1,6 +1,6 @@
 Add LoadPath "../../" as rt.
-Require Import util.Vbase util.lemmas util.divround.
-Require Import analysis.basic.bertogna_fp_theory.
+Require Import rt.util.Vbase rt.util.lemmas rt.util.divround.
+Require Import rt.analysis.basic.bertogna_fp_theory.
 Require Import ssreflect ssrbool ssrfun eqtype ssrnat seq fintype bigop div path.
 
 Module ResponseTimeIterationFP.

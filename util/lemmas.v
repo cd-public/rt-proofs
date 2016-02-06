@@ -1,5 +1,5 @@
 Add LoadPath ".." as rt.
-Require Import util.Vbase util.ssromega.
+Require Import rt.util.Vbase rt.util.ssromega.
 Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop tuple path div.
 
 (* Here we define a more verbose notation for projections of pairs... *)
