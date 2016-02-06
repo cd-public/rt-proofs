@@ -4,7 +4,7 @@ Require Import rt.model.jitter.job rt.model.jitter.arrival_sequence rt.model.jit
                rt.model.jitter.platform rt.model.jitter.priority.
 Require Import Program ssreflect ssrbool ssrfun eqtype ssrnat fintype bigop seq path.
 
-Module WorkConservingScheduler.
+Module ConcreteScheduler.
 
   Import Job ArrivalSequence ScheduleWithJitter Platform Priority.
   
@@ -217,9 +217,9 @@ Module WorkConservingScheduler.
 
     (* Now, we prove the important properties about the implementation. *)
     
-    (* Jobs do not execute before they arrive, ...*)
-    Theorem scheduler_jobs_must_arrive_to_execute:
-      jobs_must_arrive_to_execute sched.
+    (* Jobs do not execute before the jitter, ...*)
+    Theorem scheduler_jobs_execute_after_jitter:
+      jobs_execute_after_jitter job_jitter sched.
     Proof.
       unfold jobs_must_arrive_to_execute.
       intros j t SCHED.
@@ -230,15 +230,13 @@ Module WorkConservingScheduler.
         rewrite /update_schedule eq_refl in SCHED.
         apply (nth_or_none_mem _ cpu j) in SCHED.
         rewrite mem_sort mem_filter in SCHED.
-        move: SCHED => /andP [_ ARR].
-        by apply JobIn_has_arrived in ARR.
+        by move: SCHED => /andP [/andP [PENDING _] _]. 
       }
       {
         unfold update_schedule at 1 in SCHED; rewrite eq_refl /= in SCHED.
         apply (nth_or_none_mem _ cpu j) in SCHED.
         rewrite mem_sort mem_filter in SCHED.
-        move: SCHED => /andP [_ ARR].
-        by apply JobIn_has_arrived in ARR.
+        by move: SCHED => /andP [/andP [PENDING _] _].
       }
     Qed.
 
@@ -340,4 +338,4 @@ Module WorkConservingScheduler.
 
   End Proofs.
     
-End WorkConservingScheduler.
+End ConcreteScheduler.

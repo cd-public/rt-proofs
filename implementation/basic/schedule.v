@@ -4,7 +4,7 @@ Require Import rt.model.basic.job rt.model.basic.arrival_sequence rt.model.basic
                rt.model.basic.platform rt.model.basic.priority.
 Require Import Program ssreflect ssrbool ssrfun eqtype ssrnat fintype bigop seq path.
 
-Module WorkConservingScheduler.
+Module ConcreteScheduler.
 
   Import Job ArrivalSequence Schedule Platform Priority.
   
@@ -336,4 +336,4 @@ Module WorkConservingScheduler.
 
   End Proofs.
     
-End WorkConservingScheduler.
+End ConcreteScheduler.
