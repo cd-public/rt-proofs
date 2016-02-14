@@ -885,7 +885,6 @@ Module ResponseTimeIterationEDF.
           (tsk, R) \in rt_bounds ->
           R = rt_recurrence tsk rt_bounds R.
       Proof.
-        unfold least_fixed_point.
         intros tsk R rt_bounds SOME IN.
         have CONV := edf_claimed_bounds_finds_fixed_point_of_list rt_bounds.
         rewrite -iterS in CONV; fold (f (max_steps ts).+1) in CONV.
