@@ -32,7 +32,7 @@ Module Platform.
       (* A scheduler is work-conserving iff when a job j is backlogged,
          all processors are busy with other jobs. *)
       Definition work_conserving :=
-        forall (j: JobIn arr_seq) t,
+        forall j t,
           backlogged job_cost sched j t ->
           forall cpu, exists j_other,
             scheduled_on sched j_other cpu t.
@@ -40,7 +40,7 @@ Module Platform.
       (* We also provide an alternative, equivalent definition of work-conserving
          based on counting the number of scheduled jobs. *)
       Definition work_conserving_count :=
-        forall (j: JobIn arr_seq) t,
+        forall j t,
           backlogged job_cost sched j t ->
           size (jobs_scheduled_at sched t) = num_cpus.
       

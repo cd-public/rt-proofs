@@ -34,7 +34,7 @@ Module Platform.
          all processors are busy with other jobs.
          NOTE: backlogged means that jitter has already passed. *)
       Definition work_conserving :=
-        forall (j: JobIn arr_seq) t,
+        forall j t,
           backlogged job_cost job_jitter sched j t ->
           forall cpu, exists j_other,
             scheduled_on sched j_other cpu t.
@@ -42,7 +42,7 @@ Module Platform.
       (* We also provide an alternative, equivalent definition of work-conserving
          based on counting the number of scheduled jobs. *)
       Definition work_conserving_count :=
-        forall (j: JobIn arr_seq) t,
+        forall j t,
           backlogged job_cost job_jitter sched j t ->
           size (jobs_scheduled_at sched t) = num_cpus.
 
