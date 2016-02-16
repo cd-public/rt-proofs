@@ -145,7 +145,7 @@ Module ConcreteScheduler.
           apply eq_big_nat; move => t0 /andP [_ LT].
           unfold service_at; apply eq_bigl; red; intros cpu'.
           fold (schedule_prefix job_cost num_cpus arr_seq higher_eq_priority).
-          by rewrite 2?scheduler_same_prefix ?leqnn //.
+          by rewrite /scheduled_on 2?scheduler_same_prefix ?leqnn //.
         }
       Qed.
       
@@ -203,9 +203,10 @@ Module ConcreteScheduler.
           unfold pending; f_equal; f_equal.
           unfold completed; f_equal.
           unfold service; apply eq_big_nat; move => i /andP [_ LTi].
-          unfold service_at; apply eq_bigl; red; intro cpu; f_equal.
+          unfold service_at; apply eq_bigl; red; intro cpu.
+          unfold scheduled_on; f_equal.
           fold (schedule_prefix job_cost num_cpus arr_seq higher_eq_priority).
-          by rewrite scheduler_same_prefix //.
+          by rewrite scheduler_same_prefix.
         }
       Qed.
 
@@ -293,6 +294,7 @@ Module ConcreteScheduler.
           rewrite big_nat_cond [\sum_(_ <= _ < _ | true)_]big_nat_cond.
           apply eq_bigr; move => i /andP [/andP [_ LT] _].
           apply eq_bigl; red; ins.
+          unfold scheduled_on; f_equal.
           fold (schedule_prefix job_cost num_cpus arr_seq higher_eq_priority).
           by rewrite scheduler_same_prefix.
         }

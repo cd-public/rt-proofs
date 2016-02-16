@@ -49,7 +49,7 @@ Module Schedule.
     
     (* A job j is scheduled at time t iff there exists a cpu where it is mapped.*)
     Definition scheduled (t: time) :=
-      [exists cpu in 'I_(num_cpus), sched cpu t == Some j].
+      [exists cpu in 'I_(num_cpus), scheduled_on cpu t].
 
     (* A processor cpu is idle at time t if it doesn't contain any jobs. *)
     Definition is_idle (cpu: 'I_(num_cpus)) (t: time) :=
@@ -59,7 +59,7 @@ Module Schedule.
        where it is scheduled on. Note that we use a sum to account for
        parallelism if required. *)
     Definition service_at (t: time) :=
-      \sum_(cpu < num_cpus | sched cpu t == Some j) 1.
+      \sum_(cpu < num_cpus | scheduled_on cpu t) 1.
 
     (* The cumulative service received by job j during [0, t'). *)
     Definition service (t': time) := \sum_(0 <= t < t') service_at t.
@@ -147,7 +147,7 @@ Module Schedule.
         forall t,
           ~~ scheduled sched j t = (service_at sched j t == 0).
       Proof.
-        unfold scheduled, service_at; intros t; apply/idP/idP.
+        unfold scheduled, service_at, scheduled_on; intros t; apply/idP/idP.
         {
           intros NOTSCHED.
           rewrite negb_exists_in in NOTSCHED.
@@ -343,6 +343,7 @@ Module Schedule.
         rewrite -> eq_bigr with (F2 := fun cpu => 0);
           first by rewrite big_const_seq iter_addn mul0n addn0.
         intros i SCHED; move: ARR; rewrite negb_exists_in; move => /forall_inP ARR.
+        unfold scheduled_on in *.
         by exploit (ARR i); [by ins | ins]; destruct (sched i t == Some j).
       Qed.
 
@@ -429,7 +430,7 @@ Module Schedule.
         forall j t,
           j \in jobs_scheduled_at sched t = scheduled sched j t.
       Proof.
-        unfold jobs_scheduled_at, scheduled.
+        unfold jobs_scheduled_at, scheduled, scheduled_on.
         intros j t; apply/idP/idP.
         {
           intros IN.

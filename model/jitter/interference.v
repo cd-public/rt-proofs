@@ -170,6 +170,7 @@ Module Interference.
           rename SCHED into EQtsk0, Heq into SCHED; move: EQtsk0 => /eqP EQtsk0.
           assert (SCHEDULED: scheduled sched j0 t).
           {
+            unfold scheduled, scheduled_on.
             apply/existsP; exists x; apply/andP; split; [by done | by rewrite SCHED eq_refl].
           }
           rewrite big_mkcond (bigD1_seq j0) /=; last by rewrite undup_uniq.
@@ -202,7 +203,7 @@ Module Interference.
             apply negbTE; rewrite negb_exists; apply/forallP.
             intros x; rewrite negb_and.
             specialize (BACK x); rewrite negb_and in BACK; ins.
-            unfold schedules_job_of_tsk in BACK.
+            unfold schedules_job_of_tsk in BACK; unfold scheduled_on.
             destruct (sched x t) eqn:SCHED; last by ins.
             apply/negP; unfold not; move => /eqP BUG; inversion BUG; subst.
             by move: Heq => /eqP Heq; rewrite Heq eq_refl in BACK.
@@ -236,6 +237,7 @@ Module Interference.
           rewrite -addn1 addnC; apply leq_add; last by done.
           rewrite EQtsk0 eq_refl BACK andTb.
           apply eq_leq; symmetry; apply/eqP; rewrite eqb1.
+          unfold scheduled, scheduled_on.
           by apply/exists_inP; exists x; [by done | by rewrite SCHED].
         }
         {
