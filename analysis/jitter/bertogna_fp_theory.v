@@ -2,9 +2,9 @@ Add LoadPath "../.." as rt.
 Require Import rt.util.Vbase rt.util.lemmas rt.util.divround.
 Require Import rt.model.jitter.task rt.model.jitter.job rt.model.jitter.task_arrival
                rt.model.jitter.schedule rt.model.jitter.platform rt.model.jitter.platform_fp
-               rt.model.jitter.workload rt.model.jitter.workload_bound rt.model.jitter.schedulability
-               rt.model.jitter.priority rt.model.jitter.response_time rt.model.jitter.interference
-               rt.model.jitter.workload_bound rt.model.jitter.interference_bound_fp.
+               rt.model.jitter.workload rt.model.jitter.schedulability rt.model.jitter.priority
+               rt.model.jitter.response_time rt.model.jitter.interference.
+Require Import rt.analysis.jitter.workload_bound rt.analysis.jitter.interference_bound_fp.
 Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop div path.
 
 Module ResponseTimeAnalysisFP.

@@ -2,9 +2,9 @@ Add LoadPath "../.." as rt.
 Require Import rt.util.Vbase rt.util.lemmas rt.util.divround.
 Require Import rt.model.basic.task rt.model.basic.job rt.model.basic.task_arrival
                rt.model.basic.schedule rt.model.basic.platform rt.model.basic.interference
-               rt.model.basic.workload rt.model.basic.workload_bound rt.model.basic.schedulability
-               rt.model.basic.priority rt.model.basic.platform rt.model.basic.response_time
-               rt.model.basic.interference_bound_edf.
+               rt.model.basic.workload rt.model.basic.schedulability rt.model.basic.priority
+               rt.model.basic.platform rt.model.basic.response_time.
+Require Import rt.analysis.basic.workload_bound rt.analysis.basic.interference_bound_edf.
 Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop div path.
 
 Module ResponseTimeAnalysisEDF.

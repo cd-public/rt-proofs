@@ -2,9 +2,9 @@ Add LoadPath "../../" as rt.
 Require Import rt.util.Vbase rt.util.divround.
 Require Import rt.model.basic.job rt.model.basic.task
                rt.model.basic.schedule rt.model.basic.schedulability
-               rt.model.basic.workload_bound
-               rt.model.basic.interference_bound_edf
-               rt.model.basic.priority rt.model.basic.platform
+               rt.model.basic.priority rt.model.basic.platform.
+Require Import rt.analysis.basic.workload_bound
+               rt.analysis.basic.interference_bound_edf
                rt.analysis.basic.bertogna_edf_comp.
 Require Import rt.implementation.basic.job
                rt.implementation.basic.task

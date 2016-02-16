@@ -2,7 +2,7 @@ Add LoadPath "../../" as rt.
 Require Import rt.util.lemmas.
 Require Import rt.model.jitter.arrival_sequence rt.model.jitter.schedule
                rt.model.jitter.interference rt.model.jitter.priority.
-Require Import rt.model.jitter.workload_bound.
+Require Import rt.analysis.jitter.workload_bound.
 Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop.
 
 Module InterferenceBoundJitter.

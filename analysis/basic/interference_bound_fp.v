@@ -1,8 +1,8 @@
 Add LoadPath "../.." as rt.
 Require Import rt.util.Vbase rt.util.lemmas.
 Require Import rt.model.basic.schedule rt.model.basic.priority rt.model.basic.workload
-               rt.model.basic.workload_bound rt.model.basic.interference
-               rt.model.basic.interference_bound.
+               rt.model.basic.interference.
+Require Import rt.analysis.basic.workload_bound rt.analysis.basic.interference_bound.
 Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop.
 
 Module InterferenceBoundFP.

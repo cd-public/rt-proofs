@@ -2,9 +2,9 @@ Add LoadPath "../../" as rt.
 Require Import rt.util.Vbase rt.util.divround.
 Require Import rt.model.jitter.job rt.model.jitter.task
                rt.model.jitter.schedule rt.model.jitter.schedulability
-               rt.model.jitter.workload_bound
-               rt.model.jitter.interference_bound_edf
-               rt.model.jitter.priority rt.model.jitter.platform
+               rt.model.jitter.priority rt.model.jitter.platform.
+Require Import rt.analysis.jitter.workload_bound
+               rt.analysis.jitter.interference_bound_edf
                rt.analysis.jitter.bertogna_edf_comp.
 Require Import rt.implementation.jitter.job
                rt.implementation.jitter.task
