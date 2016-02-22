@@ -79,7 +79,20 @@ Module Interference.
          (job_is_backlogged t && scheduled sched job_other t).
 
     End JobInterference.
-    
+
+    Section JobInterferenceParallelism.
+
+      (* Let job_other be a job that interferes with j. *)
+      Variable job_other: JobIn arr_seq.
+
+      (* The interference caused by job_other is defined as follows. *)
+      Definition job_interference_with_parallelism (t1 t2: time) :=
+        \sum_(t1 <= t < t2)
+          \sum_(cpu < num_cpus)
+            (job_is_backlogged t && scheduled_on sched job_other cpu t).
+
+    End JobInterferenceParallelism.
+
     Section TaskInterference.
 
       (* In order to define task interference, consider any interfering task tsk_other. *)
@@ -103,6 +116,19 @@ Module Interference.
           (job_is_backlogged t && task_is_scheduled t).
 
     End TaskInterference.
+
+    Section TaskInterferenceParallelism.
+
+      Variable tsk_other: sporadic_task.
+      
+      (* We define the total interference incurred by tsk during [t1, t2)
+         as the cumulative time in which tsk is scheduled. *)
+      Definition task_interference_with_parallelism (t1 t2: time) :=
+        \sum_(t1 <= t < t2)
+          \sum_(cpu < num_cpus)
+            (job_is_backlogged t && schedules_job_of_tsk tsk_other cpu t).
+
+    End TaskInterferenceParallelism.
 
     Section TaskInterferenceJobList.
 
@@ -150,6 +176,18 @@ Module Interference.
         unfold service_at; rewrite (bigD1 cpu); last by done.
         by apply leq_trans with (n := 1).
       Qed.
+
+      Lemma job_interference_with_parallelism_le_service :
+        forall j_other t1 t2,
+          job_interference_with_parallelism j_other t1 t2 <= service_during sched j_other t1 t2.
+      Proof.
+        intros j_other t1 t2; unfold job_interference_with_parallelism, service_during.
+        apply leq_sum; intros t _.
+        unfold service_at; rewrite [\sum_(_ < _ | scheduled_on _ _ _  _)_]big_mkcond.
+        apply leq_sum; intros cpu _.
+        destruct (job_is_backlogged t); [rewrite andTb | by rewrite andFb].
+        by destruct (scheduled_on sched j_other cpu t).
+      Qed.
       
       Lemma task_interference_le_workload :
         forall tsk t1 t2,
@@ -166,6 +204,18 @@ Module Interference.
         rewrite -> bigD1 with (j := cpu); simpl; last by ins.
         apply ltn_addr; unfold service_of_task, schedules_job_of_tsk in *.
         by destruct (sched cpu t); [rewrite HAScpu | by done].
+      Qed.
+
+      Lemma task_interference_with_parallelism_le_workload :
+        forall tsk t1 t2,
+          task_interference_with_parallelism tsk t1 t2 <= workload job_task sched tsk t1 t2.
+      Proof.
+        unfold task_interference_with_parallelism, workload; intros tsk t1 t2.
+        apply leq_sum; intros t _.
+        apply leq_sum; intros cpu _.
+        destruct (job_is_backlogged t); [rewrite andTb | by rewrite andFb].
+        unfold schedules_job_of_tsk, service_of_task.
+        by destruct (sched cpu t).
       Qed.
 
     End BasicLemmas.

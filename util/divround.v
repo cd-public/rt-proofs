@@ -1,4 +1,5 @@
 Add LoadPath ".." as rt.
+Require Import rt.util.Vbase.
 Require Import ssrbool ssrnat div.
 
 Definition div_floor (x y: nat) : nat := x %/ y.

@@ -1,5 +1,5 @@
 Add LoadPath ".." as rt.
-Require Import rt.util.Vbase rt.util.ssromega.
+Require Import rt.util.Vbase rt.util.divround rt.util.ssromega.
 Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop tuple path div.
 
 (* Here we define a more verbose notation for projections of pairs... *)
@@ -563,6 +563,36 @@ Section Arithmetic.
     }
   Qed.
 
+  Lemma ceil_neq0 :
+    forall x y,
+      x > 0 ->
+      y > 0 ->
+      div_ceil x y > 0.
+  Proof.
+    unfold div_ceil; intros x y GEx GEy.
+    destruct (y %| x) eqn:DIV; last by done.
+    by rewrite divn_gt0; first by apply dvdn_leq.
+  Qed.
+
+  Lemma leq_divceil2r :
+    forall d m n,
+      d > 0 ->
+      m <= n ->
+      div_ceil m d <= div_ceil n d.
+  Proof.
+    unfold div_ceil; intros d m n GT0 LE.
+    destruct (d %| m) eqn:DIVm, (d %| n) eqn:DIVn;
+      [by apply leq_div2r | | | by apply leq_div2r].
+    by apply leq_trans with (n := n %/ d); first by apply leq_div2r.
+    {
+      rewrite leq_eqVlt in LE; move: LE => /orP [/eqP EQ | LT];
+        first by subst; rewrite DIVn in DIVm.
+      rewrite ltn_divLR //.
+      apply leq_trans with (n := n); first by done.
+      by apply eq_leq; symmetry; apply/eqP; rewrite -dvdn_eq.    
+    }
+  Qed.
+  
   Lemma min_lt_same :
     forall x y z,
       minn x z < minn y z -> x < y.
