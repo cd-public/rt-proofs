@@ -30,14 +30,14 @@ Module InterferenceEDF.
 
     (* Under EDF scheduling, a job only causes interference if its deadline
        is not larger than the deadline of the analyzed job. *)
-    Lemma interference_under_edf_implies_shorter_deadlines :
+    Lemma interference_seq_under_edf_implies_shorter_deadlines :
       forall (j j': JobIn arr_seq) t1 t2,
-        job_interference job_cost sched j' j t1 t2 != 0 ->
+        job_interference_sequential job_cost sched j' j t1 t2 != 0 ->
         job_arrival j + job_deadline j <= job_arrival j' + job_deadline j'.
     Proof.
       rename H_scheduler_uses_EDF into PRIO.
       intros j j' t1 t2 INTERF.
-      unfold job_interference in INTERF.
+      unfold job_interference_sequential in INTERF.
       destruct ([exists t': 'I_t2, (t' >= t1) && backlogged job_cost sched j' t' &&
                                               scheduled sched j t']) eqn:EX.
       {
@@ -57,14 +57,14 @@ Module InterferenceEDF.
 
     (* Under EDF scheduling, a job only causes interference if its deadline
        is not larger than the deadline of the analyzed job. *)
-    Lemma interference_with_parallelism_under_edf_implies_shorter_deadlines :
+    Lemma interference_under_edf_implies_shorter_deadlines :
       forall (j j': JobIn arr_seq) t1 t2,
-        job_interference_with_parallelism job_cost sched j' j t1 t2 != 0 ->
+        job_interference job_cost sched j' j t1 t2 != 0 ->
         job_arrival j + job_deadline j <= job_arrival j' + job_deadline j'.
     Proof.
       rename H_scheduler_uses_EDF into PRIO.
       intros j j' t1 t2 INTERF.
-      unfold job_interference_with_parallelism in INTERF.
+      unfold job_interference in INTERF.
       destruct ([exists t': 'I_t2,
                    [exists cpu: processor num_cpus,
                       (t' >= t1) && backlogged job_cost sched j' t' &&

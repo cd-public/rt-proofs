@@ -122,7 +122,7 @@ Module ResponseTimeAnalysisFP.
       
       (* Let's call x the interference incurred by job j due to tsk_other, ...*)
       Let x (tsk_other: sporadic_task) :=
-        task_interference_with_parallelism job_cost job_task sched j
+        task_interference job_cost job_task sched j
                           tsk_other (job_arrival j) (job_arrival j + R).
 
       (* and X the total interference incurred by job j due to any task. *)
@@ -180,7 +180,7 @@ Module ResponseTimeAnalysisFP.
           have INts := bertogna_fp_tsk_other_in_ts.
           apply leq_trans with (n := workload job_task sched tsk_other
                                               (job_arrival j) (job_arrival j + R));
-            first by apply task_interference_with_parallelism_le_workload.
+            first by apply task_interference_le_workload.
           by apply workload_bounded_by_W with (task_deadline0 := task_deadline)
                     (job_cost0 := job_cost) (job_deadline0 := job_deadline);
             try (by ins);
@@ -260,7 +260,7 @@ Module ResponseTimeAnalysisFP.
                  H_response_time_no_larger_than_deadline into NOMISS.
           unfold sporadic_task_model, enforces_FP_policy,
                  enforces_JLDP_policy, FP_to_JLDP in *.
-          unfold x, X, total_interference, task_interference_with_parallelism.
+          unfold x, X, total_interference, task_interference.
           rewrite -big_mkcond -exchange_big big_distrl /=.
           rewrite [\sum_(_ <= _ < _ | backlogged _ _ _ _) _]big_mkcond.
           apply eq_big_nat; move => t /andP [GEt LTt].
@@ -281,9 +281,9 @@ Module ResponseTimeAnalysisFP.
           rewrite (bigD1_seq (job_task j_other)) /=; last by rewrite filter_uniq.
           {
             rewrite (eq_bigr (fun i => 0));
-              last by intros i DIFF; rewrite /schedules_job_of_tsk SCHED;apply/eqP;rewrite eqb0 eq_sym.
+              last by intros i DIFF; rewrite /schedules_job_of_task SCHED;apply/eqP;rewrite eqb0 eq_sym.
             rewrite big_const_seq iter_addn mul0n 2!addn0; apply/eqP; rewrite eqb1.
-            by unfold schedules_job_of_tsk; rewrite SCHED.
+            by unfold schedules_job_of_task; rewrite SCHED.
           }
           rewrite mem_filter; apply/andP; split; last by apply FROMTS.
           unfold can_interfere_with_tsk, fp_can_interfere_with.

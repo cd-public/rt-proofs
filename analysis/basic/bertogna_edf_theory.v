@@ -125,7 +125,7 @@ Module ResponseTimeAnalysisEDF.
 
       (* Let's call x the interference incurred by job j due to tsk_other, ...*)
       Let x (tsk_other: sporadic_task) :=
-        task_interference job_cost job_task sched j
+        task_interference_sequential job_cost job_task sched j
                           tsk_other (job_arrival j) (job_arrival j + R).
 
       (* and X the total interference incurred by job j due to any task. *)
@@ -183,7 +183,7 @@ Module ResponseTimeAnalysisEDF.
           have INts := bertogna_edf_tsk_other_in_ts.
           apply leq_trans with (n := workload job_task sched tsk_other
                                          (job_arrival j) (job_arrival j + R));
-            first by apply task_interference_le_workload.
+            first by apply task_interference_seq_le_workload.
           by apply workload_bounded_by_W with (task_deadline0 := task_deadline)
                (job_cost0 := job_cost) (job_deadline0 := job_deadline); try (by ins); last 2 first;
             [ by apply bertogna_edf_R_other_ge_cost

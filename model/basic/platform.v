@@ -275,7 +275,7 @@ Module Platform.
             apply count_exists; first by done.
             {
               intros cpu x1 x2 SCHED1 SCHED2.
-              unfold schedules_job_of_tsk in *.
+              unfold schedules_job_of_task in *.
               destruct (sched cpu t); last by done.
               move: SCHED1 SCHED2 => /eqP SCHED1 /eqP SCHED2.
               by rewrite -SCHED1 -SCHED2.
@@ -303,7 +303,7 @@ Module Platform.
               {
                 move: SCHED' => /exists_inP [cpu INcpu /eqP SCHED'].
                 apply/exists_inP; exists cpu; first by done.
-                by unfold schedules_job_of_tsk; rewrite SCHED' eq_refl.
+                by unfold schedules_job_of_task; rewrite SCHED' eq_refl.
               }
               {
                 apply/eqP; red; intro SAMEtsk; symmetry in SAMEtsk.
