@@ -19,16 +19,16 @@ Module ResponseTimeAnalysisEDFJitter.
   Section ResponseTimeBound.
 
     Context {sporadic_task: eqType}.
-    Variable task_cost: sporadic_task -> nat.
-    Variable task_period: sporadic_task -> nat.
-    Variable task_deadline: sporadic_task -> nat.
-    Variable task_jitter: sporadic_task -> nat.
+    Variable task_cost: sporadic_task -> time.
+    Variable task_period: sporadic_task -> time.
+    Variable task_deadline: sporadic_task -> time.
+    Variable task_jitter: sporadic_task -> time.
     
     Context {Job: eqType}.
-    Variable job_cost: Job -> nat.
-    Variable job_deadline: Job -> nat.
+    Variable job_cost: Job -> time.
+    Variable job_deadline: Job -> time.
     Variable job_task: Job -> sporadic_task.
-    Variable job_jitter: Job -> nat.
+    Variable job_jitter: Job -> time.
     
     (* Assume any job arrival sequence... *)
     Context {arr_seq: arrival_sequence Job}.
@@ -59,8 +59,9 @@ Module ResponseTimeAnalysisEDFJitter.
     Hypothesis H_at_least_one_cpu :
       num_cpus > 0.
 
-    (* Assume that we have a task set where all tasks have valid
-       parameters and restricted deadlines. *)
+    (* Assume that we have a task set ts, such that all jobs come
+       from the task set, and all tasks have valid parameters and
+       restricted deadlines. *)
     Variable ts: taskset_of sporadic_task.
     Hypothesis H_all_jobs_from_taskset:
       forall (j: JobIn arr_seq), job_task j \in ts.
@@ -99,10 +100,9 @@ Module ResponseTimeAnalysisEDFJitter.
     Hypothesis H_work_conserving: work_conserving job_cost job_jitter sched.
     Hypothesis H_edf_policy: enforces_JLDP_policy job_cost job_jitter sched (EDF job_deadline).
 
-    (* Assume that the task set has no duplicates. Otherwise, counting
-       the number of tasks that have some property does not make sense
-       (for example, for stating the global scheduling invariant as
-        using number of scheduled interfering tasks = number of cpus). *)
+    (* Assume that the task set has no duplicates. This is required to
+       avoid problems when counting tasks (for example, when stating
+       that the number of interfering tasks is at most num_cpus). *)
     Hypothesis H_ts_is_a_set : uniq ts.
 
     (* In order to prove that R is a response-time bound, we first present some lemmas. *)

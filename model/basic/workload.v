@@ -26,7 +26,7 @@ Module Workload.
     (* First, we define a function that returns the amount of service
        received by this task in a particular processor. *)
     Definition service_of_task (cpu: processor num_cpus)
-                               (j: option (JobIn arr_seq)) : nat :=
+                               (j: option (JobIn arr_seq)) : time :=
       match j with
         | Some j' => (job_task j' == tsk)
         | None => 0

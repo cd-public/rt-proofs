@@ -12,8 +12,8 @@ Module InterferenceEDF.
   Section Lemmas. 
 
     Context {Job: eqType}.
-    Variable job_cost: Job -> nat.
-    Variable job_deadline: Job -> nat.
+    Variable job_cost: Job -> time.
+    Variable job_deadline: Job -> time.
     
     (* Assume any job arrival sequence... *)
     Context {arr_seq: arrival_sequence Job}.
@@ -28,7 +28,7 @@ Module InterferenceEDF.
     Hypothesis H_scheduler_uses_EDF:
       enforces_JLDP_policy job_cost sched (EDF job_deadline). 
 
-    (* Under EDF scheduling, a job only causes interference if its deadline
+    (* Under EDF scheduling, a job only causes sequential interference if its deadline
        is not larger than the deadline of the analyzed job. *)
     Lemma interference_seq_under_edf_implies_shorter_deadlines :
       forall (j j': JobIn arr_seq) t1 t2,
@@ -55,7 +55,7 @@ Module InterferenceEDF.
       }
     Qed.
 
-    (* Under EDF scheduling, a job only causes interference if its deadline
+    (* Under EDF scheduling, a job only causes (parallel) interference if its deadline
        is not larger than the deadline of the analyzed job. *)
     Lemma interference_under_edf_implies_shorter_deadlines :
       forall (j j': JobIn arr_seq) t1 t2,

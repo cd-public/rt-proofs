@@ -14,7 +14,7 @@ Module ResponseTime.
     Context {sporadic_task: eqType}.
     Context {Job: eqType}.
     Context {arr_seq: arrival_sequence Job}.
-    Variable job_cost: Job -> nat.
+    Variable job_cost: Job -> time.
     Variable job_task: Job -> sporadic_task.
 
     (* Given a task ...*)
@@ -42,7 +42,7 @@ Module ResponseTime.
 
     Context {sporadic_task: eqType}.
     Context {Job: eqType}.
-    Variable job_cost: Job -> nat.
+    Variable job_cost: Job -> time.
     Variable job_task: Job -> sporadic_task.
 
     Context {arr_seq: arrival_sequence Job}.

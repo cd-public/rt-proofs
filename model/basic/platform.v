@@ -11,19 +11,19 @@ Module Platform.
   Section SchedulingInvariants.
     
     Context {sporadic_task: eqType}.
-    Variable task_cost: sporadic_task -> nat.
-    Variable task_period: sporadic_task -> nat.
-    Variable task_deadline: sporadic_task -> nat.
+    Variable task_cost: sporadic_task -> time.
+    Variable task_period: sporadic_task -> time.
+    Variable task_deadline: sporadic_task -> time.
     
     Context {Job: eqType}.
-    Variable job_cost: Job -> nat.
-    Variable job_deadline: Job -> nat.
+    Variable job_cost: Job -> time.
+    Variable job_deadline: Job -> time.
     Variable job_task: Job -> sporadic_task.
     
-    (* Assume any job arrival sequence... *)
+    (* Consider any job arrival sequence ... *)
     Context {arr_seq: arrival_sequence Job}.
 
-    (* Consider any schedule. *)
+    (* ... and any schedule of this arrival sequence. *)
     Context {num_cpus: nat}.
     Variable sched: schedule num_cpus arr_seq.
 

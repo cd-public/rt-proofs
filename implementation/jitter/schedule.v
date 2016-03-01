@@ -11,8 +11,8 @@ Module ConcreteScheduler.
   Section Implementation.
     
     Context {Job: eqType}.
-    Variable job_cost: Job -> nat.
-    Variable job_jitter: Job -> nat.
+    Variable job_cost: Job -> time.
+    Variable job_jitter: Job -> time.
 
     (* Let num_cpus denote the number of processors, ...*)
     Variable num_cpus: nat.
@@ -61,8 +61,8 @@ Module ConcreteScheduler.
   Section Proofs.
 
     Context {Job: eqType}.
-    Variable job_cost: Job -> nat.
-    Variable job_jitter: Job -> nat.
+    Variable job_cost: Job -> time.
+    Variable job_jitter: Job -> time.
 
     (* Assume a positive number of processors. *)
     Variable num_cpus: nat.

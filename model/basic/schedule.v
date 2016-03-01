@@ -34,7 +34,7 @@ Module Schedule.
     (* Given an arrival sequence, ... *)
     Context {arr_seq: arrival_sequence Job}.
     
-    Variable job_cost: Job -> nat. (* ... a job cost function, ... *)
+    Variable job_cost: Job -> time. (* ... a job cost function, ... *)
 
     (* ... and the number of processors, ...*)
     Context {num_cpus: nat}.
@@ -102,7 +102,7 @@ Module Schedule.
     Context {Job: eqType}. (* Assume a job type with decidable equality, ...*)
     Context {arr_seq: arrival_sequence Job}. (* ..., an arrival sequence, ...*)
 
-    Variable job_cost: Job -> nat. (* ... a cost function, .... *)
+    Variable job_cost: Job -> time. (* ... a cost function, .... *)
 
     (* ... and a schedule. *)
     Context {num_cpus: nat}.
@@ -131,7 +131,7 @@ Module Schedule.
     Context {arr_seq: arrival_sequence Job}.
 
     (* ... a job cost function, ...*)
-    Variable job_cost: Job -> nat.
+    Variable job_cost: Job -> time.
 
     (* ..., and a particular schedule. *)
     Context {num_cpus: nat}.
@@ -553,7 +553,7 @@ Module ScheduleOfSporadicTask.
 
     Context {sporadic_task: eqType}.
     Context {Job: eqType}.    
-    Variable job_cost: Job -> nat.
+    Variable job_cost: Job -> time.
     Variable job_task: Job -> sporadic_task.
 
     (* Consider any schedule. *)
@@ -580,12 +580,12 @@ Module ScheduleOfSporadicTask.
 
     (* Assume the job cost and task are known. *)
     Context {sporadic_task: eqType}.
-    Variable task_cost: sporadic_task -> nat.
-    Variable task_deadline: sporadic_task -> nat.
+    Variable task_cost: sporadic_task -> time.
+    Variable task_deadline: sporadic_task -> time.
     
     Context {Job: eqType}.    
-    Variable job_cost: Job -> nat.
-    Variable job_deadline: Job -> nat.
+    Variable job_cost: Job -> time.
+    Variable job_deadline: Job -> time.
     Variable job_task: Job -> sporadic_task.
 
     (* Then, in a valid schedule of sporadic tasks ...*)

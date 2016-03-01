@@ -19,9 +19,9 @@ Module InterferenceBoundEDF.
   Section SpecificBoundDef.
     
     Context {sporadic_task: eqType}.
-    Variable task_cost: sporadic_task -> nat.
-    Variable task_period: sporadic_task -> nat.
-    Variable task_deadline: sporadic_task -> nat.
+    Variable task_cost: sporadic_task -> time.
+    Variable task_period: sporadic_task -> time.
+    Variable task_deadline: sporadic_task -> time.
     
     (* Let tsk be the task to be analyzed. *)
     Variable tsk: sporadic_task.
@@ -29,7 +29,7 @@ Module InterferenceBoundEDF.
     (* Consider the interference incurred by tsk in a window of length delta... *)
     Variable delta: time.
 
-    (* due to a different task tsk_other, with response-time bound R_other. *)
+    (* ... due to a different task tsk_other, with response-time bound R_other. *)
     Variable tsk_other: sporadic_task.
     Variable R_other: time.
 
@@ -50,9 +50,9 @@ Module InterferenceBoundEDF.
   Section TotalInterferenceBoundEDF.
 
     Context {sporadic_task: eqType}.
-    Variable task_cost: sporadic_task -> nat.
-    Variable task_period: sporadic_task -> nat.
-    Variable task_deadline: sporadic_task -> nat.
+    Variable task_cost: sporadic_task -> time.
+    Variable task_period: sporadic_task -> time.
+    Variable task_deadline: sporadic_task -> time.
     
     (* Let tsk be the task to be analyzed. *)
     Variable tsk: sporadic_task.
@@ -78,7 +78,7 @@ Module InterferenceBoundEDF.
       (* ... with and EDF-specific interference bound, ... *)
       Let edf_specific_bound := edf_specific_interference_bound task_cost task_period task_deadline tsk tsk_other R_other.
 
-      (* Bertogna and Cirinei define the following interference bound
+      (* ... Bertogna and Cirinei define the following interference bound
          under EDF scheduling. *)
       Definition interference_bound_edf :=
         minn basic_interference_bound edf_specific_bound.
@@ -105,13 +105,13 @@ Module InterferenceBoundEDF.
     Import Schedule Interference Platform SporadicTaskset.
     
     Context {sporadic_task: eqType}.
-    Variable task_cost: sporadic_task -> nat.
-    Variable task_period: sporadic_task -> nat.
-    Variable task_deadline: sporadic_task -> nat.
+    Variable task_cost: sporadic_task -> time.
+    Variable task_period: sporadic_task -> time.
+    Variable task_deadline: sporadic_task -> time.
     
     Context {Job: eqType}.
-    Variable job_cost: Job -> nat.
-    Variable job_deadline: Job -> nat.
+    Variable job_cost: Job -> time.
+    Variable job_deadline: Job -> time.
     Variable job_task: Job -> sporadic_task.
     
     (* Assume any job arrival sequence... *)
@@ -142,8 +142,8 @@ Module InterferenceBoundEDF.
     Hypothesis H_at_least_one_cpu :
       num_cpus > 0.
 
-    (* Assume that we have a task set where all tasks have valid
-       parameters and restricted deadlines. *)
+    (* Consider a task set ts where all jobs come from the task set
+       and tasks have valid parameters and restricted deadlines. *)
     Variable ts: taskset_of sporadic_task.
     Hypothesis all_jobs_from_taskset:
       forall (j: JobIn arr_seq), job_task j \in ts.
@@ -166,7 +166,7 @@ Module InterferenceBoundEDF.
     Variable tsk_i: sporadic_task.
     Hypothesis H_tsk_i_in_task_set: tsk_i \in ts.
     
-    (* and j_i one of its jobs. *)
+    (* ... and j_i one of its jobs. *)
     Variable j_i: JobIn arr_seq.
     Hypothesis H_job_of_tsk_i: job_task j_i = tsk_i.
 
@@ -224,8 +224,7 @@ Module InterferenceBoundEDF.
       Let earlier_arrival := fun (x y: JobIn arr_seq) => job_arrival x <= job_arrival y.
       Let sorted_jobs := (sort earlier_arrival interfering_jobs).
 
-      (* Now we proceed with the proof.
-         The first step consists in simplifying the sum corresponding to the workload. *)
+      (* Now we proceed with the proof. The first step consists in simplifying the sum corresponding to the workload. *)
       Section SimplifyJobSequence.
 
         (* Use the alternative definition of task interference, based on
@@ -292,7 +291,7 @@ Module InterferenceBoundEDF.
           by destruct sorted_jobs; simpl in *; [by rewrite ltn0 in LT | by apply/pathP].
         Qed.
 
-        (* Also, for any job of task tsk_k, the interference is bounded by the task cost. *)
+        (* Finally, for any job of task tsk_k, the interference is bounded by the task cost. *)
         Lemma interference_bound_edf_interference_le_task_cost :
           forall j,
             j \in interfering_jobs ->
@@ -1122,9 +1121,9 @@ Module InterferenceBoundEDF.
   Section MonotonicitySpecificBound.
 
     Context {sporadic_task: eqType}.
-    Variable task_cost: sporadic_task -> nat.
-    Variable task_period: sporadic_task -> nat.
-    Variable task_deadline: sporadic_task -> nat.
+    Variable task_cost: sporadic_task -> time.
+    Variable task_period: sporadic_task -> time.
+    Variable task_deadline: sporadic_task -> time.
     
     Variable tsk tsk_other: sporadic_task.
     Hypothesis H_period_positive: task_period tsk_other > 0.

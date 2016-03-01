@@ -37,11 +37,9 @@ Module ConcreteArrivalSequence.
     Let arr_seq := periodic_arrival_sequence ts.
 
     (* ... every job comes from the task set, ... *)
-    (* TODO: It's supposed to be job_task j, but I don't know yet how to
-       fix the coercion. *)
     Theorem periodic_arrivals_all_jobs_from_taskset:
       forall (j: JobIn arr_seq),
-        job_task (_job_in arr_seq j) \in ts.
+        job_task (_job_in arr_seq j) \in ts. (* TODO: fix coercion. *)
     Proof.
       intros j.
       destruct j as [j arr ARRj]; simpl.

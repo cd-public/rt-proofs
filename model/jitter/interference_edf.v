@@ -12,9 +12,9 @@ Module InterferenceEDF.
   Section Lemmas. 
 
     Context {Job: eqType}.
-    Variable job_cost: Job -> nat.
-    Variable job_deadline: Job -> nat.
-    Variable job_jitter: Job -> nat.
+    Variable job_cost: Job -> time.
+    Variable job_deadline: Job -> time.
+    Variable job_jitter: Job -> time.
     
     (* Assume any job arrival sequence... *)
     Context {arr_seq: arrival_sequence Job}.

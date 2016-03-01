@@ -12,7 +12,7 @@ Import SporadicTaskset Schedule.
 
     (* Assume the task period is known. *)
     Context {sporadic_task: eqType}.
-    Variable task_period: sporadic_task -> nat.
+    Variable task_period: sporadic_task -> time.
     
     Context {Job: eqType}.
     Variable arr_seq: arrival_sequence Job.

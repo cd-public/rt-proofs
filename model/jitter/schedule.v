@@ -14,7 +14,7 @@ Module ScheduleWithJitter.
   Section ArrivalDependentProperties.
 
     Context {Job: eqType}.
-    Variable job_cost: Job -> nat.
+    Variable job_cost: Job -> time.
     Variable job_jitter: Job -> time.
 
     (* Given an arrival sequence, ... *)

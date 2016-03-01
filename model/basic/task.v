@@ -1,15 +1,17 @@
 Add LoadPath "../../" as rt.
-Require Import rt.util.Vbase rt.util.lemmas.
+Require Import rt.model.basic.time rt.util.Vbase rt.util.lemmas.
 Require Import ssrnat ssrbool eqtype fintype seq.
 
 (* Attributes of a valid sporadic task. *)
 Module SporadicTask.
 
+  Import Time.
+
   Section BasicTask.
     Context {Task: eqType}.
-    Variable task_cost: Task -> nat.
-    Variable task_period: Task -> nat.
-    Variable task_deadline: Task -> nat.
+    Variable task_cost: Task -> time.
+    Variable task_period: Task -> time.
+    Variable task_deadline: Task -> time.
 
     Section ValidParameters.
       Variable tsk: Task.
@@ -35,6 +37,7 @@ End SporadicTask.
 
 (* Definition and properties of a task set. *)
 Module SporadicTaskset.
+  Import Time.
   Export SporadicTask.
 
   Section TasksetDefs.
@@ -46,9 +49,9 @@ Module SporadicTaskset.
     Section TasksetProperties.
 
       Context {Task: eqType}.
-      Variable task_cost: Task -> nat.
-      Variable task_period: Task -> nat.
-      Variable task_deadline: Task -> nat.
+      Variable task_cost: Task -> time.
+      Variable task_period: Task -> time.
+      Variable task_deadline: Task -> time.
 
       Let is_valid_task :=
         is_valid_sporadic_task task_cost task_period task_deadline.

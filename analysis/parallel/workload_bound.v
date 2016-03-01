@@ -12,8 +12,8 @@ Module WorkloadBound.
   Section WorkloadBoundDef.
 
     Context {sporadic_task: eqType}.
-    Variable task_cost: sporadic_task -> nat.
-    Variable task_period: sporadic_task -> nat.
+    Variable task_cost: sporadic_task -> time.
+    Variable task_period: sporadic_task -> time.
     
     Variable tsk: sporadic_task.
     Variable R_tsk: time. (* Known response-time bound for the task *)
@@ -31,8 +31,8 @@ Module WorkloadBound.
   Section BasicLemmas.
 
     Context {sporadic_task: eqType}.
-    Variable task_cost: sporadic_task -> nat.
-    Variable task_period: sporadic_task -> nat.
+    Variable task_cost: sporadic_task -> time.
+    Variable task_period: sporadic_task -> time.
 
     (* Let tsk be any task...*)
     Variable tsk: sporadic_task.
@@ -65,14 +65,14 @@ Module WorkloadBound.
   Section ProofWorkloadBound.
  
     Context {sporadic_task: eqType}.
-    Variable task_cost: sporadic_task -> nat.
-    Variable task_period: sporadic_task -> nat.
-    Variable task_deadline: sporadic_task -> nat.
+    Variable task_cost: sporadic_task -> time.
+    Variable task_period: sporadic_task -> time.
+    Variable task_deadline: sporadic_task -> time.
     
     Context {Job: eqType}.
-    Variable job_cost: Job -> nat.
+    Variable job_cost: Job -> time.
     Variable job_task: Job -> sporadic_task.
-    Variable job_deadline: Job -> nat.
+    Variable job_deadline: Job -> time.
 
     Variable arr_seq: arrival_sequence Job.
 

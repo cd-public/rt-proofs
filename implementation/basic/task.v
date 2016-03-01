@@ -1,11 +1,11 @@
 Add LoadPath "../../" as rt.
-Require Import rt.util.Vbase.
+Require Import rt.model.basic.time rt.util.Vbase.
 Require Import rt.model.basic.task.
 Require Import ssreflect ssrbool ssrnat eqtype seq.
 
 Module ConcreteTask.
 
-  Import SporadicTaskset.
+  Import Time SporadicTaskset.
   
   Section Defs.
     
@@ -13,9 +13,9 @@ Module ConcreteTask.
     Record concrete_task :=
     {
       task_id: nat; (* for uniqueness *)  
-      task_cost: nat;
-      task_period: nat;
-      task_deadline: nat               
+      task_cost: time;
+      task_period: time;
+      task_deadline: time               
     }.
 
     (* To make it compatible with ssreflect, we define a decidable

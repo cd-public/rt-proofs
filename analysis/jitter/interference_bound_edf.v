@@ -18,10 +18,10 @@ Module InterferenceBoundEDFJitter.
   Section SpecificBoundDef.
     
     Context {sporadic_task: eqType}.
-    Variable task_cost: sporadic_task -> nat.
-    Variable task_period: sporadic_task -> nat.
-    Variable task_deadline: sporadic_task -> nat.
-    Variable task_jitter: sporadic_task -> nat.
+    Variable task_cost: sporadic_task -> time.
+    Variable task_period: sporadic_task -> time.
+    Variable task_deadline: sporadic_task -> time.
+    Variable task_jitter: sporadic_task -> time.
     
     (* Let tsk be the task to be analyzed. *)
     Variable tsk: sporadic_task.
@@ -51,10 +51,10 @@ Module InterferenceBoundEDFJitter.
   Section TotalInterferenceBoundEDF.
 
     Context {sporadic_task: eqType}.
-    Variable task_cost: sporadic_task -> nat.
-    Variable task_period: sporadic_task -> nat.
-    Variable task_deadline: sporadic_task -> nat.
-    Variable task_jitter: sporadic_task -> nat.
+    Variable task_cost: sporadic_task -> time.
+    Variable task_period: sporadic_task -> time.
+    Variable task_deadline: sporadic_task -> time.
+    Variable task_jitter: sporadic_task -> time.
     
     (* Let tsk be the task to be analyzed. *)
     Variable tsk: sporadic_task.
@@ -107,16 +107,16 @@ Module InterferenceBoundEDFJitter.
     Import ScheduleWithJitter Interference Platform SporadicTaskset.
     
     Context {sporadic_task: eqType}.
-    Variable task_cost: sporadic_task -> nat.
-    Variable task_period: sporadic_task -> nat.
-    Variable task_deadline: sporadic_task -> nat.
-    Variable task_jitter: sporadic_task -> nat.
+    Variable task_cost: sporadic_task -> time.
+    Variable task_period: sporadic_task -> time.
+    Variable task_deadline: sporadic_task -> time.
+    Variable task_jitter: sporadic_task -> time.
     
     Context {Job: eqType}.
-    Variable job_cost: Job -> nat.
-    Variable job_deadline: Job -> nat.
+    Variable job_cost: Job -> time.
+    Variable job_deadline: Job -> time.
     Variable job_task: Job -> sporadic_task.
-    Variable job_jitter: Job -> nat.
+    Variable job_jitter: Job -> time.
     
     (* Assume any job arrival sequence... *)
     Context {arr_seq: arrival_sequence Job}.
@@ -1214,10 +1214,10 @@ Module InterferenceBoundEDFJitter.
   Section MonotonicitySpecificBound.
 
     Context {sporadic_task: eqType}.
-    Variable task_cost: sporadic_task -> nat.
-    Variable task_period: sporadic_task -> nat.
-    Variable task_deadline: sporadic_task -> nat.
-    Variable task_jitter: sporadic_task -> nat.
+    Variable task_cost: sporadic_task -> time.
+    Variable task_period: sporadic_task -> time.
+    Variable task_deadline: sporadic_task -> time.
+    Variable task_jitter: sporadic_task -> time.
     
     Variable tsk tsk_other: sporadic_task.
     Hypothesis H_period_positive: task_period tsk_other > 0.

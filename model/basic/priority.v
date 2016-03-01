@@ -93,8 +93,8 @@ Module Priority.
   Section RateDeadlineMonotonic.
 
     Context {sporadic_task: eqType}.
-    Variable task_period: sporadic_task -> nat.
-    Variable task_deadline: sporadic_task -> nat.
+    Variable task_period: sporadic_task -> time.
+    Variable task_deadline: sporadic_task -> time.
     
     (* Rate-Monotonic and Deadline-Monotonic as priority order *)
     Definition RM (tsk1 tsk2: sporadic_task) := task_period tsk1 <= task_period tsk2.
@@ -180,7 +180,7 @@ Module Priority.
 
     Context {Job: eqType}.
     Variable arr_seq: arrival_sequence Job.
-    Variable job_deadline: Job -> nat.
+    Variable job_deadline: Job -> time.
       
     Definition EDF (t: time) (j1 j2: JobIn arr_seq) :=
       job_arrival j1 + job_deadline j1 <= job_arrival j2 + job_deadline j2.

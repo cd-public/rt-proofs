@@ -12,23 +12,23 @@ Module PlatformFP.
   Section Lemmas.
     
     Context {sporadic_task: eqType}.
-    Variable task_cost: sporadic_task -> nat.
-    Variable task_period: sporadic_task -> nat.
-    Variable task_deadline: sporadic_task -> nat.
+    Variable task_cost: sporadic_task -> time.
+    Variable task_period: sporadic_task -> time.
+    Variable task_deadline: sporadic_task -> time.
     
     Context {Job: eqType}.
-    Variable job_cost: Job -> nat.
-    Variable job_deadline: Job -> nat.
+    Variable job_cost: Job -> time.
+    Variable job_deadline: Job -> time.
     Variable job_task: Job -> sporadic_task.
     
-    (* Assume any job arrival sequence... *)
+    (* Consider any job arrival sequence ... *)
     Context {arr_seq: arrival_sequence Job}.
 
-    (* Consider any schedule. *)
+    (* ... and any schedule of this arrival sequence. *)
     Context {num_cpus: nat}.
     Variable sched: schedule num_cpus arr_seq.
     
-    (* Assume all jobs have valid parameters, ...*)
+    (* Assume that all jobs have valid parameters. *)
     Hypothesis H_valid_job_parameters:
       forall (j: JobIn arr_seq),
         valid_sporadic_job task_cost task_deadline job_cost job_deadline job_task j.
@@ -41,12 +41,12 @@ Module PlatformFP.
       Hypothesis H_enforces_JLDP_policy:
         enforces_FP_policy job_cost job_task sched higher_eq_priority.
 
-      (* Consider task set ts. *)
+      (* Consider any task set ts ... *)
       Variable ts: taskset_of sporadic_task.
 
-      (* Assume the task set has no duplicates, ... *)
+      (* ... that has no duplicate tasks ... *)
       Hypothesis H_ts_is_a_set: uniq ts.
-      (* ... and all jobs come from the taskset. *)
+      (* ... and such that all jobs come from the taskset. *)
       Hypothesis H_all_jobs_from_taskset:
         forall (j: JobIn arr_seq), job_task j \in ts.
 
@@ -60,7 +60,7 @@ Module PlatformFP.
       Hypothesis H_jobs_must_arrive_to_execute:
         jobs_must_arrive_to_execute sched.
 
-      (* Assume that the schedule satisfies the sporadic task model ...*)
+      (* Assume that jobs arrive sporadically. *)
       Hypothesis H_sporadic_tasks:
         sporadic_task_model task_period arr_seq job_task.
 

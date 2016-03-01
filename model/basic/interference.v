@@ -11,16 +11,16 @@ Module Interference.
   Section PossibleInterferingTasks.
 
     Context {sporadic_task: eqType}.
-    Variable task_cost: sporadic_task -> nat.
-    Variable task_period: sporadic_task -> nat.
-    Variable task_deadline: sporadic_task -> nat.
+    Variable task_cost: sporadic_task -> time.
+    Variable task_period: sporadic_task -> time.
+    Variable task_deadline: sporadic_task -> time.
 
     Section FP.
 
       (* Assume an FP policy. *)
       Variable higher_eq_priority: FP_policy sporadic_task.
 
-      (* Under constrained dealdines, tsk_other can only interfere with tsk
+      (* Under constrained deadlines, tsk_other can only interfere with tsk
          if it's a different task with higher or equal priority. *)
       Definition fp_can_interfere_with (tsk tsk_other: sporadic_task) :=
         higher_eq_priority tsk_other tsk && (tsk_other != tsk).
@@ -42,7 +42,7 @@ Module Interference.
 
     Context {sporadic_task: eqType}.
     Context {Job: eqType}.
-    Variable job_cost: Job -> nat.
+    Variable job_cost: Job -> time.
     Variable job_task: Job -> sporadic_task.
 
     (* Assume any job arrival sequence...*)
@@ -110,8 +110,8 @@ Module Interference.
       Definition task_is_scheduled (t: time) :=
         [exists cpu in processor num_cpus, schedules_job_of_task cpu t].
 
-      (* We define the total interference incurred by tsk during [t1, t2)
-         as the cumulative time while tsk is scheduled. *)
+      (* We define the total interference caused by tsk during [t1, t2) as the
+         cumulative time in which j is backlogged while tsk is scheduled. *)
       Definition task_interference (t1 t2: time) :=
         \sum_(t1 <= t < t2)
           \sum_(cpu < num_cpus)
@@ -124,8 +124,9 @@ Module Interference.
       (* In order to define task interference, consider any interfering task tsk_other. *)
       Variable tsk_other: sporadic_task.
     
-      (* If jobs are sequential, we define the total interference incurred by tsk
-         during [t1, t2) as the cumulative time in which tsk is scheduled. *)
+      (* If jobs are sequential, we define the total interference caused by
+         tsk during [t1, t2) as the cumulative time in which j is backlogged
+         while tsk is scheduled. *)
       Definition task_interference_sequential (t1 t2: time) :=
         \sum_(t1 <= t < t2)
           (job_is_backlogged t && task_is_scheduled tsk_other t).
@@ -282,7 +283,7 @@ Module Interference.
       Hypothesis job_is_not_complete :
         ~~ completed job_cost sched j t2.
 
-      (* then the service received by j during [t1, t2) equals
+      (* ... then the service received by j during [t1, t2) equals
          the cumulative time in which it did not incur interference. *)
       Lemma complement_of_interf_equals_service :
         \sum_(t1 <= t < t2) service_at sched j t =

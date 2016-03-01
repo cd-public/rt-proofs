@@ -15,13 +15,13 @@ Module ResponseTimeAnalysisFP.
   Section ResponseTimeBound.
 
     Context {sporadic_task: eqType}.
-    Variable task_cost: sporadic_task -> nat.
-    Variable task_period: sporadic_task -> nat.
-    Variable task_deadline: sporadic_task -> nat.
+    Variable task_cost: sporadic_task -> time.
+    Variable task_period: sporadic_task -> time.
+    Variable task_deadline: sporadic_task -> time.
     
     Context {Job: eqType}.
-    Variable job_cost: Job -> nat.
-    Variable job_deadline: Job -> nat.
+    Variable job_cost: Job -> time.
+    Variable job_deadline: Job -> time.
     Variable job_task: Job -> sporadic_task.
     
     (* Assume any job arrival sequence... *)
@@ -52,8 +52,9 @@ Module ResponseTimeAnalysisFP.
     Hypothesis H_at_least_one_cpu :
       num_cpus > 0.
 
-    (* Assume that we have a task set (with no duplicates) where all jobs
-       come from the task set and all tasks have valid parameters and restricted deadlines. *)
+    (* Consider a task set ts with no duplicates where all jobs
+       come from the task set and all tasks have valid parameters
+       and restricted deadlines. *)
     Variable ts: taskset_of sporadic_task.
     Hypothesis H_ts_is_a_set: uniq ts.
     Hypothesis H_all_jobs_from_taskset:
@@ -72,24 +73,21 @@ Module ResponseTimeAnalysisFP.
     Let is_response_time_bound (tsk: sporadic_task) :=
       is_response_time_bound_of_task job_cost job_task tsk sched.
 
-    (* Assume a known response-time bound for any interfering task *)
+    (* Assume a given FP policy. *)
+    Variable higher_eq_priority: FP_policy sporadic_task.
+    Let can_interfere_with_tsk := fp_can_interfere_with higher_eq_priority tsk.
+
+    (* Assume a response-time bound is known... *)
     Let task_with_response_time := (sporadic_task * time)%type.
     Variable hp_bounds: seq task_with_response_time.
-    
-    (* For FP scheduling, assume there exists a fixed task priority. *)
-    Variable higher_eq_priority: FP_policy sporadic_task.
-
-    Let can_interfere_with_tsk := fp_can_interfere_with higher_eq_priority tsk.
-    
-    (* Assume that hp_bounds has exactly the tasks that interfere with tsk,... *)
-    Hypothesis H_hp_bounds_has_interfering_tasks:
-      [seq tsk_hp <- ts | can_interfere_with_tsk tsk_hp] = unzip1 hp_bounds.
-
-    (* ...and that all values in the pairs contain valid response-time bounds *)
     Hypothesis H_response_time_of_interfering_tasks_is_known:
       forall hp_tsk R,
         (hp_tsk, R) \in hp_bounds ->
         is_response_time_bound_of_task job_cost job_task hp_tsk sched R.
+    
+    (* ... for any task in ts that interferes with tsk. *)
+    Hypothesis H_hp_bounds_has_interfering_tasks:
+      [seq tsk_hp <- ts | can_interfere_with_tsk tsk_hp] = unzip1 hp_bounds.
 
     (* Assume that the response-time bounds are larger than task costs. *)
     Hypothesis H_response_time_bounds_ge_cost:
@@ -169,7 +167,7 @@ Module ResponseTimeAnalysisFP.
             by apply/mapP; exists (tsk_other, R_other).
         Qed.
 
-        (*... and interferes with task tsk. *)
+        (*... and interferes with tsk. *)
         Lemma bertogna_fp_tsk_other_interferes: can_interfere_with_tsk tsk_other.
           Proof.
             rename H_hp_bounds_has_interfering_tasks into UNZIP,

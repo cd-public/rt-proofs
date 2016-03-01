@@ -7,22 +7,22 @@ Module ResponseTimeIterationEDF.
 
   Import ResponseTimeAnalysisEDF.
 
-  (* In this section, we define the algorithm of Bertogna and Cirinei's
+  (* In this section, we define the algorithm for Bertogna and Cirinei's
      response-time analysis for EDF scheduling. *)
   Section Analysis.
     
     Context {sporadic_task: eqType}.
-    Variable task_cost: sporadic_task -> nat.
-    Variable task_period: sporadic_task -> nat.
-    Variable task_deadline: sporadic_task -> nat.
+    Variable task_cost: sporadic_task -> time.
+    Variable task_period: sporadic_task -> time.
+    Variable task_deadline: sporadic_task -> time.
 
-    (* During the iterations of the algorithm, we pass around pairs
+    (* As input for each iteration of the algorithm, we consider pairs
        of tasks and computed response-time bounds. *)
-    Let task_with_response_time := (sporadic_task * nat)%type.
+    Let task_with_response_time := (sporadic_task * time)%type.
     
     Context {Job: eqType}.
-    Variable job_cost: Job -> nat.
-    Variable job_deadline: Job -> nat.
+    Variable job_cost: Job -> time.
+    Variable job_deadline: Job -> time.
     Variable job_task: Job -> sporadic_task.
 
     (* Consider a platform with num_cpus processors. *)  
@@ -368,7 +368,7 @@ Module ResponseTimeIterationEDF.
           rewrite (nth_map p0);
             last by rewrite size_zip 2!size_map SIZE minnn in LTi.
           unfold update_bound, edf_response_time_bound; desf; simpl.
-          rename s into tsk_i, s0 into tsk_i', n into R_i, n0 into R_i', Heq into EQ, Heq0 into EQ'.
+          rename s into tsk_i, s0 into tsk_i', t into R_i, t0 into R_i', Heq into EQ, Heq0 into EQ'.
           assert (EQtsk: tsk_i = tsk_i').
           {
             destruct p0 as [tsk0 R0], p0' as [tsk0' R0']; simpl in H2; subst.
@@ -481,7 +481,9 @@ Module ResponseTimeIterationEDF.
                 by rewrite in_cons; apply/orP; right; rewrite mem_nth.
               }
               unfold is_valid_sporadic_task in *.
-              destruct (nth elem x1' j) as [tsk_j R_j], (nth elem x2' j) as [tsk_j' R_j'].
+              destruct (nth elem x1' j) as [tsk_j R_j] eqn:SUBST1,
+                       (nth elem x2' j) as [tsk_j' R_j'] eqn:SUBST2.
+              rewrite SUBST1 SUBST2 in LEj.
               simpl in FSTeq; rewrite -FSTeq; simpl in LEj; simpl in VALIDj; des.
               by apply interference_bound_edf_monotonic.
             }
@@ -658,7 +660,7 @@ Module ResponseTimeIterationEDF.
               unfold update_bound; destruct i; simpl.
               rewrite subh1; first by rewrite -addnBA // subnn addn0.
               apply (edf_claimed_bounds_ge_cost ts step.+1).
-              by rewrite iterS; apply/mapP; exists (s, n).
+              by rewrite iterS; apply/mapP; exists (s, t).
             }
             rewrite -2!big_seq_cond.
            

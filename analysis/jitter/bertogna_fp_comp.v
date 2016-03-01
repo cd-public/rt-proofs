@@ -12,20 +12,20 @@ Module ResponseTimeIterationFP.
   Section Analysis.
     
     Context {sporadic_task: eqType}.
-    Variable task_cost: sporadic_task -> nat.
-    Variable task_period: sporadic_task -> nat.
-    Variable task_deadline: sporadic_task -> nat.
-    Variable task_jitter: sporadic_task -> nat.
+    Variable task_cost: sporadic_task -> time.
+    Variable task_period: sporadic_task -> time.
+    Variable task_deadline: sporadic_task -> time.
+    Variable task_jitter: sporadic_task -> time.
 
     (* During the iterations of the algorithm, we pass around pairs
        of tasks and computed response-time bounds. *)
-    Let task_with_response_time := (sporadic_task * nat)%type.
+    Let task_with_response_time := (sporadic_task * time)%type.
     
     Context {Job: eqType}.
-    Variable job_cost: Job -> nat.
-    Variable job_deadline: Job -> nat.
+    Variable job_cost: Job -> time.
+    Variable job_deadline: Job -> time.
     Variable job_task: Job -> sporadic_task.
-    Variable job_jitter: Job -> nat.
+    Variable job_jitter: Job -> time.
 
     (* Consider a platform with num_cpus processors, ... *)
     Variable num_cpus: nat.
@@ -179,7 +179,7 @@ Module ResponseTimeIterationFP.
       Qed.
       
       (* If the analysis suceeds, the computed response-time bounds are no larger
-         than the deadline. *)
+         than the deadlines... *)
       Lemma fp_claimed_bounds_le_deadline :
         forall ts' rt_bounds tsk R,
           fp_claimed_bounds ts' = Some rt_bounds ->
@@ -217,8 +217,8 @@ Module ResponseTimeIterationFP.
         }
       Qed.
       
-      (* If the analysis succeeds, the computed response-time bounds are no smaller
-         than the task cost. *)
+      (* ... and the computed response-time bounds are no smaller
+         than the task costs. *)
       Lemma fp_claimed_bounds_ge_cost :
         forall ts' rt_bounds tsk R,
           fp_claimed_bounds ts' = Some rt_bounds ->

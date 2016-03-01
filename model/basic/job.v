@@ -1,15 +1,17 @@
 Add LoadPath "../../" as rt.
-Require Import rt.model.basic.task rt.util.lemmas.
+Require Import rt.model.basic.time rt.model.basic.task rt.util.lemmas.
 Require Import ssrnat ssrbool eqtype.  
 
 (* Properties of different types of job: *)
 Module Job.
 
+  Import Time.
+  
   (* 1) Basic Job *)
   Section ValidJob.
 
     Context {Job: eqType}.
-    Variable job_cost: Job -> nat.
+    Variable job_cost: Job -> time.
 
     Variable j: Job.
 
@@ -22,8 +24,8 @@ Module Job.
   Section ValidRealtimeJob.
 
     Context {Job: eqType}.
-    Variable job_cost: Job -> nat.
-    Variable job_deadline: Job -> nat.
+    Variable job_cost: Job -> time.
+    Variable job_deadline: Job -> time.
     
     Variable j: Job.
 
@@ -42,12 +44,12 @@ Module Job.
   Section ValidSporadicTaskJob.
 
     Context {sporadic_task: eqType}.
-    Variable task_cost: sporadic_task -> nat.
-    Variable task_deadline: sporadic_task -> nat.
+    Variable task_cost: sporadic_task -> time.
+    Variable task_deadline: sporadic_task -> time.
     
     Context {Job: eqType}.
-    Variable job_cost: Job -> nat.
-    Variable job_deadline: Job -> nat.
+    Variable job_cost: Job -> time.
+    Variable job_deadline: Job -> time.
     Variable job_task: Job -> sporadic_task.
     
     Variable j: Job.

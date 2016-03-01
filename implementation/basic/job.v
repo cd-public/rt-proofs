@@ -1,10 +1,11 @@
 Add LoadPath "../../" as rt.
-Require Import rt.util.Vbase.
+Require Import rt.model.basic.time rt.util.Vbase.
 Require Import rt.implementation.basic.task.
 Require Import ssreflect ssrbool ssrnat eqtype seq.
 
 Module ConcreteJob.
 
+  Import Time.
   Import ConcreteTask.
 
   Section Defs.
@@ -13,8 +14,8 @@ Module ConcreteJob.
     Record concrete_job :=
     {
       job_id: nat;
-      job_cost: nat;
-      job_deadline: nat;
+      job_cost: time;
+      job_deadline: time;
       job_task: concrete_task_eqType
     }.
 

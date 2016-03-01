@@ -13,9 +13,9 @@ Module InterferenceBoundFP.
     Section Definitions.
     
     Context {sporadic_task: eqType}.
-    Variable task_cost: sporadic_task -> nat.
-    Variable task_period: sporadic_task -> nat.
-    Variable task_deadline: sporadic_task -> nat.
+    Variable task_cost: sporadic_task -> time.
+    Variable task_period: sporadic_task -> time.
+    Variable task_deadline: sporadic_task -> time.
     
     (* Let tsk be the task to be analyzed. *)
     Variable tsk: sporadic_task.

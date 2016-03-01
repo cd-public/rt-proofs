@@ -13,9 +13,9 @@ Module WorkloadBoundJitter.
   Section WorkloadBoundJitterDef.
 
     Context {sporadic_task: eqType}.
-    Variable task_cost: sporadic_task -> nat.
-    Variable task_period: sporadic_task -> nat.
-    Variable task_jitter: sporadic_task -> nat.
+    Variable task_cost: sporadic_task -> time.
+    Variable task_period: sporadic_task -> time.
+    Variable task_jitter: sporadic_task -> time.
     
     Variable tsk: sporadic_task.
     Variable R_tsk: time. (* Known response-time bound for the task *)
@@ -36,9 +36,9 @@ Module WorkloadBoundJitter.
   Section BasicLemmas.
 
     Context {sporadic_task: eqType}.
-    Variable task_cost: sporadic_task -> nat.
-    Variable task_period: sporadic_task -> nat.
-    Variable task_jitter: sporadic_task -> nat.
+    Variable task_cost: sporadic_task -> time.
+    Variable task_period: sporadic_task -> time.
+    Variable task_jitter: sporadic_task -> time.
     
     (* Let tsk be any task...*)
     Variable tsk: sporadic_task.
@@ -118,16 +118,16 @@ Module WorkloadBoundJitter.
   Section ProofWorkloadBound.
  
     Context {sporadic_task: eqType}.
-    Variable task_cost: sporadic_task -> nat.
-    Variable task_period: sporadic_task -> nat.
-    Variable task_deadline: sporadic_task -> nat.
-    Variable task_jitter: sporadic_task -> nat.
+    Variable task_cost: sporadic_task -> time.
+    Variable task_period: sporadic_task -> time.
+    Variable task_deadline: sporadic_task -> time.
+    Variable task_jitter: sporadic_task -> time.
     
     Context {Job: eqType}.
-    Variable job_cost: Job -> nat.
+    Variable job_cost: Job -> time.
     Variable job_task: Job -> sporadic_task.
-    Variable job_deadline: Job -> nat.
-    Variable job_jitter: Job -> nat.
+    Variable job_deadline: Job -> time.
+    Variable job_jitter: Job -> time.
 
     Variable arr_seq: arrival_sequence Job.
 
@@ -567,55 +567,6 @@ Module WorkloadBoundJitter.
           by rewrite subh3 // addnC; move: INnth => /eqP INnth; rewrite -INnth.
         Qed.
 
-        (* Now, we prove an auxiliary lemma for the next result.
-           The statement is not meaningful, since it's part of a proof
-           by contradiction. *)
-        (*Lemma workload_bound_helper_lemma :
-          job_arrival j_fst + task_period tsk + delta <= job_arrival j_lst ->
-          t1 <= job_arrival j_fst + task_deadline tsk.
-        Proof.
-          intros LE.
-          rename H_jobs_have_valid_parameters into PARAMS,
-                 H_completed_jobs_dont_execute into EXEC,
-                 H_no_deadline_misses_during_interval into NOMISS.
-          unfold task_misses_no_deadline_before, valid_sporadic_job,
-                 job_misses_no_deadline, completed in *; des.
-          exploit workload_bound_all_jobs_from_tsk.
-          {
-            apply mem_nth; instantiate (1 := 0).
-            apply ltn_trans with (n := 1); [by done | by rewrite H_at_least_two_jobs].
-          }
-          instantiate (1 := elem); move => [FSTtsk [/eqP FSTserv FSTin]].
-          exploit (NOMISS j_fst FSTtsk); last intros COMP.
-          { 
-            (* Prove that arr_fst + d_k <= t2 *)
-            apply leq_ltn_trans with (n := job_arrival j_lst);
-              last by apply workload_bound_last_job_arrives_before_end_of_interval.
-            apply leq_trans with (n := job_arrival j_fst + task_period tsk + delta); last by done.
-            rewrite -addnA leq_add2l -[job_deadline _]addn0.
-            apply leq_add; last by ins.
-            specialize (PARAMS j_fst); des.
-            by rewrite PARAMS1 FSTtsk H_restricted_deadline.
-          }
-          rewrite leqNgt; apply/negP; unfold not; intro LTt1.
-          (* Now we assume that (job_arrival j_fst + d_k < t1) and reach a contradiction.
-             Since j_fst doesn't miss deadlines, then the service it receives between t1 and t2
-             equals 0, which contradicts the previous assumption that j_fst interferes in
-             the scheduling window. *)
-          apply FSTserv.
-          {
-              unfold service_during; apply/eqP; rewrite -leqn0.
-              rewrite <- leq_add2l with (p := job_cost j_fst); rewrite addn0.
-              move: COMP => /eqP COMP; unfold service in COMP; rewrite -{1}COMP.
-              apply leq_trans with (n := service sched j_fst t2); last by apply EXEC.
-              unfold service; rewrite -> big_cat_nat with (m := 0) (p := t2) (n := t1);
-                [rewrite leq_add2r /= | by ins | by apply leq_addr].
-              rewrite -> big_cat_nat with (p := t1) (n := job_arrival j_fst + job_deadline j_fst);
-                [by rewrite /= -{1}[\sum_(_ <= _ < _) _]addn0 leq_add2l | by ins | ].
-              by apply ltnW; specialize (PARAMS j_fst); des; rewrite PARAMS1 FSTtsk.
-          }
-        Qed.*)
-        
         (* Prove that n_k is at least the number of the middle jobs *)
         Lemma workload_bound_n_k_covers_middle_jobs :
           n_k >= num_mid_jobs.

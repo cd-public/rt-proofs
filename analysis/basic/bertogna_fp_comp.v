@@ -12,17 +12,17 @@ Module ResponseTimeIterationFP.
   Section Analysis.
     
     Context {sporadic_task: eqType}.
-    Variable task_cost: sporadic_task -> nat.
-    Variable task_period: sporadic_task -> nat.
-    Variable task_deadline: sporadic_task -> nat.
+    Variable task_cost: sporadic_task -> time.
+    Variable task_period: sporadic_task -> time.
+    Variable task_deadline: sporadic_task -> time.
 
-    (* During the iterations of the algorithm, we pass around pairs
+    (* As input for each iteration of the algorithm, we consider pairs
        of tasks and computed response-time bounds. *)
-    Let task_with_response_time := (sporadic_task * nat)%type.
+    Let task_with_response_time := (sporadic_task * time)%type.
     
     Context {Job: eqType}.
-    Variable job_cost: Job -> nat.
-    Variable job_deadline: Job -> nat.
+    Variable job_cost: Job -> time.
+    Variable job_deadline: Job -> time.
     Variable job_task: Job -> sporadic_task.
 
     (* Consider a platform with num_cpus processors, ... *)
@@ -177,7 +177,7 @@ Module ResponseTimeIterationFP.
       Qed.
       
       (* If the analysis suceeds, the computed response-time bounds are no larger
-         than the deadline. *)
+         than the deadlines ... *)
       Lemma fp_claimed_bounds_le_deadline :
         forall ts' rt_bounds tsk R,
           fp_claimed_bounds ts' = Some rt_bounds ->
@@ -215,8 +215,7 @@ Module ResponseTimeIterationFP.
         }
       Qed.
       
-      (* If the analysis succeeds, the computed response-time bounds are no smaller
-         than the task cost. *)
+      (* ... and no smaller than the task costs. *)
       Lemma fp_claimed_bounds_ge_cost :
         forall ts' rt_bounds tsk R,
           fp_claimed_bounds ts' = Some rt_bounds ->
@@ -412,7 +411,7 @@ Module ResponseTimeIterationFP.
         }
       Qed.
 
-      (* If the iteration converged at an earlier step, then it remains stable. *)
+      (* If the iteration converged at an earlier step, it remains as a fixed point. *)
       Lemma bertogna_fp_comp_f_converges_early :
         (exists k, k <= max_steps tsk /\ f k = f k.+1) ->
         f (max_steps tsk) = f (max_steps tsk).+1.
@@ -517,10 +516,9 @@ Module ResponseTimeIterationFP.
       Variable ts: taskset_of sporadic_task.
       
       (* Assume that higher_priority is a total strict order (<).
-         TODO: it doesn't have to be total over the entire domain, but
-         only within the task set.
-         But to weaken the hypothesis, we need to re-prove some lemmas
-         from ssreflect. *)
+         TODO: it doesn't have to be total over the universe of tasks,
+         but only within the task set. However, to weaken this hypothesis
+         we need to re-prove some lemmas from ssreflect. *)
       Hypothesis H_irreflexive: irreflexive higher_priority.
       Hypothesis H_transitive: transitive higher_priority.
       Hypothesis H_unique_priorities: antisymmetric higher_priority.
@@ -547,7 +545,7 @@ Module ResponseTimeIterationFP.
       Hypothesis H_all_jobs_from_taskset:
         forall (j: JobIn arr_seq), job_task j \in ts.
       
-      (* ...they have valid parameters,...*)
+      (* ...jobs have valid parameters,...*)
       Hypothesis H_valid_job_parameters:
         forall (j: JobIn arr_seq),
           valid_sporadic_job task_cost task_deadline job_cost job_deadline job_task j.
@@ -587,8 +585,8 @@ Module ResponseTimeIterationFP.
       (* In the following theorem, we prove that any response-time bound contained
          in fp_claimed_bounds is safe. The proof follows by induction on the task set:
 
-           Induction hypothesis: all higher-priority tasks have safe response-time bounds.
-           Inductive step: We prove that the response-time bound of the current task is safe.
+           Induction hypothesis: assume all higher-priority tasks have safe response-time bounds.
+           Inductive step: we prove that the response-time bound of the current task is safe.
 
          Note that the inductive step is a direct application of the main Theorem from
          bertogna_fp_theory.v. *)

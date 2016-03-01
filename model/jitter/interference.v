@@ -19,9 +19,9 @@ Module Interference.
 
     Context {sporadic_task: eqType}.
     Context {Job: eqType}.
-    Variable job_cost: Job -> nat.
+    Variable job_cost: Job -> time.
     Variable job_task: Job -> sporadic_task.
-    Variable job_jitter: Job -> nat.
+    Variable job_jitter: Job -> time.
 
     (* Assume any job arrival sequence...*)
     Context {arr_seq: arrival_sequence Job}.
@@ -74,8 +74,8 @@ Module Interference.
       Definition task_is_scheduled (t: time) :=
         [exists cpu in processor num_cpus, schedules_job_of_tsk cpu t].
 
-      (* We define the total interference incurred by tsk during [t1, t2)
-         as the cumulative time in which tsk is scheduled. *)
+      (* We define the total interference caused by tsk during [t1, t2) as
+         the cumulative time in which j is backlogged while tsk is scheduled. *)
       Definition task_interference (t1 t2: time) :=
         \sum_(t1 <= t < t2)
           (job_is_backlogged t && task_is_scheduled t).

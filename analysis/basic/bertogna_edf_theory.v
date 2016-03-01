@@ -18,13 +18,13 @@ Module ResponseTimeAnalysisEDF.
   Section ResponseTimeBound.
 
     Context {sporadic_task: eqType}.
-    Variable task_cost: sporadic_task -> nat.
-    Variable task_period: sporadic_task -> nat.
-    Variable task_deadline: sporadic_task -> nat.
+    Variable task_cost: sporadic_task -> time.
+    Variable task_period: sporadic_task -> time.
+    Variable task_deadline: sporadic_task -> time.
     
     Context {Job: eqType}.
-    Variable job_cost: Job -> nat.
-    Variable job_deadline: Job -> nat.
+    Variable job_cost: Job -> time.
+    Variable job_deadline: Job -> time.
     Variable job_task: Job -> sporadic_task.
     
     (* Assume any job arrival sequence... *)
@@ -56,28 +56,30 @@ Module ResponseTimeAnalysisEDF.
       num_cpus > 0.
 
     (* Assume that we have a task set where all tasks have valid
-       parameters and restricted deadlines. *)
+       parameters and restricted deadlines, ... *)
     Variable ts: taskset_of sporadic_task.
-    Hypothesis H_all_jobs_from_taskset:
-      forall (j: JobIn arr_seq), job_task j \in ts.
     Hypothesis H_valid_task_parameters:
       valid_sporadic_taskset task_cost task_period task_deadline ts.
     Hypothesis H_restricted_deadlines:
       forall tsk, tsk \in ts -> task_deadline tsk <= task_period tsk.
 
+    (* ... and that all jobs in the arrival sequence come from the task set. *)
+    Hypothesis H_all_jobs_from_taskset:
+      forall (j: JobIn arr_seq), job_task j \in ts.
+    
     Let no_deadline_is_missed_by_tsk (tsk: sporadic_task) :=
       task_misses_no_deadline job_cost job_deadline job_task sched tsk.
     Let response_time_bounded_by (tsk: sporadic_task) :=
       is_response_time_bound_of_task job_cost job_task tsk sched.
 
-    (* Assume a known response-time bound R is known...  *)
+    (* Assume that a response-time bound R is known...  *)
     Let task_with_response_time := (sporadic_task * time)%type.
     Variable rt_bounds: seq task_with_response_time.
 
-    (* ...for any task in the task set. *)
+    (* ...for any task in the task set, ... *)
     Hypothesis H_rt_bounds_contains_all_tasks: unzip1 rt_bounds = ts.
 
-    (* Also, assume that R is a fixed-point of the response-time recurrence, ... *)
+    (* ... such that R is a fixed-point of the response-time recurrence, ... *)
     Let I (tsk: sporadic_task) (delta: time) :=
       total_interference_bound_edf task_cost task_period task_deadline tsk rt_bounds delta.
     Hypothesis H_response_time_is_fixed_point :
@@ -94,10 +96,9 @@ Module ResponseTimeAnalysisEDF.
     Hypothesis H_work_conserving: work_conserving job_cost sched.
     Hypothesis H_edf_policy: enforces_JLDP_policy job_cost sched (EDF job_deadline).
     
-    (* Assume that the task set has no duplicates. Otherwise, counting
-       the number of tasks that have some property does not make sense
-       (for example, for stating the global scheduling invariant as
-        using number of scheduled interfering tasks = number of cpus). *)
+    (* Assume that the task set has no duplicates. This is required to
+       avoid problems when counting tasks (for example, when stating
+       that the number of interfering tasks is at most num_cpus). *)
     Hypothesis H_ts_is_a_set : uniq ts.
 
     (* In order to prove that R is a response-time bound, we first present some lemmas. *)
@@ -108,14 +109,14 @@ Module ResponseTimeAnalysisEDF.
       Variable R: time.
       Hypothesis H_tsk_R_in_rt_bounds: (tsk, R) \in rt_bounds.
 
-      (* Consider any job j of tsk. *)
+      (* Consider any job j of tsk ... *)
       Variable j: JobIn arr_seq.
       Hypothesis H_job_of_tsk: job_task j = tsk.
 
-      (* Assume that job j did not complete on time, ... *)
+      (* ... that did not complete on time, ... *)
       Hypothesis H_j_not_completed: ~~ completed job_cost sched j (job_arrival j + R).
 
-      (* and that it is the first job not to satisfy its response-time bound. *)
+      (* ... and that is the first job not to satisfy its response-time bound. *)
       Hypothesis H_all_previous_jobs_completed_on_time :
         forall (j_other: JobIn arr_seq) tsk_other R_other,
           job_task j_other = tsk_other ->
@@ -154,13 +155,13 @@ Module ResponseTimeAnalysisEDF.
         Variable R_other: time.
         Hypothesis H_response_time_of_tsk_other: (tsk_other, R_other) \in rt_bounds.
 
-        (* Note that tsk_other is in task set ts ...*)
+        (* Note that tsk_other is in the task set, ...*)
         Lemma bertogna_edf_tsk_other_in_ts: tsk_other \in ts.
         Proof.
           by rewrite -H_rt_bounds_contains_all_tasks; apply/mapP; exists (tsk_other, R_other).
         Qed.
 
-        (* Also, R_other is larger than the cost of tsk_other. *)
+        (* ... and R_other is larger than the cost of tsk_other. *)
         Lemma bertogna_edf_R_other_ge_cost :
           R_other >= task_cost tsk_other.
         Proof.
@@ -193,7 +194,7 @@ Module ResponseTimeAnalysisEDF.
             | by ins; apply BEFOREok with (tsk_other := tsk_other)].
         Qed.
 
-        (* Recall that the edf-specific interference bound also holds. *)
+        (* Recall that the edf-specific interference bound also holds for tsk_other. *)
         Lemma bertogna_edf_specific_bound_holds :
           x tsk_other <= edf_specific_bound tsk_other R_other.
         Proof.
@@ -210,7 +211,6 @@ Module ResponseTimeAnalysisEDF.
       (* Next we prove some lemmas that help to derive a contradiction.*)
       Section DerivingContradiction.
 
-        
       (* 0) Since job j did not complete by its response time bound, it follows that
             the total interference X >= R - e_k + 1. *)
       Lemma bertogna_edf_too_much_interference : X >= R - task_cost tsk + 1.

@@ -12,18 +12,20 @@ Module WorkloadBound.
   Section WorkloadBoundDef.
 
     Context {sporadic_task: eqType}.
-    Variable task_cost: sporadic_task -> nat.
-    Variable task_period: sporadic_task -> nat.
-    
+    Variable task_cost: sporadic_task -> time.
+    Variable task_period: sporadic_task -> time.
+
+    (* Consider any task tsk with response-time bound R_tsk,
+       that is scheduled in an interval of length delta. *)
     Variable tsk: sporadic_task.
-    Variable R_tsk: time. (* Known response-time bound for the task *)
-    Variable delta: time. (* Length of the interval *)
+    Variable R_tsk: time.
+    Variable delta: time.
     
-    (* Bound on the number of jobs that execute completely in the interval *)
+    (* Based on the number of jobs that execute completely in the interval, ... *)
     Definition max_jobs :=
       div_floor (delta + R_tsk - task_cost tsk) (task_period tsk).
 
-    (* Bertogna and Cirinei's bound on the workload of a task in an interval of length delta *)
+    (* ... Bertogna and Cirinei's workload bound is defined as follows. *)
     Definition W :=
       let e_k := (task_cost tsk) in
       let p_k := (task_period tsk) in            
@@ -34,13 +36,13 @@ Module WorkloadBound.
   Section BasicLemmas.
 
     Context {sporadic_task: eqType}.
-    Variable task_cost: sporadic_task -> nat.
-    Variable task_period: sporadic_task -> nat.
+    Variable task_cost: sporadic_task -> time.
+    Variable task_period: sporadic_task -> time.
 
     (* Let tsk be any task...*)
     Variable tsk: sporadic_task.
 
-    (* ...with period > 0. *)
+    (* ... with period > 0. *)
     Hypothesis H_period_positive: task_period tsk > 0.
 
     (* Let R1 <= R2 be two response-time bounds that
@@ -115,14 +117,14 @@ Module WorkloadBound.
   Section ProofWorkloadBound.
  
     Context {sporadic_task: eqType}.
-    Variable task_cost: sporadic_task -> nat.
-    Variable task_period: sporadic_task -> nat.
-    Variable task_deadline: sporadic_task -> nat.
+    Variable task_cost: sporadic_task -> time.
+    Variable task_period: sporadic_task -> time.
+    Variable task_deadline: sporadic_task -> time.
     
     Context {Job: eqType}.
-    Variable job_cost: Job -> nat.
+    Variable job_cost: Job -> time.
     Variable job_task: Job -> sporadic_task.
-    Variable job_deadline: Job -> nat.
+    Variable job_deadline: Job -> time.
 
     Variable arr_seq: arrival_sequence Job.
 

@@ -1,13 +1,12 @@
 Add LoadPath "../../" as rt.
-Require Import rt.util.Vbase rt.util.lemmas rt.model.basic.job rt.model.basic.task.
+Require Import rt.util.Vbase rt.util.lemmas rt.model.basic.job rt.model.basic.task rt.model.basic.time.
 Require Import ssreflect ssrbool ssrfun eqtype ssrnat seq fintype bigop.
 
 (* Definitions and properties of job arrival sequences. *)
 Module ArrivalSequence.
 
-  (* Let time be the set of natural numbers. *)
-  Definition time := nat.
-
+  Export Time.
+  
   (* Next, we define a job arrival sequence (can be infinite). *)
   Section ArrivalSequenceDef.
 
@@ -77,13 +76,13 @@ Module ArrivalSequence.
     Variable j: JobIn arr_seq.
 
     (* A job has arrived at time t iff it arrives at some time t_0, with 0 <= t_0 <= t. *)
-    Definition has_arrived (t: nat) := job_arrival j <= t.
+    Definition has_arrived (t: time) := job_arrival j <= t.
 
     (* A job arrived before t iff it arrives at some time t_0, with 0 <= t_0 < t. *)
-    Definition arrived_before (t: nat) := job_arrival j < t.
+    Definition arrived_before (t: time) := job_arrival j < t.
 
     (* A job arrives between t1 and t2 iff it arrives at some time t with t1 <= t < t2. *)
-    Definition arrived_between (t1 t2: nat) := t1 <= job_arrival j < t2.
+    Definition arrived_between (t1 t2: time) := t1 <= job_arrival j < t2.
 
   End ArrivingJobs.
 
