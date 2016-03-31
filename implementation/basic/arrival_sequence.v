@@ -75,25 +75,25 @@ Module ConcreteArrivalSequence.
       unfold arrives_at, arr_seq, periodic_arrival_sequence in *.
       rewrite 2!mem_pmap in ARR ARR'.
       move: ARR ARR' => /mapP [tsk_j INj SOMEj] /mapP [tsk_j' INj' SOMEj'].
-      unfold add_job in *; desf; simpl in *; subst.
-      clear INj'.
-      move: Heq Heq0 => /dvdnP DIV' /dvdnP DIV; des.
-      rewrite DIV DIV' -mulSnr.
-      rewrite leq_eqVlt in LE; move: LE => /orP [/eqP EQ | LESS].
+      unfold add_job in SOMEj, SOMEj'; desf; simpl in *;
+      move: Heq0 Heq => /dvdnP [k DIV] /dvdnP [k' DIV'].
       {
-        move: DIFF => /orP [/eqP CASE1 | /eqP CASE2].
-        - by exfalso; apply CASE1; repeat f_equal.
-        - by rewrite EQ in CASE2.
+        rewrite DIV DIV' -mulSnr.
+        rewrite leq_eqVlt in LE; move: LE => /orP [/eqP EQ | LESS].
+        { 
+          exfalso; move: DIFF => /negP DIFF; apply DIFF.
+          by subst; rewrite EQ.
+        }
+        subst; rewrite leq_mul2r; apply/orP; right.
+        by rewrite ltn_mul2r in LESS; move: LESS => /andP [_ LT].
       }
-      rewrite leq_mul2r; apply/orP; right.
-      rewrite ltn_neqAle; apply/andP; split.
       {
-        apply/eqP; red; intro EQ; subst.
-        by rewrite ltnn in LESS.
+        assert (LT: arr < arr'). by rewrite ltn_neqAle; apply/andP.
+        clear LE DIFF; subst tsk_j' arr arr'.
+        rewrite ltn_mul2r in LT; move: LT => /andP [_ LT].
+        by apply leq_trans with (n := k.+1 * task_period tsk_j);
+          [by rewrite mulSnr | by rewrite leq_mul2r; apply/orP; right].
       }
-      rewrite leqNgt; apply/negP; red; intro LT.
-      rewrite ltnNge in LESS; move: LESS => /negP LESS; apply LESS.
-      by subst; rewrite leq_mul2r; apply/orP; right; apply ltnW.
     Qed.
 
     (* ... and if the task set has no duplicates, the same applies to

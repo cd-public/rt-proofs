@@ -175,26 +175,24 @@ Module Interference.
           }
           rewrite big_mkcond (bigD1_seq j0) /=; last by rewrite undup_uniq.
           {
-            rewrite EQtsk0 eq_refl BACK SCHEDULED andbT big_mkcond.
+            rewrite EQtsk0 BACK SCHEDULED andbT big_mkcond.
             rewrite (eq_bigr (fun x => 0));
               first by rewrite big_const_seq iter_addn mul0n addn0 addn0.
-            intros j1 _; desf; [rewrite andTb | by done].
+            intros j1 _; desf; try by done.
             apply/eqP; rewrite eqb0; apply/negP; unfold not; intro SCHEDULED'.
-            exploit (H_no_intratask_parallelism j0 j1 t); try (by done).
-              by move: Heq0 => /eqP EQtsk; rewrite EQtsk.
-            by intros EQj; rewrite EQj eq_refl in Heq.
+            exploit (H_no_intratask_parallelism j0 j1 t); try by eauto.
           }
           {
             rewrite mem_undup.
-            apply mem_bigcat_nat with (j := t); first by done.
+            apply mem_bigcat_nat with (j := t); first by auto.
             apply mem_bigcat_ord with (j := x); first by apply ltn_ord.
-            by rewrite SCHED mem_seq1 eq_refl.
+            by rewrite SCHED mem_seq1.
           }
         }
         {
           rewrite big_mkcond (eq_bigr (fun x => 0));
             first by rewrite big_const_seq iter_addn mul0n addn0.
-          intros i _; desf.
+          intros i _; desf; rewrite // ?BACK ?andFb //.
           unfold task_is_scheduled in BACK.
           apply negbT in BACK; rewrite negb_exists in BACK.
           move: BACK => /forallP BACK.
@@ -206,7 +204,7 @@ Module Interference.
             unfold schedules_job_of_tsk in BACK; unfold scheduled_on.
             destruct (sched x t) eqn:SCHED; last by ins.
             apply/negP; unfold not; move => /eqP BUG; inversion BUG; subst.
-            by move: Heq => /eqP Heq; rewrite Heq eq_refl in BACK.
+            by move: BACK => /negP BACK; apply BACK.
           }
           by rewrite NOTSCHED andbF.
         }
@@ -235,7 +233,7 @@ Module Interference.
         rewrite big_mkcond (bigD1_seq j0) /=; last by rewrite undup_uniq.
         {
           rewrite -addn1 addnC; apply leq_add; last by done.
-          rewrite EQtsk0 eq_refl BACK andTb.
+          rewrite EQtsk0 BACK andTb.
           apply eq_leq; symmetry; apply/eqP; rewrite eqb1.
           unfold scheduled, scheduled_on.
           by apply/exists_inP; exists x; [by done | by rewrite SCHED].
@@ -243,10 +241,10 @@ Module Interference.
         {
           unfold jobs_scheduled_between.
           rewrite mem_undup.
-          apply mem_bigcat_nat with (j := t); first by done.
+          apply mem_bigcat_nat with (j := t); first by auto.
           unfold jobs_scheduled_at.
           apply mem_bigcat_ord with (j := x); first by apply ltn_ord.
-          by unfold make_sequence; rewrite SCHED mem_seq1 eq_refl.
+          by unfold make_sequence; rewrite SCHED mem_seq1.
         }
       Qed.
         

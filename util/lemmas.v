@@ -312,8 +312,8 @@ Section BigCatLemmas.
       rewrite big_ord_recr /= mem_cat in IN.
       move: IN => /orP [HEAD | TAIL].
       {
-        apply IHn in HEAD; destruct HEAD.
-        by eexists (widen_ord _ x0); desf.
+        apply IHn in HEAD; destruct HEAD as [x0 IN].
+        by eexists (widen_ord _ x0); apply IN.
       }
       {
         by exists ord_max; desf.
@@ -924,14 +924,13 @@ Section UniqList.
     apply eq_trans with (y := [seq x <- l | index x l < i]).
     {
       apply eq_in_filter; red; intros x IN.
-      desf; move: Heq => /eqP SUBST; subst.
-      by simpl in UNIQ; rewrite IN andFb in UNIQ.
+      desf; subst; last by done.
+      by simpl in *; rewrite IN andFb in UNIQ.
     }
     simpl in *; desf.
     rewrite /= ltnS in LT.
     rewrite leq_eqVlt in LT; desf.
     {
-      move: LT => /eqP LT; subst.
       rewrite take_size.
       apply eq_trans with (y := filter predT l); last by rewrite filter_predT.
       by apply eq_in_filter; red; ins; rewrite index_mem.

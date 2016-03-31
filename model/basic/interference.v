@@ -244,7 +244,7 @@ Module Interference.
         rewrite big_mkcond (bigD1_seq j0) /=; last by rewrite undup_uniq.
         {
           rewrite -addn1 addnC; apply leq_add; last by done.
-          rewrite EQtsk0 eq_refl BACK andTb.
+          rewrite EQtsk0 BACK andTb.
           apply eq_leq; symmetry; apply/eqP; rewrite eqb1.
           unfold scheduled, scheduled_on.
           by apply/exists_inP; exists x; [by done | by rewrite SCHED].
@@ -252,7 +252,7 @@ Module Interference.
         {
           unfold jobs_scheduled_between.
           rewrite mem_undup.
-          apply mem_bigcat_nat with (j := t); first by done.
+          apply mem_bigcat_nat with (j := t); first by auto.
           unfold jobs_scheduled_at.
           apply mem_bigcat_ord with (j := x); first by apply ltn_ord.
           by unfold make_sequence; rewrite SCHED mem_seq1 eq_refl.

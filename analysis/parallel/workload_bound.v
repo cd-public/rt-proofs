@@ -186,7 +186,7 @@ Module WorkloadBound.
         Proof.
           intros j_i LTi.
           rewrite -workload_bound_job_in_same_sequence mem_filter in LTi; des.
-          repeat split; [by apply/eqP | | by done].
+          repeat split; [by done | | by done].
           unfold jobs_scheduled_between in *; rewrite mem_undup in LTi0.
           apply mem_bigcat_nat_exists in LTi0; des.
           rewrite mem_scheduled_jobs_eq_scheduled in LTi0.
@@ -396,9 +396,9 @@ Module WorkloadBound.
               by apply ltn_trans with (n := (size sorted_jobs).-1); destruct sorted_jobs; ins.
               by destruct sorted_jobs; ins.
               by rewrite sort_uniq -/scheduled_jobs filter_uniq // undup_uniq.
-              by move: INnth INnth0 => /eqP INnth /eqP INnth0; rewrite INnth INnth0.  
+              by rewrite INnth INnth0.  
           }
-          by rewrite subh3 // addnC; move: INnth => /eqP INnth; rewrite -INnth.
+          by rewrite subh3 // addnC -INnth.
         Qed.
 
         (* Next, we prove that n_k covers every scheduled job, ... *)

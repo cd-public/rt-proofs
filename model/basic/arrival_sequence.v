@@ -100,9 +100,6 @@ Module ArrivalSequence.
       if (j \in arr_seq t) is true then
         Some (Build_JobIn arr_seq j t _)
       else None.
-    Next Obligation.
-      by done.
-    Qed.
 
     (* Now we define the list of JobIn that arrive at time t as the partial
        map of is_JobIn.  *)

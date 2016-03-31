@@ -238,8 +238,7 @@ Module ResponseTimeIterationEDF.
         Proof.
           intros l; unfold all_le; rewrite eq_refl andTb.
           destruct l; first by done.
-          apply/(zipP (fun x y => snd x <= snd y)); try (by ins).
-          by ins; apply leqnn.
+          by apply/(zipP (fun x y => snd x <= snd y)).
         Qed.
 
         (* ... and transitive. *)
@@ -507,7 +506,6 @@ Module ResponseTimeIterationEDF.
             try (by done);
             [ by apply all_le_reflexive
             | by apply all_le_transitive
-            | by apply leqnSn
             | by apply bertogna_edf_comp_iteration_preserves_order
             | by apply bertogna_edf_comp_iteration_preserves_minimum].
         Qed.

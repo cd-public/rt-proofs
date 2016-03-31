@@ -618,9 +618,9 @@ Module InterferenceBoundEDF.
                 by apply ltn_trans with (n := (size sorted_jobs).-1); destruct sorted_jobs; ins.
                 by destruct sorted_jobs; ins.
                 by rewrite sort_uniq -/interfering_jobs filter_uniq // undup_uniq.
-                by move: INnth INnth0 => /eqP INnth /eqP INnth0; rewrite INnth INnth0.  
+                by rewrite INnth INnth0.  
             }
-            by rewrite subh3 // addnC; move: INnth => /eqP INnth; rewrite -INnth.
+            by rewrite subh3 // addnC -INnth.
           Qed.
 
           Lemma interference_bound_edf_slack_le_delta:

@@ -402,8 +402,7 @@ Module ResponseTimeIterationFP.
         {
           apply leq_trans with (n := W task_cost task_period i R x1); first by apply geq_minl.
             exploit (VALID i); [by rewrite mem_rcons in_cons IN orbT | ins; des].
-            by apply W_monotonic; try (by ins);
-              [by apply GE_COST | by apply leqnn].
+            by apply W_monotonic; try by ins; apply GE_COST.
         }
         {
           apply leq_trans with (n := x1 - task_cost tsk + 1); first by apply geq_minr.

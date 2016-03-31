@@ -497,9 +497,8 @@ Module InterferenceBoundEDF.
                       by apply job_interference_seq_le_service.
                     }
                     unfold service_during.
-                    rewrite -> cumulative_service_after_job_rt_zero with (job_cost0 := job_cost)
-                                                                                     (R := R_k);
-                      try (by done); last by apply leqnn.
+                    rewrite -> cumulative_service_after_job_rt_zero with
+                      (job_cost0 := job_cost) (R := R_k); try (by done). 
                     rewrite addn0; apply extend_sum; first by apply leqnn.
                     by rewrite leq_add2l; apply H_R_k_le_deadline.
                   }
@@ -515,8 +514,8 @@ Module InterferenceBoundEDF.
                   by apply job_interference_seq_le_service.
                 }
                 unfold service_during.
-                rewrite -> cumulative_service_after_job_rt_zero with (job_cost0 := job_cost) (R:=R_k);
-                  try (by done); last by apply leqnn.
+                rewrite -> cumulative_service_after_job_rt_zero with
+                  (job_cost0 := job_cost) (R:=R_k); try (by done).
                 rewrite addn0.
                 apply leq_trans with (n := (\sum_(t1 <= t < a_fst + R_k) 1) +
                                            \sum_(a_fst + R_k <= t < a_fst + D_k) 1).
@@ -800,9 +799,9 @@ Module InterferenceBoundEDF.
                 by apply ltn_trans with (n := (size sorted_jobs).-1); destruct sorted_jobs; ins.
                 by destruct sorted_jobs; ins.
                 by rewrite sort_uniq -/interfering_jobs filter_uniq // undup_uniq.
-                by move: INnth INnth0 => /eqP INnth /eqP INnth0; rewrite INnth INnth0.  
+                by rewrite INnth INnth0.  
             }
-            by rewrite subh3 // addnC; move: INnth => /eqP INnth; rewrite -INnth.
+            by rewrite subh3 // addnC -INnth.
           Qed.
 
           (* Using the lemma above, we prove that the ratio n_k is at least the number of
@@ -875,8 +874,7 @@ Module InterferenceBoundEDF.
             rename H_many_jobs into NUM, H_at_least_two_jobs into SIZE.
             have NK := interference_bound_edf_n_k_covers_middle_jobs_plus_one.
             move: NK; rewrite leq_eqVlt orbC; move => /orP NK; des;
-             first by rewrite SIZE ltnS leqNgt NK in NUM.
-            by move: NK => /eqP NK; rewrite NK. 
+             [by rewrite SIZE ltnS leqNgt NK in NUM | by done].
           Qed.
           
           (* After proving the bounds of the middle and last jobs, we do the same for
