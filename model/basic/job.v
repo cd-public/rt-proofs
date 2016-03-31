@@ -1,5 +1,5 @@
 Add LoadPath "../../" as rt.
-Require Import rt.model.basic.time rt.model.basic.task rt.util.lemmas.
+Require Import rt.model.basic.time rt.model.basic.task.
 Require Import ssrnat ssrbool eqtype.  
 
 (* Properties of different types of job: *)

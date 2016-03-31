@@ -1,5 +1,5 @@
 Add LoadPath "../.." as rt.
-Require Import rt.util.Vbase rt.util.lemmas rt.util.divround.
+Require Import rt.util.all.
 Require Import rt.analysis.parallel.bertogna_edf_theory.
 Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop div path.
 

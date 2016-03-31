@@ -1,5 +1,5 @@
 Add LoadPath "../../" as rt.
-Require Import rt.model.basic.time rt.util.Vbase rt.util.lemmas.
+Require Import rt.model.basic.time rt.util.all.
 Require Import ssrnat ssrbool eqtype fintype seq.
 
 (* Attributes of a valid sporadic task. *)

@@ -1,13 +1,13 @@
 
 (* *********************************************************************)
 (*                                                                     *)
-(*                      Basic lemmas & tactics                         *)
+(*     Basic lemmas & tactics (based on Viktor Vafeiadis' Vbase.v)     *)
 (*                                                                     *)
 (* *********************************************************************)
 
 (** This file collects a number of basic lemmas and tactics for better
     proof automation, structuring large proofs, or rewriting.  Most of 
-    the rewriting support is ported from ss-reflect. *)
+    the rewriting support is ported from ssreflect. *)
 
 (** Symbols starting with [vlib__] are internal. *)
 
@@ -319,6 +319,21 @@ Ltac des_eqrefl :=
     let EQ := fresh "EQ" in
     let id' := fresh "x" in
     generalize (Logic.eq_refl X); generalize X at 1 3;
+    intros id' EQ; destruct id'
+  end.
+
+Ltac des_eqrefl2 :=
+  match goal with
+    | H: context[match ?X as id return (?X = id -> _) with _ => _ end Logic.eq_refl] |- _ =>
+    let EQ := fresh "EQ" in
+    let id' := fresh "x" in
+    revert H;
+    generalize (Logic.eq_refl X); generalize X at 2 3;
+    intros id' EQ; destruct id'; intros H
+    | |- context[match ?X as id return (?X = id -> _) with _ => _ end Logic.eq_refl] =>
+    let EQ := fresh "EQ" in
+    let id' := fresh "x" in
+    generalize (Logic.eq_refl X); generalize X at 2 3;
     intros id' EQ; destruct id'
   end.
 
