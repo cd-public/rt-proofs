@@ -11,7 +11,7 @@
 
 (** Symbols starting with [vlib__] are internal. *)
 
-Require Import ssreflect ssrbool ssrnat eqtype.
+Require Import ssreflect ssrbool ssrnat eqtype bigop.
 
 Open Scope bool_scope.
 Open Scope list_scope.
@@ -450,3 +450,11 @@ Ltac feed_n n H := match constr:n with
   | O => idtac
   | (S ?m) => feed H ; [| feed_n m H]
                    end.
+
+(* ************************************************************************** *)
+(** * New tactics for ssreflect *)
+(* ************************************************************************** *)
+
+Ltac simpl_sum_const :=
+  rewrite ?big_const_nat ?big_const_ord ?big_const_seq iter_addn ?muln1 ?mul1n ?mul0n
+          ?muln0 ?addn0 ?add0n.
