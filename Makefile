@@ -52,7 +52,7 @@ COQDOCLIBS?=-R . rt
 OPT?=
 COQDEP?=$(COQBIN)coqdep -c
 COQFLAGS?=-q $(OPT) $(COQLIBS) $(OTHERFLAGS) $(COQ_XML)
-COQCHKFLAGS?=-o
+COQCHKFLAGS?=-silent -o
 COQDOCFLAGS?=-interpolate -utf8
 COQC?=$(COQBIN)coqc
 GALLINA?=$(COQBIN)gallina
@@ -207,7 +207,7 @@ all-gal.pdf: $(VFILES)
 	$(COQDOC) -toc $(COQDOCFLAGS) -pdf -g $(COQDOCLIBS) -o $@ `$(COQDEP) -sort -suffix .v $^`
 
 validate: $(VOFILES)
-	$(COQCHK) $(COQCHKFLAGS) $(COQLIBS) $(notdir $(^:.vo=))
+	$(COQCHK) $(COQCHKFLAGS) $(COQLIBS) $(addprefix rt., $(subst /,., $(^:.vo=)))
 
 beautify: $(VFILES:=.beautified)
 	for file in $^; do mv $${file%.beautified} $${file%beautified}old && mv $${file} $${file%.beautified}; done
