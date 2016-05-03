@@ -536,8 +536,8 @@ Module ResponseTimeIterationFP.
       Hypothesis H_valid_task_parameters:
         valid_sporadic_taskset task_cost task_period task_deadline ts.
 
-      (* ...restricted deadlines, ...*)
-      Hypothesis H_restricted_deadlines:
+      (* ...constrained deadlines, ...*)
+      Hypothesis H_constrained_deadlines:
         forall tsk, tsk \in ts -> task_deadline tsk <= task_period tsk.
 
       (* ...and tasks are ordered by increasing priorities. *)
@@ -565,15 +565,14 @@ Module ResponseTimeIterationFP.
       Hypothesis H_at_least_one_cpu :
         num_cpus > 0.
 
-      (* ...jobs only execute after jitter and no longer than their execution costs,... *)
+      (* ...jobs only execute after jitter and no longer than their execution costs. *)
       Hypothesis H_jobs_must_arrive_to_execute:
         jobs_execute_after_jitter job_jitter sched.
       Hypothesis H_completed_jobs_dont_execute:
         completed_jobs_dont_execute job_cost sched.
 
-      (* ...and do not execute in parallel (required by the workload bound). *)
-      Hypothesis H_no_parallelism:
-        jobs_dont_execute_in_parallel sched.
+      (* Also assume that jobs are sequential (as required by the workload bound). *)
+      Hypothesis H_sequential_jobs: sequential_jobs sched.
 
       (* Assume that the scheduler is work-conserving and enforces the FP policy. *)
       Hypothesis H_work_conserving: work_conserving job_cost job_jitter sched.
@@ -601,7 +600,7 @@ Module ResponseTimeIterationFP.
           response_time_bounded_by tsk (task_jitter tsk + R).
       Proof.
         rename H_valid_job_parameters into JOBPARAMS, H_valid_task_parameters into TASKPARAMS,
-               H_restricted_deadlines into RESTR, H_completed_jobs_dont_execute into COMP,
+               H_constrained_deadlines into RESTR, H_completed_jobs_dont_execute into COMP,
                H_jobs_must_arrive_to_execute into MUSTARRIVE, H_sorted_ts into SORT,
                H_unique_priorities into UNIQ, 
                H_all_jobs_from_taskset into ALLJOBS.

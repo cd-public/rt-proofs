@@ -32,11 +32,13 @@ Module ScheduleWithJitter.
       Definition actual_arrival := job_arrival j + job_jitter j.
 
       (* Whether job j's jitter has passed by time t. *)
-      Definition has_actually_arrived_by (t: time) := actual_arrival <= t.
+      Definition jitter_has_passed (t: time) := actual_arrival <= t.
+
+      (* Whether job j actually arrived before time t. *)
       Definition actual_arrival_before (t: time) := actual_arrival < t.
 
       (* Job j is pending at time t iff the jitter has passed but j has not completed. *)
-      Definition pending (t: time) := has_actually_arrived_by t && ~~ completed job_cost sched j t.
+      Definition pending (t: time) := jitter_has_passed t && ~~ completed job_cost sched j t.
 
       (* Job j is backlogged at time t iff it is pending and not scheduled. *)
       Definition backlogged (t: time) := pending t && ~~ scheduled sched j t.
@@ -56,7 +58,7 @@ Module ScheduleWithJitter.
       (* A job can only be scheduled after the jitter has passed. *)
       Definition jobs_execute_after_jitter :=
         forall j t,
-          scheduled sched j t -> has_actually_arrived_by j t.
+          scheduled sched j t -> jitter_has_passed j t.
 
     End ScheduleProperties.
     

@@ -50,14 +50,14 @@ Module ResponseTimeAnalysisFP.
       num_cpus > 0.
 
     (* Assume that we have a task set (with no duplicates) where all jobs
-       come from the task set and all tasks have valid parameters and restricted deadlines. *)
+       come from the task set and all tasks have valid parameters and constrained deadlines. *)
     Variable ts: taskset_of sporadic_task.
     Hypothesis H_ts_is_a_set: uniq ts.
     Hypothesis H_all_jobs_from_taskset:
       forall (j: JobIn arr_seq), job_task j \in ts.
     Hypothesis H_valid_task_parameters:
       valid_sporadic_taskset task_cost task_period task_deadline ts.
-    Hypothesis H_restricted_deadlines:
+    Hypothesis H_constrained_deadlines:
       forall tsk, tsk \in ts -> task_deadline tsk <= task_period tsk.
 
     (* Next, consider a task tsk that is to be analyzed. *)
@@ -66,7 +66,7 @@ Module ResponseTimeAnalysisFP.
 
     Let no_deadline_is_missed_by_tsk (tsk: sporadic_task) :=
       task_misses_no_deadline job_cost job_deadline job_task sched tsk.
-    Let is_response_time_bound (tsk: sporadic_task) :=
+    Let response_time_bounded_by (tsk: sporadic_task) :=
       is_response_time_bound_of_task job_cost job_task tsk sched.
 
     (* Assume a known response-time bound for any interfering task *)
@@ -86,7 +86,7 @@ Module ResponseTimeAnalysisFP.
     Hypothesis H_response_time_of_interfering_tasks_is_known:
       forall hp_tsk R,
         (hp_tsk, R) \in hp_bounds ->
-        is_response_time_bound_of_task job_cost job_task hp_tsk sched R.
+        response_time_bounded_by hp_tsk R.
 
     (* Assume that the scheduler is work-conserving and enforces the FP policy. *)
     Hypothesis H_work_conserving: work_conserving job_cost sched.
@@ -172,7 +172,7 @@ Module ResponseTimeAnalysisFP.
         Lemma bertogna_fp_workload_bounds_interference :
           x tsk_other <= workload_bound tsk_other R_other.
         Proof.
-          unfold is_response_time_bound, is_response_time_bound_of_task,
+          unfold response_time_bounded_by, is_response_time_bound_of_task,
                  completed, completed_jobs_dont_execute, valid_sporadic_job in *.
           rename H_valid_task_parameters into TASK_PARAMS,
                  H_response_time_of_interfering_tasks_is_known into RESP.
@@ -254,7 +254,7 @@ Module ResponseTimeAnalysisFP.
                  H_job_of_tsk into JOBtsk,
                  H_sporadic_tasks into SPO,
                  H_work_conserving into WORK,
-                 H_restricted_deadlines into RESTR,
+                 H_constrained_deadlines into RESTR,
                  H_enforces_FP_policy into FP,
                  H_previous_jobs_of_tsk_completed into BEFOREok,
                  H_response_time_no_larger_than_deadline into NOMISS.
@@ -397,7 +397,7 @@ Module ResponseTimeAnalysisFP.
     
     (* Using the lemmas above, we prove that R bounds the response time of task tsk. *)
     Theorem bertogna_cirinei_response_time_bound_fp :
-      is_response_time_bound tsk R.
+      response_time_bounded_by tsk R.
     Proof.
       rename H_response_time_recurrence_holds into REC,
              H_response_time_of_interfering_tasks_is_known into RESP,
@@ -423,7 +423,7 @@ Module ResponseTimeAnalysisFP.
         by ins; apply IH; try (by done); rewrite ltn_add2r.
       } clear IH.
               
-      unfold is_response_time_bound, is_response_time_bound_of_task,
+      unfold response_time_bounded_by, is_response_time_bound_of_task,
              completed, completed_jobs_dont_execute, valid_sporadic_job in *.
 
       (* Now we start the proof. Assume by contradiction that job j

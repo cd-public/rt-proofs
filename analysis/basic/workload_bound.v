@@ -147,10 +147,9 @@ Module WorkloadBound.
     Hypothesis H_completed_jobs_dont_execute:
       completed_jobs_dont_execute job_cost sched.
 
-    (* Assumptiom: Jobs do not execute in parallel.
+    (* Assumption: Jobs are sequential.
        This is required to use interval lengths as a measure of service. *)
-    Hypothesis H_no_parallelism:
-      jobs_dont_execute_in_parallel sched.
+    Hypothesis H_sequential_jobs: sequential_jobs sched.
 
     (* Assumption: sporadic task model.
        This is necessary to conclude that consecutive jobs ordered by arrival times
@@ -177,11 +176,11 @@ Module WorkloadBound.
     Hypothesis H_valid_task_parameters:
       is_valid_sporadic_task task_cost task_period task_deadline tsk.
 
-    (* Assumption: the task must have a restricted deadline.
+    (* Assumption: the task must have a constrained deadline.
        This is required to prove that n_k (max_jobs) from Bertogna
        and Cirinei's formula accounts for at least the number of
        middle jobs (i.e., number of jobs - 2 in the worst case). *)
-    Hypothesis H_restricted_deadline: task_deadline tsk <= task_period tsk.
+    Hypothesis H_constrained_deadline: task_deadline tsk <= task_period tsk.
       
     (* Consider an interval [t1, t1 + delta). *)
     Variable t1 delta: time.
@@ -582,7 +581,7 @@ Module WorkloadBound.
           intros BEFOREt2; apply BEFOREt2'; clear BEFOREt2'.
           apply leq_trans with (n := job_arrival j_fst + task_deadline tsk + delta);
             last by apply leq_trans with (n := job_arrival j_fst + task_period tsk + delta);
-              [rewrite leq_add2r leq_add2l; apply H_restricted_deadline | apply DISTmax].
+              [rewrite leq_add2r leq_add2l; apply H_constrained_deadline | apply DISTmax].
           unfold t2; rewrite leq_add2r.
           apply leq_trans with (n := job_arrival j_fst + R_tsk);
             last by rewrite leq_add2l.

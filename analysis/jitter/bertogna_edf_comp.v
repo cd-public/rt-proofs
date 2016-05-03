@@ -955,8 +955,8 @@ Module ResponseTimeIterationEDF.
       Hypothesis H_valid_task_parameters:
         valid_sporadic_taskset task_cost task_period task_deadline ts.
 
-      (* ...restricted deadlines, ...*)
-      Hypothesis H_restricted_deadlines:
+      (* ...constrained deadlines, ...*)
+      Hypothesis H_constrained_deadlines:
         forall tsk, tsk \in ts -> task_deadline tsk <= task_period tsk.
 
       (* Next, consider any arrival sequence such that...*)
@@ -981,15 +981,14 @@ Module ResponseTimeIterationEDF.
       Hypothesis H_at_least_one_cpu :
         num_cpus > 0.
 
-      (* ...jobs only execute after jitter and no longer than their execution costs,... *)
+      (* ...jobs only execute after jitter and no longer than their execution costs. *)
       Hypothesis H_jobs_execute_after_jitter:
         jobs_execute_after_jitter job_jitter sched.
       Hypothesis H_completed_jobs_dont_execute:
         completed_jobs_dont_execute job_cost sched.
 
-      (* ...and do not execute in parallel. *)
-      Hypothesis H_no_parallelism:
-        jobs_dont_execute_in_parallel sched.
+      (* Also assume that jobs are sequential. *)
+      Hypothesis H_sequential_jobs: sequential_jobs sched.
 
       (* Assume that we have a work-conserving EDF scheduler. *)
       Hypothesis H_work_conserving: work_conserving job_cost job_jitter sched.
@@ -1041,7 +1040,7 @@ Module ResponseTimeIterationEDF.
                valid_sporadic_job_with_jitter, valid_sporadic_job in *.
         rename H_valid_job_parameters into JOBPARAMS,
                H_valid_task_parameters into TASKPARAMS,
-               H_restricted_deadlines into RESTR,
+               H_constrained_deadlines into RESTR,
                H_completed_jobs_dont_execute into COMP,
                H_jobs_execute_after_jitter into AFTER,
                H_all_jobs_from_taskset into ALLJOBS,

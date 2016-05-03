@@ -239,11 +239,10 @@ Module ConcreteScheduler.
       }
     Qed.
 
-    (* ..., jobs do not execute on multiple processors, ... *)
-    Theorem scheduler_no_parallelism:
-      jobs_dont_execute_in_parallel sched.
+    (* ..., jobs are sequential, ... *)
+    Theorem scheduler_sequential_jobs: sequential_jobs sched.
     Proof.
-      unfold jobs_dont_execute_in_parallel, sched, scheduler, schedule_prefix.
+      unfold sequential_jobs, sched, scheduler, schedule_prefix.
       intros j t cpu1 cpu2 SCHED1 SCHED2.
       destruct t; rewrite /update_schedule eq_refl in SCHED1 SCHED2;
       have UNIQ := nth_or_none_uniq _ cpu1 cpu2 j _ SCHED1 SCHED2; (apply ord_inj, UNIQ);
@@ -266,7 +265,7 @@ Module ConcreteScheduler.
           destruct (job_cost j); first by rewrite ltn0 in LESS.
           rewrite -addn1; rewrite ltnS in LESS.
           apply leq_add; first by done.
-          by apply service_at_most_one, scheduler_no_parallelism.
+          by apply service_at_most_one, scheduler_sequential_jobs.
         }
         rewrite EQ -{2}[job_cost j]addn0; apply leq_add; first by done.
         destruct t.

@@ -48,19 +48,18 @@ Module ResponseTimeAnalysisEDF.
     Hypothesis H_completed_jobs_dont_execute:
       completed_jobs_dont_execute job_cost sched.
 
-    (* Also assume that jobs do not execute in parallel and that
+    (* Also assume that jobs are sequential and that
        there exists at least one processor. *)
-    Hypothesis H_no_parallelism:
-      jobs_dont_execute_in_parallel sched.
+    Hypothesis H_sequential_jobs: sequential_jobs sched.
     Hypothesis H_at_least_one_cpu :
       num_cpus > 0.
 
     (* Assume that we have a task set where all tasks have valid
-       parameters and restricted deadlines, ... *)
+       parameters and constrained deadlines, ... *)
     Variable ts: taskset_of sporadic_task.
     Hypothesis H_valid_task_parameters:
       valid_sporadic_taskset task_cost task_period task_deadline ts.
-    Hypothesis H_restricted_deadlines:
+    Hypothesis H_constrained_deadlines:
       forall tsk, tsk \in ts -> task_deadline tsk <= task_period tsk.
 
     (* ... and that all jobs in the arrival sequence come from the task set. *)
@@ -178,7 +177,7 @@ Module ResponseTimeAnalysisEDF.
           rename H_all_previous_jobs_completed_on_time into BEFOREok,
                  H_valid_job_parameters into PARAMS,
                  H_valid_task_parameters into TASK_PARAMS,
-                 H_restricted_deadlines into RESTR,
+                 H_constrained_deadlines into RESTR,
                  H_tasks_miss_no_deadlines into NOMISS.
           unfold x, task_interference.
           have INts := bertogna_edf_tsk_other_in_ts.
@@ -277,7 +276,7 @@ Module ResponseTimeAnalysisEDF.
                H_all_previous_jobs_completed_on_time into BEFOREok,
                H_tasks_miss_no_deadlines into NOMISS,
                H_rt_bounds_contains_all_tasks into UNZIP,
-               H_restricted_deadlines into RESTR,
+               H_constrained_deadlines into RESTR,
                H_work_conserving into WORK.
         unfold x, X, total_interference, task_interference.
         move => t /andP [LEt LTt] BACK.
@@ -320,7 +319,7 @@ Module ResponseTimeAnalysisEDF.
                H_all_previous_jobs_completed_on_time into BEFOREok,
                H_tasks_miss_no_deadlines into NOMISS,
                H_rt_bounds_contains_all_tasks into UNZIP,
-               H_restricted_deadlines into RESTR.
+               H_constrained_deadlines into RESTR.
         unfold sporadic_task_model in *.
         unfold x, X, total_interference, task_interference.
         rewrite -big_mkcond -exchange_big big_distrl /=.
@@ -360,7 +359,7 @@ Module ResponseTimeAnalysisEDF.
                H_tsk_R_in_rt_bounds into INbounds,
                H_all_previous_jobs_completed_on_time into BEFOREok,
                H_tasks_miss_no_deadlines into NOMISS,
-               H_restricted_deadlines into RESTR.
+               H_constrained_deadlines into RESTR.
         unfold sporadic_task_model in *.
         intros delta HAS.
         set some_interference_A := fun t =>

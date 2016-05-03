@@ -254,23 +254,22 @@ Module Interference.
 
       Variable t1 t2: time.
       
-      (* Assume that jobs do not execute in parallel, ...*)
-      Hypothesis no_parallelism:
-        jobs_dont_execute_in_parallel sched.
+      (* Assume that jobs are sequential, ...*)
+      Hypothesis H_sequential_jobs: sequential_jobs sched.
 
       (* ..., and that jobs only execute after the jitter
          and no longer than their execution costs. *)
-      Hypothesis jobs_execute_after_jitter:
+      Hypothesis H_jobs_execute_after_jitter:
         jobs_execute_after_jitter job_jitter sched.
-      Hypothesis completed_jobs_dont_execute:
+      Hypothesis H_completed_jobs_dont_execute:
         completed_jobs_dont_execute job_cost sched.
 
-      Let j_has_actually_arrived_by := has_actually_arrived_by job_jitter j.
+      Let j_jitter_has_passed := jitter_has_passed job_jitter j.
       
       (* If job j had actually by time t1 and did not yet
          complete by time t2, ...*)
-      Hypothesis job_has_actually_arrived : j_has_actually_arrived_by t1.
-      Hypothesis job_is_not_complete : ~~ completed job_cost sched j t2.
+      Hypothesis H_job_has_actually_arrived : j_jitter_has_passed t1.
+      Hypothesis H_job_is_not_complete : ~~ completed job_cost sched j t2.
 
       (* then the service received by j during [t1, t2) equals
          the cumulative time in which it did not incur interference. *)
@@ -280,10 +279,10 @@ Module Interference.
       Proof.
         unfold completed, total_interference, job_is_backlogged,
                backlogged, service_during, pending.
-        rename no_parallelism into NOPAR,
-               jobs_execute_after_jitter into JITTER,
-               completed_jobs_dont_execute into COMP,
-               job_is_not_complete into NOTCOMP.
+        rename H_sequential_jobs into NOPAR,
+               H_jobs_execute_after_jitter into JITTER,
+               H_completed_jobs_dont_execute into COMP,
+               H_job_is_not_complete into NOTCOMP.
 
         (* Reorder terms... *)
         apply/eqP; rewrite subh4; first last.

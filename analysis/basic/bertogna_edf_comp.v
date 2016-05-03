@@ -867,8 +867,8 @@ Module ResponseTimeIterationEDF.
       Hypothesis H_valid_task_parameters:
         valid_sporadic_taskset task_cost task_period task_deadline ts.
 
-      (* ...restricted deadlines, ...*)
-      Hypothesis H_restricted_deadlines:
+      (* ...constrained deadlines, ...*)
+      Hypothesis H_constrained_deadlines:
         forall tsk, tsk \in ts -> task_deadline tsk <= task_period tsk.
 
       (* Next, consider any arrival sequence such that...*)
@@ -889,19 +889,17 @@ Module ResponseTimeIterationEDF.
       
       (* Then, consider any platform with at least one CPU such that...*)
       Variable sched: schedule num_cpus arr_seq.
-      Hypothesis H_at_least_one_cpu :
-        num_cpus > 0.
+      Hypothesis H_at_least_one_cpu: num_cpus > 0.
 
       (* ...jobs only execute after they arrived and no longer
-         than their execution costs,... *)
+         than their execution costs. *)
       Hypothesis H_jobs_must_arrive_to_execute:
         jobs_must_arrive_to_execute sched.
       Hypothesis H_completed_jobs_dont_execute:
         completed_jobs_dont_execute job_cost sched.
 
-      (* ...and do not execute in parallel. *)
-      Hypothesis H_no_parallelism:
-        jobs_dont_execute_in_parallel sched.
+      (* Also assume that jobs are sequential. *) 
+      Hypothesis H_sequential_jobs: sequential_jobs sched.
 
       (* Assume a work-conserving scheduler with EDF policy. *)
       Hypothesis H_work_conserving: work_conserving job_cost sched.
@@ -911,6 +909,8 @@ Module ResponseTimeIterationEDF.
         task_misses_no_deadline job_cost job_deadline job_task sched tsk.
       Definition no_deadline_missed_by_job :=
         job_misses_no_deadline job_cost job_deadline sched.
+      Let response_time_bounded_by (tsk: sporadic_task) :=
+        is_response_time_bound_of_task job_cost job_task tsk sched.
 
       (* In the following theorem, we prove that any response-time bound contained
          in edf_claimed_bounds is safe. The proof follows by direct application of
@@ -918,9 +918,7 @@ Module ResponseTimeIterationEDF.
       Theorem edf_analysis_yields_response_time_bounds :
         forall tsk R,
           (tsk, R) \In edf_claimed_bounds ts ->
-          forall j : JobIn arr_seq,
-            job_task j = tsk ->
-            completed job_cost sched j (job_arrival j + R).
+          response_time_bounded_by tsk R.
       Proof.
         intros tsk R IN j JOBj.
         destruct (edf_claimed_bounds ts) as [rt_bounds |] eqn:SOME; last by done.
@@ -948,7 +946,7 @@ Module ResponseTimeIterationEDF.
                valid_sporadic_job in *.
         rename H_valid_job_parameters into JOBPARAMS,
                H_valid_task_parameters into TASKPARAMS,
-               H_restricted_deadlines into RESTR,
+               H_constrained_deadlines into RESTR,
                H_completed_jobs_dont_execute into COMP,
                H_jobs_must_arrive_to_execute into MUSTARRIVE,
                H_all_jobs_from_taskset into ALLJOBS,

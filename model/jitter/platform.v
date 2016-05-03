@@ -176,9 +176,8 @@ Module Platform.
         Hypothesis H_all_jobs_from_taskset:
           forall (j: JobIn arr_seq), job_task j \in ts.
 
-        (* Suppose that a single job does not execute in parallel, ...*)
-        Hypothesis H_no_parallelism:
-          jobs_dont_execute_in_parallel sched.
+        (* Suppose that jobs are sequential, ...*)
+        Hypothesis H_sequential_jobs: sequential_jobs sched.
         (* ... jobs only execute after the jitter, ... *)
         Hypothesis H_jobs_execute_after_jitter:
           jobs_execute_after_jitter job_jitter sched.
@@ -224,7 +223,7 @@ Module Platform.
           intros j1 j2 PENDING1 PENDING2 SAMEtsk.
           apply/eqP; rewrite -[_ == _]negbK; apply/negP; red; move => /eqP DIFF. 
           move: PENDING1 PENDING2 => /andP [ARRIVED1 /negP NOTCOMP1] /andP [ARRIVED2 /negP NOTCOMP2].
-          unfold has_actually_arrived_by, actual_arrival in *.
+          unfold jitter_has_passed, actual_arrival in *.
           destruct (leqP (job_arrival j1) (job_arrival j2)) as [BEFORE1 | BEFORE2].
           {
             specialize (SPO j1 j2 DIFF SAMEtsk BEFORE1).
@@ -256,7 +255,7 @@ Module Platform.
           count (scheduled_task_other_than tsk) ts = num_cpus.
         Proof.
           rename H_all_jobs_from_taskset into FROMTS,
-                 H_no_parallelism into SEQUENTIAL,
+                 H_sequential_jobs into SEQUENTIAL,
                  H_work_conserving into WORK,
                  H_enforces_JLDP_policy into PRIO,
                  H_j_backlogged into BACK,
@@ -272,7 +271,7 @@ Module Platform.
                  task_precedence_constraints, completed_jobs_dont_execute,
                  sporadic_task_model, is_valid_sporadic_task,
                  jobs_of_same_task_dont_execute_in_parallel,
-                 jobs_dont_execute_in_parallel in *.  
+                 sequential_jobs in *.  
           have UNIQ := platform_at_most_one_pending_job_of_each_task.
           apply/eqP; rewrite eqn_leq; apply/andP; split.
           {

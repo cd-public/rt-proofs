@@ -124,7 +124,7 @@ Module ResponseTimeAnalysisEDF.
       - apply scheduler_completed_jobs_dont_execute; intro j'.
         -- by specialize (VALID j'); des.
         -- by apply periodic_arrivals_is_a_set.
-      - by apply scheduler_no_parallelism, periodic_arrivals_is_a_set.
+      - by apply scheduler_sequential_jobs, periodic_arrivals_is_a_set.
       - by apply scheduler_work_conserving.
       - by apply scheduler_enforces_policy; ins.
       - by apply schedulability_test_succeeds.

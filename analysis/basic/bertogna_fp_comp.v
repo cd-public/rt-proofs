@@ -530,8 +530,8 @@ Module ResponseTimeIterationFP.
       Hypothesis H_valid_task_parameters:
         valid_sporadic_taskset task_cost task_period task_deadline ts.
 
-      (* ...restricted deadlines, ...*)
-      Hypothesis H_restricted_deadlines:
+      (* ...constrained deadlines, ...*)
+      Hypothesis H_constrained_deadlines:
         forall tsk, tsk \in ts -> task_deadline tsk <= task_period tsk.
 
       (* ...and tasks are ordered by increasing priorities. *)
@@ -559,15 +559,14 @@ Module ResponseTimeIterationFP.
         num_cpus > 0.
 
       (* ...jobs only execute after they arrived and no longer
-         than their execution costs,... *)
+         than their execution costs. *)
       Hypothesis H_jobs_must_arrive_to_execute:
         jobs_must_arrive_to_execute sched.
       Hypothesis H_completed_jobs_dont_execute:
         completed_jobs_dont_execute job_cost sched.
 
-      (* ...and do not execute in parallel (required by the workload bound). *)
-      Hypothesis H_no_parallelism:
-        jobs_dont_execute_in_parallel sched.
+      (* Also assume that jobs are sequential (as required by the workload bound). *)
+      Hypothesis H_sequential_jobs: sequential_jobs sched.
 
       (* Assume that the scheduler is work-conserving and enforces the FP policy. *)
       Hypothesis H_work_conserving: work_conserving job_cost sched.

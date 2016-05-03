@@ -108,8 +108,8 @@ Module Schedule.
     Context {num_cpus: nat}.
     Variable sched: schedule num_cpus arr_seq.
 
-    (* Next, we define whether job parallelism is disallowed, ... *)
-    Definition jobs_dont_execute_in_parallel :=
+    (* Next, we define whether job are sequential, ... *)
+    Definition sequential_jobs :=
       forall j t cpu1 cpu2,
         sched cpu1 t = Some j -> sched cpu2 t = Some j -> cpu1 = cpu2.
 
@@ -212,17 +212,16 @@ Module Schedule.
       
     End Basic.
     
-    Section NoParallelism.
+    Section SequentialJobs.
 
-      (* If jobs cannot execute in parallel, then... *)
-      Hypothesis no_parallelism:
-        jobs_dont_execute_in_parallel sched.
+      (* If jobs are sequential, then... *)
+      Hypothesis H_sequential_jobs: sequential_jobs sched.
 
       (* ..., the service received by job j at any time t is at most 1, ... *)
       Lemma service_at_most_one :
         forall t, service_at sched j t <= 1.
       Proof.
-        unfold service_at, jobs_dont_execute_in_parallel in *; ins.
+        unfold service_at, sequential_jobs in *; ins.
         destruct (scheduled sched j t) eqn:SCHED; unfold scheduled in SCHED.
         {
           move: SCHED => /exists_inP SCHED; des.
@@ -238,7 +237,7 @@ Module Schedule.
           rewrite -> eq_bigr with (F2 := fun cpu => 0);
             first by rewrite /= big_const_seq iter_addn mul0n 2!addn0.
           intro i; move => /andP [/eqP NEQ /eqP SCHEDi].
-          by apply no_parallelism with (cpu1 := x) in SCHEDi; subst.
+          by apply H_sequential_jobs with (cpu1 := x) in SCHEDi; subst.
         }
         {
           apply negbT in SCHED; rewrite negb_exists_in in SCHED.
@@ -252,7 +251,7 @@ Module Schedule.
       Lemma cumulative_service_le_delta :
         forall t delta, service_during sched j t (t + delta) <= delta.
       Proof.
-        unfold service_at, jobs_dont_execute_in_parallel in *; ins.
+        unfold service_at, sequential_jobs in *; ins.
         generalize dependent t.
         induction delta.
         {
@@ -267,7 +266,7 @@ Module Schedule.
         }
       Qed.
         
-    End NoParallelism.
+    End SequentialJobs.
         
     Section Completion.
 
@@ -450,17 +449,16 @@ Module Schedule.
     
     Section Uniqueness.
 
-      (* Suppose there's no job parallelism. *)
-      Hypothesis H_no_parallelism :
-        jobs_dont_execute_in_parallel sched.
+      (* Suppose that jobs are sequential. *)
+      Hypothesis H_sequential_jobs : sequential_jobs sched.
 
       (* Then, the list of jobs scheduled at any time t has no duplicates. *)
       Lemma scheduled_jobs_uniq :
         forall t,
           uniq (jobs_scheduled_at sched t).
       Proof.
-        intros t; rename H_no_parallelism into SEQUENTIAL.
-        unfold jobs_dont_execute_in_parallel in SEQUENTIAL.
+        intros t; rename H_sequential_jobs into SEQUENTIAL.
+        unfold sequential_jobs in SEQUENTIAL.
         clear -SEQUENTIAL.
         unfold jobs_scheduled_at.
         induction num_cpus; first by rewrite big_ord0.

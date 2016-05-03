@@ -64,12 +64,12 @@ Module SporadicTaskset.
           tsk \in ts -> is_valid_task tsk.
 
       (* A task set can satisfy one of three deadline models:
-         implicit, restricted, or arbitrary. *)
+         implicit, constrained, or arbitrary. *)
       Definition implicit_deadline_model :=
         forall tsk,
           tsk \in ts -> task_deadline tsk = task_period tsk.
 
-      Definition restricted_deadline_model :=
+      Definition constrained_deadline_model :=
         forall tsk,
           tsk \in ts -> task_deadline tsk <= task_period tsk.
 

@@ -265,22 +265,21 @@ Module Interference.
 
       Variable t1 t2: time.
       
-      (* Assume that jobs do not execute in parallel, ...*)
-      Hypothesis no_parallelism:
-        jobs_dont_execute_in_parallel sched.
+      (* Assume that jobs are sequential, ...*)
+      Hypothesis H_sequential_jobs: sequential_jobs sched.
 
       (* ..., and that jobs only execute after they arrived
          and no longer than their execution costs. *)
-      Hypothesis jobs_must_arrive_to_execute:
+      Hypothesis H_jobs_must_arrive_to_execute:
         jobs_must_arrive_to_execute sched.
-      Hypothesis completed_jobs_dont_execute:
+      Hypothesis H_completed_jobs_dont_execute:
         completed_jobs_dont_execute job_cost sched.
 
       (* If job j had already arrived at time t1 and did not yet
          complete by time t2, ...*)
-      Hypothesis job_has_arrived :
+      Hypothesis H_job_has_arrived :
         has_arrived j t1.
-      Hypothesis job_is_not_complete :
+      Hypothesis H_job_is_not_complete :
         ~~ completed job_cost sched j t2.
 
       (* ... then the service received by j during [t1, t2) equals
@@ -291,10 +290,10 @@ Module Interference.
       Proof.
         unfold completed, total_interference, job_is_backlogged,
                backlogged, service_during, pending.
-        rename no_parallelism into NOPAR,
-               jobs_must_arrive_to_execute into MUSTARRIVE,
-               completed_jobs_dont_execute into COMP,
-               job_is_not_complete into NOTCOMP.
+        rename H_sequential_jobs into NOPAR,
+               H_jobs_must_arrive_to_execute into MUSTARRIVE,
+               H_completed_jobs_dont_execute into COMP,
+               H_job_is_not_complete into NOTCOMP.
 
         (* Reorder terms... *)
         apply/eqP; rewrite subh4; first last.

@@ -49,22 +49,20 @@ Module ResponseTimeAnalysisFP.
     Hypothesis H_completed_jobs_dont_execute:
       completed_jobs_dont_execute job_cost sched.
 
-    (* Also assume that jobs do not execute in parallel and that
-       there exists at least one processor. *)
-    Hypothesis H_no_parallelism:
-      jobs_dont_execute_in_parallel sched.
-    Hypothesis H_at_least_one_cpu :
-      num_cpus > 0.
+    (* Also assume that jobs are sequential and that there exists
+       at least one processor. *)
+    Hypothesis H_sequential_jobs: sequential_jobs sched.
+    Hypothesis H_at_least_one_cpu: num_cpus > 0.
 
     (* Assume that we have a task set (with no duplicates) where all jobs
-       come from the task set and all tasks have valid parameters and restricted deadlines. *)
+       come from the task set and all tasks have valid parameters and constrained deadlines. *)
     Variable ts: taskset_of sporadic_task.
     Hypothesis H_ts_is_a_set: uniq ts.
     Hypothesis H_all_jobs_from_taskset:
       forall (j: JobIn arr_seq), job_task j \in ts.
     Hypothesis H_valid_task_parameters:
       valid_sporadic_taskset task_cost task_period task_deadline ts.
-    Hypothesis H_restricted_deadlines:
+    Hypothesis H_constrained_deadlines:
       forall tsk, tsk \in ts -> task_deadline tsk <= task_period tsk.
 
     (* Next, consider a task tsk that is to be analyzed. *)
@@ -73,7 +71,7 @@ Module ResponseTimeAnalysisFP.
 
     Let no_deadline_is_missed_by_tsk (tsk: sporadic_task) :=
       task_misses_no_deadline job_cost job_deadline job_task sched tsk.
-    Let is_response_time_bound (tsk: sporadic_task) :=
+    Let response_time_bounded_by (tsk: sporadic_task) :=
       is_response_time_bound_of_task job_cost job_task tsk sched.
 
     (* Assume a known response-time bound for any interfering task *)
@@ -93,7 +91,7 @@ Module ResponseTimeAnalysisFP.
     Hypothesis H_response_time_of_interfering_tasks_is_known:
       forall hp_tsk R,
         (hp_tsk, R) \in hp_bounds ->
-        is_response_time_bound_of_task job_cost job_task hp_tsk sched (task_jitter hp_tsk + R).
+        response_time_bounded_by hp_tsk (task_jitter hp_tsk + R).
 
     (* Assume that the response-time bounds are larger than task costs. *)
     Hypothesis H_response_time_bounds_ge_cost:
@@ -193,11 +191,11 @@ Module ResponseTimeAnalysisFP.
         Lemma bertogna_fp_workload_bounds_interference :
           x tsk_other <= workload_bound tsk_other R_other.
         Proof.
-          unfold is_response_time_bound, is_response_time_bound_of_task,
+          unfold response_time_bounded_by, is_response_time_bound_of_task,
                  completed, completed_jobs_dont_execute, valid_sporadic_job in *.
           rename H_valid_job_parameters into PARAMS,
                  H_valid_task_parameters into TASK_PARAMS,
-                 H_restricted_deadlines into RESTR,
+                 H_constrained_deadlines into RESTR,
                  H_response_time_of_interfering_tasks_is_known into RESP,
                  H_interfering_tasks_miss_no_deadlines into NOMISS,
                  H_response_time_bounds_ge_cost into GE_COST.
@@ -286,7 +284,7 @@ Module ResponseTimeAnalysisFP.
                H_all_jobs_from_taskset into FROMTS,
                H_sporadic_tasks into SPO,
                H_valid_job_parameters into JOBPARAMS,
-               H_restricted_deadlines into RESTR,
+               H_constrained_deadlines into RESTR,
                H_hp_bounds_has_interfering_tasks into UNZIP,
                H_interfering_tasks_miss_no_deadlines into NOMISS,
                H_response_time_of_interfering_tasks_is_known into PREV,
@@ -590,7 +588,7 @@ Module ResponseTimeAnalysisFP.
     
     (* Using the lemmas above, we prove that R' bounds the response time of task tsk. *)
     Theorem bertogna_cirinei_response_time_bound_fp :
-      is_response_time_bound tsk (task_jitter tsk + R).
+      response_time_bounded_by tsk (task_jitter tsk + R).
     Proof.
       rename H_valid_job_parameters into PARAMS.
       unfold valid_sporadic_job_with_jitter, valid_sporadic_job in *.

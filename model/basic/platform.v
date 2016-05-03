@@ -174,9 +174,8 @@ Module Platform.
         Hypothesis H_all_jobs_from_taskset:
           forall (j: JobIn arr_seq), job_task j \in ts.
 
-        (* Suppose that a single job does not execute in parallel, ...*)
-        Hypothesis H_no_parallelism:
-          jobs_dont_execute_in_parallel sched.
+        (* Suppose that jobs are sequential, ...*)
+        Hypothesis H_sequential_jobs: sequential_jobs sched.
         (* ... jobs must arrive to execute, ... *)
         Hypothesis H_completed_jobs_dont_execute:
           completed_jobs_dont_execute job_cost sched.
@@ -249,7 +248,7 @@ Module Platform.
           count (scheduled_task_other_than tsk) ts = num_cpus.
         Proof.
           rename H_all_jobs_from_taskset into FROMTS,
-                 H_no_parallelism into SEQUENTIAL,
+                 H_sequential_jobs into SEQUENTIAL,
                  H_work_conserving into WORK,
                  H_enforces_JLDP_policy into PRIO,
                  H_j_backlogged into BACK,
@@ -265,7 +264,7 @@ Module Platform.
                  task_precedence_constraints, completed_jobs_dont_execute,
                  sporadic_task_model, is_valid_sporadic_task,
                  jobs_of_same_task_dont_execute_in_parallel,
-                 jobs_dont_execute_in_parallel in *.  
+                 sequential_jobs in *.  
           have UNIQ := platform_at_most_one_pending_job_of_each_task.
           apply/eqP; rewrite eqn_leq; apply/andP; split.
           {

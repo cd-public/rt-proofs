@@ -52,9 +52,8 @@ Module PlatformFP.
       Hypothesis H_all_jobs_from_taskset:
         forall (j: JobIn arr_seq), job_task j \in ts.
 
-      (* Suppose that a single job does not execute in parallel, ...*)
-      Hypothesis H_no_parallelism:
-        jobs_dont_execute_in_parallel sched.
+      (* Suppose that jobs are sequential, ...*)
+      Hypothesis H_sequential_jobs: sequential_jobs sched.
       (* ... jobs only execute after the jitter, ... *)
       Hypothesis H_jobs_execute_after_jitter:
         jobs_execute_after_jitter job_jitter sched.
@@ -174,7 +173,7 @@ Module PlatformFP.
           by unfold is_valid_sporadic_task in *; des.
         }
         {
-          unfold has_actually_arrived_by, actual_arrival in *.
+          unfold jitter_has_passed, actual_arrival in *.
           rewrite leqNgt in ARRIVED'; move: ARRIVED' => /negP BUG; apply BUG.
           apply leq_trans with (n := job_arrival j'); last by apply leq_addr.
           apply leq_trans with (n := job_arrival j + task_period tsk); first by done.
@@ -188,7 +187,7 @@ Module PlatformFP.
         count (scheduled_task_with_higher_eq_priority tsk) ts = num_cpus.
       Proof.
         rename H_all_jobs_from_taskset into FROMTS,
-               H_no_parallelism into SEQUENTIAL,
+               H_sequential_jobs into SEQUENTIAL,
                H_work_conserving into WORK,
                H_enforces_JLDP_policy into PRIO,
                H_j_backlogged into BACK,
@@ -206,7 +205,7 @@ Module PlatformFP.
                task_precedence_constraints, completed_jobs_dont_execute,
                sporadic_task_model, is_valid_sporadic_task,
                jobs_of_same_task_dont_execute_in_parallel,
-               jobs_dont_execute_in_parallel,
+               sequential_jobs,
                can_interfere_with_tsk in *.
         have UNIQ := platform_fp_no_multiple_jobs_of_interfering_tasks.
         have UNIQ' := platform_fp_no_multiple_jobs_of_tsk. 

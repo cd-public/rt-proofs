@@ -524,8 +524,8 @@ Module ResponseTimeIterationFP.
       Hypothesis H_valid_task_parameters:
         valid_sporadic_taskset task_cost task_period task_deadline ts.
 
-      (* ...restricted deadlines, ...*)
-      Hypothesis H_restricted_deadlines:
+      (* ...constrained deadlines, ...*)
+      Hypothesis H_constrained_deadlines:
         forall tsk, tsk \in ts -> task_deadline tsk <= task_period tsk.
 
       (* ...and tasks are ordered by increasing priorities. *)

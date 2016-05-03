@@ -139,13 +139,13 @@ Module InterferenceBoundEDF.
       num_cpus > 0.
 
     (* Assume that we have a task set where all tasks have valid
-       parameters and restricted deadlines. *)
+       parameters and constrained deadlines. *)
     Variable ts: taskset_of sporadic_task.
     Hypothesis all_jobs_from_taskset:
       forall (j: JobIn arr_seq), job_task j \in ts.
     Hypothesis H_valid_task_parameters:
       valid_sporadic_taskset task_cost task_period task_deadline ts.
-    Hypothesis H_restricted_deadlines:
+    Hypothesis H_constrained_deadlines:
       forall tsk, tsk \in ts -> task_deadline tsk <= task_period tsk.
 
     Let no_deadline_is_missed_by_tsk (tsk: sporadic_task) :=
@@ -555,7 +555,7 @@ Module InterferenceBoundEDF.
               apply leq_trans with (n := a_fst + p_k).
               {
                 by rewrite leq_add2l; apply leq_trans with (n := D_k);
-                  [by apply H_R_k_le_deadline | by apply H_restricted_deadlines].
+                  [by apply H_R_k_le_deadline | by apply H_constrained_deadlines].
               }
             
               (* Since jobs are sporadic, we know that the first job arrives
