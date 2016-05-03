@@ -556,23 +556,18 @@ Module InterferenceBoundEDFJitter.
                                            \sum_(a_fst + J_k + R_k <= t < a_fst + D_k) 1).
               {
                 apply leq_add; last by rewrite SUBST.
-                by unfold job_interference; apply leq_sum; ins; apply leq_b1.
+                simpl_sum_const; rewrite -{1}[_ + R_k](addKn a_i) -addnBA //;
+                  last by apply leq_trans with (n := t1); first by apply leq_addr.
+                by apply job_interference_le_delta.
               }
    
-              rewrite -big_cat_nat; simpl; last first.
+              rewrite -big_cat_nat; simpl; last by rewrite -addnA leq_add2l H_R_k_le_deadline.
               {
-                rewrite -addnA leq_add2l.
-                by apply H_R_k_le_deadline.
-              }
-              {
-                by apply leq_trans with (n := t1); first by apply leq_addr.
-              }
-              {
-                rewrite big_const_nat iter_addn mul1n addn0 leq_subLR.
-                unfold D_i, D_k, t1, a_fst.
+                simpl_sum_const; rewrite leq_subLR; unfold D_i, D_k, t1, a_fst.
                 by  rewrite -interference_bound_edf_j_fst_deadline
                             -interference_bound_edf_j_i_deadline.
               }
+              by apply leq_trans with (n := t1); first by apply leq_addr.
             Qed.
 
           End ResponseTimeOfSingleJobBounded.
@@ -652,9 +647,16 @@ Module InterferenceBoundEDFJitter.
               apply leq_trans with (n := \sum_(t1 <= t < a_fst + J_k + R_k) 1 +
                                          \sum_(a_fst + J_k + R_k <= t < a_fst + D_k)1).
               {
-                apply leq_add; unfold job_interference;
-                  first by apply leq_sum; ins; apply leq_b1.
-                rewrite big_const_nat iter_addn mul1n addn0 addnC.
+                apply leq_add; unfold job_interference.
+                {
+                  simpl_sum_const.
+                  rewrite -{1}[job_arrival j_fst + J_k + R_k](addKn t1) -addnBA;
+                    first by apply job_interference_le_delta.
+                  apply leq_trans with (n := a_i + J_i + delta); last by done.
+                  apply leq_trans with (n := a_i + J_i); last by apply leq_addr.
+                  by rewrite leq_add2l /J_i -H_job_of_tsk_i; apply PARAMS0.
+                }
+                simpl_sum_const; rewrite addnC.
                 rewrite -subnBA; last by rewrite -addnA leq_addr.
                 rewrite [a_fst + _]addnC -addnA [a_fst + _]addnC addnA.
                 rewrite -addnBA // subnn addn0.
@@ -1034,14 +1036,18 @@ Module InterferenceBoundEDFJitter.
                 apply leq_trans with (n := job_interference job_cost job_jitter sched j_i j_fst t1
                                                                               (a_fst + J_k + R_k));
                   first by apply extend_sum; rewrite ?leqnn.
-                by apply leq_sum; ins; rewrite leq_b1.
+                simpl_sum_const; rewrite -{1}[_ + _ + R_k](addKn t1) -addnBA //. 
+                by apply job_interference_le_delta.
               }
               {
                 unfold interference_caused_by, job_interference.
                 rewrite -> big_cat_nat with (n := a_fst + J_k + R_k);
                   [simpl | by apply AFTERt1 | by apply ltnW].
-                rewrite -[\sum_(_ <= _ < _) 1]addn0; apply leq_add;
-                  first by apply leq_sum; ins; apply leq_b1.
+                rewrite -[\sum_(_ <= _ < _) 1]addn0; apply leq_add.
+                {
+                  simpl_sum_const; rewrite -{1}[_ + _ + R_k](addKn t1) -addnBA //. 
+                  by apply job_interference_le_delta.
+                } 
                 apply leq_trans with (n := service_during sched j_fst (a_fst + J_k + R_k) t2);
                   first by apply job_interference_le_service.
                 rewrite leqn0; apply/eqP.

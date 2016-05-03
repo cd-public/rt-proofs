@@ -39,20 +39,30 @@ Module InterferenceEDF.
       rename H_scheduler_uses_EDF into PRIO.
       intros j j' t1 t2 INTERF.
       unfold job_interference in INTERF.
-      destruct ([exists t': 'I_t2, (t' >= t1) && backlogged job_cost job_jitter sched j' t' &&
-                                              scheduled sched j t']) eqn:EX.
+      destruct ([exists t': 'I_t2,
+                   [exists cpu: processor num_cpus,
+                      (t' >= t1) &&
+                      backlogged job_cost job_jitter sched j' t' &&
+                      scheduled_on sched j cpu t']]) eqn:EX.
       {
-        move: EX => /existsP EX; destruct EX as [t' EX];move: EX => /andP [/andP [LE BACK] SCHED].
-        by eapply PRIO in SCHED; last by apply BACK.
+        move: EX => /existsP [t' /existsP [cpu /andP [/andP [LE BACK] SCHED]]].
+        apply PRIO with (t := t'); first by done.
+        by apply/existsP; exists cpu.
       }
       {
-        apply negbT in EX; rewrite negb_exists in EX; move: EX => /forallP ALL. 
+        apply negbT in EX; rewrite negb_exists in EX; move: EX => /forallP ALL.
         rewrite big_nat_cond (eq_bigr (fun x => 0)) in INTERF;
           first by rewrite -big_nat_cond big_const_nat iter_addn mul0n  addn0 eq_refl in INTERF.
-        intros i; rewrite andbT; move => /andP [GT LT].
-        specialize (ALL (Ordinal LT)); simpl in ALL.
-        rewrite -andbA negb_and -implybE in ALL; move: ALL => /implyP ALL.
-        by specialize (ALL GT); apply/eqP; rewrite eqb0.
+        move => i /andP [/andP [GEi LTi] _].
+        specialize (ALL (Ordinal LTi)).
+        rewrite negb_exists in ALL.
+        move: ALL => /forallP ALL.
+        rewrite (eq_bigr (fun x => 0));
+          first by rewrite big_const_ord iter_addn mul0n addn0.
+        intros cpu _; specialize (ALL cpu); simpl in ALL.
+        destruct (backlogged job_cost job_jitter sched j' i); last by rewrite andFb.
+        rewrite GEi 2!andTb in ALL; rewrite andTb.
+        by apply negbTE in ALL; rewrite ALL.
       }
     Qed.
 

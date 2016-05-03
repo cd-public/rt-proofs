@@ -28,34 +28,7 @@ Module InterferenceEDF.
     Hypothesis H_scheduler_uses_EDF:
       enforces_JLDP_policy job_cost sched (EDF job_deadline). 
 
-    (* Under EDF scheduling, a job only causes sequential interference if its deadline
-       is not larger than the deadline of the analyzed job. *)
-    Lemma interference_seq_under_edf_implies_shorter_deadlines :
-      forall (j j': JobIn arr_seq) t1 t2,
-        job_interference_sequential job_cost sched j' j t1 t2 != 0 ->
-        job_arrival j + job_deadline j <= job_arrival j' + job_deadline j'.
-    Proof.
-      rename H_scheduler_uses_EDF into PRIO.
-      intros j j' t1 t2 INTERF.
-      unfold job_interference_sequential in INTERF.
-      destruct ([exists t': 'I_t2, (t' >= t1) && backlogged job_cost sched j' t' &&
-                                              scheduled sched j t']) eqn:EX.
-      {
-        move: EX => /existsP EX; destruct EX as [t' EX];move: EX => /andP [/andP [LE BACK] SCHED].
-        by eapply PRIO in SCHED; last by apply BACK.
-      }
-      {
-        apply negbT in EX; rewrite negb_exists in EX; move: EX => /forallP ALL. 
-        rewrite big_nat_cond (eq_bigr (fun x => 0)) in INTERF;
-          first by rewrite -big_nat_cond big_const_nat iter_addn mul0n  addn0 eq_refl in INTERF.
-        intros i; rewrite andbT; move => /andP [GT LT].
-        specialize (ALL (Ordinal LT)); simpl in ALL.
-        rewrite -andbA negb_and -implybE in ALL; move: ALL => /implyP ALL.
-        by specialize (ALL GT); apply/eqP; rewrite eqb0.
-      }
-    Qed.
-
-    (* Under EDF scheduling, a job only causes (parallel) interference if its deadline
+    (* Under EDF scheduling, a job only causes interference if its deadline
        is not larger than the deadline of the analyzed job. *)
     Lemma interference_under_edf_implies_shorter_deadlines :
       forall (j j': JobIn arr_seq) t1 t2,
@@ -67,11 +40,13 @@ Module InterferenceEDF.
       unfold job_interference in INTERF.
       destruct ([exists t': 'I_t2,
                    [exists cpu: processor num_cpus,
-                      (t' >= t1) && backlogged job_cost sched j' t' &&
-                                              scheduled sched j t']]) eqn:EX.
+                      (t' >= t1) &&
+                      backlogged job_cost sched j' t' &&
+                      scheduled_on sched j cpu t']]) eqn:EX.
       {
         move: EX => /existsP [t' /existsP [cpu /andP [/andP [LE BACK] SCHED]]].
-        by eapply PRIO in SCHED; last by apply BACK.
+        apply PRIO with (t := t'); first by done.
+        by apply/existsP; exists cpu.
       }
       {
         apply negbT in EX; rewrite negb_exists in EX; move: EX => /forallP ALL.
@@ -86,13 +61,10 @@ Module InterferenceEDF.
         intros cpu _; specialize (ALL cpu); simpl in ALL.
         destruct (backlogged job_cost sched j' i); last by rewrite andFb.
         rewrite GEi 2!andTb in ALL; rewrite andTb.
-        rewrite negb_exists in ALL; move: ALL => /forallP NOTSCHED.
-        specialize (NOTSCHED cpu); rewrite negb_and in NOTSCHED.
-        move: NOTSCHED => /orP [BUG | NOTSCHED]; first by done.
-        by apply/eqP; rewrite eqb0.  
+        by apply negbTE in ALL; rewrite ALL.
       }
     Qed.
-    
+
   End Lemmas.
 
 End InterferenceEDF.

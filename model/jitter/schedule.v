@@ -146,10 +146,110 @@ Module ScheduleWithJitter.
 
 End ScheduleWithJitter.
 
-Module ScheduleOfSporadicTask.
-  
-  (* The model for sporadic tasks can be safely imported. *)
-  Require Import rt.model.basic.schedule.
-  Export ScheduleOfSporadicTask.
+(* Specific properties of a schedule of sporadic jobs. *)
+Module ScheduleOfSporadicTaskWithJitter.
 
-End ScheduleOfSporadicTask.
+  Import SporadicTask Job.
+  Export ScheduleWithJitter.
+
+  Section ScheduledJobs.
+
+    Context {sporadic_task: eqType}.
+    Context {Job: eqType}.
+    Variable job_task: Job -> sporadic_task.
+    
+    (* Consider any schedule. *)
+    Context {arr_seq: arrival_sequence Job}.
+    Context {num_cpus: nat}.
+    Variable sched: schedule num_cpus arr_seq.
+
+    (* Given a task tsk, ...*)
+    Variable tsk: sporadic_task.
+
+    (* ..., we we can state that tsk is scheduled on cpu at time t as follows. *)
+    Definition task_scheduled_on (cpu: processor num_cpus) (t: time) :=
+      if (sched cpu t) is Some j then
+        (job_task j == tsk)
+      else false.
+
+    (* Likewise, we can state that tsk is scheduled on some processor. *)
+      Definition task_is_scheduled (t: time) :=
+        [exists cpu, task_scheduled_on cpu t].
+    
+    (* We also define the list of jobs scheduled during [t1, t2). *)
+    Definition jobs_of_task_scheduled_between (t1 t2: time) :=
+      filter (fun (j: JobIn arr_seq) => job_task j == tsk)
+             (jobs_scheduled_between sched t1 t2).
+    
+  End ScheduledJobs.
+  
+  Section ScheduleProperties.
+
+    Context {sporadic_task: eqType}.
+    Context {Job: eqType}.    
+    Variable job_cost: Job -> time.
+    Variable job_jitter: Job -> time.
+    Variable job_task: Job -> sporadic_task.
+
+    (* Consider any schedule. *)
+    Context {arr_seq: arrival_sequence Job}.
+    Context {num_cpus: nat}.
+    Variable sched: schedule num_cpus arr_seq.
+
+    (* Next we define intra-task parallelism, ... *)
+    Definition jobs_of_same_task_dont_execute_in_parallel :=
+      forall (j j': JobIn arr_seq) t,
+        job_task j = job_task j' ->
+        scheduled sched j t -> scheduled sched j' t -> j = j'.
+
+    (* ... and task precedence constraints. *)
+    Definition task_precedence_constraints :=
+      forall (j j': JobIn arr_seq) t,
+        job_task j = job_task j' ->
+        job_arrival j < job_arrival j' ->
+        pending job_cost job_jitter sched j t -> ~~ scheduled sched j' t.
+    
+  End ScheduleProperties.
+
+  Section BasicLemmas.
+
+    (* Assume the job cost and task are known. *)
+    Context {sporadic_task: eqType}.
+    Variable task_cost: sporadic_task -> time.
+    Variable task_deadline: sporadic_task -> time.
+    
+    Context {Job: eqType}.    
+    Variable job_cost: Job -> time.
+    Variable job_deadline: Job -> time.
+    Variable job_task: Job -> sporadic_task.
+
+    (* Then, in a valid schedule of sporadic tasks ...*)
+    Context {arr_seq: arrival_sequence Job}.
+    Context {num_cpus: nat}.
+    Variable sched: schedule num_cpus arr_seq.
+
+    (* ...such that jobs do not execute after completion, ...*)
+    Hypothesis jobs_dont_execute_after_completion :
+       completed_jobs_dont_execute job_cost sched.
+
+    Variable tsk: sporadic_task.
+    
+    Variable j: JobIn arr_seq.
+    Hypothesis H_job_of_task: job_task j = tsk.
+    Hypothesis valid_job:
+      valid_sporadic_job task_cost task_deadline job_cost job_deadline job_task j.
+    
+    (* Remember that for any job of tsk, service <= task_cost tsk *)
+    Lemma cumulative_service_le_task_cost :
+        forall t t',
+          service_during sched j t t' <= task_cost tsk.
+    Proof.
+      rename valid_job into VALID; unfold valid_sporadic_job in *; ins; des.
+      apply leq_trans with (n := job_cost j);
+        last by rewrite -H_job_of_task; apply VALID0.
+      by apply cumulative_service_le_job_cost.
+    Qed.
+
+  End BasicLemmas.
+  
+End ScheduleOfSporadicTaskWithJitter.

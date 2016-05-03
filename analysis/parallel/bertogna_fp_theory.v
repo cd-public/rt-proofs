@@ -9,7 +9,7 @@ Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop div path.
 
 Module ResponseTimeAnalysisFP.
 
-  Export Job SporadicTaskset Schedule Workload Interference InterferenceBoundFP
+  Export Job SporadicTaskset ScheduleOfSporadicTask Workload Interference InterferenceBoundFP
          Platform PlatformFP Schedulability ResponseTime Priority SporadicTaskArrival WorkloadBound.
     
   Section ResponseTimeBound.
@@ -281,23 +281,23 @@ Module ResponseTimeAnalysisFP.
           rewrite (bigD1_seq (job_task j_other)) /=; last by rewrite filter_uniq.
           {
             rewrite (eq_bigr (fun i => 0));
-              last by intros i DIFF; rewrite /schedules_job_of_task SCHED;apply/eqP;rewrite eqb0 eq_sym.
+              last by intros i DIFF; rewrite /task_scheduled_on SCHED;apply/eqP;rewrite eqb0 eq_sym.
             rewrite big_const_seq iter_addn mul0n 2!addn0; apply/eqP; rewrite eqb1.
-            by unfold schedules_job_of_task; rewrite SCHED.
+            by unfold task_scheduled_on; rewrite SCHED.
           }
           rewrite mem_filter; apply/andP; split; last by apply FROMTS.
           unfold can_interfere_with_tsk, fp_can_interfere_with.
           apply/andP; split.
           {
             rewrite -JOBtsk; apply FP with (t := t); first by done.
-            by apply/exists_inP; exists cpu; last by apply/eqP. 
+            by apply/existsP; exists cpu; apply/eqP. 
           }
           {
             apply/eqP; intro SAMEtsk.
             assert (SCHED': scheduled sched j_other t).
             {
               unfold scheduled, scheduled_on.
-              by apply/exists_inP; exists cpu; [by done | rewrite SCHED].
+              by apply/existsP; exists cpu; rewrite SCHED.
             } clear SCHED; rename SCHED' into SCHED.
             move: (SCHED) => PENDING.
             apply scheduled_implies_pending with (job_cost0 := job_cost) in PENDING; try (by done).

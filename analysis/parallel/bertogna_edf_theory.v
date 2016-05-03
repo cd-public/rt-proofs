@@ -290,9 +290,9 @@ Module ResponseTimeAnalysisEDF.
         rewrite (bigD1_seq (job_task j_other)) /=; last by rewrite filter_uniq.
         {
           rewrite (eq_bigr (fun i => 0));
-            last by intros i DIFF; rewrite /schedules_job_of_task SCHED;apply/eqP;rewrite eqb0 eq_sym.
+            last by intros i DIFF; rewrite /task_scheduled_on SCHED;apply/eqP;rewrite eqb0 eq_sym.
           rewrite big_const_seq iter_addn mul0n 2!addn0; apply/eqP; rewrite eqb1.
-          by unfold schedules_job_of_task; rewrite SCHED.
+          by unfold task_scheduled_on; rewrite SCHED.
         }
         rewrite mem_filter; apply/andP; split; last by apply FROMTS.
         unfold jldp_can_interfere_with.
@@ -300,7 +300,7 @@ Module ResponseTimeAnalysisEDF.
         assert (SCHED': scheduled sched j_other t).
         {
           unfold scheduled, scheduled_on.
-          by apply/exists_inP; exists cpu; [by done | rewrite SCHED].
+          by apply/existsP; exists cpu; rewrite SCHED.
         }
         clear SCHED; rename SCHED' into SCHED.
         move: (SCHED) => PENDING.

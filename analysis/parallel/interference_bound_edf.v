@@ -240,9 +240,9 @@ Module InterferenceBoundEDF.
             last by rewrite andFb (eq_bigr (fun x => 0));
               first by rewrite big_const_seq iter_addn mul0n addn0.
           rewrite andTb.
-          destruct (schedules_job_of_task job_task sched tsk_k cpu t) eqn:SCHED;
+          destruct (task_scheduled_on job_task sched tsk_k cpu t) eqn:SCHED;
             last by done.
-          unfold schedules_job_of_task in *.
+          unfold task_scheduled_on in *.
           destruct (sched cpu t) eqn:SOME; last by done.
           rewrite big_mkcond /= (bigD1_seq j) /=; last by apply undup_uniq.
           {

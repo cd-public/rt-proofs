@@ -159,8 +159,7 @@ Module ConcreteScheduler.
           exists (cpu: processor num_cpus),
             nth_or_none (sorted_jobs t) cpu = Some j. 
       Proof.
-        intros j t SCHED.
-        move: SCHED => /exists_inP [cpu INcpu /eqP SCHED]; exists cpu.
+        move => j t /existsP [cpu /eqP SCHED]; exists cpu.
         by apply scheduler_nth_or_none_mapping.
       Qed.
 
@@ -186,7 +185,7 @@ Module ConcreteScheduler.
         exists n; split; first by done.
         rewrite leqNgt; apply/negP; red; intro LT.
         apply NOTCOMP; clear NOTCOMP PENDING.
-        apply/exists_inP; exists (Ordinal LT); [by done | apply/eqP].
+        apply/existsP; exists (Ordinal LT); apply/eqP.
         unfold sorted_jobs in *; clear sorted_jobs.
         unfold sched, scheduler, schedule_prefix in *; clear sched.
         destruct t. 
@@ -225,7 +224,7 @@ Module ConcreteScheduler.
     Proof.
       unfold jobs_must_arrive_to_execute.
       intros j t SCHED.
-      move: SCHED => /existsP [cpu /andP [INcpu /eqP SCHED]].
+      move: SCHED => /existsP [cpu /eqP SCHED].
       unfold sched, scheduler, schedule_prefix in SCHED.
       destruct t.
       {

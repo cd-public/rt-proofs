@@ -49,7 +49,7 @@ Module Schedule.
     
     (* A job j is scheduled at time t iff there exists a cpu where it is mapped.*)
     Definition scheduled (t: time) :=
-      [exists cpu in 'I_(num_cpus), scheduled_on cpu t].
+      [exists cpu, scheduled_on cpu t].
 
     (* A processor cpu is idle at time t if it doesn't contain any jobs. *)
     Definition is_idle (cpu: 'I_(num_cpus)) (t: time) :=
@@ -150,21 +150,19 @@ Module Schedule.
         unfold scheduled, service_at, scheduled_on; intros t; apply/idP/idP.
         {
           intros NOTSCHED.
-          rewrite negb_exists_in in NOTSCHED.
-          move: NOTSCHED => /forall_inP NOTSCHED.
+          rewrite negb_exists in NOTSCHED.
+          move: NOTSCHED => /forallP NOTSCHED.
           rewrite big_seq_cond.
           rewrite -> eq_bigr with (F2 := fun i => 0);
             first by rewrite big_const_seq iter_addn mul0n addn0.
-          move => cpu /andP [_ SCHED].
-          exploit (NOTSCHED cpu); [by ins | clear NOTSCHED].
-          by move: SCHED => /eqP SCHED; rewrite SCHED eq_refl.
+          move => cpu /andP [_ /eqP SCHED].
+          by specialize (NOTSCHED cpu); rewrite SCHED eq_refl in NOTSCHED.
         }
         {
           intros NOSERV; rewrite big_mkcond -sum_nat_eq0_nat in NOSERV.
           move: NOSERV => /allP ALL.
-          rewrite negb_exists; apply/forall_inP.
-          move => x /andP [IN SCHED].
-          by exploit (ALL x); [by apply mem_index_enum | by desf].
+          rewrite negb_exists; apply/forallP; intros cpu.
+          exploit (ALL cpu); [by apply mem_index_enum | by desf].
         }
       Qed.
 
@@ -224,25 +222,21 @@ Module Schedule.
         unfold service_at, sequential_jobs in *; ins.
         destruct (scheduled sched j t) eqn:SCHED; unfold scheduled in SCHED.
         {
-          move: SCHED => /exists_inP SCHED; des.
-          move: H2 => /eqP SCHED.
-          rewrite -big_filter.
-          rewrite (bigD1_seq x);
-            [simpl | | by rewrite filter_index_enum enum_uniq]; last first.
-          {
-            by rewrite mem_filter; apply/andP; split;
-              [by apply/eqP | by rewrite mem_index_enum].
-          }
+          move: SCHED => /existsP [cpu SCHED]; des.
+          rewrite -big_filter (bigD1_seq cpu);
+            [simpl | | by rewrite filter_index_enum enum_uniq];
+              last by rewrite mem_filter; apply/andP; split.
           rewrite -big_filter -filter_predI big_filter.
           rewrite -> eq_bigr with (F2 := fun cpu => 0);
             first by rewrite /= big_const_seq iter_addn mul0n 2!addn0.
-          intro i; move => /andP [/eqP NEQ /eqP SCHEDi].
-          by apply H_sequential_jobs with (cpu1 := x) in SCHEDi; subst.
+          intro cpu'; move => /andP [/eqP NEQ /eqP SCHED'].
+          exfalso; apply NEQ.
+          by apply H_sequential_jobs with (j := j) (t := t); last by apply/eqP.
         }
         {
-          apply negbT in SCHED; rewrite negb_exists_in in SCHED.
-          move: SCHED => /forall_inP SCHED.
-          by rewrite big_pred0; red; ins; apply negbTE, SCHED.
+          apply negbT in SCHED; rewrite negb_exists in SCHED.
+          move: SCHED => /forallP SCHED.
+          rewrite big_pred0; red; ins; apply negbTE, SCHED.
         }
       Qed.
 
@@ -339,11 +333,9 @@ Module Schedule.
                             (b := has_arrived j t) in ARR;
           last by rewrite -ltnNge.
         apply/eqP; rewrite -leqn0; unfold service_at.
-        rewrite -> eq_bigr with (F2 := fun cpu => 0);
-          first by rewrite big_const_seq iter_addn mul0n addn0.
-        intros i SCHED; move: ARR; rewrite negb_exists_in; move => /forall_inP ARR.
-        unfold scheduled_on in *.
-        by exploit (ARR i); [by ins | ins]; destruct (sched i t == Some j).
+        rewrite big_pred0 //; red.
+        intros cpu; apply negbTE.
+        by move: ARR; rewrite negb_exists; move => /forallP ARR; apply ARR.
       Qed.
 
       (* The same applies for the cumulative service received by job j. *)
@@ -434,12 +426,12 @@ Module Schedule.
         {
           intros IN.
           apply mem_bigcat_ord_exists in IN; des.
-          apply/exists_inP; exists i; first by done.
+          apply/existsP; exists i.
           destruct (sched i t); last by done.
           by rewrite mem_seq1 in IN; move: IN => /eqP IN; subst.
         }
         {
-          move => /exists_inP EX; destruct EX as [i IN SCHED].
+          move => /existsP EX; destruct EX as [i SCHED].
           apply mem_bigcat_ord with (j := i); first by apply ltn_ord.
           by move: SCHED => /eqP SCHED; rewrite SCHED /= mem_seq1 eq_refl.
         }
@@ -524,7 +516,8 @@ End Schedule.
 (* Specific properties of a schedule of sporadic jobs. *)
 Module ScheduleOfSporadicTask.
 
-  Import SporadicTask Job Schedule.
+  Import SporadicTask Job.
+  Export Schedule.
 
   Section ScheduledJobs.
 
@@ -540,11 +533,21 @@ Module ScheduleOfSporadicTask.
     (* Given a task tsk, ...*)
     Variable tsk: sporadic_task.
 
-    (* ..., we define the list of jobs scheduled during [t1, t2). *)
+    (* ..., we we can state that tsk is scheduled on cpu at time t as follows. *)
+    Definition task_scheduled_on (cpu: processor num_cpus) (t: time) :=
+      if (sched cpu t) is Some j then
+        (job_task j == tsk)
+      else false.
+
+    (* Likewise, we can state that tsk is scheduled on some processor. *)
+      Definition task_is_scheduled (t: time) :=
+        [exists cpu, task_scheduled_on cpu t].
+    
+    (* We also define the list of jobs scheduled during [t1, t2). *)
     Definition jobs_of_task_scheduled_between (t1 t2: time) :=
       filter (fun (j: JobIn arr_seq) => job_task j == tsk)
              (jobs_scheduled_between sched t1 t2).
-
+    
   End ScheduledJobs.
   
   Section ScheduleProperties.
