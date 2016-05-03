@@ -2,7 +2,7 @@ Add LoadPath "../.." as rt.
 Require Import rt.util.all.
 Require Import rt.model.jitter.job rt.model.jitter.arrival_sequence rt.model.jitter.schedule
                rt.model.jitter.platform rt.model.jitter.priority.
-Require Import Program ssreflect ssrbool ssrfun eqtype ssrnat fintype bigop seq path.
+Require Import ssreflect ssrbool ssrfun eqtype ssrnat fintype bigop seq path.
 
 Module ConcreteScheduler.
 
