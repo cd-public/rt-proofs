@@ -104,5 +104,23 @@ Section ExtraLemmasSumMax.
     rewrite -> big_cat_nat with (p := t2') (n := t2); try (by done); simpl.
     by rewrite addnC -addnA; apply leq_addr.
   Qed.
+
+  Lemma leq_sum_nat m n (P : pred nat) (E1 E2 : nat -> nat) :
+    (forall i, m <= i < n -> P i -> E1 i <= E2 i) ->
+    \sum_(m <= i < n | P i) E1 i <= \sum_(m <= i < n | P i) E2 i.
+  Proof.
+    intros LE.
+    rewrite big_nat_cond [\sum_(_ <= _ < _| P _)_]big_nat_cond.
+    by apply leq_sum; move => j /andP [IN H]; apply LE.
+  Qed.
+
+  Lemma leq_sum_seq (I: eqType) (r: seq I) (P : pred I) (E1 E2 : I -> nat) :
+    (forall i, i \in r -> P i -> E1 i <= E2 i) ->
+    \sum_(i <- r | P i) E1 i <= \sum_(i <- r | P i) E2 i.
+  Proof.
+    intros LE.
+    rewrite big_seq_cond [\sum_(_ <- _| P _)_]big_seq_cond.
+    by apply leq_sum; move => j /andP [IN H]; apply LE.
+  Qed.
   
 End ExtraLemmasSumMax.
