@@ -20,12 +20,6 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 
 (* ************************************************************************** *)
-(** * Axioms *)
-(* ************************************************************************** *)
-
-Require Export ProofIrrelevance.
-
-(* ************************************************************************** *)
 (** * Very basic automation *)
 (* ************************************************************************** *)
 
@@ -145,7 +139,6 @@ Ltac vlib__clarify1 :=
   | [H: ?x = true         |- _] => rewrite H in *
   | [H: ?x = false        |- _] => rewrite H in *
   | [H: is_true (_ == _)  |- _] => generalize (vlib__beq_rewrite H); clear H; intro H
-  | [H: @existT _ _ _ _ = @existT _ _ _ _ |- _] => apply inj_pair2 in H; try subst
   | [H: ?f _             = ?f _             |- _] => vlib__complaining_inj f H
   | [H: ?f _ _           = ?f _ _           |- _] => vlib__complaining_inj f H
   | [H: ?f _ _ _         = ?f _ _ _         |- _] => vlib__complaining_inj f H
@@ -163,19 +156,6 @@ Ltac clarify :=
     | H1: ?x = Some _, H2: ?x = None   |- _ => rewrite H2 in H1; discriminate
     | H1: ?x = Some _, H2: ?x = Some _ |- _ => rewrite H2 in H1; vlib__clarify1
   end; (* autorewrite with vlib_trivial; *) try done.
-
-(** Kill simple goals that require up to two econstructor calls. *)
-
-Ltac vauto :=
-  (clarify; try edone; 
-   try (econstructor (solve [edone | econstructor (edone) ]))).
-
-(** Check that the hypothesis [id] is defined. This is useful to make sure that
-    an [assert] has been completely finished. *)
-    
-Ltac end_assert id := 
-  let m := fresh in 
-  pose (m := refl_equal id); clear m.
 
 Ltac inv x := inversion x; clarify.
 Ltac simpls  := simpl in *; try done.

@@ -143,7 +143,7 @@ Module ArrivalSequence.
           rewrite mem_pmap; apply/mapP; exists j;
             first by destruct j as [j arr_j ARR].
           destruct j as [j arr_j ARR].
-          unfold is_JobIn; des_eqrefl; first by repeat f_equal; apply proof_irrelevance.
+          unfold is_JobIn; des_eqrefl; first by repeat f_equal; apply bool_irrelevance.
           by simpl in *; unfold arrives_at in *; rewrite ARR in EQ.
         }
       Qed.

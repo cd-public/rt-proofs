@@ -13,7 +13,7 @@ Definition jobin_eqdef (arr_seq: arrival_sequence Job) :=
         unfold jobin_eqdef in *.
         move: EQ => /andP [/eqP EQjob /eqP EQarr].
         destruct x, y; ins; subst.
-        f_equal; apply proof_irrelevance.
+        f_equal; apply bool_irrelevance.
       }
       {
         apply ReflectF.
