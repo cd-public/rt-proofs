@@ -1,11 +1,10 @@
-Add LoadPath "../.." as rt.
 Require Import rt.util.all.
 Require Import rt.model.basic.task rt.model.basic.job rt.model.basic.schedule
                rt.model.basic.task_arrival rt.model.basic.platform rt.model.basic.response_time
                rt.model.basic.workload rt.model.basic.priority rt.model.basic.schedulability
                rt.model.basic.interference rt.model.basic.interference_edf.
 Require Import rt.analysis.parallel.workload_bound rt.analysis.parallel.interference_bound.
-Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop div path.
+From mathcomp Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop div path.
 
 Module InterferenceBoundEDF.
 
@@ -620,7 +619,7 @@ Module InterferenceBoundEDF.
                 by rewrite sort_uniq -/interfering_jobs filter_uniq // undup_uniq.
                 by rewrite INnth INnth0.  
             }
-            by rewrite subh3 // addnC -INnth.
+            by rewrite subh3 // addnC /p_k -INnth.
           Qed.
 
           Lemma interference_bound_edf_slack_le_delta:
@@ -648,13 +647,14 @@ Module InterferenceBoundEDF.
           Lemma interference_bound_edf_n_k_covers_all_jobs :
             n_k >= num_mid_jobs.+2.
           Proof.
+            have AFTERt1 :=
+                interference_bound_edf_j_fst_completion_implies_rt_bound_inside_interval
+                interference_bound_edf_j_fst_completed_on_time.
+            have SLACK := interference_bound_edf_slack_le_delta.
             rename H_valid_task_parameters into TASK_PARAMS,
                    H_tsk_k_in_task_set into INk.
             unfold valid_sporadic_taskset, is_valid_sporadic_task,
                    interference_bound, edf_specific_interference_bound in *.
-            have AFTERt1 :=
-                interference_bound_edf_j_fst_completion_implies_rt_bound_inside_interval
-                interference_bound_edf_j_fst_completed_on_time.
             have DIST := interference_bound_edf_many_periods_in_between.
             rewrite leqNgt; apply/negP; unfold not; rewrite ltnS;  intro LTnk.
             assert (BUG: a_lst - a_fst > D_i + R_k - D_k).
@@ -668,7 +668,6 @@ Module InterferenceBoundEDF.
                 - by rewrite dvdn_eq in DIV; move: DIV => /eqP DIV; rewrite DIV addn1.
                 - by rewrite -addn1; apply ltnW, ltn_ceil.      
             }
-            have SLACK := interference_bound_edf_slack_le_delta.
             rewrite leq_subLR in SLACK.
             rewrite -(leq_add2r a_fst) subh1 in BUG;
               last by apply interference_bound_edf_j_fst_before_j_lst.

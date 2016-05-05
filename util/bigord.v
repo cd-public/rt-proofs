@@ -1,6 +1,5 @@
-Add LoadPath ".." as rt.
 Require Import rt.util.tactics.
-Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop.
+From mathcomp Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop.
 
 (* Lemmas about big operators over Ordinals that use Ordinal functions.
    There is no support for them in ssreflect. *)
@@ -16,8 +15,7 @@ Section BigOrdFunOrd.
     forall n {T: Type} x0 (f: 'I_n -> T) (x: 'I_n),
       (fun_ord_to_nat x0 f) x = f x.
   Proof.
-    ins; unfold fun_ord_to_nat.
-    des_eqrefl2.
+    ins; unfold fun_ord_to_nat; des_eqrefl.
       by f_equal; apply ord_inj.
       by destruct x; ins; rewrite i in EQ.
   Qed.

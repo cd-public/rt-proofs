@@ -1,6 +1,5 @@
-Add LoadPath ".." as rt.
 Require Import rt.util.tactics.
-Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop.
+From mathcomp Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop.
 
 (* Lemmas about lists without duplicates. *)
 Section UniqList.
@@ -101,7 +100,7 @@ End UniqList.
 (* Additional lemmas about list zip. *)
 Section Zip.
   
-  Lemma zipP {T: eqType} (P: _ -> _ -> bool) (X Y: seq T) x0:
+  Lemma zipP {T: eqType} (x0: T) (P: _ -> _ -> bool) (X Y: seq T):
     size X = size Y ->
     reflect (forall i, i < size (zip X Y) -> P (nth x0 X i) (nth x0 Y i))
             (all (fun p => P (fst p) (snd p)) (zip X Y)).

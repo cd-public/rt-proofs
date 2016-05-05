@@ -1,6 +1,5 @@
-Add LoadPath ".." as rt.
 Require Import rt.util.tactics.
-Require Import ssreflect ssrbool eqtype ssrnat seq fintype.
+From mathcomp Require Import ssreflect ssrbool eqtype ssrnat seq fintype.
 
 (* Lemmas about the finite existential for Ordinals: [exists x, P x]. *)
 Section OrdExists.

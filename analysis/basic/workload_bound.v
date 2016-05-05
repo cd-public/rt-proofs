@@ -1,9 +1,8 @@
-Add LoadPath "../.." as rt.
 Require Import rt.util.all.
 Require Import rt.model.basic.task rt.model.basic.job rt.model.basic.schedule
                rt.model.basic.task_arrival rt.model.basic.response_time
                rt.model.basic.workload rt.model.basic.schedulability.
-Require Import ssreflect ssrbool eqtype ssrnat seq div fintype bigop path.
+From mathcomp Require Import ssreflect ssrbool eqtype ssrnat seq div fintype bigop path.
 
 Module WorkloadBound.
   

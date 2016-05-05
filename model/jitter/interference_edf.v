@@ -1,9 +1,8 @@
-Add LoadPath "../.." as rt.
 Require Import rt.util.all.
 Require Import rt.model.jitter.task rt.model.jitter.job rt.model.jitter.schedule
                rt.model.jitter.priority rt.model.jitter.task_arrival rt.model.jitter.interference
                rt.model.jitter.arrival_sequence rt.model.jitter.platform.
-Require Import ssreflect ssrbool ssrfun eqtype ssrnat seq fintype bigop.
+From mathcomp Require Import ssreflect ssrbool ssrfun eqtype ssrnat seq fintype bigop.
 
 Module InterferenceEDF.
 

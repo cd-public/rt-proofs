@@ -1,8 +1,7 @@
-Add LoadPath "../.." as rt.
 Require Import rt.util.all.
 Require Import rt.model.jitter.task rt.model.jitter.job rt.model.jitter.schedule
                rt.model.jitter.priority rt.model.jitter.task_arrival rt.model.jitter.interference.
-Require Import ssreflect ssrbool ssrfun eqtype ssrnat seq fintype bigop.
+From mathcomp Require Import ssreflect ssrbool ssrfun eqtype ssrnat seq fintype bigop.
 
 Module Platform.
 
@@ -151,7 +150,7 @@ Module Platform.
                 rewrite -addn1 addnC [_ + 1]addnC -addnA.
                 apply leq_add; first by done.
                 rewrite eq_fun_ord_to_nat; unfold make_sequence at 2; rewrite EX /= add0n. 
-                apply leq_add; apply leq_sum; ins; unfold fun_ord_to_nat; des_eqrefl2; try done;
+                apply leq_add; apply leq_sum; ins; unfold fun_ord_to_nat; des_eqrefl; try done;
                 by unfold make_sequence; desf.
               }
             }
@@ -254,6 +253,7 @@ Module Platform.
         Lemma platform_cpus_busy_with_interfering_tasks :      
           count (scheduled_task_other_than tsk) ts = num_cpus.
         Proof.
+          have UNIQ := platform_at_most_one_pending_job_of_each_task.
           rename H_all_jobs_from_taskset into FROMTS,
                  H_sequential_jobs into SEQUENTIAL,
                  H_work_conserving into WORK,
@@ -272,7 +272,6 @@ Module Platform.
                  sporadic_task_model, is_valid_sporadic_task,
                  jobs_of_same_task_dont_execute_in_parallel,
                  sequential_jobs in *.  
-          have UNIQ := platform_at_most_one_pending_job_of_each_task.
           apply/eqP; rewrite eqn_leq; apply/andP; split.
           {
             apply leq_trans with (n := count (fun x => task_is_scheduled job_task sched x t) ts);

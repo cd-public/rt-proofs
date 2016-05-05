@@ -1,9 +1,8 @@
-Add LoadPath "../.." as rt.
 Require Import rt.util.all.
 Require Import rt.model.jitter.task rt.model.jitter.job rt.model.jitter.schedule
                rt.model.jitter.task_arrival rt.model.jitter.response_time
                rt.model.jitter.schedulability rt.model.jitter.workload.
-Require Import ssreflect ssrbool eqtype ssrnat seq div fintype bigop path.
+From mathcomp Require Import ssreflect ssrbool eqtype ssrnat seq div fintype bigop path.
 
 Module WorkloadBoundJitter.
   
@@ -659,12 +658,14 @@ Module WorkloadBoundJitter.
              service_during sched (nth elem sorted_jobs i.+1) t1 t2
           <= workload_bound.
         Proof.
+          have MID := workload_bound_service_of_middle_jobs. 
           rename H_jobs_have_valid_parameters into JOBPARAMS.
           unfold valid_sporadic_job_with_jitter in *; des.
           unfold workload_bound, W_jitter; fold n_k.
           move => NK; rewrite -NK.
           rewrite -{2}addn1 mulnDl mul1n [_* _ + _]addnC addnA addn_minl.
-          apply leq_add; last by apply workload_bound_service_of_middle_jobs. 
+          apply leq_add; last first.
+          apply MID.
           rewrite leq_min; apply/andP; split.
           {
             assert (SIZE: 0 < size sorted_jobs).

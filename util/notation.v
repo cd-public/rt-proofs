@@ -1,5 +1,4 @@
-Add LoadPath ".." as rt.
-Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop.
+From mathcomp Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop.
 
 (* Here we define a more verbose notation for projections of pairs... *)
 Section Pair.

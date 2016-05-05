@@ -1,7 +1,6 @@
-Add LoadPath "../../" as rt.
 Require Import rt.util.all.
 Require Import rt.model.jitter.task.
-Require Import ssreflect ssrbool ssrnat eqtype seq.
+From mathcomp Require Import ssreflect ssrbool ssrnat eqtype seq.
 
 Module ConcreteTask.
 

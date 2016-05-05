@@ -1,8 +1,7 @@
-Add LoadPath "../../" as rt.
 Require Import rt.util.all.
 Require Import rt.model.basic.task rt.model.basic.job rt.model.basic.task_arrival
                rt.model.basic.schedule.
-Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop.
+From mathcomp Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop.
 
 (* Definition of response-time bound and some simple lemmas. *)
 Module ResponseTime.

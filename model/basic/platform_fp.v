@@ -1,9 +1,8 @@
-Add LoadPath "../.." as rt.
 Require Import rt.util.all.
 Require Import rt.model.basic.task rt.model.basic.job rt.model.basic.schedule
                rt.model.basic.task_arrival rt.model.basic.interference
                rt.model.basic.priority rt.model.basic.platform.
-Require Import ssreflect ssrbool ssrfun eqtype ssrnat seq fintype bigop.
+From mathcomp Require Import ssreflect ssrbool ssrfun eqtype ssrnat seq fintype bigop.
 
 Module PlatformFP.
 
@@ -175,6 +174,8 @@ Module PlatformFP.
       Lemma platform_fp_cpus_busy_with_interfering_tasks :      
         count (scheduled_task_with_higher_eq_priority tsk) ts = num_cpus.
       Proof.
+        have UNIQ := platform_fp_no_multiple_jobs_of_interfering_tasks.
+        have UNIQ' := platform_fp_no_multiple_jobs_of_tsk. 
         rename H_all_jobs_from_taskset into FROMTS,
                H_sequential_jobs into SEQUENTIAL,
                H_work_conserving into WORK,
@@ -196,8 +197,6 @@ Module PlatformFP.
                jobs_of_same_task_dont_execute_in_parallel,
                sequential_jobs,
                can_interfere_with_tsk in *.
-        have UNIQ := platform_fp_no_multiple_jobs_of_interfering_tasks.
-        have UNIQ' := platform_fp_no_multiple_jobs_of_tsk. 
         apply/eqP; rewrite eqn_leq; apply/andP; split.
         {
           apply leq_trans with (n := count (fun x => task_is_scheduled job_task sched x t) ts);

@@ -1,6 +1,5 @@
-Add LoadPath ".." as rt.
 Require Import rt.util.tactics rt.util.exists.
-Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop.
+From mathcomp Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop.
 
 (* Additional lemmas about counting. *)
 Section Counting.

@@ -1,11 +1,10 @@
-Add LoadPath "../.." as rt.
 Require Import rt.util.all.
 Require Import rt.model.jitter.task rt.model.jitter.job rt.model.jitter.task_arrival
                rt.model.jitter.schedule rt.model.jitter.platform rt.model.jitter.platform_fp
                rt.model.jitter.workload rt.model.jitter.schedulability rt.model.jitter.priority
                rt.model.jitter.response_time rt.model.jitter.interference.
 Require Import rt.analysis.jitter.workload_bound rt.analysis.jitter.interference_bound_fp.
-Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop div path.
+From mathcomp Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop div path.
 
 Module ResponseTimeAnalysisFP.
 
@@ -168,7 +167,7 @@ Module ResponseTimeAnalysisFP.
             rename H_hp_bounds_has_interfering_tasks into UNZIP,
                    H_response_time_of_tsk_other into INbounds.
             move: UNZIP => UNZIP.
-            cut (tsk_other \in ts_interf);
+            cut (tsk_other \in ts_interf = true);
               first by rewrite mem_filter; move => /andP [_ IN].
             unfold ts_interf; rewrite UNZIP.
             by apply/mapP; exists (tsk_other, R_other).
@@ -180,7 +179,7 @@ Module ResponseTimeAnalysisFP.
             rename H_hp_bounds_has_interfering_tasks into UNZIP,
                    H_response_time_of_tsk_other into INbounds.
             move: UNZIP => UNZIP.
-            cut (tsk_other \in ts_interf);
+            cut (tsk_other \in ts_interf = true);
               first by rewrite mem_filter; move => /andP [INTERF _].
             unfold ts_interf; rewrite UNZIP.
             by apply/mapP; exists (tsk_other, R_other).
@@ -303,7 +302,7 @@ Module ResponseTimeAnalysisFP.
           {
             intros j_other tsk_other JOBother INTERF.
             move: UNZIP => UNZIP.
-            cut (tsk_other \in unzip1 hp_bounds); last first.
+            cut (tsk_other \in unzip1 hp_bounds = true); last first.
             {
               rewrite -UNZIP mem_filter; apply/andP; split; first by done.
               by rewrite -JOBother; apply FROMTS.
@@ -394,6 +393,7 @@ Module ResponseTimeAnalysisFP.
         Lemma bertogna_fp_all_cpus_busy :
           \sum_(tsk_k <- ts_interf) x tsk_k = X * num_cpus.
         Proof.
+          have DIFFTASK := bertogna_fp_interference_by_different_tasks.
           rename H_all_jobs_from_taskset into FROMTS,
                  H_valid_task_parameters into PARAMS,
                  H_job_of_tsk into JOBtsk, H_sporadic_tasks into SPO,
@@ -427,7 +427,7 @@ Module ResponseTimeAnalysisFP.
             rewrite -JOBtsk; apply FP with (t := t); try by done.
             by apply/existsP; exists cpu; apply/eqP.
           }
-          apply bertogna_fp_interference_by_different_tasks with (t := t); [by auto | by done |].
+          apply DIFFTASK with (t := t); [by auto | by done |].
           by apply/existsP; exists cpu; apply/eqP.
         Qed.
 
@@ -443,6 +443,7 @@ Module ResponseTimeAnalysisFP.
             0 < cardGE delta < num_cpus ->
             \sum_(i <- ts_interf | x i < delta) x i >= delta * (num_cpus - cardGE delta).
         Proof.
+          have INV := bertogna_fp_scheduling_invariant.
           rename H_all_jobs_from_taskset into FROMTS,
                  H_valid_task_parameters into PARAMS,
                  H_valid_job_parameters into JOBPARAMS,
@@ -599,9 +600,8 @@ Module ResponseTimeAnalysisFP.
             eapply leq_trans with (n := count (predC (fun tsk => delta <= x tsk)) _);
               last by apply eq_leq, eq_in_count; red; ins; rewrite ltnNge.
             rewrite leq_subLR count_predC size_filter.
-            apply leq_trans with (n := count (scheduled_task_other_than_tsk t) ts);
-              first by rewrite bertogna_fp_scheduling_invariant.
-            by rewrite count_filter.
+            by apply leq_trans with (n := count (scheduled_task_other_than_tsk t) ts);
+              [by rewrite INV | by rewrite count_filter].            
           }
           {
             unfold x at 2, total_interference_B.
@@ -676,6 +676,9 @@ Module ResponseTimeAnalysisFP.
           total_interference_bound_fp task_cost task_period task_jitter tsk hp_bounds
                                       R higher_eq_priority.
         Proof.
+          have EXCEEDS := bertogna_fp_minimum_exceeds_interference.
+          have ALLBUSY := bertogna_fp_all_cpus_busy.
+          have TOOMUCH := bertogna_fp_too_much_interference.
           rename H_hp_bounds_has_interfering_tasks into UNZIP,
                  H_response_time_recurrence_holds into REC.
           apply leq_trans with (n := \sum_(tsk_k <- ts_interf) minn (x tsk_k) (R - task_cost tsk + 1));
@@ -695,11 +698,9 @@ Module ResponseTimeAnalysisFP.
           rewrite -addn1 -leq_subLR.
           rewrite -[R + 1 - _]subh1; last by rewrite REC; apply leq_addr.
           rewrite leq_divRL; last by apply H_at_least_one_cpu.
-          apply bertogna_fp_minimum_exceeds_interference.
-          apply leq_trans with (n := X * num_cpus);
-            last by rewrite bertogna_fp_all_cpus_busy.
-          rewrite leq_mul2r; apply/orP; right.
-          by apply bertogna_fp_too_much_interference.
+          apply EXCEEDS.
+          apply leq_trans with (n := X * num_cpus); last by rewrite ALLBUSY.
+          by rewrite leq_mul2r; apply/orP; right; apply TOOMUCH.
         Qed.
 
         (* 7) After concluding that the sum of the minimum exceeds (R' - e_i + 1),
@@ -711,6 +712,8 @@ Module ResponseTimeAnalysisFP.
             (minn (x tsk_k) (R - task_cost tsk + 1) >
               minn (workload_bound tsk_k R_k) (R - task_cost tsk + 1)).
         Proof.
+          have SUM := bertogna_fp_sum_exceeds_total_interference.
+          have INTERFk := bertogna_fp_tsk_other_interferes.
           rename H_hp_bounds_has_interfering_tasks into UNZIP.
           assert (HAS: has (fun tup : task_with_response_time =>
                              let (tsk_k, R_k) := tup in
@@ -720,7 +723,6 @@ Module ResponseTimeAnalysisFP.
           {
             apply/negP; unfold not; intro NOTHAS.
             move: NOTHAS => /negP /hasPn ALL.
-            have SUM := bertogna_fp_sum_exceeds_total_interference.
             rewrite -[_ < _]negbK in SUM.
             move: SUM => /negP SUM; apply SUM; rewrite -leqNgt.
             unfold total_interference_bound_fp.
@@ -729,7 +731,7 @@ Module ResponseTimeAnalysisFP.
             apply leq_sum; move => tsk_k /andP [HPk _]; destruct tsk_k as [tsk_k R_k].
             specialize (ALL (tsk_k, R_k) HPk).
             rewrite -leqNgt in ALL.
-            have INTERFk := bertogna_fp_tsk_other_interferes tsk_k R_k HPk.
+            specialize (INTERFk tsk_k R_k HPk).
             fold (can_interfere_with_tsk); rewrite INTERFk.
             by apply ALL.
           }
@@ -745,6 +747,8 @@ Module ResponseTimeAnalysisFP.
     Theorem bertogna_cirinei_response_time_bound_fp :
       response_time_bounded_by tsk (task_jitter tsk + R).
     Proof.
+      have EX := bertogna_fp_exists_task_that_exceeds_bound.
+      have WORKLOAD := bertogna_fp_workload_bounds_interference.
       rename H_valid_job_parameters into PARAMS.
       unfold valid_sporadic_job_with_jitter, valid_sporadic_job in *.
       intros j JOBtsk.
@@ -781,10 +785,10 @@ Module ResponseTimeAnalysisFP.
       apply negbT in NOTCOMP; exfalso.
 
       (* We derive a contradiction using the previous lemmas. *)
-      have EX := bertogna_fp_exists_task_that_exceeds_bound j JOBtsk NOTCOMP BEFOREok.
+      specialize (EX j JOBtsk NOTCOMP BEFOREok).
       destruct EX as [tsk_k [R_k [HPk LTmin]]].
       unfold minn at 1 in LTmin.
-      have WORKLOAD := bertogna_fp_workload_bounds_interference j tsk_k R_k HPk.
+      specialize (WORKLOAD j tsk_k R_k HPk).
       destruct (W_jitter task_cost task_period task_jitter tsk_k R_k R < R - task_cost tsk + 1);
         rewrite leq_min in LTmin; 
         last by move: LTmin => /andP [_ BUG]; rewrite ltnn in BUG.

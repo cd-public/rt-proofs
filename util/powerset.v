@@ -1,6 +1,5 @@
-Add LoadPath ".." as rt.
 Require Import rt.util.tactics.
-Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop tuple.
+From mathcomp Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop tuple.
 
 Section PowerSet.
   

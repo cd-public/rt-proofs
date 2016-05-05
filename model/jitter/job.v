@@ -1,6 +1,5 @@
-Add LoadPath "../../" as rt.
 Require Import rt.model.jitter.time rt.model.jitter.task.
-Require Import ssrnat ssrbool eqtype.  
+From mathcomp Require Import ssrnat ssrbool eqtype.  
 
 Require Export rt.model.basic.job.
 

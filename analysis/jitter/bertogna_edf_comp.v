@@ -1,7 +1,6 @@
-Add LoadPath "../.." as rt.
 Require Import rt.util.all.
 Require Import rt.analysis.jitter.bertogna_edf_theory.
-Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop div path.
+From mathcomp Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop div path.
 
 Module ResponseTimeIterationEDF.
 
@@ -292,7 +291,7 @@ Module ResponseTimeIterationEDF.
         Proof.
           intros l; unfold all_le; rewrite eq_refl andTb.
           destruct l; first by done.
-          by apply/(zipP (fun x y => snd x <= snd y)).
+          by apply/(zipP t (fun x y => snd x <= snd y)).
         Qed.
 
         (* ... and transitive. *)
@@ -301,8 +300,8 @@ Module ResponseTimeIterationEDF.
           unfold transitive, all_le.
           move => y x z /andP [/eqP ZIPxy LExy] /andP [/eqP ZIPyz LEyz].
           apply/andP; split; first by rewrite ZIPxy -ZIPyz.
-          move: LExy => /(zipP (fun x y => snd x <= snd y)) LExy.
-          move: LEyz => /(zipP (fun x y => snd x <= snd y)) LEyz.
+          move: LExy => /(zipP _ (fun x y => snd x <= snd y)) LExy.
+          move: LEyz => /(zipP _ (fun x y => snd x <= snd y)) LEyz.
           assert (SIZExy: size (unzip1 x) = size (unzip1 y)).
             by rewrite ZIPxy.
           assert (SIZEyz: size (unzip1 y) = size (unzip1 z)).
@@ -313,21 +312,22 @@ Module ResponseTimeIterationEDF.
             apply size0nil in SIZExy; symmetry in SIZEyz.
             by apply size0nil in SIZEyz; subst.
           }
-          apply/(zipP (fun x y => snd x <= snd y));
-            [by apply (t, 0) | by rewrite SIZExy -SIZEyz|]. 
+          specialize (LExy t); specialize (LEyz t).
+          apply/(zipP t (fun x y => snd x <= snd y));
+            first by rewrite SIZExy -SIZEyz. 
           intros i LTi.
           exploit LExy; first by rewrite SIZExy.
           {
             rewrite size_zip -SIZEyz -SIZExy minnn in LTi.
             by rewrite size_zip -SIZExy minnn; apply LTi.
           }
-          instantiate (1 := t); intro LE.
+          intro LE.
           exploit LEyz; first by apply SIZEyz.
           {
             rewrite size_zip SIZExy SIZEyz minnn in LTi.
             by rewrite size_zip SIZEyz minnn; apply LTi.
           }
-          by instantiate (1 := t); intro LE'; apply (leq_trans LE).
+          by intro LE'; apply (leq_trans LE).
         Qed.
 
         (* At any step of the iteration, the corresponding list
@@ -348,8 +348,8 @@ Module ResponseTimeIterationEDF.
             by rewrite iterSr IHstep.
           }
 
-          apply/(zipP (fun x y => snd x <= snd y));
-            [by apply (tsk0,0)|by rewrite edf_claimed_bounds_size size_map |].
+          apply/(zipP (tsk0,0) (fun x y => snd x <= snd y));
+            first by rewrite edf_claimed_bounds_size size_map.
 
           intros i LTi; rewrite iterS; unfold edf_rta_iteration at 1.
           have MAP := @nth_map _ (tsk0,0) _ (tsk0,0).
@@ -403,10 +403,9 @@ Module ResponseTimeIterationEDF.
           apply f_equal with (B := nat) (f := fun x => size x) in UNZIP'.
           rename UNZIP' into SIZE.
           rewrite size_map [size (unzip1 _)]size_map in SIZE.
-          move: LE => /(zipP (fun x y => snd x <= snd y)) LE.
+          move: LE => /(zipP _ (fun x y => snd x <= snd y)) LE.
           destruct x1 as [| p0 x1'], x2 as [| p0' x2']; try (by ins).
-          apply/(zipP (fun x y => snd x <= snd y));
-            [by apply (p0,0) | by done |].
+          apply/(zipP p0 (fun x y => snd x <= snd y)); first by done.
 
           intros i LTi.
           exploit LE; first by rewrite 2!size_map in SIZE.
@@ -474,7 +473,7 @@ Module ResponseTimeIterationEDF.
           assert (GE_COST: all (fun p => task_cost (fst p) <= snd p) ((tsk0, R0) :: x1')). 
           {
             clear LE; move: LEinit => /andP [/eqP UNZIP' LE].
-            move: LE => /(zipP (fun x y => snd x <= snd y)) LE.
+            move: LE => /(zipP _ (fun x y => snd x <= snd y)) LE.
             specialize (LE (tsk0, R0)).
             apply/(all_nthP (tsk0,R0)).
             intros j LTj; generalize UNZIP'; simpl; intro SIZE'.
@@ -669,6 +668,8 @@ Module ResponseTimeIterationEDF.
             k <= max_steps ts ->
             \sum_((tsk, R) <- f k) (R - task_cost tsk) + 1 > k.
         Proof.
+          have LT := bertogna_edf_comp_f_increases.
+          have MONO := bertogna_edf_comp_iteration_monotonic.
           rename H_at_least_one_task into NONEMPTY.
           unfold valid_sporadic_taskset, is_valid_sporadic_task in *.
           rename H_valid_task_parameters into VALID.
@@ -716,12 +717,12 @@ Module ResponseTimeIterationEDF.
             }
             rewrite -2!big_seq_cond.
            
-            have LT := bertogna_edf_comp_f_increases step (ltnW LE).
-            have MONO := bertogna_edf_comp_iteration_monotonic step.
+            specialize (LT step (ltnW LE)).
+            specialize (MONO step).
             
             move: LT => /andP [_ LT]; move: LT => /hasP LT.
             destruct LT as [[x1 x2] INzip LT]; simpl in *.
-            move: MONO => /andP [_ /(zipP (fun x y => snd x <= snd y)) MONO].
+            move: MONO => /andP [_ /(zipP _ (fun x y => snd x <= snd y)) MONO].
             rewrite 2!(big_nth (elem, 0)).
             apply mem_zip_exists with (elem := (elem, 0)) (elem' := (elem, 0)) in INzip; des;
               last by rewrite size_map.
@@ -1034,6 +1035,9 @@ Module ResponseTimeIterationEDF.
       Theorem taskset_schedulable_by_edf_rta :
         forall tsk, tsk \in ts -> no_deadline_missed_by_task tsk.
       Proof.
+        have RLIST := (edf_analysis_yields_response_time_bounds).
+        have DL := (edf_claimed_bounds_le_deadline ts).
+        have HAS := (edf_claimed_bounds_has_R_for_every_task ts).
         unfold no_deadline_missed_by_task, task_misses_no_deadline,
                job_misses_no_deadline, completed,
                edf_schedulable,
@@ -1045,12 +1049,7 @@ Module ResponseTimeIterationEDF.
                H_jobs_execute_after_jitter into AFTER,
                H_all_jobs_from_taskset into ALLJOBS,
                H_test_succeeds into TEST.
-        
         move => tsk INtsk j JOBtsk.
-        have RLIST := (edf_analysis_yields_response_time_bounds).
-        have DL := (edf_claimed_bounds_le_deadline ts).
-        have HAS := (edf_claimed_bounds_has_R_for_every_task ts).
-        
         destruct (edf_claimed_bounds ts) as [rt_bounds |] eqn:SOME; last by ins.
         exploit (HAS rt_bounds tsk); [by ins | by ins | clear HAS; intro HAS; des].
         have COMPLETED := RLIST tsk R HAS j JOBtsk.

@@ -1,4 +1,3 @@
-Add LoadPath "../../" as rt.
 
 (* Jitter doesn't affect the notion of deadline miss, so we can safely
    import the basic definitions. *)

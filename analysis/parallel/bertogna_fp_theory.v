@@ -1,11 +1,10 @@
-Add LoadPath "../.." as rt.
 Require Import rt.util.all.
 Require Import rt.model.basic.task rt.model.basic.job rt.model.basic.task_arrival
                rt.model.basic.schedule rt.model.basic.platform rt.model.basic.platform_fp
                rt.model.basic.workload rt.model.basic.schedulability rt.model.basic.priority
                rt.model.basic.response_time rt.model.basic.interference.
 Require Import rt.analysis.parallel.workload_bound rt.analysis.parallel.interference_bound_fp.
-Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop div path.
+From mathcomp Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop div path.
 
 Module ResponseTimeAnalysisFP.
 
@@ -149,7 +148,7 @@ Module ResponseTimeAnalysisFP.
             rename H_hp_bounds_has_interfering_tasks into UNZIP,
                    H_response_time_of_tsk_other into INbounds.
             move: UNZIP => UNZIP.
-            cut (tsk_other \in ts_interf);
+            cut (tsk_other \in ts_interf = true);
               first by rewrite mem_filter; move => /andP [_ IN].
             unfold ts_interf; rewrite UNZIP.
             by apply/mapP; exists (tsk_other, R_other).
@@ -161,7 +160,7 @@ Module ResponseTimeAnalysisFP.
             rename H_hp_bounds_has_interfering_tasks into UNZIP,
                    H_response_time_of_tsk_other into INbounds.
             move: UNZIP => UNZIP.
-            cut (tsk_other \in ts_interf);
+            cut (tsk_other \in ts_interf = true);
               first by rewrite mem_filter; move => /andP [INTERF _].
             unfold ts_interf; rewrite UNZIP.
             by apply/mapP; exists (tsk_other, R_other).
@@ -337,6 +336,7 @@ Module ResponseTimeAnalysisFP.
            x tsk_k > total_interference_bound_fp task_cost task_period tsk
                                             hp_bounds R higher_eq_priority.
         Proof.
+          have TOOMUCH := bertogna_fp_too_much_interference.
           rename H_hp_bounds_has_interfering_tasks into UNZIP,
                  H_response_time_recurrence_holds into REC.
           apply leq_trans with (n := \sum_(tsk_k <- ts_interf) x tsk_k);
@@ -355,8 +355,7 @@ Module ResponseTimeAnalysisFP.
           rewrite -[R + 1 - _]subh1; last by rewrite REC; apply leq_addr.
           rewrite leq_divRL; last by apply H_at_least_one_cpu.
           rewrite bertogna_fp_all_cpus_busy.
-          rewrite leq_mul2r; apply/orP; right.
-          by apply bertogna_fp_too_much_interference.
+          by rewrite leq_mul2r; apply/orP; right; apply TOOMUCH.
         Qed.
 
         (* 3) After concluding that the sum of the minimum exceeds (R - e_i + 1),
@@ -366,6 +365,8 @@ Module ResponseTimeAnalysisFP.
             (tsk_k, R_k) \in hp_bounds /\
             x tsk_k > workload_bound tsk_k R_k.
         Proof.
+          have INTERFk := bertogna_fp_tsk_other_interferes.
+          have SUM := bertogna_fp_sum_exceeds_total_interference.
           rename H_hp_bounds_has_interfering_tasks into UNZIP.
           assert (HAS: has (fun tup : task_with_response_time =>
                              let (tsk_k, R_k) := tup in
@@ -374,7 +375,6 @@ Module ResponseTimeAnalysisFP.
           {
             apply/negP; unfold not; intro NOTHAS.
             move: NOTHAS => /negP /hasPn ALL.
-            have SUM := bertogna_fp_sum_exceeds_total_interference.
             rewrite -[_ < _]negbK in SUM.
             move: SUM => /negP SUM; apply SUM; rewrite -leqNgt.
             unfold total_interference_bound_fp.
@@ -383,7 +383,7 @@ Module ResponseTimeAnalysisFP.
             apply leq_sum; move => tsk_k /andP [HPk _]; destruct tsk_k as [tsk_k R_k].
             specialize (ALL (tsk_k, R_k) HPk).
             rewrite -leqNgt in ALL.
-            have INTERFk := bertogna_fp_tsk_other_interferes tsk_k R_k HPk.
+            specialize (INTERFk tsk_k R_k HPk).
             fold (can_interfere_with_tsk); rewrite INTERFk.
             unfold interference_bound_generic. by apply ALL.
           }
@@ -399,6 +399,8 @@ Module ResponseTimeAnalysisFP.
     Theorem bertogna_cirinei_response_time_bound_fp :
       response_time_bounded_by tsk R.
     Proof.
+      have EX := bertogna_fp_exists_task_that_exceeds_bound.
+      have BOUND := bertogna_fp_workload_bounds_interference.
       rename H_response_time_recurrence_holds into REC,
              H_response_time_of_interfering_tasks_is_known into RESP,
              H_hp_bounds_has_interfering_tasks into UNZIP,
@@ -433,10 +435,10 @@ Module ResponseTimeAnalysisFP.
       apply negbT in NOTCOMP; exfalso.
 
       (* We derive a contradiction using the previous lemmas. *)
-      have EX := bertogna_fp_exists_task_that_exceeds_bound j JOBtsk NOTCOMP BEFOREok.
+      specialize (EX j JOBtsk NOTCOMP BEFOREok).
       destruct EX as [tsk_k [R_k [HPk LTmin]]].
-      have BUG := bertogna_fp_workload_bounds_interference j tsk_k R_k HPk.
-      by apply (leq_ltn_trans BUG) in LTmin; rewrite ltnn in LTmin.
+      specialize (BOUND j tsk_k R_k HPk).
+      by apply (leq_ltn_trans BOUND) in LTmin; rewrite ltnn in LTmin.
     Qed.
 
   End ResponseTimeBound.

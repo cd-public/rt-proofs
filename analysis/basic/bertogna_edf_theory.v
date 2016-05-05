@@ -1,11 +1,10 @@
-Add LoadPath "../.." as rt.
 Require Import rt.util.all.
 Require Import rt.model.basic.task rt.model.basic.job rt.model.basic.task_arrival
                rt.model.basic.schedule rt.model.basic.platform rt.model.basic.interference
                rt.model.basic.workload rt.model.basic.schedulability rt.model.basic.priority
                rt.model.basic.platform rt.model.basic.response_time.
 Require Import rt.analysis.basic.workload_bound rt.analysis.basic.interference_bound_edf.
-Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop div path.
+From mathcomp Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop div path.
 
 Module ResponseTimeAnalysisEDF.
 
@@ -284,8 +283,8 @@ Module ResponseTimeAnalysisEDF.
           | by apply JOBtsk | by apply BACK | ].
         {
           intros j0 tsk0 TSK0 LE.
-          cut (tsk0 \in unzip1 rt_bounds); [intro IN | by rewrite UNZIP -TSK0 FROMTS].
-          move: IN => /mapP [p IN EQ]; destruct p as [tsk' R0]; simpl in *; subst tsk'.
+          cut (tsk0 \in unzip1 rt_bounds = true); last by rewrite UNZIP -TSK0 FROMTS.
+          move => /mapP [p IN EQ]; destruct p as [tsk' R0]; simpl in *; subst tsk'.
           apply completion_monotonic with (t0 := job_arrival j0 + R0); try (by done).
           {
             rewrite leq_add2l TSK0.
@@ -362,6 +361,7 @@ Module ResponseTimeAnalysisEDF.
       Lemma bertogna_edf_all_cpus_busy :
         \sum_(tsk_k <- ts_interf) x tsk_k = X * num_cpus.
       Proof.
+        have DIFFTASK := bertogna_edf_interference_by_different_tasks.
         rename H_all_jobs_from_taskset into FROMTS,
                H_valid_task_parameters into PARAMS,
                H_job_of_tsk into JOBtsk, H_sporadic_tasks into SPO,
@@ -397,7 +397,7 @@ Module ResponseTimeAnalysisEDF.
         }
         rewrite mem_filter; apply/andP; split; last by apply FROMTS.
         unfold jldp_can_interfere_with.
-        apply bertogna_edf_interference_by_different_tasks with (t := t); [by auto | by done |].
+        apply DIFFTASK with (t := t); [by auto | by done |].
         by apply/existsP; exists cpu; apply/eqP.
       Qed.
 
@@ -416,8 +416,8 @@ Module ResponseTimeAnalysisEDF.
                H_all_jobs_from_taskset into FROMTS,
                H_all_previous_jobs_completed_on_time into BEFOREok.
         intros t j0 LEt LE.
-        cut ((job_task j0) \in unzip1 rt_bounds); [intro IN | by rewrite UNZIP FROMTS].
-        move: IN => /mapP [p IN EQ]; destruct p as [tsk' R0]; simpl in *; subst tsk'.
+        cut ((job_task j0) \in unzip1 rt_bounds = true); last by rewrite UNZIP FROMTS.
+        move => /mapP [p IN EQ]; destruct p as [tsk' R0]; simpl in *; subst tsk'.
         apply completion_monotonic with (t0 := job_arrival j0 + R0); first by done.
         {
           rewrite leq_add2l; apply leq_trans with (n := task_deadline (job_task j0));
@@ -442,6 +442,8 @@ Module ResponseTimeAnalysisEDF.
           0 < cardGE delta < num_cpus ->
           \sum_(i <- ts_interf | x i < delta) x i >= delta * (num_cpus - cardGE delta).
       Proof.
+        have COMP := bertogna_edf_all_previous_jobs_complete_by_their_period.
+        have INV := bertogna_edf_scheduling_invariant.
         rename H_all_jobs_from_taskset into FROMTS,
                H_valid_task_parameters into PARAMS,
                H_job_of_tsk into JOBtsk,
@@ -515,7 +517,7 @@ Module ResponseTimeAnalysisEDF.
             (job_cost0 := job_cost) (job_task0 := job_task) (sched0 := sched) (j0 := j) (t0 := t);
             rewrite ?JOBtsk ?SAMEtsk //; first by apply PARAMS; rewrite -JOBtsk FROMTS.
             intros j0 tsk0 TSK0 LE.
-            by apply (bertogna_edf_all_previous_jobs_complete_by_their_period t); rewrite ?TSK0.
+            by apply (COMP t); rewrite ?TSK0.
           }
           by subst j2; apply SEQ with (j := j1) (t := t).
         }
@@ -549,9 +551,8 @@ Module ResponseTimeAnalysisEDF.
           eapply leq_trans with (n := count (predC (fun tsk => delta <= x tsk)) _);
             last by apply eq_leq, eq_in_count; red; ins; rewrite ltnNge.
           rewrite leq_subLR count_predC size_filter.
-          apply leq_trans with (n := count (scheduled_task_other_than_tsk t) ts);
-            first by rewrite bertogna_edf_scheduling_invariant.
-          by rewrite count_filter.
+          by apply leq_trans with (n := count (scheduled_task_other_than_tsk t) ts);
+            [by rewrite INV | by rewrite count_filter].
         }
         {
           unfold x at 2, total_interference_B.
@@ -624,9 +625,12 @@ Module ResponseTimeAnalysisEDF.
         \sum_((tsk_other, R_other) <- rt_bounds | jldp_can_interfere_with tsk tsk_other)
           minn (x tsk_other) (R - task_cost tsk + 1) > I tsk R.
       Proof.
+        have GE_COST := bertogna_edf_R_other_ge_cost.
+        have EXCEEDS := bertogna_edf_minimum_exceeds_interference.
+        have ALLBUSY := bertogna_edf_all_cpus_busy.
+        have TOOMUCH := bertogna_edf_too_much_interference.
         rename H_rt_bounds_contains_all_tasks into UNZIP,
           H_response_time_is_fixed_point into REC.
-        have GE_COST := bertogna_edf_R_other_ge_cost.
         apply leq_trans with (n := \sum_(tsk_other <- ts_interf) minn (x tsk_other) (R - task_cost tsk + 1));
           last first.
         {
@@ -654,11 +658,10 @@ Module ResponseTimeAnalysisEDF.
         rewrite -addn1 -leq_subLR.
         rewrite -[R + 1 - _]subh1; last by apply GE_COST.
         rewrite leq_divRL; last by apply H_at_least_one_cpu.
-        apply bertogna_edf_minimum_exceeds_interference.
+        apply EXCEEDS.
         apply leq_trans with (n := X * num_cpus);
-          last by rewrite bertogna_edf_all_cpus_busy.
-        rewrite leq_mul2r; apply/orP; right.
-        by apply bertogna_edf_too_much_interference.
+          last by rewrite ALLBUSY.
+        by rewrite leq_mul2r; apply/orP; right; apply TOOMUCH.
       Qed.
 
       (* 8) After concluding that the sum of the minimum exceeds (R - e_i + 1),
@@ -669,6 +672,9 @@ Module ResponseTimeAnalysisEDF.
           (tsk_other, R_other) \in rt_bounds /\
           (minn (x tsk_other) (R - task_cost tsk + 1) > interference_bound tsk_other R_other).
       Proof.
+        have SUM := bertogna_edf_sum_exceeds_total_interference.
+        have BOUND := bertogna_edf_workload_bounds_interference.
+        have EDFBOUND := bertogna_edf_specific_bound_holds.
         rename H_rt_bounds_contains_all_tasks into UNZIP.
         assert (HAS: has (fun tup : task_with_response_time =>
                             let (tsk_other, R_other) := tup in
@@ -679,7 +685,6 @@ Module ResponseTimeAnalysisEDF.
         {
           apply/negP; unfold not; intro NOTHAS.
           move: NOTHAS => /negP /hasPn ALL.
-          have SUM := bertogna_edf_sum_exceeds_total_interference.
           rewrite -[_ < _]negbK in SUM.
           move: SUM => /negP SUM; apply SUM; rewrite -leqNgt.
           unfold I, total_interference_bound_edf.
@@ -692,11 +697,11 @@ Module ResponseTimeAnalysisEDF.
             unfold interference_bound; rewrite leq_min; apply/andP; split;
               last by rewrite geq_minr.
             apply leq_trans with (n := x tsk_k); first by rewrite geq_minl.
-            by apply bertogna_edf_workload_bounds_interference.
+            by apply BOUND.
           }
           {
             apply leq_trans with (n := x tsk_k); first by rewrite geq_minl.
-            by apply bertogna_edf_specific_bound_holds.
+            by apply EDFBOUND.
           }
         }
         move: HAS => /hasP HAS; destruct HAS as [[tsk_k R_k] HPk MIN].

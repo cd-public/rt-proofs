@@ -1,6 +1,5 @@
-Add LoadPath ".." as rt.
 Require Import rt.util.tactics rt.util.induction.
-Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop path.
+From mathcomp Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop path.
 
 (* Lemmas about sorted lists. *)
 Section Sorting.
@@ -63,13 +62,14 @@ Section Sorting.
     destruct s; first by rewrite ltn0 in LT.
     simpl in SORT.
     induction delta;
-      first by rewrite /= addn0 ltnS in LT; rewrite addn0; apply/pathP.
+      first by rewrite /= addn0 ltnS in LT; rewrite /= -addnE addn0; apply/pathP.
     {
       rewrite /transitive (TRANS (nth x0 (s :: s0) (i1.+1 + delta))) //;
         first by apply IHdelta, leq_ltn_trans with (n := i1.+1 + delta.+1); [rewrite leq_add2l|].
-      rewrite -[delta.+1]addn1 addnA addn1; apply/pathP; first by done.
+      rewrite -[delta.+1]addn1 addnA addn1.
+      move: SORT => /pathP SORT; apply SORT.
       by rewrite /= -[delta.+1]addn1 addnA addn1 ltnS in LT.
-    }  
+    }
   Qed.
 
   Lemma sorted_uniq_rel_implies_le_idx :

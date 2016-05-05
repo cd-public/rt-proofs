@@ -1,11 +1,10 @@
-Add LoadPath "../../" as rt.
 Require Import rt.util.all.
 Require Import rt.model.jitter.job rt.model.jitter.task rt.model.jitter.task_arrival
                rt.model.jitter.schedule rt.model.jitter.platform rt.model.jitter.response_time
                rt.model.jitter.priority rt.model.jitter.workload rt.model.jitter.schedulability
                rt.model.jitter.interference rt.model.jitter.interference_edf.
 Require Import rt.analysis.jitter.workload_bound rt.analysis.jitter.interference_bound.
-Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop div path.
+From mathcomp Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop div path.
 
 Module InterferenceBoundEDFJitter.
 
@@ -704,6 +703,8 @@ Module InterferenceBoundEDFJitter.
           Lemma interference_bound_edf_holds_for_a_single_job :
             interference_caused_by j_fst t1 t2 <= interference_bound.
           Proof.
+            have ONE := interference_bound_edf_simpl_when_there's_one_job.
+            have SLACK := interference_bound_edf_interference_of_j_fst_limited_by_slack.
             rename H_many_jobs into NUM, H_only_one_job into SIZE.
             unfold interference_caused_by, interference_bound, edf_specific_interference_bound.
             fold D_i D_k p_k n_k.
@@ -715,8 +716,7 @@ Module InterferenceBoundEDFJitter.
               rewrite interference_bound_edf_job_in_same_sequence.
               by apply mem_nth; rewrite SIZE.
             }
-            rewrite interference_bound_edf_simpl_when_there's_one_job.
-            by apply interference_bound_edf_interference_of_j_fst_limited_by_slack.
+            by rewrite ONE; apply SLACK.
           Qed.
 
         End InterferenceSingleJob.
@@ -886,7 +886,7 @@ Module InterferenceBoundEDFJitter.
                 by rewrite sort_uniq -/interfering_jobs filter_uniq // undup_uniq.
                 by rewrite INnth INnth0.  
             }
-            by rewrite subh3 // addnC -INnth.
+            by rewrite subh3 // addnC /p_k -INnth.
           Qed.
 
           (* Using the lemma above, we prove that the ratio n_k is at least the number of
@@ -894,14 +894,14 @@ Module InterferenceBoundEDFJitter.
           Lemma interference_bound_edf_n_k_covers_middle_jobs_plus_one :
             n_k >= num_mid_jobs.+1.
           Proof.
+            have AFTERt1 :=
+                interference_bound_edf_j_fst_completion_implies_rt_bound_inside_interval
+                interference_bound_edf_j_fst_completed_on_time.
             rename H_valid_task_parameters into TASK_PARAMS,
                    H_tsk_k_in_task_set into INk.
             unfold valid_sporadic_taskset, is_valid_sporadic_task,
                    interference_bound, edf_specific_interference_bound in *.
             have DIST := interference_bound_edf_many_periods_in_between.
-            have AFTERt1 :=
-                interference_bound_edf_j_fst_completion_implies_rt_bound_inside_interval
-                interference_bound_edf_j_fst_completed_on_time.
             rewrite leqNgt; apply/negP; unfold not; intro LTnk; unfold n_k in LTnk.
             rewrite ltn_divLR in LTnk; last by specialize (TASK_PARAMS tsk_k INk); des.
             apply (leq_trans LTnk) in DIST; rewrite ltn_subRL in DIST.
@@ -960,8 +960,8 @@ Module InterferenceBoundEDFJitter.
           Lemma interference_bound_edf_n_k_equals_num_mid_jobs_plus_one :
             n_k = num_mid_jobs.+1.
           Proof.
-            rename H_many_jobs into NUM, H_at_least_two_jobs into SIZE.
             have NK := interference_bound_edf_n_k_covers_middle_jobs_plus_one.
+            rename H_many_jobs into NUM, H_at_least_two_jobs into SIZE.
             move: NK; rewrite leq_eqVlt orbC; move => /orP NK; des;
              first by rewrite SIZE ltnS leqNgt NK in NUM.
             by rewrite NK. 

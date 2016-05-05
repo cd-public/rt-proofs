@@ -1,7 +1,6 @@
-Add LoadPath "../../" as rt.
 Require Import rt.util.all
                rt.model.basic.job rt.model.basic.task rt.model.basic.arrival_sequence.
-Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop.
+From mathcomp Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop.
 
 (* Definition, properties and lemmas about schedules. *)
 Module Schedule.

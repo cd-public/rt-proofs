@@ -1,9 +1,8 @@
-Add LoadPath "../.." as rt.
 Require Import rt.util.all.
 Require Import rt.model.basic.task rt.model.basic.job rt.model.basic.schedule
                rt.model.basic.priority rt.model.basic.task_arrival rt.model.basic.interference
                rt.model.basic.arrival_sequence rt.model.basic.platform.
-Require Import ssreflect ssrbool ssrfun eqtype ssrnat seq fintype bigop.
+From mathcomp Require Import ssreflect ssrbool ssrfun eqtype ssrnat seq fintype bigop.
 
 Module InterferenceEDF.
 

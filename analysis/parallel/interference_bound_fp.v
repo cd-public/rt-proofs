@@ -1,9 +1,8 @@
-Add LoadPath "../.." as rt.
 Require Import rt.util.all.
 Require Import rt.model.basic.schedule rt.model.basic.priority rt.model.basic.workload
                rt.model.basic.interference.
 Require Import rt.analysis.parallel.workload_bound rt.analysis.parallel.interference_bound.
-Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop.
+From mathcomp Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop.
 
 Module InterferenceBoundFP.
 

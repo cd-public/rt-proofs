@@ -1,4 +1,3 @@
-Add LoadPath ".." as rt.
 
 Require Export rt.util.tactics.
 Require Export rt.util.notation.

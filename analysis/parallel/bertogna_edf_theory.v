@@ -1,11 +1,10 @@
-Add LoadPath "../.." as rt.
 Require Import rt.util.all.
 Require Import rt.model.basic.task rt.model.basic.job rt.model.basic.task_arrival
                rt.model.basic.schedule rt.model.basic.platform rt.model.basic.interference
                rt.model.basic.workload rt.model.basic.schedulability rt.model.basic.priority
                rt.model.basic.platform rt.model.basic.response_time.
 Require Import rt.analysis.parallel.workload_bound rt.analysis.parallel.interference_bound_edf.
-Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop div path.
+From mathcomp Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop div path.
 
 Module ResponseTimeAnalysisEDF.
 
@@ -340,9 +339,11 @@ apply scheduled_implies_pending with (job_cost0 := job_cost) in PENDING; try (by
         \sum_((tsk_other, R_other) <- rt_bounds | jldp_can_interfere_with tsk tsk_other)
           x tsk_other > I tsk R.
       Proof.
+        have GE_COST := bertogna_edf_R_other_ge_cost.
+        have ALLBUSY := bertogna_edf_all_cpus_busy.
+        have TOOMUCH := bertogna_edf_too_much_interference.
         rename H_rt_bounds_contains_all_tasks into UNZIP,
                H_response_time_is_fixed_point into REC.
-        have GE_COST := bertogna_edf_R_other_ge_cost.
         apply leq_trans with (n := \sum_(tsk_other <- ts_interf) x tsk_other);
           last first.
         {
@@ -368,9 +369,8 @@ apply scheduled_implies_pending with (job_cost0 := job_cost) in PENDING; try (by
         rewrite -addn1 -leq_subLR.
         rewrite -[R + 1 - _]subh1; last by apply GE_COST.
         rewrite leq_divRL; last by apply H_at_least_one_cpu.
-        rewrite bertogna_edf_all_cpus_busy.
-        rewrite leq_mul2r; apply/orP; right.
-        by apply bertogna_edf_too_much_interference.
+        rewrite ALLBUSY.
+        by rewrite leq_mul2r; apply/orP; right; apply TOOMUCH.
       Qed.
 
       (* 3) After concluding that the sum of the minimum exceeds (R - e_i + 1),
@@ -381,6 +381,9 @@ apply scheduled_implies_pending with (job_cost0 := job_cost) in PENDING; try (by
           (tsk_other, R_other) \in rt_bounds /\
           x tsk_other > interference_bound tsk_other R_other.
       Proof.
+        have SUM := bertogna_edf_sum_exceeds_total_interference.
+        have BOUND := bertogna_edf_workload_bounds_interference.
+        have EDFBOUND := bertogna_edf_specific_bound_holds.
         rename H_rt_bounds_contains_all_tasks into UNZIP.
         assert (HAS: has (fun tup : task_with_response_time =>
                        let (tsk_other, R_other) := tup in
@@ -390,7 +393,6 @@ apply scheduled_implies_pending with (job_cost0 := job_cost) in PENDING; try (by
         {
           apply/negP; unfold not; intro NOTHAS.
           move: NOTHAS => /negP /hasPn ALL.
-          have SUM := bertogna_edf_sum_exceeds_total_interference.
           rewrite -[_ < _]negbK in SUM.
           move: SUM => /negP SUM; apply SUM; rewrite -leqNgt.
           unfold I, total_interference_bound_edf.
@@ -398,13 +400,8 @@ apply scheduled_implies_pending with (job_cost0 := job_cost) in PENDING; try (by
           apply leq_sum; move => tsk_k /andP [INBOUNDSk INTERFk]; destruct tsk_k as [tsk_k R_k].
           specialize (ALL (tsk_k, R_k) INBOUNDSk).
           unfold interference_bound_edf; simpl in *.
-          rewrite leq_min; apply/andP; split.
-          {
-            by apply bertogna_edf_workload_bounds_interference.
-          }
-          {
-            by apply bertogna_edf_specific_bound_holds.
-          }
+          by rewrite leq_min; apply/andP; split;
+            [by apply BOUND | by apply EDFBOUND].
         }
         move: HAS => /hasP HAS; destruct HAS as [[tsk_k R_k] HPk MIN].
         move: MIN => /andP [/andP [INts INTERFk] MINk].

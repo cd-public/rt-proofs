@@ -1,6 +1,5 @@
-Add LoadPath "../../" as rt.
 Require Import rt.model.basic.time rt.util.all.
-Require Import ssrnat ssrbool eqtype fintype seq.
+From mathcomp Require Import ssrnat ssrbool eqtype fintype seq.
 
 (* Attributes of a valid sporadic task. *)
 Module SporadicTask.

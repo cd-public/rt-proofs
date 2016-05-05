@@ -1,7 +1,6 @@
-Add LoadPath "../../" as rt.
 Require Import rt.util.all.
 Require Import rt.analysis.basic.bertogna_fp_theory.
-Require Import ssreflect ssrbool ssrfun eqtype ssrnat seq fintype bigop div path.
+From mathcomp Require Import ssreflect ssrbool ssrfun eqtype ssrnat seq fintype bigop div path.
 
 Module ResponseTimeIterationFP.
 
@@ -444,6 +443,7 @@ Module ResponseTimeIterationFP.
             k <= max_steps tsk ->
             f k > k + task_cost tsk - 1.
         Proof.
+          have INC := bertogna_fp_comp_f_increases.
           rename H_valid_task_parameters into TASK_PARAMS.
           unfold valid_sporadic_taskset, is_valid_sporadic_task in *; des.
           exploit (TASK_PARAMS tsk);
@@ -457,15 +457,12 @@ Module ResponseTimeIterationFP.
           {
             intros LT.
             specialize (IHk (ltnW LT)).
-            apply leq_ltn_trans with (n := f k);
-              last by apply bertogna_fp_comp_f_increases, ltnW.
+            apply leq_ltn_trans with (n := f k); last by apply INC, ltnW.
             rewrite -addn1 -addnA [1 + _]addnC addnA -addnBA // subnn addn0.
             rewrite -(ltn_add2r 1) in IHk.
-            rewrite subh1 in IHk; last first.
-            {
-              apply leq_trans with (n := task_cost tsk); last by apply leq_addl.
-              by apply PARAMS.
-            }
+            rewrite subh1 in IHk;
+              last by apply leq_trans with (n := task_cost tsk);
+                [by apply PARAMS | by apply leq_addl].
             by rewrite -addnBA // subnn addn0 addn1 ltnS in IHk.
           }  
         Qed.
@@ -476,6 +473,8 @@ Module ResponseTimeIterationFP.
       Lemma per_task_rta_converges:
         f (max_steps tsk) = f (max_steps tsk).+1.
       Proof.
+        have TOOMUCH := bertogna_fp_comp_rt_grows_too_much.
+        have INC := bertogna_fp_comp_f_increases.
         rename H_no_larger_than_deadline into LE,
                H_valid_task_parameters into TASK_PARAMS.
         unfold valid_sporadic_taskset, is_valid_sporadic_task in *; des.
@@ -493,18 +492,19 @@ Module ResponseTimeIterationFP.
         move: EX => /forall_inP EX.
         rewrite leqNgt in LE; move: LE => /negP LE.
         exfalso; apply LE.
-        have TOOMUCH := bertogna_fp_comp_rt_grows_too_much _ (max_steps tsk).
-        exploit TOOMUCH; [| by apply leqnn |].
+
+        assert (DIFF: forall k : nat, k <= max_steps tsk -> f k != f k.+1).
         {
           intros k LEk; rewrite -ltnS in LEk.
-          by exploit (EX (Ordinal LEk)); [by done | intro DIFF].
-        }
-        unfold max_steps at 1.
+          by exploit (EX (Ordinal LEk)); [by done | intro DIFF; apply DIFF].
+        }          
+        exploit TOOMUCH; [by apply DIFF | by apply leq_addr |].
         exploit (TASK_PARAMS tsk);
           [by rewrite mem_rcons in_cons eq_refl orTb | intro PARAMS; des].
-        rewrite -addnA [1 + _]addnC addnA -addnBA // subnn addn0.
         rewrite subh1; last by apply PARAMS2.
-        by rewrite -addnBA // subnn addn0.
+        rewrite -addnBA // subnn addn0 subn1 prednK //.
+        intros LT; apply (leq_ltn_trans LT).
+        by rewrite /max_steps [_ - _ + 1]addn1; apply INC, leq_addr.
       Qed.
       
     End Convergence.
@@ -657,7 +657,7 @@ Module ResponseTimeIterationFP.
               (job_task0 := job_task) (ts0 := ts) (hp_bounds0 := take idx hp_bounds)
               (higher_eq_priority := higher_priority); try (by done).
         {
-          cut (NTH idx \in hp_bounds); [intros IN | by apply mem_nth].
+          cut (NTH idx \in hp_bounds = true); [intros IN | by apply mem_nth].
           by rewrite -UNZIP; apply/mapP; exists (TASK idx, RESP idx); rewrite PAIR.
         }
         {
@@ -688,15 +688,15 @@ Module ResponseTimeIterationFP.
       Theorem taskset_schedulable_by_fp_rta :
         forall tsk, tsk \in ts -> no_deadline_missed_by_task tsk.
       Proof.
+        have RLIST := (fp_analysis_yields_response_time_bounds).
+        have UNZIP := (fp_claimed_bounds_unzip ts).
+        have DL := (fp_claimed_bounds_le_deadline ts).
+
         unfold no_deadline_missed_by_task, task_misses_no_deadline,
                job_misses_no_deadline, completed,
                fp_schedulable, valid_sporadic_job in *.
         rename H_valid_job_parameters into JOBPARAMS.
         move => tsk INtsk j JOBtsk.
-        have RLIST := (fp_analysis_yields_response_time_bounds).
-        have UNZIP := (fp_claimed_bounds_unzip ts).
-        have DL := (fp_claimed_bounds_le_deadline ts).
-
         destruct (fp_claimed_bounds ts) as [rt_bounds |]; last by ins.
         feed (UNZIP rt_bounds); first by done.
         assert (EX: exists R, (tsk, R) \in rt_bounds).

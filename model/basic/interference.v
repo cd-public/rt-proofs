@@ -1,8 +1,7 @@
-Add LoadPath "../../" as rt.
 Require Import rt.util.all.
 Require Import rt.model.basic.task rt.model.basic.job rt.model.basic.schedule
                rt.model.basic.priority rt.model.basic.workload.
-Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop.
+From mathcomp Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop.
 
 Module Interference.
 
@@ -120,7 +119,6 @@ Module Interference.
         by rewrite big_const_nat iter_addn mul1n addn0 leqnn.
       Qed.
 
-
       Lemma job_interference_le_service :
         forall j_other t1 t2,
           job_interference j_other t1 t2 <= service_during sched j_other t1 t2.
@@ -187,7 +185,8 @@ Module Interference.
 
     (* The sequential per-job interference bounds the actual interference. *)    
     Section BoundUsingPerJobInterference.
-    Lemma interference_le_interference_joblist :
+      
+      Lemma interference_le_interference_joblist :
         forall tsk t1 t2,
           task_interference tsk t1 t2 <= task_interference_joblist tsk t1 t2.
       Proof.

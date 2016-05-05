@@ -1,4 +1,3 @@
-Add LoadPath "../../" as rt.
 Require Import rt.util.all.
 Require Import rt.model.jitter.job rt.model.jitter.task
                rt.model.jitter.schedule rt.model.jitter.schedulability
@@ -10,7 +9,7 @@ Require Import rt.implementation.jitter.job
                rt.implementation.jitter.task
                rt.implementation.jitter.schedule
                rt.implementation.jitter.arrival_sequence.
-Require Import ssreflect ssrbool ssrnat eqtype seq bigop div.
+From mathcomp Require Import ssreflect ssrbool ssrnat eqtype seq bigop div.
 
 Module ResponseTimeAnalysisEDF.
 

@@ -1,6 +1,5 @@
-Add LoadPath ".." as rt.
 Require Import rt.util.tactics rt.util.divround rt.util.ssromega.
-Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop div.
+From mathcomp Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop div.
 
 (* Additional lemmas about natural numbers. *)
 Section NatLemmas.

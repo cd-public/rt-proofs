@@ -1,4 +1,3 @@
-Add LoadPath "../../" as rt.
 
 (* Interarrival times are specified by the environment and are based on the
    original arrival times. We can import the original definitions. *)

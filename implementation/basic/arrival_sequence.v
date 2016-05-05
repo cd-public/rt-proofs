@@ -1,9 +1,8 @@
-Add LoadPath "../../" as rt.
 Require Import rt.util.all.
 Require Import rt.model.basic.arrival_sequence rt.model.basic.job
                rt.model.basic.task rt.model.basic.task_arrival.
 Require Import rt.implementation.basic.task rt.implementation.basic.job.
-Require Import ssreflect ssrbool ssrfun ssrnat eqtype seq div.
+From mathcomp Require Import ssreflect ssrbool ssrfun ssrnat eqtype seq div.
 
 Module ConcreteArrivalSequence.
 

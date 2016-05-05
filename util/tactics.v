@@ -11,7 +11,7 @@
 
 (** Symbols starting with [vlib__] are internal. *)
 
-Require Import ssreflect ssrbool ssrnat eqtype bigop.
+From mathcomp Require Import ssreflect ssrbool ssrnat eqtype bigop.
 
 Open Scope bool_scope.
 Open Scope list_scope.
@@ -175,7 +175,6 @@ Ltac clarsimp := intros; simpl in *; vlib__clarsimp1.
 
 Ltac autos   := clarsimp; auto with vlib.
 
-
 (* ************************************************************************** *)
 (** Destruct but give useful names *)
 (* ************************************************************************** *)
@@ -289,31 +288,18 @@ Ltac des_if :=
 
 Ltac des_eqrefl :=
   match goal with
-    | H: context[match ?X as id return (id = ?X -> _) with _ => _ end Logic.eq_refl] |- _ =>
+    | H: context[match ?X with |true => _ | false => _ end Logic.eq_refl] |- _ =>
     let EQ := fresh "EQ" in
     let id' := fresh "x" in
     revert H;
-    generalize (Logic.eq_refl X); generalize X at 1 3;
+    generalize (Logic.eq_refl X);
+    try (generalize X at 1 3); try (generalize X at 2 3);
     intros id' EQ; destruct id'; intros H
-    | |- context[match ?X as id return (id = ?X -> _) with _ => _ end Logic.eq_refl] =>
+    | |- context[match ?X with |true => _ | false => _ end Logic.eq_refl] =>
     let EQ := fresh "EQ" in
     let id' := fresh "x" in
-    generalize (Logic.eq_refl X); generalize X at 1 3;
-    intros id' EQ; destruct id'
-  end.
-
-Ltac des_eqrefl2 :=
-  match goal with
-    | H: context[match ?X as id return (?X = id -> _) with _ => _ end Logic.eq_refl] |- _ =>
-    let EQ := fresh "EQ" in
-    let id' := fresh "x" in
-    revert H;
-    generalize (Logic.eq_refl X); generalize X at 2 3;
-    intros id' EQ; destruct id'; intros H
-    | |- context[match ?X as id return (?X = id -> _) with _ => _ end Logic.eq_refl] =>
-    let EQ := fresh "EQ" in
-    let id' := fresh "x" in
-    generalize (Logic.eq_refl X); generalize X at 2 3;
+    generalize (Logic.eq_refl X);
+    try (generalize X at 1 3); try (generalize X at 2 3);
     intros id' EQ; destruct id'
   end.
 
