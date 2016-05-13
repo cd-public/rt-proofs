@@ -51,3 +51,22 @@ Section OrdExists.
 
 End OrdExists.
 
+(*Section Computation.
+
+  Variable m: nat.
+  Hypothesis H_m_positive: m > 0.
+
+  Variable P: 'I_m -> bool.
+
+  Program Fixpoint compute_exists n (Q: n < m) :=
+    match n with
+    | 0 => P (@Ordinal m 0 _)
+    | S n => P (@Ordinal m (S n) _) || compute_exists n _
+    end.
+
+  Program Definition compute_exists_ordinal := compute_exists (m.-1) _.
+  Next Obligation.
+    by rewrite -(ltn_add2r 1) 2!addn1 prednK //.
+  Qed.
+
+End Computation.*)

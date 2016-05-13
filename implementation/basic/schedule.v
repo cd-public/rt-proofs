@@ -84,13 +84,15 @@ Module ConcreteScheduler.
 
     (* Next, we provide some helper lemmas about the scheduler construction. *)
     Section HelperLemmas.
+
+      (* Let's use a shorter name for the schedule prefix function. *)
+      Let sched_prefix := schedule_prefix job_cost num_cpus arr_seq higher_eq_priority.
       
       (* First, we show that the scheduler preserves its prefixes. *)
       Lemma scheduler_same_prefix :
         forall t t_max cpu,
           t <= t_max ->
-          schedule_prefix job_cost num_cpus arr_seq higher_eq_priority t_max cpu t =
-          scheduler job_cost num_cpus arr_seq higher_eq_priority cpu t.
+          sched_prefix t_max cpu t = sched cpu t.
       Proof.
         intros t t_max cpu LEt.
         induction t_max.
@@ -102,7 +104,7 @@ Module ConcreteScheduler.
           move: LEt => /orP [/eqP EQ | LESS]; first by subst.
           {
             feed IHt_max; first by done.
-            unfold schedule_prefix, update_schedule at 1.
+            unfold sched_prefix, schedule_prefix, update_schedule at 1.
             assert (FALSE: t == t_max.+1 = false).
             {
               by apply negbTE; rewrite neq_ltn LESS orTb.
@@ -144,7 +146,9 @@ Module ConcreteScheduler.
           apply eq_big_nat; move => t0 /andP [_ LT].
           unfold service_at; apply eq_bigl; red; intros cpu'.
           fold (schedule_prefix job_cost num_cpus arr_seq higher_eq_priority).
-          by rewrite /scheduled_on 2?scheduler_same_prefix ?leqnn //.
+          have SAME := scheduler_same_prefix; unfold sched_prefix, sched in *.
+          rewrite /scheduled_on; f_equal; unfold schedule_prefix.
+          by rewrite SAME // ?leqnn.
         }
       Qed.
       
@@ -168,6 +172,7 @@ Module ConcreteScheduler.
           exists i,
             nth_or_none (sorted_jobs t) i = Some j /\ i >= num_cpus.
       Proof.
+        have SAME := scheduler_same_prefix.
         intros j t BACK.
         move: BACK => /andP [PENDING /negP NOTCOMP].
         assert (IN: j \in sorted_jobs t).
@@ -205,7 +210,8 @@ Module ConcreteScheduler.
           unfold service_at; apply eq_bigl; red; intro cpu.
           unfold scheduled_on; f_equal.
           fold (schedule_prefix job_cost num_cpus arr_seq higher_eq_priority).
-          by rewrite scheduler_same_prefix.
+          unfold sched_prefix in *.
+          by rewrite /schedule_prefix SAME.
         }
       Qed.
 

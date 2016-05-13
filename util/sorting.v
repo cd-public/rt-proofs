@@ -1,4 +1,4 @@
-Require Import rt.util.tactics rt.util.induction.
+Require Import rt.util.tactics rt.util.induction rt.util.list.
 From mathcomp Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop path.
 
 (* Lemmas about sorted lists. *)
@@ -72,9 +72,10 @@ Section Sorting.
     }
   Qed.
 
-  Lemma sorted_uniq_rel_implies_le_idx :
+  Lemma sorted_rel_implies_le_idx :
     forall {T: eqType} (leT: rel T) (s: seq T) x0 i1 i2,
-      irreflexive leT ->
+      uniq s ->
+      antisymmetric_over_list leT s ->
       transitive leT ->
       sorted leT s ->
       leT (nth x0 s i1) (nth x0 s i2) ->
@@ -82,7 +83,7 @@ Section Sorting.
       i2 < size s ->
       i1 <= i2.
   Proof.
-    intros T leT s x0 i1 i2 IRR TRANS SORT REL SIZE1 SIZE2.
+    intros T leT s x0 i1 i2 UNIQ ANTI TRANS SORT REL SIZE1 SIZE2.
     generalize dependent i2.
     induction i1; first by done.
     {
@@ -92,12 +93,12 @@ Section Sorting.
       rewrite ltn_neqAle; apply/andP; split.
       {
         apply/eqP; red; intro BUG; subst.
-        assert (REL': leT (nth x0 s i2) (nth x0 s i2)).
-        {
-          rewrite /transitive (TRANS (nth x0 s i2.+1)) //.
+        assert (REL': leT (nth x0 s i2) (nth x0 s i2.+1)).
           by apply sorted_lt_idx_implies_rel; rewrite // ltnSn.
-        }
-        by rewrite /irreflexive IRR in REL'.
+        rewrite /antisymmetric_over_list in ANTI.
+        exploit (ANTI (nth x0 s i2) (nth x0 s i2.+1)); rewrite ?mem_nth //.
+        move => /eqP EQ; rewrite nth_uniq in EQ; try (by done).
+        by rewrite -[_ == _]negbK in EQ; move: EQ => /negP EQ; apply EQ; apply/eqP.
       }
       {
         apply IHi1; last by done.

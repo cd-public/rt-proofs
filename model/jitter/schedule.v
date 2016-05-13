@@ -195,18 +195,11 @@ Module ScheduleOfSporadicTaskWithJitter.
     Context {num_cpus: nat}.
     Variable sched: schedule num_cpus arr_seq.
 
-    (* Next we define intra-task parallelism, ... *)
+    (* Next we define intra-task parallelism. *)
     Definition jobs_of_same_task_dont_execute_in_parallel :=
       forall (j j': JobIn arr_seq) t,
         job_task j = job_task j' ->
         scheduled sched j t -> scheduled sched j' t -> j = j'.
-
-    (* ... and task precedence constraints. *)
-    Definition task_precedence_constraints :=
-      forall (j j': JobIn arr_seq) t,
-        job_task j = job_task j' ->
-        job_arrival j < job_arrival j' ->
-        pending job_cost job_jitter sched j t -> ~~ scheduled sched j' t.
     
   End ScheduleProperties.
 

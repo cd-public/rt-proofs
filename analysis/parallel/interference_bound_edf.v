@@ -63,7 +63,7 @@ Module InterferenceBoundEDF.
     (* ... and an interval length delta. *)
     Variable delta: time.
 
-    Section PerTask.
+    Section RecallInterferenceBounds.
 
       Variable tsk_R: task_with_response_time.
       Let tsk_other := fst tsk_R.
@@ -81,19 +81,21 @@ Module InterferenceBoundEDF.
       Definition interference_bound_edf :=
         minn basic_interference_bound edf_specific_bound.
 
-    End PerTask.
+    End RecallInterferenceBounds.
 
-    Section AllTasks.
+    (* Next we define the computation of the total interference for APA scheduling. *)
+    Section TotalInterference.
 
-      Let interferes_with_tsk := jldp_can_interfere_with tsk.
+      (* Let other_task denote tasks different from tsk. *)
+      Let other_task := different_task tsk.
       
       (* The total interference incurred by tsk is bounded by the sum
-         of individual task interferences. *)
+         of individual task interferences of the other tasks. *)
       Definition total_interference_bound_edf :=
-        \sum_((tsk_other, R_other) <- R_prev | interferes_with_tsk tsk_other)
+        \sum_((tsk_other, R_other) <- R_prev | other_task tsk_other)
            interference_bound_edf (tsk_other, R_other).
 
-    End AllTasks.
+    End TotalInterference.
 
   End TotalInterferenceBoundEDF.
   
@@ -134,8 +136,7 @@ Module InterferenceBoundEDF.
       completed_jobs_dont_execute job_cost sched.
 
     (* Assume there exists at least one processor. *)
-    Hypothesis H_at_least_one_cpu :
-      num_cpus > 0.
+    Hypothesis H_at_least_one_cpu: num_cpus > 0.
 
     (* Assume that we have a task set where all tasks have valid
        parameters and constrained deadlines. *)

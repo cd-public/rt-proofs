@@ -36,22 +36,24 @@ Module Interference.
     Let job_is_backlogged (t: time) :=
       backlogged job_cost job_jitter sched j t.
 
+    (* First, we define total interference. *)
     Section TotalInterference.
       
-      (* First, we define the total interference incurred by job j during [t1, t2)
-         as the cumulative time in which j is backlogged in this interval. *)
+      (* The total interference incurred by job j during [t1, t2) is the
+         cumulative time in which j is backlogged in this interval. *)
       Definition total_interference (t1 t2: time) :=
         \sum_(t1 <= t < t2) job_is_backlogged t.
 
     End TotalInterference.
     
+    (* Next, we define job interference. *)
     Section JobInterference.
 
       (* Let job_other be a job that interferes with j. *)
       Variable job_other: JobIn arr_seq.
 
-      (* We define the total interference caused by job_other during [t1, t2) as the
-         cumulative service received by job_other while j is backlogged. *)
+      (* The interference caused by job_other during [t1, t2) is the cumulative
+         time in which j is backlogged while job_other is scheduled. *)
       Definition job_interference (t1 t2: time) :=
         \sum_(t1 <= t < t2)
           \sum_(cpu < num_cpus)
@@ -60,13 +62,14 @@ Module Interference.
 
     End JobInterference.
     
+    (* Next, we define task interference. *)
     Section TaskInterference.
 
       (* In order to define task interference, consider any interfering task tsk_other. *)
       Variable tsk_other: sporadic_task.
     
-      (* We define the total interference caused by tsk during [t1, t2) as
-         the cumulative service received by tsk while j is backlogged. *)
+      (* The interference caused by tsk during [t1, t2) is the cumulative time
+         in which j is backlogged while tsk is scheduled. *)
       Definition task_interference (t1 t2: time) :=
         \sum_(t1 <= t < t2)
           \sum_(cpu < num_cpus)
@@ -75,6 +78,8 @@ Module Interference.
 
     End TaskInterference.
 
+    (* Next, we define an approximation of the total interference based on
+       each per-task interference. *)
     Section TaskInterferenceJobList.
 
       Variable tsk_other: sporadic_task.
@@ -85,6 +90,7 @@ Module Interference.
 
     End TaskInterferenceJobList.
 
+    (* Now we prove some basic lemmas about interference. *)
     Section BasicLemmas.
 
       (* Interference cannot be larger than the considered time window. *)
@@ -98,6 +104,7 @@ Module Interference.
         by rewrite big_const_nat iter_addn mul1n addn0 leqnn.
       Qed.
 
+      (* Job interference is bounded by the service of the interfering job. *)
       Lemma job_interference_le_service :
         forall j_other t1 t2,
           job_interference j_other t1 t2 <= service_during sched j_other t1 t2.
@@ -110,6 +117,7 @@ Module Interference.
         by destruct (scheduled_on sched j_other cpu t).
       Qed.
       
+      (* Task interference is bounded by the workload of the interfering task. *)
       Lemma task_interference_le_workload :
         forall tsk t1 t2,
           task_interference tsk t1 t2 <= workload job_task sched tsk t1 t2.
@@ -124,6 +132,7 @@ Module Interference.
 
     End BasicLemmas.
 
+    (* Now we prove some bounds on interference for sequential jobs. *)
     Section InterferenceSequentialJobs.
 
       (* If jobs are sequential, ... *)
@@ -162,7 +171,8 @@ Module Interference.
 
     End InterferenceSequentialJobs.
 
-    (* The sequential per-job interference bounds the actual interference. *)    
+    (* Next, we show that the cumulative per-task interference bounds the total
+       interference. *)
     Section BoundUsingPerJobInterference.
       
       Lemma interference_le_interference_joblist :

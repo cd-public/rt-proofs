@@ -95,14 +95,13 @@ Module ConcreteArrivalSequence.
       }
     Qed.
 
-    (* ... and if the task set has no duplicates, the same applies to
-       the arrival sequence. *)
+    (* ... and the arrival sequence has no duplicate jobs. *)
     Theorem periodic_arrivals_is_a_set:
-      uniq ts -> arrival_sequence_is_a_set arr_seq.
+      arrival_sequence_is_a_set arr_seq.
     Proof.
-      intros UNIQ t.
+      intros t.
       unfold arr_seq, periodic_arrival_sequence.
-      apply (pmap_uniq) with (g := job_task); last by done.
+      apply (pmap_uniq) with (g := job_task); last by destruct ts.
       by unfold add_job, ocancel; intro tsk; desf.
     Qed.
       

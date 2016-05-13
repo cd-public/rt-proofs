@@ -33,6 +33,11 @@ Section Lemmas.
     by destruct s.
   Qed.
 
+  Lemma set_mem : forall x, (x \in s) = (x \in _set_seq s).
+  Proof.
+    by intros x; destruct s.
+  Qed.
+  
 End Lemmas.
 
 Section LemmasFinType.

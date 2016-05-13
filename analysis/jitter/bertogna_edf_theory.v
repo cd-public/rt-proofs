@@ -2,7 +2,8 @@ Require Import rt.util.all.
 Require Import rt.model.jitter.job rt.model.jitter.task rt.model.jitter.task_arrival
                rt.model.jitter.schedule rt.model.jitter.platform rt.model.jitter.interference
                rt.model.jitter.workload rt.model.jitter.schedulability
-               rt.model.jitter.priority rt.model.jitter.platform rt.model.jitter.response_time.
+               rt.model.jitter.priority rt.model.jitter.constrained_deadlines
+               rt.model.jitter.response_time.
 Require Import rt.analysis.jitter.workload_bound
                rt.analysis.jitter.interference_bound_edf.
 From mathcomp Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop div path.
@@ -11,10 +12,13 @@ Module ResponseTimeAnalysisEDFJitter.
 
   Export JobWithJitter SporadicTaskset ScheduleOfSporadicTaskWithJitter Workload
          Schedulability ResponseTime Priority SporadicTaskArrival WorkloadBoundJitter
-         InterferenceBoundEDFJitter Platform Interference.
+         InterferenceBoundEDFJitter Platform Interference ConstrainedDeadlines.
 
-  (* In this section, we prove that Bertogna and Cirinei's RTA yields
-     safe response-time bounds. *)
+  (* In this section, we prove that any fixed point in Bertogna and
+     Cirinei's RTA for EDF scheduling modified to account for jitter
+     yields a safe response-time bound. This is an extension of the
+     analysis found in Chapter 17.1.2 of Baruah et al.'s book
+     Multiprocessor Scheduling for Real-time Systems. *)
   Section ResponseTimeBound.
 
     Context {sporadic_task: eqType}.
@@ -41,42 +45,49 @@ Module ResponseTimeAnalysisEDFJitter.
         valid_sporadic_job_with_jitter task_cost task_deadline task_jitter job_cost
                                                  job_deadline job_task job_jitter j.
 
-    (* Consider any schedule such that...*)
-    Variable num_cpus: nat.
-    Variable sched: schedule num_cpus arr_seq.
-
-    (* ...jobs execute after jitter and no longer than their execution costs. *)
-    Hypothesis H_jobs_execute_after_jitter:
-      jobs_execute_after_jitter job_jitter sched.
-    Hypothesis H_completed_jobs_dont_execute:
-      completed_jobs_dont_execute job_cost sched.
-
-    (* Also assume that jobs are sequential and that there exists
-       at least one processor. *)
-    Hypothesis H_sequential_jobs: sequential_jobs sched.
-    Hypothesis H_at_least_one_cpu: num_cpus > 0.
-
-    (* Assume that we have a task set ts, such that all jobs come
-       from the task set, and all tasks have valid parameters and
-       constrained deadlines. *)
+    (* Assume that we have a task set where all tasks have valid
+       parameters and constrained deadlines, ... *)
     Variable ts: taskset_of sporadic_task.
-    Hypothesis H_all_jobs_from_taskset:
-      forall (j: JobIn arr_seq), job_task j \in ts.
     Hypothesis H_valid_task_parameters:
       valid_sporadic_taskset task_cost task_period task_deadline ts.
     Hypothesis H_constrained_deadlines:
       forall tsk, tsk \in ts -> task_deadline tsk <= task_period tsk.
 
+    (* ... and that all jobs in the arrival sequence come from the task set. *)
+    Hypothesis H_all_jobs_from_taskset:
+      forall (j: JobIn arr_seq), job_task j \in ts.
+
+    (* Next, consider any schedule such that...*)
+    Variable num_cpus: nat.
+    Variable sched: schedule num_cpus arr_seq.
+
+    (* ...jobs are sequential, do not execute before the
+       jitter has passed and nor longer than their execution costs. *)
+    Hypothesis H_sequential_jobs: sequential_jobs sched.
+    Hypothesis H_execute_after_jitter:
+      jobs_execute_after_jitter job_jitter sched.
+    Hypothesis H_completed_jobs_dont_execute:
+      completed_jobs_dont_execute job_cost sched.
+
+    (* Assume that there exists at least one processor. *)
+    Hypothesis H_at_least_one_cpu: num_cpus > 0.
+
+    (* Assume that the schedule is a work-conserving EDF schedule. *)
+    Hypothesis H_work_conserving: work_conserving job_cost job_jitter sched.
+    Hypothesis H_edf_policy: enforces_JLDP_policy job_cost job_jitter sched (EDF job_deadline).
+
+    (* Let's define some local names to avoid passing many parameters. *)
     Let no_deadline_is_missed_by_tsk (tsk: sporadic_task) :=
       task_misses_no_deadline job_cost job_deadline job_task sched tsk.
     Let response_time_bounded_by (tsk: sporadic_task) :=
       is_response_time_bound_of_task job_cost job_task tsk sched.
 
-    (* Assume a known response-time bound R is known...  *)
+    (* Next we consider the response-time recurrence.
+       Assume that a response-time bound R is known...  *)
     Let task_with_response_time := (sporadic_task * time)%type.
     Variable rt_bounds: seq task_with_response_time.
 
-    (* ...for any task in the task set. *)
+    (* ...for any task in the task set, ... *)
     Hypothesis H_rt_bounds_contains_all_tasks: unzip1 rt_bounds = ts.
 
     (* Also, assume that R is a fixed-point of the response-time recurrence, ... *)
@@ -93,16 +104,7 @@ Module ResponseTimeAnalysisEDFJitter.
         (tsk, R) \in rt_bounds ->
         task_jitter tsk + R <= task_deadline tsk.
 
-    (* Assume that we have a work-conserving EDF scheduler. *)
-    Hypothesis H_work_conserving: work_conserving job_cost job_jitter sched.
-    Hypothesis H_edf_policy: enforces_JLDP_policy job_cost job_jitter sched (EDF job_deadline).
-
-    (* Assume that the task set has no duplicates. This is required to
-       avoid problems when counting tasks (for example, when stating
-       that the number of interfering tasks is at most num_cpus). *)
-    Hypothesis H_ts_is_a_set : uniq ts.
-
-    (* In order to prove that R is a response-time bound, we first present some lemmas. *)
+    (* In order to prove that R is a response-time bound, we first provide some lemmas. *)
     Section Lemmas.
 
       (* Let (tsk, R) be any task to be analyzed, with its response-time bound R. *)
@@ -120,7 +122,7 @@ Module ResponseTimeAnalysisEDFJitter.
       (* Assume that job j did not complete on time, ... *)
       Hypothesis H_j_not_completed: ~~ completed job_cost sched j (t1 + R).
 
-      (* and that it is the first job not to satisfy its response-time bound. *)
+      (* ...and that it is the first job not to satisfy its response-time bound. *)
       Hypothesis H_all_previous_jobs_completed_on_time :
         forall (j_other: JobIn arr_seq) tsk_other R_other,
           job_task j_other = tsk_other ->
@@ -147,9 +149,14 @@ Module ResponseTimeAnalysisEDFJitter.
       Let interference_bound (tsk_other: sporadic_task) (R_other: time) :=
         interference_bound_edf task_cost task_period task_deadline task_jitter tsk R (tsk_other, R_other). 
       
-      (* Also, let ts_interf be the subset of tasks that interfere with tsk. *)
-      Let ts_interf := [seq tsk_other <- ts | jldp_can_interfere_with tsk tsk_other].
+      (* Based on the definition of a different task, ... *)
+      Let other_task := different_task tsk.
 
+      (* ...let other_tasks denote the set of tasks that are different from tsk. *)
+      Let other_tasks :=
+        [seq tsk_other <- ts | other_task tsk_other].
+
+      (* Now we establish results the interfering tasks. *)
       Section LemmasAboutInterferingTasks.
         
         (* Let (tsk_other, R_other) be any pair of higher-priority task and
@@ -161,7 +168,7 @@ Module ResponseTimeAnalysisEDFJitter.
         (* Note that tsk_other is in task set ts ...*)
         Lemma bertogna_edf_tsk_other_in_ts: tsk_other \in ts.
         Proof.
-          by rewrite -H_rt_bounds_contains_all_tasks; apply/mapP; exists (tsk_other, R_other).
+          by rewrite set_mem -H_rt_bounds_contains_all_tasks; apply/mapP; exists (tsk_other, R_other).
         Qed.
 
         (* Also, R_other is larger than the cost of tsk_other. *)
@@ -267,65 +274,11 @@ Module ResponseTimeAnalysisEDFJitter.
           by apply completion_monotonic with (t := i); try (by done); apply ltnW.
         Qed.
 
-        Let scheduled_task_other_than_tsk (t: time) (tsk_other: sporadic_task) :=
-          task_is_scheduled job_task sched tsk_other t &&
-          jldp_can_interfere_with tsk tsk_other.
-      
-        (* 1) At all times that j is backlogged, all processors are busy with other tasks. *)
-        Lemma bertogna_edf_scheduling_invariant:
-          forall t,
-            t1 <= t < t1 + R ->
-            backlogged job_cost job_jitter sched j t ->
-            count (scheduled_task_other_than_tsk t) ts = num_cpus.
-        Proof.
-          rename H_all_jobs_from_taskset into FROMTS,
-                 H_valid_task_parameters into PARAMS,
-                 H_valid_job_parameters into JOBPARAMS,
-                 H_job_of_tsk into JOBtsk,
-                 H_sporadic_tasks into SPO,
-                 H_tsk_R_in_rt_bounds into INbounds,
-                 H_all_previous_jobs_completed_on_time into BEFOREok,
-                 H_tasks_miss_no_deadlines into NOMISS,
-                 H_rt_bounds_contains_all_tasks into UNZIP,
-                 H_constrained_deadlines into RESTR,
-                 H_work_conserving into WORK.
-          unfold x, X, total_interference, task_interference,
-                 valid_sporadic_job_with_jitter, valid_sporadic_job in *.
-          move => t /andP [LEt LTt] BACK.
-          unfold scheduled_task_other_than_tsk in *.
-          eapply platform_cpus_busy_with_interfering_tasks; try (by done);
-            [ by apply WORK | by done | by apply SPO 
-            | apply PARAMS; rewrite -JOBtsk; apply FROMTS
-            | by apply JOBtsk | by apply BACK | ].
-          {
-            intros j0 tsk0 TSK0 LE.
-            cut (tsk0 \in unzip1 rt_bounds = true); last by rewrite UNZIP -TSK0 FROMTS.
-            move => /mapP [p IN EQ]; destruct p as [tsk' R0]; simpl in *; subst tsk'.
-            apply completion_monotonic with (t0 := job_arrival j0 + task_jitter tsk0 + R0); try (by done).
-            {
-              rewrite -addnA leq_add2l TSK0.
-              apply leq_trans with (n := task_deadline tsk0); first by apply NOMISS.
-              by apply RESTR; rewrite -TSK0 FROMTS.
-            }
-            {
-              apply BEFOREok with (tsk_other := tsk0); try (by done).
-              apply leq_trans with (n := t1 + R); last first.
-              {
-                  rewrite leq_add2r leq_add2l -JOBtsk.
-                  by specialize (JOBPARAMS j); des.
-              }
-              apply leq_ltn_trans with (n := t); last by done.
-              apply leq_trans with (n := job_arrival j0 + task_period tsk0);
-                last by done.
-              rewrite -addnA leq_add2l.
-              apply leq_trans with (n := task_deadline tsk0); first by apply NOMISS.
-              by apply RESTR; rewrite -TSK0; apply FROMTS.
-            }
-          }
-        Qed.
-      
-        (* 2) Prove that during the scheduling window of j, any job that is scheduled while j is
-           backlogged comes from a different task. *)
+      (* 1) Next, we prove that during the scheduling window of j, any job that is
+            scheduled while j is backlogged comes from a different task.
+            This follows from the fact that j is the first job not to complete
+            by its response-time bound, so previous jobs of j's task must have
+            completed by their periods and cannot be pending. *)
         Lemma bertogna_edf_interference_by_different_tasks :
           forall t j_other,
             t1 <= t < t1 + R ->
@@ -397,49 +350,12 @@ Module ResponseTimeAnalysisEDFJitter.
           }
         Qed.
 
-      (* 3) Next, we prove that the sum of the interference of each task is equal
-          to the total interference multiplied by the number of processors. This
-          holds because interference only occurs when all processors are busy. *)
-        Lemma bertogna_edf_all_cpus_busy :
-          \sum_(tsk_k <- ts_interf) x tsk_k = X * num_cpus.
-        Proof.
-          have DIFFTASK := bertogna_edf_interference_by_different_tasks.
-          rename H_all_jobs_from_taskset into FROMTS,
-                 H_valid_task_parameters into PARAMS,
-                 H_job_of_tsk into JOBtsk, H_sporadic_tasks into SPO,
-                 H_work_conserving into WORK,
-                 H_tsk_R_in_rt_bounds into INbounds,
-                 H_all_previous_jobs_completed_on_time into BEFOREok,
-                 H_tasks_miss_no_deadlines into NOMISS,
-                 H_rt_bounds_contains_all_tasks into UNZIP,
-                 H_constrained_deadlines into CONSTR.
-          unfold sporadic_task_model in *.
-          unfold x, X, total_interference, task_interference.
-          rewrite -big_mkcond -exchange_big big_distrl /= mul1n.
-          rewrite [\sum_(_ <= _ < _ | backlogged _ _ _ _ _) _]big_mkcond.
-          apply eq_big_nat; move => t /andP [GEt LTt].
-          destruct (backlogged job_cost job_jitter sched j t) eqn:BACK;
-            last by rewrite big1 //; ins; rewrite big1.
-          rewrite big_mkcond /=.
-          rewrite exchange_big /=.
-          apply eq_trans with (y := \sum_(cpu < num_cpus) 1); last by simpl_sum_const.
-          apply eq_bigr; intros cpu _.
-          move: (WORK j t BACK cpu) => [j_other /eqP SCHED]; unfold scheduled_on in *.
-          rewrite (bigD1_seq (job_task j_other)) /=; last by rewrite filter_uniq.
-          {
-            rewrite (eq_bigr (fun i => 0));
-              last by intros i DIFF; rewrite /task_scheduled_on SCHED;apply/eqP;rewrite eqb0 eq_sym.
-            simpl_sum_const; apply/eqP; rewrite eqb1.
-            by unfold task_scheduled_on; rewrite SCHED.
-          }
-          rewrite mem_filter; apply/andP; split; last by apply FROMTS.
-          unfold jldp_can_interfere_with.
-          apply DIFFTASK with (t := t); [by auto | by done |].
-          by apply/existsP; exists cpu; apply/eqP.
-        Qed.
-
-        (* 4) Show that by the induction hypothesis, all jobs released
-           before the end of the interval complete by their periods. *)
+      (* 2) In order to use the lemmas in constrained_deadlines.v, we show that
+            all jobs released before the end of the interval complete by their
+            periods. This follows trivially from the hypothesis that all jobs
+            before (t1 + R) complete by their response-time bounds. 
+            With this lemma, we can conclude that during job j's scheduling
+            window there cannot be multiple pending jobs of each task.*)
         Lemma bertogna_edf_all_previous_jobs_complete_by_their_period:
           forall t (j0: JobIn arr_seq),
             t < t1 + R ->
@@ -476,21 +392,125 @@ Module ResponseTimeAnalysisEDFJitter.
           by rewrite -addnA leq_add2l; apply leq_trans with (n := task_deadline (job_task j0));
             [by apply NOMISS | apply CONSTR; rewrite FROMTS].
         Qed.
-        
-        (* Let (cardGE delta) be the number of interfering tasks whose interference
-           is larger than delta. *)
-        Let cardGE (delta: time) := count (fun i => x i >= delta) ts_interf.
 
-        (* 5) If there is at least one of such tasks (e.g., cardGE > 0), then the
-           cumulative interference caused by the complementary set of interfering
-           tasks fills at least (num_cpus - cardGE) processors. *)
-        Lemma bertogna_edf_helper_lemma :
+
+        (* Let's define a predicate to identify the other tasks that are scheduled. *)
+        Let other_scheduled_task (t: time) (tsk_other: sporadic_task) :=
+          task_is_scheduled job_task sched tsk_other t &&
+          other_task tsk_other.
+      
+        (* 3) Now we prove that, at all times that j is backlogged, the number
+              of tasks other than tsk that are scheduled is exactly the number
+              of processors in the system. This is required to prove lemma (4). *)
+        Lemma bertogna_edf_all_cpus_are_busy:
+          forall t,
+            t1 <= t < t1 + R ->
+            backlogged job_cost job_jitter sched j t ->
+            count (other_scheduled_task t) ts = num_cpus.
+        Proof.
+          rename H_all_jobs_from_taskset into FROMTS,
+                 H_valid_task_parameters into PARAMS,
+                 H_valid_job_parameters into JOBPARAMS,
+                 H_job_of_tsk into JOBtsk,
+                 H_sporadic_tasks into SPO,
+                 H_tsk_R_in_rt_bounds into INbounds,
+                 H_all_previous_jobs_completed_on_time into BEFOREok,
+                 H_tasks_miss_no_deadlines into NOMISS,
+                 H_rt_bounds_contains_all_tasks into UNZIP,
+                 H_constrained_deadlines into RESTR,
+                 H_work_conserving into WORK.
+          unfold x, X, total_interference, task_interference,
+                 valid_sporadic_job_with_jitter, valid_sporadic_job in *.
+          move => t /andP [LEt LTt] BACK.
+          eapply platform_cpus_busy_with_interfering_tasks; try (by done);
+            [ by apply WORK | by done | by apply SPO 
+            | apply PARAMS; rewrite -JOBtsk; apply FROMTS
+            | by apply JOBtsk | by apply BACK | ].
+          {
+            intros j0 tsk0 TSK0 LE.
+            cut (tsk0 \in unzip1 rt_bounds = true); last by rewrite UNZIP -TSK0 FROMTS.
+            move => /mapP [p IN EQ]; destruct p as [tsk' R0]; simpl in *; subst tsk'.
+            apply completion_monotonic with (t0 := job_arrival j0 + task_jitter tsk0 + R0); try (by done).
+            {
+              rewrite -addnA leq_add2l TSK0.
+              apply leq_trans with (n := task_deadline tsk0); first by apply NOMISS.
+              by apply RESTR; rewrite -TSK0 FROMTS.
+            }
+            {
+              apply BEFOREok with (tsk_other := tsk0); try (by done).
+              apply leq_trans with (n := t1 + R); last first.
+              {
+                  rewrite leq_add2r leq_add2l -JOBtsk.
+                  by specialize (JOBPARAMS j); des.
+              }
+              apply leq_ltn_trans with (n := t); last by done.
+              apply leq_trans with (n := job_arrival j0 + task_period tsk0);
+                last by done.
+              rewrite -addnA leq_add2l.
+              apply leq_trans with (n := task_deadline tsk0); first by apply NOMISS.
+              by apply RESTR; rewrite -TSK0; apply FROMTS.
+            }
+          }
+        Qed.
+      
+
+      (* 4) Next, we prove that the sum of the interference of each task is equal
+          to the total interference multiplied by the number of processors. This
+          holds because interference only occurs when all processors are busy.
+          With this lemma we can relate per-task interference with the total
+          interference incurred by j (backlogged time). *)
+        Lemma bertogna_edf_interference_on_all_cpus :
+          \sum_(tsk_k <- other_tasks) x tsk_k = X * num_cpus.
+        Proof.
+          have DIFFTASK := bertogna_edf_interference_by_different_tasks.
+          rename H_all_jobs_from_taskset into FROMTS,
+                 H_valid_task_parameters into PARAMS,
+                 H_job_of_tsk into JOBtsk, H_sporadic_tasks into SPO,
+                 H_work_conserving into WORK,
+                 H_tsk_R_in_rt_bounds into INbounds,
+                 H_all_previous_jobs_completed_on_time into BEFOREok,
+                 H_tasks_miss_no_deadlines into NOMISS,
+                 H_rt_bounds_contains_all_tasks into UNZIP,
+                 H_constrained_deadlines into CONSTR.
+          unfold sporadic_task_model in *.
+          unfold x, X, total_interference, task_interference.
+          rewrite -big_mkcond -exchange_big big_distrl /= mul1n.
+          rewrite [\sum_(_ <= _ < _ | backlogged _ _ _ _ _) _]big_mkcond.
+          apply eq_big_nat; move => t /andP [GEt LTt].
+          destruct (backlogged job_cost job_jitter sched j t) eqn:BACK;
+            last by rewrite big1 //; ins; rewrite big1.
+          rewrite big_mkcond /=.
+          rewrite exchange_big /=.
+          apply eq_trans with (y := \sum_(cpu < num_cpus) 1); last by simpl_sum_const.
+          apply eq_bigr; intros cpu _.
+          move: (WORK j t BACK cpu) => [j_other /eqP SCHED]; unfold scheduled_on in *.
+          rewrite (bigD1_seq (job_task j_other)) /=; last by rewrite filter_uniq; destruct ts.
+          {
+            rewrite (eq_bigr (fun i => 0));
+              last by intros i DIFF; rewrite /task_scheduled_on SCHED;apply/eqP;rewrite eqb0 eq_sym.
+            simpl_sum_const; apply/eqP; rewrite eqb1.
+            by unfold task_scheduled_on; rewrite SCHED.
+          }
+          rewrite mem_filter; apply/andP; split; last by apply FROMTS.
+          apply DIFFTASK with (t := t); [by auto | by done |].
+          by apply/existsP; exists cpu; apply/eqP.
+        Qed.
+
+        (* Before stating the next lemma, let (num_tasks_exceeding delta) be the
+           number of interfering tasks whose interference x is larger than delta. *)
+        Let num_tasks_exceeding delta := count (fun i => x i >= delta) (other_tasks).
+
+        (* 5) Now we prove that, for any delta, if (num_task_exceeding delta > 0), then the
+              cumulative interference caused by the complementary set of interfering tasks fills
+              the remaining, not-completely-full (num_cpus - num_tasks_exceeding delta)
+              processors. *)
+        Lemma bertogna_edf_interference_in_non_full_processors :
           forall delta,
-            0 < cardGE delta < num_cpus ->
-            \sum_(i <- ts_interf | x i < delta) x i >= delta * (num_cpus - cardGE delta).
+            0 < num_tasks_exceeding delta < num_cpus ->
+            \sum_(i <- other_tasks | x i < delta) x i >= delta * (num_cpus - num_tasks_exceeding delta).
         Proof.
           have COMP := bertogna_edf_all_previous_jobs_complete_by_their_period.
-          have INV := bertogna_edf_scheduling_invariant.
+          have INV := bertogna_edf_all_cpus_are_busy.
           rename H_all_jobs_from_taskset into FROMTS,
                  H_valid_task_parameters into PARAMS,
                  H_job_of_tsk into JOBtsk, H_sporadic_tasks into SPO,
@@ -505,14 +525,14 @@ Module ResponseTimeAnalysisEDFJitter.
           set some_interference_A := fun t =>
             has (fun tsk_k => backlogged job_cost job_jitter sched j t &&
                               (x tsk_k >= delta) &&
-                              task_is_scheduled job_task sched tsk_k t) ts_interf.
+                              task_is_scheduled job_task sched tsk_k t) other_tasks.
           set total_interference_B := fun t =>
               backlogged job_cost job_jitter sched j t *
               count (fun tsk_k => (x tsk_k < delta) &&
-                    task_is_scheduled job_task sched tsk_k t) ts_interf.
+                    task_is_scheduled job_task sched tsk_k t) other_tasks.
 
           apply leq_trans with ((\sum_(t1 <= t < t1 + R)
-                                some_interference_A t) * (num_cpus - cardGE delta)).
+                                some_interference_A t) * (num_cpus - num_tasks_exceeding delta)).
           {
             rewrite leq_mul2r; apply/orP; right.
             move: HAS => /hasP HAS; destruct HAS as [tsk_a INa LEa].
@@ -576,13 +596,13 @@ Module ResponseTimeAnalysisEDFJitter.
               [rewrite mul1n /= | by rewrite has_pred0 //].
 
             destruct (has (fun tsk_k : sporadic_task => (delta <= x tsk_k) &&
-                       task_is_scheduled job_task sched tsk_k t) ts_interf) eqn:HAS';
+                       task_is_scheduled job_task sched tsk_k t) other_tasks) eqn:HAS';
               last by done.
             rewrite mul1n; move: HAS => /hasP [tsk_k INk LEk].
-            unfold cardGE.
+            unfold num_tasks_exceeding.
             apply leq_trans with (n := num_cpus -
                          count (fun i => (x i >= delta) &&
-                            task_is_scheduled job_task sched i t) ts_interf).
+                            task_is_scheduled job_task sched i t) other_tasks).
             {
               apply leq_sub2l.
               rewrite -2!sum1_count big_mkcond /=.
@@ -591,11 +611,11 @@ Module ResponseTimeAnalysisEDFJitter.
               by destruct (task_is_scheduled job_task sched i t);
                 [by rewrite andbT | by rewrite andbF].
             }
-            rewrite -count_filter -[count _ ts_interf]count_filter.
+            rewrite -count_filter -[count _ other_tasks]count_filter.
             eapply leq_trans with (n := count (predC (fun tsk => delta <= x tsk)) _);
               last by apply eq_leq, eq_in_count; red; ins; rewrite ltnNge.
             rewrite leq_subLR count_predC size_filter.
-            by apply leq_trans with (n := count (scheduled_task_other_than_tsk t) ts);
+            by apply leq_trans with (n := count (other_scheduled_task t) ts);
               [by rewrite INV | by rewrite count_filter].
           }
           {
@@ -603,7 +623,7 @@ Module ResponseTimeAnalysisEDFJitter.
             rewrite exchange_big /=; apply leq_sum; intros t _.
             destruct (backlogged job_cost job_jitter sched j t) eqn:BACK; last by ins.
             rewrite mul1n -sum1_count.
-            rewrite big_mkcond [\sum_(i <- ts_interf | _ < _) _]big_mkcond /=.
+            rewrite big_mkcond [\sum_(i <- other_tasks | _ < _) _]big_mkcond /=.
             apply leq_sum_seq; move => tsk_k IN _.
             destruct (x tsk_k < delta); [rewrite andTb | by rewrite andFb].
             destruct (task_is_scheduled job_task sched tsk_k t) eqn:SCHED; last by done.
@@ -612,13 +632,13 @@ Module ResponseTimeAnalysisEDFJitter.
           }
         Qed.
 
-        (* 6) Next, we prove that, for any interval delta, if the sum of per-task
-              interference exceeds delta * num_cpus, the same applies for the
-              sum of the minimum between the interference and delta. *)
+        (* 6) Based on lemma (5), we prove that, for any interval delta, if the sum of per-task
+              interference exceeds (delta * num_cpus), the same applies for the
+              sum of the minimum of the interference and delta. *)
         Lemma bertogna_edf_minimum_exceeds_interference :
           forall delta,
-            \sum_(tsk_k <- ts_interf) x tsk_k >= delta * num_cpus ->
-               \sum_(tsk_k <- ts_interf) minn (x tsk_k) delta >=
+            \sum_(tsk_k <- other_tasks) x tsk_k >= delta * num_cpus ->
+               \sum_(tsk_k <- other_tasks) minn (x tsk_k) delta >=
                delta * num_cpus.
         Proof.
           intros delta SUMLESS.
@@ -632,64 +652,63 @@ Module ResponseTimeAnalysisEDFJitter.
             [| by red; ins; rewrite ltnNge
              | by intros i COND; rewrite -ltnNge in COND; rewrite COND].
 
-          (* Case 1: cardGE = 0 *)
-          destruct (~~ has (fun i => delta <= x i) ts_interf) eqn:HASa.
+          (* Case 1: num_tasks_exceeding = 0 *)
+          destruct (~~ has (fun i => delta <= x i) other_tasks) eqn:HASa.
           {
             rewrite [\sum_(_ <- _ | _ <= _) _]big_hasC; last by apply HASa.
             rewrite big_seq_cond; move: HASa => /hasPn HASa.
-            rewrite add0n (eq_bigl (fun i => (i \in ts_interf) && true));
-              last by red; intros tsk_k; destruct (tsk_k \in ts_interf) eqn:INk;
+            rewrite add0n (eq_bigl (fun i => (i \in other_tasks) && true));
+              last by red; intros tsk_k; destruct (tsk_k \in other_tasks) eqn:INk;
                 [by rewrite andTb ltnNge; apply HASa | by rewrite andFb].
             by rewrite -big_seq_cond.
           } apply negbFE in HASa.
 
-          (* Case 2: cardGE >= num_cpus *)
-          destruct (cardGE delta >= num_cpus) eqn:CARD.
+          (* Case 2: num_tasks_exceeding >= num_cpus *)
+          destruct (num_tasks_exceeding delta >= num_cpus) eqn:CARD.
           {
-            apply leq_trans with (delta * cardGE delta);
+            apply leq_trans with (delta * num_tasks_exceeding delta);
               first by rewrite leq_mul2l; apply/orP; right.
-            unfold cardGE; rewrite -sum1_count big_distrr /=.
+            unfold num_tasks_exceeding; rewrite -sum1_count big_distrr /=.
             rewrite -[\sum_(_ <- _ | _) _]addn0.
             by apply leq_add; [by apply leq_sum; ins; rewrite muln1|by ins].
           } apply negbT in CARD; rewrite -ltnNge in CARD.
 
-          (* Case 3: cardGE < num_cpus *)
-          rewrite big_const_seq iter_addn addn0; fold cardGE.
-          apply leq_trans with (n := delta * cardGE delta +
-                                     delta * (num_cpus - cardGE delta));
+          (* Case 3: num_tasks_exceeding < num_cpus *)
+          rewrite big_const_seq iter_addn addn0; fold num_tasks_exceeding.
+          apply leq_trans with (n := delta * num_tasks_exceeding delta +
+                                     delta * (num_cpus - num_tasks_exceeding delta));
             first by rewrite -mulnDr subnKC //; apply ltnW.
-          rewrite leq_add2l; apply bertogna_edf_helper_lemma.
+          rewrite leq_add2l; apply bertogna_edf_interference_in_non_full_processors.
           by apply/andP; split; first by rewrite -has_count.
         Qed.
 
-        (* 7) Now, we prove that the Bertogna's interference bound
-              is not enough to cover the sum of the "minimum" term over
-              all tasks (artifact of the proof by contradiction). *)
+        (* 7) Next, using lemmas (0), (4) and (6) we prove that the reduction-based
+              interference bound is not enough to cover the sum of the minima over all tasks
+              (artifact of the proof by contradiction). *)
         Lemma bertogna_edf_sum_exceeds_total_interference:
-          \sum_((tsk_other, R_other) <- rt_bounds | jldp_can_interfere_with tsk tsk_other)
+          \sum_((tsk_other, R_other) <- rt_bounds | other_task tsk_other)
             minn (x tsk_other) (R - task_cost tsk + 1) > I tsk R.
         Proof.
           have GE_COST := bertogna_edf_R_other_ge_cost.
           have EXCEEDS := bertogna_edf_minimum_exceeds_interference.
-          have ALLBUSY := bertogna_edf_all_cpus_busy.
+          have ALLBUSY := bertogna_edf_interference_on_all_cpus.
           have TOOMUCH := bertogna_edf_too_much_interference.
           rename H_rt_bounds_contains_all_tasks into UNZIP,
             H_response_time_is_fixed_point into REC.
-          apply leq_trans with (n := \sum_(tsk_other <- ts_interf) minn (x tsk_other) (R - task_cost tsk + 1));
+          apply leq_trans with (n := \sum_(tsk_other <- other_tasks) minn (x tsk_other) (R - task_cost tsk + 1));
             last first.
           {
             rewrite (eq_bigr (fun i => minn (x (fst i)) (R - task_cost tsk + 1)));
               last by ins; destruct i.
             move: UNZIP => UNZIP.
-            assert (FILTER: filter (jldp_can_interfere_with tsk) (unzip1 rt_bounds) =
-                            filter (jldp_can_interfere_with tsk) ts).
+            assert (FILTER: filter other_task (unzip1 rt_bounds) =
+                            filter other_task ts).
               by f_equal.
-            unfold ts_interf; rewrite -FILTER; clear FILTER.
+            unfold other_tasks; rewrite -FILTER; clear FILTER.
             rewrite -[\sum_(_ <- rt_bounds | _)_]big_filter.
             assert (SUBST: [seq i <- rt_bounds
-                   | let '(tsk_other, _) := i in
-                          jldp_can_interfere_with tsk tsk_other] = [seq i <- rt_bounds
-                             | jldp_can_interfere_with tsk (fst i)]).
+                             | let '(tsk_other, _) := i in other_task tsk_other] =
+                           [seq i <- rt_bounds | other_task (fst i)]).
             {
               by apply eq_filter; red; intro i; destruct i.
             } rewrite SUBST; clear SUBST.         
@@ -707,9 +726,11 @@ Module ResponseTimeAnalysisEDFJitter.
           by rewrite leq_mul2r; apply/orP; right; apply TOOMUCH.
         Qed.
 
-        (* 8) After concluding that the sum of the minimum exceeds (R - e_i + 1),
-              we prove that there exists a tuple (tsk_k, R_k) such that
-              min (x_k, R - e_i + 1) > min (W_k, edf_bound, R - e_i + 1). *)
+        (* 8) After concluding that the sum of the minima exceeds (R - e_i + 1),
+              we prove that there exists a tuple (tsk_k, R_k) that satisfies
+              min (x_k, R - e_i + 1) > min (W_k, I_edf, R - e_i + 1).
+              This implies that either x_k > W_k or x_k > I_edf, which is a contradiction,
+              since both W_k and I_edf are valid task interference bounds. *)
         Lemma bertogna_edf_exists_task_that_exceeds_bound :
           exists tsk_other R_other,
             (tsk_other, R_other) \in rt_bounds /\
@@ -721,7 +742,7 @@ Module ResponseTimeAnalysisEDFJitter.
           rename H_rt_bounds_contains_all_tasks into UNZIP.
           assert (HAS: has (fun tup : task_with_response_time =>
                               let (tsk_other, R_other) := tup in
-                              (tsk_other \in ts) && jldp_can_interfere_with tsk tsk_other &&
+                              (tsk_other \in ts) && other_task tsk_other &&
                                 (minn (x tsk_other) (R - task_cost tsk + 1)  >
                                 interference_bound tsk_other R_other))
                            rt_bounds).

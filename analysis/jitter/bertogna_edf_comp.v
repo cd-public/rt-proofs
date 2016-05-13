@@ -7,7 +7,7 @@ Module ResponseTimeIterationEDF.
   Import ResponseTimeAnalysisEDFJitter.
 
   (* In this section, we define the algorithm for Bertogna and Cirinei's
-     response-time analysis for EDF scheduling. *)
+     response-time analysis for EDF scheduling with release jitter. *)
   Section Analysis.
     
     Context {sporadic_task: eqType}.
@@ -59,7 +59,7 @@ Module ResponseTimeIterationEDF.
     (* To compute the response-time bounds of the entire task set,
        We start the iteration with a sequence of tasks and costs:
        <(task1, cost1), (task2, cost2), ...>. *)
-    Let initial_state (ts: taskset_of sporadic_task) :=
+    Let initial_state (ts: seq sporadic_task) :=
       map (fun t => (t, task_cost t)) ts.
 
     (* Then, we successively update the the response-time bounds based
@@ -70,14 +70,14 @@ Module ResponseTimeIterationEDF.
     (* To ensure that the procedure converges, we run the iteration a
        "sufficient" number of times: task_deadline tsk - task_cost tsk + 1.
        This corresponds to the time complexity of the procedure. *)
-    Let max_steps (ts: taskset_of sporadic_task) :=
+    Let max_steps (ts: seq sporadic_task) :=
       \sum_(tsk <- ts) (task_deadline tsk - task_cost tsk) + 1.
 
     (* This yields the following definition for the RTA. At the end of
        the iteration, we check if all computed response-time bounds
        are less than or equal to the deadline, in which case they are
        valid. *)
-    Definition edf_claimed_bounds (ts: taskset_of sporadic_task) :=
+    Definition edf_claimed_bounds (ts: seq sporadic_task) :=
       let R_values := iter (max_steps ts) edf_rta_iteration (initial_state ts) in
         if (all jitter_plus_R_le_deadline R_values) then
           Some R_values
@@ -85,7 +85,7 @@ Module ResponseTimeIterationEDF.
 
     (* The schedulability test simply checks if we got a list of
        response-time bounds (i.e., if the computation did not fail). *)
-    Definition edf_schedulable (ts: taskset_of sporadic_task) :=
+    Definition edf_schedulable (ts: seq sporadic_task) :=
       edf_claimed_bounds ts != None.
 
     (* In the following section, we prove several helper lemmas about the
@@ -258,8 +258,8 @@ Module ResponseTimeIterationEDF.
        of the iteration at (max_steps ts) is equal to the value at (max_steps ts) + 1. *)
     Section Convergence.
 
-      (* Consider any valid task set. *)
-      Variable ts: taskset_of sporadic_task.
+      (* Consider any list of tasks with valid parameters. *)
+      Variable ts: list sporadic_task.
       Hypothesis H_valid_task_parameters:
         valid_sporadic_taskset task_cost task_period task_deadline ts.
       
@@ -341,7 +341,7 @@ Module ResponseTimeIterationEDF.
           {
             assert (UNZIP0 := edf_claimed_bounds_unzip1_iteration ts 0).
             by simpl in UNZIP0; rewrite UNZIP0 edf_claimed_bounds_unzip1_iteration.
-          }  
+          }
           destruct ts as [| tsk0 ts'].
           {
             clear -step; induction step; first by done.
@@ -449,11 +449,11 @@ Module ResponseTimeIterationEDF.
 
           assert (SUBST: forall l delta,
                     \sum_(j <- l | let '(tsk_other, _) := j in
-                      jldp_can_interfere_with tsk_i tsk_other)
+                      different_task tsk_i tsk_other)
                         (let '(tsk_other, R_other) := j in
                           interference_bound_edf task_cost task_period task_deadline task_jitter tsk_i delta
                             (tsk_other, R_other)) =
-                    \sum_(j <- l | jldp_can_interfere_with tsk_i (fst j))
+                    \sum_(j <- l | different_task tsk_i (fst j))
                       interference_bound_edf task_cost task_period task_deadline task_jitter tsk_i delta j).
           {
             intros l x; clear -l.
@@ -498,14 +498,14 @@ Module ResponseTimeIterationEDF.
           }
           move: GE_COST => /allP GE_COST.
 
-          assert (LESUM: \sum_(j <- x1' | jldp_can_interfere_with tsk_i (fst j))
+          assert (LESUM: \sum_(j <- x1' | different_task tsk_i (fst j))
                           interference_bound_edf task_cost task_period task_deadline task_jitter tsk_i delta j <=
-                         \sum_(j <- x2' | jldp_can_interfere_with tsk_i (fst j))
+                         \sum_(j <- x2' | different_task tsk_i (fst j))
                         interference_bound_edf task_cost task_period task_deadline task_jitter tsk_i delta' j).
           {
             set elem := (tsk0, R0); rewrite 2!(big_nth elem).
             rewrite -SIZE.
-            rewrite big_mkcond [\sum_(_ <- _ | jldp_can_interfere_with _ _)_]big_mkcond.
+            rewrite big_mkcond [\sum_(_ <- _ | different_task _ _)_]big_mkcond.
             rewrite big_seq_cond [\sum_(_ <- _ | true) _]big_seq_cond.
             apply leq_sum; intros j; rewrite andbT; intros INj.
             rewrite mem_iota add0n subn0 in INj; move: INj => /andP [_ INj].
@@ -514,7 +514,7 @@ Module ResponseTimeIterationEDF.
               have MAP := @nth_map _ elem _ tsk0 (fun x => fst x).
               by rewrite -2?MAP -?SIZE //; f_equal.
             } rewrite -FSTeq.
-            destruct (jldp_can_interfere_with tsk_i (fst (nth elem x1' j))) eqn:INTERF;
+            destruct (different_task tsk_i (fst (nth elem x1' j))) eqn:INTERF;
               last by done.
             {
               exploit (LE elem); [by rewrite /= SIZE | | intro LEj].
@@ -540,7 +540,7 @@ Module ResponseTimeIterationEDF.
               by apply interference_bound_edf_monotonic.
             }
           }
-          destruct (jldp_can_interfere_with tsk_i tsk0) eqn:INTERFtsk0; last by done.
+          destruct (different_task tsk_i tsk0) eqn:INTERFtsk0; last by done.
           apply leq_add; last by done.
           {             
             exploit (LE (tsk0, R0)); [by rewrite /= SIZE | | intro LEj];
@@ -876,15 +876,13 @@ Module ResponseTimeIterationEDF.
       Qed.
 
       (* Therefore, with regard to the response-time bound recurrence, ...*)
-      Let rt_recurrence (tsk: sporadic_task) (rt_bounds: seq task_with_response_time) (R: time) :=
-        task_cost tsk + div_floor (I rt_bounds tsk R) num_cpus.
       
       (* ..., the individual response-time bounds (elements of the list) are also fixed points. *)
       Theorem edf_claimed_bounds_finds_fixed_point_for_each_bound :
         forall tsk R rt_bounds,
           edf_claimed_bounds ts = Some rt_bounds ->
           (tsk, R) \in rt_bounds ->
-          R = rt_recurrence tsk rt_bounds R.
+          R = edf_response_time_bound rt_bounds tsk R.
       Proof.
         intros tsk R rt_bounds SOME IN.
         have CONV := edf_claimed_bounds_finds_fixed_point_of_list rt_bounds.
@@ -946,17 +944,14 @@ Module ResponseTimeIterationEDF.
 
     Section MainProof.
 
-      (* Consider a task set ts. *)
+      (* Consider a task set ts where... *)
       Variable ts: taskset_of sporadic_task.
       
-      (* Assume the task set has no duplicates, ... *)
-      Hypothesis H_ts_is_a_set: uniq ts.
-
-      (* ...all tasks have valid parameters, ... *)
+      (* ...all tasks have valid parameters... *)
       Hypothesis H_valid_task_parameters:
         valid_sporadic_taskset task_cost task_period task_deadline ts.
 
-      (* ...constrained deadlines, ...*)
+      (* ...and constrained deadlines.*)
       Hypothesis H_constrained_deadlines:
         forall tsk, tsk \in ts -> task_deadline tsk <= task_period tsk.
 
@@ -979,8 +974,7 @@ Module ResponseTimeIterationEDF.
       
       (* Then, consider any platform with at least one CPU such that...*)
       Variable sched: schedule num_cpus arr_seq.
-      Hypothesis H_at_least_one_cpu :
-        num_cpus > 0.
+      Hypothesis H_at_least_one_cpu: num_cpus > 0.
 
       (* ...jobs only execute after jitter and no longer than their execution costs. *)
       Hypothesis H_jobs_execute_after_jitter:

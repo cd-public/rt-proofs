@@ -66,7 +66,7 @@ Module InterferenceBoundEDFJitter.
     (* ... and an interval length delta. *)
     Variable delta: time.
 
-    Section PerTask.
+    Section RecallInterferenceBounds.
 
       Variable tsk_R: task_with_response_time.
       Let tsk_other := fst tsk_R.
@@ -84,19 +84,21 @@ Module InterferenceBoundEDFJitter.
       Definition interference_bound_edf :=
         minn basic_interference_bound edf_specific_bound.
 
-    End PerTask.
+    End RecallInterferenceBounds.
 
-    Section AllTasks.
+    (* Next we define the computation of the total interference for APA scheduling. *)
+    Section TotalInterference.
 
-      Let can_interfere_with_tsk := jldp_can_interfere_with tsk.
+      (* Recall the definition of a different task (with respect to tsk). *)
+      Let other_task := different_task tsk.
       
       (* The total interference incurred by tsk is bounded by the sum
-         of individual task interferences. *)
+         of individual task interferences of the other tasks. *)
       Definition total_interference_bound_edf :=
-        \sum_((tsk_other, R_other) <- R_prev | can_interfere_with_tsk tsk_other)
+        \sum_((tsk_other, R_other) <- R_prev | other_task tsk_other)
            interference_bound_edf (tsk_other, R_other).
 
-    End AllTasks.
+    End TotalInterference.
 
   End TotalInterferenceBoundEDF.
   

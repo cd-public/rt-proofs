@@ -36,24 +36,10 @@ Module InterferenceBoundJitter.
       (* Based on the workload bound, Bertogna and Cirinei define the
          following interference bound for a task. *)
       Definition interference_bound_generic :=
-        minn (W_jitter task_cost task_period task_jitter tsk_other R_other delta) (delta - (task_cost tsk) + 1).
+        minn (W_jitter task_cost task_period task_jitter tsk_other R_other delta)
+             (delta - task_cost tsk + 1).
 
     End PerTask.
-
-    Section AllTasks.
-      
-      (* Assume an FP policy. *)
-      Variable higher_eq_priority: FP_policy sporadic_task.
-
-      Let can_interfere_with_tsk := fp_can_interfere_with higher_eq_priority tsk.
-      
-      (* The total interference incurred by tsk is bounded by the sum
-         of individual task interferences. *)
-      Definition total_interference_bound_fp :=
-        \sum_((tsk_other, R_other) <- R_prev | can_interfere_with_tsk tsk_other)
-           interference_bound_generic (tsk_other, R_other).
-      
-    End AllTasks.
 
   End Definitions.
 

@@ -23,15 +23,10 @@ Module ResponseTimeAnalysisEDF.
     Let tsk3 := {| task_id := 3; task_cost := 3; task_period := 12; task_deadline := 11|}.
 
     (* Let ts be a task set containing these three tasks. *)
-    Let ts := [:: tsk1; tsk2; tsk3].
+    Program Let ts := Build_set [:: tsk1; tsk2; tsk3] _.
 
     Section FactsAboutTaskset.
 
-      Fact ts_is_a_set: uniq ts.
-      Proof.
-        by compute.
-      Qed.
-      
       Fact ts_has_valid_parameters:
         valid_sporadic_taskset task_cost task_period task_deadline ts.
       Proof.
@@ -109,10 +104,9 @@ Module ResponseTimeAnalysisEDF.
     Proof.
       intros tsk IN.
       have VALID := periodic_arrivals_valid_job_parameters ts ts_has_valid_parameters.
-      have EDFVALID := @edf_valid_policy _ arr_seq job_deadline.
-      unfold valid_JLDP_policy, valid_sporadic_job, valid_realtime_job in *; des.
+      have TSVALID := ts_has_valid_parameters.
+      unfold valid_sporadic_job, valid_realtime_job in *; des.
       apply taskset_schedulable_by_edf_rta with (task_cost := task_cost) (task_period := task_period) (task_deadline := task_deadline) (ts0 := ts).
-      - by apply ts_is_a_set.
       - by apply ts_has_valid_parameters. 
       - by apply ts_has_constrained_deadlines.
       - by apply periodic_arrivals_all_jobs_from_taskset.
@@ -125,7 +119,9 @@ Module ResponseTimeAnalysisEDF.
         -- by apply periodic_arrivals_is_a_set.
       - by apply scheduler_sequential_jobs, periodic_arrivals_is_a_set.
       - by apply scheduler_work_conserving.
-      - by apply scheduler_enforces_policy; ins.
+      - apply scheduler_enforces_policy.
+        -- by apply EDF_is_transitive.
+        -- by apply EDF_is_total.
       - by apply schedulability_test_succeeds.
       - by apply IN.
     Qed.

@@ -48,7 +48,7 @@ Module ResponseTimeIterationFP.
         (fun t => task_cost tsk +
                   div_floor
                     (total_interference_bound_fp task_cost task_period tsk
-                                                R_prev t higher_priority)
+                                                R_prev t)
                     num_cpus)
         (task_cost tsk).
 
@@ -75,12 +75,12 @@ Module ResponseTimeIterationFP.
     (* The response-time analysis for a given task set is defined
        as a left-fold (reduce) based on the function above.
        This either returns a list of task and response-time bounds, or None. *)
-    Definition fp_claimed_bounds (ts: taskset_of sporadic_task) :=
+    Definition fp_claimed_bounds (ts: seq sporadic_task) :=
       foldl fp_bound_of_task (Some [::]) ts.
 
     (* The schedulability test simply checks if we got a list of
        response-time bounds (i.e., if the computation did not fail). *)
-    Definition fp_schedulable (ts: taskset_of sporadic_task) :=
+    Definition fp_schedulable (ts: seq sporadic_task) :=
       fp_claimed_bounds ts != None.
     
     (* In the following section, we prove several helper lemmas about the
@@ -258,7 +258,7 @@ Module ResponseTimeIterationFP.
         forall tsk rt_bounds,
           task_cost tsk +
            div_floor (total_interference_bound_fp task_cost task_period tsk rt_bounds
-                     (per_task_rta tsk rt_bounds (max_steps tsk)) higher_priority) num_cpus
+                     (per_task_rta tsk rt_bounds (max_steps tsk))) num_cpus
           = per_task_rta tsk rt_bounds (max_steps tsk).+1.
       Proof.
           by done.
@@ -273,14 +273,13 @@ Module ResponseTimeIterationFP.
       (* Consider a list of previous tasks and a task tsk to be analyzed. *)
       Variable ts: taskset_of sporadic_task.
 
-      (* Assume that the task set doesn't contain duplicates and is sorted by priority, ... *)
-      Hypothesis H_task_set_is_a_set: uniq ts.
+      (* Assume that the task set is sorted by unique priorities, ... *)
       Hypothesis H_task_set_is_sorted: sorted higher_priority ts.
+      Hypothesis H_task_set_has_unique_priorities:
+        FP_is_antisymmetric_over_task_set higher_priority ts.
 
-      (* ...the priority order is strict (<), ...*)
-      Hypothesis H_priority_irreflexive: irreflexive higher_priority.
-      Hypothesis H_priority_transitive: transitive higher_priority.
-      Hypothesis H_priority_antissymetric: antisymmetric higher_priority.
+      (* ...the priority order is transitive, ...*)
+      Hypothesis H_priority_transitive: FP_is_transitive higher_priority.
       
       (* ... and that the response-time analysis succeeds. *)
       Variable hp_bounds: seq task_with_response_time.
@@ -290,71 +289,30 @@ Module ResponseTimeIterationFP.
       (* Let's refer to tasks by index. *)
       Variable elem: sporadic_task.
       Let TASK := nth elem ts.
-                    
-      (* Then, the tasks in the prefix of fp_claimed_bounds are exactly interfering tasks
-         under FP scheduling.*)
-      Lemma fp_claimed_bounds_interf:
-        forall idx,
+
+      (* We prove that higher-priority tasks have smaller index. *)
+      Lemma fp_claimed_bounds_hp_tasks_have_smaller_index :
+        forall hp_idx idx,
+          hp_idx < size ts ->
           idx < size ts ->
-          [seq tsk_hp <- ts | fp_can_interfere_with higher_priority (TASK idx) tsk_hp] = take idx ts.
+          hp_idx != idx ->
+          higher_priority (TASK hp_idx) (TASK idx) ->
+          hp_idx < idx.
       Proof.
-        rename H_task_set_is_sorted into SORT,
-               H_task_set_is_a_set into UNIQ,
-               H_priority_antissymetric into ANTI,
-               H_priority_irreflexive into IRR.
-        induction idx.
-        {
-          intros LT.
-          destruct ts as [| tsk0 ts']; [by done | simpl in SORT].
-          unfold fp_can_interfere_with; rewrite /= eq_refl andbF.
-          apply eq_trans with (y := filter pred0 ts');
-            last by apply filter_pred0.
-          apply eq_in_filter; red; intros x INx; rewrite /TASK /=.
-          destruct (x != tsk0) eqn:SAME; rewrite ?andbT ?andbF //.
-          apply negbTE; apply/negP; unfold not; intro HP.
-          move: SAME => /eqP SAME; apply SAME; clear SAME.
-          apply ANTI; apply/andP; split; first by done.
-          apply order_path_min in SORT; last by done.
-          by move: SORT => /allP SORT; apply SORT.
-        }
-        {
-          intros LT.
-          generalize LT; intro LT'; apply ltSnm in LT.
-          feed IHidx; first by done.
-          rewrite -filter_idx_le_takeS //.
-          apply eq_in_filter; red; intros x INx.
-          unfold fp_can_interfere_with.
-          generalize INx; intro SUBST; apply nth_index with (x0 := elem) in SUBST.
-          rewrite -SUBST; clear SUBST.
-          rewrite index_uniq; [ | by rewrite index_mem | by done].
-          apply/idP/idP.
-          {
-            move => /andP [HP DIFF].
-            unfold TASK in *.
-            apply sorted_uniq_rel_implies_le_idx in HP; try (by done);
-              last by rewrite index_mem.
-            by rewrite leq_eqVlt in HP; move: HP => /orP [/eqP SAME | LESS];
-                first by rewrite SAME eq_refl in DIFF.
-          }
-          {
-            intros LEidx; apply/andP; split;
-              first by apply sorted_lt_idx_implies_rel.
-            apply/eqP; red; intro BUG.
-            eapply f_equal with (f := fun x => index x ts) in BUG.
-            rewrite nth_index in BUG; last by done.
-            rewrite BUG in LEidx.
-            by rewrite index_uniq // ltnn in LEidx.
-          }
-        }
+        unfold TASK; clear TASK.
+        rename ts into ts'; destruct ts' as [ts UNIQ]; simpl in *.
+        intros hp_idx idx LThp LT NEQ HP.
+        rewrite ltn_neqAle; apply/andP; split; first by done.
+        by apply sorted_rel_implies_le_idx with (leT := higher_priority) (s := ts) (x0 := elem).
       Qed.
-      
+
     End HighPriorityTasks.
 
     (* In this section, we show that the fixed-point iteration converges. *)
     Section Convergence.
 
-      (* Consider any set of higher-priority tasks. *)
-      Variable ts_hp: taskset_of sporadic_task.
+      (* Consider any list of higher-priority tasks. *)
+      Variable ts_hp: list sporadic_task.
 
       (* Assume that the response-time analysis succeeds for the higher-priority tasks. *)
       Variable rt_bounds: seq task_with_response_time.
@@ -384,15 +342,14 @@ Module ResponseTimeIterationFP.
         apply fun_mon_iter_mon; [by ins | by ins; apply leq_addr |].
         clear LEx x1 x2; intros x1 x2 LEx.
         unfold div_floor, total_interference_bound_fp.
-        rewrite big_seq_cond [\sum_(i <- _ | let '(tsk_other, _) := i in
-                                 _ && (tsk_other != tsk))_]big_seq_cond.
-        rewrite leq_add2l leq_div2r // leq_sum //.
-
-        intros i; destruct (i \in rt_bounds) eqn:HP; last by rewrite andFb.
-        destruct i as [i R]; intros _.
-        have GE_COST := fp_claimed_bounds_ge_cost ts_hp rt_bounds i R SOME.
+        rewrite big_seq_cond.
+        rewrite [\sum_(_ <- _ | true) _]big_seq_cond.
+        rewrite leq_add2l leq_div2r //.
+        apply leq_sum; move => i /andP [IN _].
+        destruct i as [i R].
+        have GE_COST := fp_claimed_bounds_ge_cost ts_hp rt_bounds i R SOME IN.
         have UNZIP := fp_claimed_bounds_unzip ts_hp rt_bounds SOME.
-        assert (IN: i \in ts_hp).
+        assert (IN': i \in ts_hp).
         {
           by rewrite -UNZIP; apply/mapP; exists (i,R).
         }
@@ -400,8 +357,8 @@ Module ResponseTimeIterationFP.
         rewrite leq_min; apply/andP; split.
         {
           apply leq_trans with (n := W task_cost task_period i R x1); first by apply geq_minl.
-            exploit (VALID i); [by rewrite mem_rcons in_cons IN orbT | ins; des].
-            by apply W_monotonic; try by ins; apply GE_COST.
+          exploit (VALID i); [by rewrite mem_rcons in_cons IN' orbT | ins; des].
+          by apply W_monotonic; try (by done); apply GE_COST.
         }
         {
           apply leq_trans with (n := x1 - task_cost tsk + 1); first by apply geq_minr.
@@ -514,28 +471,22 @@ Module ResponseTimeIterationFP.
       (* Consider a task set ts. *)
       Variable ts: taskset_of sporadic_task.
       
-      (* Assume that higher_priority is a total strict order (<).
-         TODO: it doesn't have to be total over the universe of tasks,
-         but only within the task set. However, to weaken this hypothesis
-         we need to re-prove some lemmas from ssreflect. *)
-      Hypothesis H_irreflexive: irreflexive higher_priority.
-      Hypothesis H_transitive: transitive higher_priority.
-      Hypothesis H_unique_priorities: antisymmetric higher_priority.
-      Hypothesis H_total: total higher_priority.
-
-      (* Assume the task set has no duplicates, ... *)
-      Hypothesis H_ts_is_a_set: uniq ts.
-
-      (* ...all tasks have valid parameters, ... *)
+      (* Assume that all tasks have valid parameters, ... *)
       Hypothesis H_valid_task_parameters:
         valid_sporadic_taskset task_cost task_period task_deadline ts.
 
-      (* ...constrained deadlines, ...*)
+      (* ...constrained deadlines.*)
       Hypothesis H_constrained_deadlines:
         forall tsk, tsk \in ts -> task_deadline tsk <= task_period tsk.
 
-      (* ...and tasks are ordered by increasing priorities. *)
-      Hypothesis H_sorted_ts: sorted higher_priority ts.
+      (* Assume that the task set is totally ordered by unique priorities,
+         and that the priority order is transitive. *)
+      Hypothesis H_task_set_is_sorted: sorted higher_priority ts.
+      Hypothesis H_task_set_has_unique_priorities:
+        FP_is_antisymmetric_over_task_set higher_priority ts.
+      Hypothesis H_priority_is_total:
+        FP_is_total_over_task_set higher_priority ts.
+      Hypothesis H_priority_transitive: FP_is_transitive higher_priority.
 
       (* Next, consider any arrival sequence such that...*)
       Context {arr_seq: arrival_sequence Job}.
@@ -552,11 +503,10 @@ Module ResponseTimeIterationFP.
       (* ... and satisfy the sporadic task model.*)
       Hypothesis H_sporadic_tasks:
         sporadic_task_model task_period arr_seq job_task.
-      
+
       (* Then, consider any platform with at least one CPU such that...*)
       Variable sched: schedule num_cpus arr_seq.
-      Hypothesis H_at_least_one_cpu :
-        num_cpus > 0.
+      Hypothesis H_at_least_one_cpu: num_cpus > 0.
 
       (* ...jobs only execute after they arrived and no longer
          than their execution costs. *)
@@ -658,11 +608,37 @@ Module ResponseTimeIterationFP.
               (higher_eq_priority := higher_priority); try (by done).
         {
           cut (NTH idx \in hp_bounds = true); [intros IN | by apply mem_nth].
-          by rewrite -UNZIP; apply/mapP; exists (TASK idx, RESP idx); rewrite PAIR.
+          by rewrite set_mem -UNZIP; apply/mapP; exists (TASK idx, RESP idx); rewrite PAIR.
         }
         {
-          unfold unzip1 in *; rewrite map_take UNZIP SUBST //.
-          by apply fp_claimed_bounds_interf with (hp_bounds := hp_bounds); rewrite -?SIZE.
+          intros hp_tsk IN INTERF.
+          exists (RESP (index hp_tsk ts)).
+          move: (IN) => INDEX; apply nth_index with (x0 := tsk) in INDEX.
+          rewrite -{1}[hp_tsk]INDEX -SUBST; last by rewrite SIZE index_mem.
+          assert (UNIQ: uniq hp_bounds).
+          {
+            apply map_uniq with (f := fst); unfold unzip1 in *; rewrite UNZIP.
+            by destruct ts.
+          }
+          rewrite -filter_idx_lt_take //.
+          {
+            rewrite PAIR mem_filter; apply/andP; split;
+              last by apply mem_nth; rewrite SIZE index_mem.
+            {
+              rewrite /NTH index_uniq; [| by rewrite SIZE index_mem | by done ].
+              {
+                move: INTERF => /andP [HP NEQ].
+                apply fp_claimed_bounds_hp_tasks_have_smaller_index with
+                  (ts := ts) (elem := tsk) (hp_bounds := hp_bounds);
+                  try (by done);
+                  [by rewrite index_mem | by rewrite -SIZE | | by rewrite INDEX -SUBST].
+                apply/eqP; intro BUG; subst idx.
+                rewrite SUBST -{1}INDEX in NEQ;
+                  first by rewrite eq_refl in NEQ.
+                by rewrite SIZE index_mem INDEX.
+              }
+            }
+          }
         }
         {
           intros hp_tsk R_hp IN; apply mem_take in IN.
@@ -701,7 +677,7 @@ Module ResponseTimeIterationFP.
         feed (UNZIP rt_bounds); first by done.
         assert (EX: exists R, (tsk, R) \in rt_bounds).
         {
-          rewrite -UNZIP in INtsk; move: INtsk => /mapP EX.
+          rewrite set_mem -UNZIP in INtsk; move: INtsk => /mapP EX.
           by destruct EX as [p]; destruct p as [tsk' R]; simpl in *; subst tsk'; exists R.
         } des.
         exploit (RLIST tsk R); [by ins | by apply JOBtsk | intro COMPLETED].

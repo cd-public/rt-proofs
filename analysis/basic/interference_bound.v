@@ -34,7 +34,7 @@ Module InterferenceBoundGeneric.
       (* Based on the workload bound, Bertogna and Cirinei define the
          following interference bound for a task. *)
       Definition interference_bound_generic :=
-        minn (W task_cost task_period tsk_other R_other delta) (delta - (task_cost tsk) + 1).
+        minn (W task_cost task_period tsk_other R_other delta) (delta - task_cost tsk + 1).
 
     End PerTask.
 

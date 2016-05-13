@@ -7,7 +7,7 @@ Module Platform.
 
   Import Job SporadicTaskset Schedule ScheduleOfSporadicTask SporadicTaskset SporadicTaskArrival Interference Priority.
 
-  Section SchedulingInvariants.
+  Section Properties.
     
     Context {sporadic_task: eqType}.
     Variable task_cost: sporadic_task -> time.
@@ -26,7 +26,7 @@ Module Platform.
     Context {num_cpus: nat}.
     Variable sched: schedule num_cpus arr_seq.
 
-    Section WorkConserving.
+    Section Execution.
 
       (* A scheduler is work-conserving iff when a job j is backlogged,
          all processors are busy with other jobs. *)
@@ -43,7 +43,7 @@ Module Platform.
           backlogged job_cost sched j t ->
           size (jobs_scheduled_at sched t) = num_cpus.
       
-    End WorkConserving.
+    End Execution.
 
     Section JLDP.
 
@@ -154,170 +154,11 @@ Module Platform.
             }
           }
         Qed.
-          
+
       End EquivalentDefinitions.
       
-      Section JobInvariantAsTaskInvariant.
-
-        (* Assume any work-conserving priority-based scheduler. *)
-        Variable higher_eq_priority: JLDP_policy arr_seq.
-        Hypothesis H_work_conserving: work_conserving.
-        Hypothesis H_enforces_JLDP_policy: enforces_JLDP_policy higher_eq_priority.
-                   
-        (* Consider task set ts. *)
-        Variable ts: taskset_of sporadic_task.
-
-        (* Assume the task set has no duplicates, ... *)
-        Hypothesis H_ts_is_a_set: uniq ts.
-        (* ... and all jobs come from the taskset. *)
-        Hypothesis H_all_jobs_from_taskset:
-          forall (j: JobIn arr_seq), job_task j \in ts.
-
-        (* Suppose that jobs are sequential, ...*)
-        Hypothesis H_sequential_jobs: sequential_jobs sched.
-        (* ... jobs must arrive to execute, ... *)
-        Hypothesis H_completed_jobs_dont_execute:
-          completed_jobs_dont_execute job_cost sched.
-        (* ... and jobs do not execute after completion. *)
-        Hypothesis H_jobs_must_arrive_to_execute:
-          jobs_must_arrive_to_execute sched.
-
-        (* Assume that the schedule satisfies the sporadic task model ...*)
-        Hypothesis H_sporadic_tasks:
-          sporadic_task_model task_period arr_seq job_task.
-
-        (* Consider a valid task tsk, ...*)
-        Variable tsk: sporadic_task.
-        Hypothesis H_valid_task: is_valid_sporadic_task task_cost task_period task_deadline tsk.
-
-        (*... whose job j ... *)
-        Variable j: JobIn arr_seq.
-        Variable H_job_of_tsk: job_task j = tsk.
-
-        (*... is backlogged at time t. *)
-        Variable t: time.
-        Hypothesis H_j_backlogged: backlogged job_cost sched j t.
-
-        (* Assume that any previous jobs of tsk have completed by the period. *)
-        Hypothesis H_all_previous_jobs_completed :
-          forall (j_other: JobIn arr_seq) tsk_other,
-            job_task j_other = tsk_other ->
-            job_arrival j_other + task_period tsk_other <= t ->
-            completed job_cost sched j_other (job_arrival j_other + task_period (job_task j_other)).
-
-        Let scheduled_task_other_than (tsk tsk_other: sporadic_task) :=
-          task_is_scheduled job_task sched tsk_other t && (tsk_other != tsk).
-
-        (* Then, there can be at most one pending job of each task at time t. *)
-        Lemma platform_at_most_one_pending_job_of_each_task :
-          forall j1 j2,
-            pending job_cost sched j1 t ->
-            pending job_cost sched j2 t ->
-            job_task j1 = job_task j2 ->
-            j1 = j2.
-        Proof.
-          rename H_sporadic_tasks into SPO, H_all_previous_jobs_completed into PREV.
-          intros j1 j2 PENDING1 PENDING2 SAMEtsk.
-          apply/eqP; rewrite -[_ == _]negbK; apply/negP; red; move => /eqP DIFF. 
-          move: PENDING1 PENDING2 => /andP [ARRIVED1 /negP NOTCOMP1] /andP [ARRIVED2 /negP NOTCOMP2].
-          destruct (leqP (job_arrival j1) (job_arrival j2)) as [BEFORE1 | BEFORE2].
-          {
-            specialize (SPO j1 j2 DIFF SAMEtsk BEFORE1).
-            exploit (PREV j1 (job_task j1));
-              [by done | by apply leq_trans with (n := job_arrival j2) | intros COMP1].
-            apply NOTCOMP1.
-            apply completion_monotonic with (t0 := job_arrival j1 + task_period (job_task j1));
-              try (by done).
-            by apply leq_trans with (n := job_arrival j2). 
-          }
-          {
-            apply ltnW in BEFORE2.
-            exploit (SPO j2 j1); [by red; ins; subst | by rewrite SAMEtsk | by done | intro SPO'].
-            exploit (PREV j2 (job_task j2));
-              [by done | by apply leq_trans with (n := job_arrival j1) | intros COMP2].
-            apply NOTCOMP2.
-            apply completion_monotonic with (t0 := job_arrival j2 + task_period (job_task j2));
-              try (by done).
-            by apply leq_trans with (n := job_arrival j1).
-          }
-        Qed.
-
-        (* Therefore, all processors are busy with tasks other than tsk. *)
-        Lemma platform_cpus_busy_with_interfering_tasks :      
-          count (scheduled_task_other_than tsk) ts = num_cpus.
-        Proof.
-          have UNIQ := platform_at_most_one_pending_job_of_each_task.
-          rename H_all_jobs_from_taskset into FROMTS,
-                 H_sequential_jobs into SEQUENTIAL,
-                 H_work_conserving into WORK,
-                 H_enforces_JLDP_policy into PRIO,
-                 H_j_backlogged into BACK,
-                 H_job_of_tsk into JOBtsk,
-                 H_valid_job_parameters into JOBPARAMS,
-                 H_valid_task into TASKPARAMS,
-                 H_all_previous_jobs_completed into PREV,
-                 H_completed_jobs_dont_execute into COMP,
-                 H_jobs_must_arrive_to_execute into ARRIVE.
-          apply work_conserving_eq_work_conserving_count in WORK.
-          unfold valid_sporadic_job, valid_realtime_job,
-                 enforces_JLDP_policy,
-                 task_precedence_constraints, completed_jobs_dont_execute,
-                 sporadic_task_model, is_valid_sporadic_task,
-                 jobs_of_same_task_dont_execute_in_parallel,
-                 sequential_jobs in *.  
-          apply/eqP; rewrite eqn_leq; apply/andP; split.
-          {
-            apply leq_trans with (n := count (fun x => task_is_scheduled job_task sched x t) ts);
-              first by apply sub_count; first by red; move => x /andP [SCHED _].    
-            unfold task_is_scheduled.
-            apply count_exists; first by done.
-            {
-              intros cpu x1 x2 SCHED1 SCHED2.
-              unfold task_scheduled_on in *.
-              destruct (sched cpu t); last by done.
-              move: SCHED1 SCHED2 => /eqP SCHED1 /eqP SCHED2.
-              by rewrite -SCHED1 -SCHED2.
-            }
-          }
-          {
-            rewrite -(WORK j t) // -count_predT.       
-            apply leq_trans with (n := count (fun j: JobIn arr_seq => scheduled_task_other_than tsk (job_task j)) (jobs_scheduled_at sched t));
-              last first.
-            {
-              rewrite -count_map.
-              apply count_sub_uniqr;
-                last by red; move => tsk' /mapP [j' _ JOBtsk']; subst; apply FROMTS.
-              rewrite map_inj_in_uniq; first by apply scheduled_jobs_uniq.
-              red; intros j1 j2 SCHED1 SCHED2 SAMEtsk.
-              rewrite 2!mem_scheduled_jobs_eq_scheduled in SCHED1 SCHED2.
-              apply scheduled_implies_pending with (job_cost0 := job_cost) in SCHED1; try (by done).
-              apply scheduled_implies_pending with (job_cost0 := job_cost) in SCHED2; try (by done).
-              by apply UNIQ.
-            }
-            {
-              apply sub_in_count; intros j' SCHED' _.
-              rewrite mem_scheduled_jobs_eq_scheduled in SCHED'.
-              unfold scheduled_task_other_than; apply/andP; split.
-              {
-                move: SCHED' => /existsP [cpu /eqP SCHED'].
-                by apply/existsP; exists cpu; rewrite /task_scheduled_on SCHED' eq_refl.
-              }
-              {
-                apply/eqP; red; intro SAMEtsk; symmetry in SAMEtsk.
-                move: BACK => /andP [PENDING NOTSCHED].
-                generalize SCHED'; intro PENDING'.
-                apply scheduled_implies_pending with (job_cost0 := job_cost) in PENDING'; try (by done).
-                exploit (UNIQ j j' PENDING PENDING'); [by rewrite -SAMEtsk | intro EQjob; subst].
-                by rewrite SCHED' in NOTSCHED.
-              }
-            }
-          }
-        Qed.
-
-      End JobInvariantAsTaskInvariant.
-
     End Lemmas.
 
-  End SchedulingInvariants.
+  End Properties.
   
 End Platform.

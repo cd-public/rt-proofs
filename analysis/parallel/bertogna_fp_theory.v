@@ -1,16 +1,24 @@
 Require Import rt.util.all.
 Require Import rt.model.basic.task rt.model.basic.job rt.model.basic.task_arrival
-               rt.model.basic.schedule rt.model.basic.platform rt.model.basic.platform_fp
-               rt.model.basic.workload rt.model.basic.schedulability rt.model.basic.priority
-               rt.model.basic.response_time rt.model.basic.interference.
+               rt.model.basic.schedule rt.model.basic.platform
+               rt.model.basic.constrained_deadlines
+               rt.model.basic.workload rt.model.basic.schedulability
+               rt.model.basic.priority rt.model.basic.response_time
+               rt.model.basic.interference.
 Require Import rt.analysis.parallel.workload_bound rt.analysis.parallel.interference_bound_fp.
 From mathcomp Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop div path.
 
 Module ResponseTimeAnalysisFP.
 
-  Export Job SporadicTaskset ScheduleOfSporadicTask Workload Interference InterferenceBoundFP
-         Platform PlatformFP Schedulability ResponseTime Priority SporadicTaskArrival WorkloadBound.
+  Export Job SporadicTaskset ScheduleOfSporadicTask Workload Interference
+         InterferenceBoundFP Platform Schedulability ResponseTime
+         Priority SporadicTaskArrival WorkloadBound ConstrainedDeadlines.
     
+  (* In this section, we prove that any fixed point in Bertogna and
+     Cirinei's RTA for FP scheduling modified to consider (potentially)
+     parallel jobs yields a safe response-time bound. This is an extension
+     of the analysis found in Chapter 18.2 of Baruah et al.'s book
+     Multiprocessor Scheduling for Real-time Systems. *)
   Section ResponseTimeBound.
 
     Context {sporadic_task: eqType}.
@@ -33,7 +41,19 @@ Module ResponseTimeAnalysisFP.
       forall (j: JobIn arr_seq),
         valid_sporadic_job task_cost task_deadline job_cost job_deadline job_task j.
 
-    (* Consider any schedule such that...*)
+    (* Assume that we have a task set where all tasks have valid
+       parameters and constrained deadlines, ... *)
+    Variable ts: taskset_of sporadic_task.
+    Hypothesis H_valid_task_parameters:
+      valid_sporadic_taskset task_cost task_period task_deadline ts.
+    Hypothesis H_constrained_deadlines:
+      forall tsk, tsk \in ts -> task_deadline tsk <= task_period tsk.
+
+    (* ... and that all jobs in the arrival sequence come from the task set. *)
+    Hypothesis H_all_jobs_from_taskset:
+      forall (j: JobIn arr_seq), job_task j \in ts.
+
+    (* Next, consider any schedule such that...*)
     Variable num_cpus: nat.
     Variable sched: schedule num_cpus arr_seq.
 
@@ -44,67 +64,61 @@ Module ResponseTimeAnalysisFP.
     Hypothesis H_completed_jobs_dont_execute:
       completed_jobs_dont_execute job_cost sched.
 
+    (* Consider a given FP policy, ... *)
+    Variable higher_eq_priority: FP_policy sporadic_task.
+    
+    (* ... and assume that the schedule is an APA work-conserving
+       schedule that enforces this policy. *)
+    Hypothesis H_work_conserving: work_conserving job_cost sched.
+    Hypothesis H_enforces_FP_policy:
+      enforces_FP_policy job_cost job_task sched higher_eq_priority.
+    
     (* Assume that there exists at least one processor. *)
-    Hypothesis H_at_least_one_cpu :
-      num_cpus > 0.
+    Hypothesis H_at_least_one_cpu: num_cpus > 0.
 
-    (* Assume that we have a task set (with no duplicates) where all jobs
-       come from the task set and all tasks have valid parameters and constrained deadlines. *)
-    Variable ts: taskset_of sporadic_task.
-    Hypothesis H_ts_is_a_set: uniq ts.
-    Hypothesis H_all_jobs_from_taskset:
-      forall (j: JobIn arr_seq), job_task j \in ts.
-    Hypothesis H_valid_task_parameters:
-      valid_sporadic_taskset task_cost task_period task_deadline ts.
-    Hypothesis H_constrained_deadlines:
-      forall tsk, tsk \in ts -> task_deadline tsk <= task_period tsk.
-
-    (* Next, consider a task tsk that is to be analyzed. *)
-    Variable tsk: sporadic_task.
-    Hypothesis task_in_ts: tsk \in ts.
-
+    (* Let's define some local names to avoid passing many parameters. *)   
     Let no_deadline_is_missed_by_tsk (tsk: sporadic_task) :=
       task_misses_no_deadline job_cost job_deadline job_task sched tsk.
     Let response_time_bounded_by (tsk: sporadic_task) :=
       is_response_time_bound_of_task job_cost job_task tsk sched.
 
-    (* Assume a known response-time bound for any interfering task *)
+    (* Next, we consider the response-time recurrence.
+       Let tsk be a task in ts that is to be analyzed. *)
+    Variable tsk: sporadic_task.
+    Hypothesis task_in_ts: tsk \in ts.
+
+    (* Let is_hp_task denote whether a task is a higher-priority task
+       (with respect to tsk). *)
+    Let is_hp_task := higher_priority_task higher_eq_priority tsk.
+
+    (* Assume a response-time bound is known... *)
     Let task_with_response_time := (sporadic_task * time)%type.
     Variable hp_bounds: seq task_with_response_time.
-    
-    (* For FP scheduling, assume there exists a fixed task priority. *)
-    Variable higher_eq_priority: FP_policy sporadic_task.
-
-    Let can_interfere_with_tsk := fp_can_interfere_with higher_eq_priority tsk.
-    
-    (* Assume that hp_bounds has exactly the tasks that interfere with tsk,... *)
-    Hypothesis H_hp_bounds_has_interfering_tasks:
-      [seq tsk_hp <- ts | can_interfere_with_tsk tsk_hp] = unzip1 hp_bounds.
-
-    (* ...and that all values in the pairs contain valid response-time bounds *)
     Hypothesis H_response_time_of_interfering_tasks_is_known:
       forall hp_tsk R,
         (hp_tsk, R) \in hp_bounds ->
         response_time_bounded_by hp_tsk R.
-
-    (* Assume that the scheduler is work-conserving and enforces the FP policy. *)
-    Hypothesis H_work_conserving: work_conserving job_cost sched.
-    Hypothesis H_enforces_FP_policy:
-      enforces_FP_policy job_cost job_task sched higher_eq_priority.
     
+    (* ... for every higher-priority task. *)
+    Hypothesis H_hp_bounds_has_interfering_tasks:
+      forall hp_tsk,
+        hp_tsk \in ts ->
+        is_hp_task hp_tsk ->
+          exists R, (hp_tsk, R) \in hp_bounds.
+
     (* Let R be the fixed point of Bertogna and Cirinei's recurrence, ...*)
     Variable R: time.
     Hypothesis H_response_time_recurrence_holds :
       R = task_cost tsk +
           div_floor
-            (total_interference_bound_fp task_cost task_period tsk hp_bounds R higher_eq_priority)
+            (total_interference_bound_fp task_cost task_period hp_bounds R)
             num_cpus.
 
     (* ... and assume that R is no larger than the deadline of tsk.*)
     Hypothesis H_response_time_no_larger_than_deadline:
       R <= task_deadline tsk.
 
-    (* In order to prove that R is a response-time bound, we first present some lemmas. *)
+    (* In order to prove that R is a response-time bound, we first provide some lemmas. *)
     Section Lemmas.
 
       (* Consider any job j of tsk. *)
@@ -124,47 +138,24 @@ Module ResponseTimeAnalysisFP.
         task_interference job_cost job_task sched j
                           tsk_other (job_arrival j) (job_arrival j + R).
 
-      (* and X the total interference incurred by job j due to any task. *)
+      (* ...and X the total interference incurred by job j due to any task. *)
       Let X := total_interference job_cost sched j (job_arrival j) (job_arrival j + R).
 
       (* Recall Bertogna and Cirinei's workload bound. *)
       Let workload_bound (tsk_other: sporadic_task) (R_other: time) :=
         W task_cost task_period tsk_other R_other R.
 
-      (* Also, let ts_interf be the subset of tasks that interfere with tsk. *)
-      Let ts_interf := [seq tsk_other <- ts | can_interfere_with_tsk tsk_other].
+      (* Let hp_tasks denote the set of higher-priority tasks. *)
+      Let hp_tasks := [seq tsk_other <- ts | is_hp_task tsk_other].
 
-      Section LemmasAboutInterferingTasks.
+      (* Now we establish results about the higher-priority tasks. *)
+      Section LemmasAboutHPTasks.
         
         (* Let (tsk_other, R_other) be any pair of higher-priority task and
            response-time bound computed in previous iterations. *)
         Variable tsk_other: sporadic_task.
         Variable R_other: time.
         Hypothesis H_response_time_of_tsk_other: (tsk_other, R_other) \in hp_bounds.
-
-        (* Note that tsk_other is in task set ts ...*)
-        Lemma bertogna_fp_tsk_other_in_ts: tsk_other \in ts.
-          Proof.
-            rename H_hp_bounds_has_interfering_tasks into UNZIP,
-                   H_response_time_of_tsk_other into INbounds.
-            move: UNZIP => UNZIP.
-            cut (tsk_other \in ts_interf = true);
-              first by rewrite mem_filter; move => /andP [_ IN].
-            unfold ts_interf; rewrite UNZIP.
-            by apply/mapP; exists (tsk_other, R_other).
-        Qed.
-
-        (*... and interferes with task tsk. *)
-        Lemma bertogna_fp_tsk_other_interferes: can_interfere_with_tsk tsk_other.
-          Proof.
-            rename H_hp_bounds_has_interfering_tasks into UNZIP,
-                   H_response_time_of_tsk_other into INbounds.
-            move: UNZIP => UNZIP.
-            cut (tsk_other \in ts_interf = true);
-              first by rewrite mem_filter; move => /andP [INTERF _].
-            unfold ts_interf; rewrite UNZIP.
-            by apply/mapP; exists (tsk_other, R_other).
-        Qed.
 
         (* Since tsk_other cannot interfere more than it executes, we show that
            the interference caused by tsk_other is no larger than workload bound W. *)
@@ -174,9 +165,30 @@ Module ResponseTimeAnalysisFP.
           unfold response_time_bounded_by, is_response_time_bound_of_task,
                  completed, completed_jobs_dont_execute, valid_sporadic_job in *.
           rename H_valid_task_parameters into TASK_PARAMS,
+                 H_all_jobs_from_taskset into FROMTS,
                  H_response_time_of_interfering_tasks_is_known into RESP.
           unfold x, workload_bound.
-          have INts := bertogna_fp_tsk_other_in_ts.
+          destruct ([exists t: 'I_(job_arrival j + R),
+                       task_is_scheduled job_task sched tsk_other t]) eqn: SCHED;
+            last first.
+          {
+            apply negbT in SCHED; rewrite negb_exists in SCHED.
+            move: SCHED => /forallP SCHED.
+            apply leq_trans with (n := 0); last by done.
+            apply leq_trans with (n := \sum_(job_arrival j <= t < job_arrival j + R) 0);
+              last by rewrite big1.
+            apply leq_sum_nat; move => i /andP [_ LTi] _.
+            specialize (SCHED (Ordinal LTi)).
+            rewrite negb_exists in SCHED; move: SCHED => /forallP SCHED.
+            rewrite big1 //; intros cpu _.
+            specialize (SCHED cpu); apply negbTE in SCHED.
+            by rewrite SCHED andbF.
+          }
+          move: SCHED => /existsP [t /existsP [cpu SCHED]].
+          unfold task_scheduled_on in SCHED.
+          destruct (sched cpu t) as [j0 |]; last by done.
+          assert (INts: tsk_other \in ts).
+            by move: SCHED => /eqP <-; rewrite FROMTS.
           apply leq_trans with (n := workload job_task sched tsk_other
                                               (job_arrival j) (job_arrival j + R));
             first by apply task_interference_le_workload.
@@ -187,7 +199,7 @@ Module ResponseTimeAnalysisFP.
               | by ins; apply RESP with (hp_tsk := tsk_other)].
         Qed.
 
-      End LemmasAboutInterferingTasks.
+      End LemmasAboutHPTasks.
 
       (* Next we prove some lemmas that help to derive a contradiction.*)
       Section DerivingContradiction.
@@ -238,15 +250,16 @@ Module ResponseTimeAnalysisFP.
           by apply completion_monotonic with (t := i); try (by done); apply ltnW.
         Qed.
 
-        Let scheduled_task_other_than_tsk (t: time) (tsk_other: sporadic_task) :=
+        (* Let's define a predicate to identify the other tasks that are scheduled. *)
+        Let other_scheduled_task (t: time) (tsk_other: sporadic_task) :=
           task_is_scheduled job_task sched tsk_other t &&
-          can_interfere_with_tsk tsk_other.
-        
-        (* 1) Next, we prove that the sum of the interference of each task is equal
-              to the total interference multiplied by the number of processors. This
-              holds because interference only occurs when all processors are busy. *)
-        Lemma bertogna_fp_all_cpus_busy :
-          \sum_(tsk_k <- ts_interf) x tsk_k = X * num_cpus.
+          is_hp_task tsk_other.
+      
+        (* 1) Now we prove that, at all times that j is backlogged, the number
+              of tasks other than tsk that are scheduled is exactly the number
+              of processors in the system. This is required to prove lemma (2). *)
+        Lemma bertogna_fp_all_cpus_are_busy:
+          \sum_(tsk_k <- hp_tasks) x tsk_k = X * num_cpus.
         Proof.
           rename H_all_jobs_from_taskset into FROMTS,
                  H_valid_task_parameters into PARAMS,
@@ -277,7 +290,7 @@ Module ResponseTimeAnalysisFP.
           apply eq_bigr; intros cpu _.
           specialize (WORK j t BACK cpu); des.
           move: WORK => /eqP SCHED.
-          rewrite (bigD1_seq (job_task j_other)) /=; last by rewrite filter_uniq.
+          rewrite (bigD1_seq (job_task j_other)) /=; last by rewrite filter_uniq; destruct ts.
           {
             rewrite (eq_bigr (fun i => 0));
               last by intros i DIFF; rewrite /task_scheduled_on SCHED;apply/eqP;rewrite eqb0 eq_sym.
@@ -285,7 +298,6 @@ Module ResponseTimeAnalysisFP.
             by unfold task_scheduled_on; rewrite SCHED.
           }
           rewrite mem_filter; apply/andP; split; last by apply FROMTS.
-          unfold can_interfere_with_tsk, fp_can_interfere_with.
           apply/andP; split.
           {
             rewrite -JOBtsk; apply FP with (t := t); first by done.
@@ -328,25 +340,30 @@ Module ResponseTimeAnalysisFP.
           }
         Qed.
 
-        (* 2) Now, we prove that the Bertogna's interference bound
-              is not enough to cover the sum of the "minimum" term over
-              all tasks (artifact of the proof by contradiction). *)
+        (* 2) Next, using lemmas (0) and (1) we prove that the reduction-based
+              interference bound is not enough to cover the sum of the minima over all tasks
+              (artifact of the proof by contradiction). *)
         Lemma bertogna_fp_sum_exceeds_total_interference:
           \sum_((tsk_k, R_k) <- hp_bounds)
-           x tsk_k > total_interference_bound_fp task_cost task_period tsk
-                                            hp_bounds R higher_eq_priority.
+           x tsk_k > total_interference_bound_fp task_cost task_period hp_bounds R.
         Proof.
           have TOOMUCH := bertogna_fp_too_much_interference.
-          rename H_hp_bounds_has_interfering_tasks into UNZIP,
+          have ALLBUSY := bertogna_fp_all_cpus_are_busy.
+          rename H_hp_bounds_has_interfering_tasks into HAS,
                  H_response_time_recurrence_holds into REC.
-          apply leq_trans with (n := \sum_(tsk_k <- ts_interf) x tsk_k);
+          apply leq_trans with (n := \sum_(tsk_k <- hp_tasks) x tsk_k);
               last first.
           {
-            rewrite (eq_bigr (fun i => x (fst i)));
-              last by ins; destruct i.
-            rewrite big_filter.
-            have MAP := big_map (fun x => fst x) (fun i => true) (fun i => x i).
-            by unfold unzip1 in *; rewrite -MAP -UNZIP -big_filter.
+            rewrite (eq_bigr (fun i => x (fst i))); last by ins; destruct i.
+            have MAP := @big_map _ 0 addn _ _ (fun x => fst x) hp_bounds (fun x => true) (fun y => (x y)).
+            rewrite -MAP.
+            apply leq_sum_sub_uniq; first by apply filter_uniq; destruct ts.
+            red; move => tsk0 IN0.
+            rewrite mem_filter in IN0; move: IN0 => /andP [INTERF0 IN0].
+            apply/mapP.
+            feed (HAS tsk0); first by done.
+            move: (HAS INTERF0) => [R0 IN].
+            by exists (tsk0, R0).
           }
           apply ltn_div_trunc with (d := num_cpus);
             first by apply H_at_least_one_cpu.
@@ -354,20 +371,22 @@ Module ResponseTimeAnalysisFP.
           rewrite -addn1 -leq_subLR.
           rewrite -[R + 1 - _]subh1; last by rewrite REC; apply leq_addr.
           rewrite leq_divRL; last by apply H_at_least_one_cpu.
-          rewrite bertogna_fp_all_cpus_busy.
+          rewrite ALLBUSY.
           by rewrite leq_mul2r; apply/orP; right; apply TOOMUCH.
         Qed.
 
-        (* 3) After concluding that the sum of the minimum exceeds (R - e_i + 1),
-              we prove that there exists a tuple (tsk_k, R_k) such that x_k > W_k. *)
+        (* 3) After concluding that the sum of the minima exceeds (R - e_i + 1),
+              we prove that there exists a tuple (tsk_k, R_k) that satisfies
+              min (x_k, R - e_i + 1) > min (W_k, R - e_i + 1).
+              This implies that x_k > W_k, which is of course a contradiction,
+              since W_k is a valid task interference bound. *)
         Lemma bertogna_fp_exists_task_that_exceeds_bound :
           exists tsk_k R_k,
             (tsk_k, R_k) \in hp_bounds /\
             x tsk_k > workload_bound tsk_k R_k.
         Proof.
-          have INTERFk := bertogna_fp_tsk_other_interferes.
           have SUM := bertogna_fp_sum_exceeds_total_interference.
-          rename H_hp_bounds_has_interfering_tasks into UNZIP.
+          rename H_hp_bounds_has_interfering_tasks into HASHP.
           assert (HAS: has (fun tup : task_with_response_time =>
                              let (tsk_k, R_k) := tup in
                                x tsk_k > workload_bound tsk_k R_k)
@@ -377,15 +396,13 @@ Module ResponseTimeAnalysisFP.
             move: NOTHAS => /negP /hasPn ALL.
             rewrite -[_ < _]negbK in SUM.
             move: SUM => /negP SUM; apply SUM; rewrite -leqNgt.
+            rewrite (eq_bigr (fun i => x (fst i))); last by ins; destruct i.
             unfold total_interference_bound_fp.
-            rewrite [\sum_(i <- _ | let '(tsk_other, _) := i in _)_]big_mkcond.
-            rewrite big_seq_cond [\sum_(i <- _ | true) _]big_seq_cond.
-            apply leq_sum; move => tsk_k /andP [HPk _]; destruct tsk_k as [tsk_k R_k].
-            specialize (ALL (tsk_k, R_k) HPk).
-            rewrite -leqNgt in ALL.
-            specialize (INTERFk tsk_k R_k HPk).
-            fold (can_interfere_with_tsk); rewrite INTERFk.
-            unfold interference_bound_generic. by apply ALL.
+            rewrite big_seq_cond.
+            rewrite [\sum_(_ <- _ | true)_]big_seq_cond.
+            apply leq_sum.
+            intros p; rewrite andbT; intros IN.
+            by specialize (ALL p IN); destruct p; rewrite leqNgt.
           }
           move: HAS => /hasP HAS; destruct HAS as [[tsk_k R_k] HPk MINk]; exists tsk_k, R_k.
           by repeat split.
@@ -403,7 +420,7 @@ Module ResponseTimeAnalysisFP.
       have BOUND := bertogna_fp_workload_bounds_interference.
       rename H_response_time_recurrence_holds into REC,
              H_response_time_of_interfering_tasks_is_known into RESP,
-             H_hp_bounds_has_interfering_tasks into UNZIP,
+             H_hp_bounds_has_interfering_tasks into HAS,
              H_response_time_no_larger_than_deadline into LEdl.
       intros j JOBtsk.
        

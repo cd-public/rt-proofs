@@ -41,10 +41,11 @@ Module SporadicTaskset.
 
   Section TasksetDefs.
 
-    (* A task set is just a sequence of tasks. *)
-    Definition taskset_of (Task: eqType) := seq Task.
+    (* A task set is defined as a {set ...}, which denotes a sequence
+       of tasks with no duplicates. *)
+    Definition taskset_of (Task: eqType) := {set Task}.
 
-    (* Next, we define some properties of a task set. *)
+    (* Next, we define some properties abouts sequences of tasks. *)
     Section TasksetProperties.
 
       Context {Task: eqType}.
@@ -55,7 +56,7 @@ Module SporadicTaskset.
       Let is_valid_task :=
         is_valid_sporadic_task task_cost task_period task_deadline.
 
-      Variable ts: taskset_of Task.
+      Variable ts: seq Task.
 
       (* A valid sporadic taskset only contains valid tasks. *)
       Definition valid_sporadic_taskset :=
