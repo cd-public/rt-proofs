@@ -239,3 +239,38 @@ Lemma nth_or_none_nth :
   Qed.
 
 End NthOrNone.
+
+Section PartialMap.
+
+  Lemma pmap_inj_in_uniq {T T': eqType} (s: seq T) (f: T -> option T') :
+    {in s &, ssrfun.injective f} ->
+    uniq s ->
+    uniq (pmap f s).
+  Proof.
+    intros INJ UNIQ; red in INJ.
+    induction s; first by done.
+    simpl in *; unfold ssrfun.Option.apply.
+    move: UNIQ => /andP [NOTIN UNIQ].
+    feed IHs.
+      by ins; apply INJ; try (by rewrite in_cons; apply/orP; right).
+    specialize (IHs UNIQ).
+    destruct (f a) eqn:F; simpl; last by done.
+    rewrite IHs andbT mem_pmap -F.
+    apply/mapP; move => [a' IN' EQ].
+    exploit (INJ a a'); try (by done).
+      by rewrite in_cons; apply/orP; left.
+      by rewrite in_cons; apply/orP; right.
+    by intros EQ'; subst; rewrite IN' in NOTIN.
+  Qed.
+  
+  Lemma pmap_inj_uniq {T T': eqType} (s: seq T) (f: T -> option T') :
+    ssrfun.injective f ->
+    uniq s ->
+    uniq (pmap f s).
+  Proof.
+    intros INJ UNIQ.
+    apply pmap_inj_in_uniq; last by done.
+    by red; ins; apply INJ.
+  Qed.
+  
+End PartialMap.
