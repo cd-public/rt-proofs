@@ -158,11 +158,36 @@ Fixpoint nth_or_none {T: Type} (l: seq T) (n:nat) {struct n} : option T :=
   | _, _ => None
 end.
 
-(* Lemmas about nth_or_none. *)
-Section NthOrNone.
+(* Lemmas about nth. *)
+Section Nth.
 
   Context {T: eqType}.
-  
+
+  Lemma nth_in_or_default:
+    forall (l: seq T) x0 i,
+      (nth x0 l i) \in l \/ (nth x0 l i) = x0.
+  Proof.
+    intros l x0 i.
+    generalize dependent i.
+    induction l;
+      first by right; destruct i.
+    destruct i; simpl in *;
+      first by left; rewrite in_cons eq_refl.
+    by destruct (IHl i) as [IN | DEF];
+      [by left; rewrite in_cons IN orbT | by rewrite DEF; right].
+  Qed.
+
+  Lemma nth_neq_default :
+    forall (l: seq T) x0 i y,
+      nth x0 l i = y ->
+      y <> x0 ->
+      y \in l.
+  Proof.
+    intros l x0 i y NTH NEQ.
+    by destruct (nth_in_or_default l x0 i) as [IN | DEF];
+      [by rewrite -NTH | by rewrite -NTH DEF in NEQ].
+  Qed.
+
   Lemma nth_or_none_mem :
     forall (l: seq T) n x, nth_or_none l n = Some x -> x \in l.
   Proof.
@@ -238,7 +263,7 @@ Lemma nth_or_none_nth :
     by intros n x x0 SOME; destruct n; simpl in *; [by inversion SOME | by apply IHl].
   Qed.
 
-End NthOrNone.
+End Nth.
 
 Section PartialMap.
 
