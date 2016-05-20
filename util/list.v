@@ -148,6 +148,86 @@ Section Zip.
     by exists (index (x1, x2) (zip l1 l2)); repeat split; try (by done); rewrite -?SIZE.
   Qed.
 
+  Lemma mem_zip :
+    forall (T T': eqType) (x1: T) (x2: T') l1 l2,
+      size l1 = size l2 ->
+      (x1, x2) \in zip l1 l2 ->
+      x1 \in l1 /\ x2 \in l2.
+  Proof.
+    intros T T' x1 x2 l1 l2 SIZE IN.
+    split.
+    {
+      rewrite -[l1](@unzip1_zip _ _ l1 l2); last by rewrite SIZE.
+      by apply/mapP; exists (x1, x2).
+    }
+    {
+      rewrite -[l2](@unzip2_zip _ _ l1 l2); last by rewrite SIZE.
+      by apply/mapP; exists (x1, x2).
+    }
+  Qed.
+
+  Lemma mem_zip_nseq_r :
+    forall {T1 T2:eqType} (x: T1) (y: T2) n l,
+      size l = n ->
+      ((x, y) \in zip l (nseq n y)) = (x \in l).
+  Proof.
+    intros T1 T2 x y n l SIZE.
+    apply/idP/idP.
+    {
+      intros IN.
+      generalize dependent n.
+      induction l.
+      {
+        intros n SIZE IN.
+        by destruct n; simpl in IN; rewrite in_nil in IN.
+      }
+      {
+        intros n SIZE; destruct n; first by ins.
+        by intros MEM; apply mem_zip in MEM; [des | by rewrite size_nseq].
+      }
+    }
+    {
+      intros IN; generalize dependent n.
+      induction l; first by rewrite in_nil in IN.
+      intros n SIZE; destruct n; first by ins.
+      rewrite in_cons in IN; move: IN => /orP [/eqP EQ | IN];
+        first by rewrite in_cons; apply/orP; left; apply/eqP; f_equal.
+      simpl in *; apply eq_add_S in SIZE.
+      by rewrite in_cons; apply/orP; right; apply IHl.
+    }
+  Qed.
+
+  Lemma mem_zip_nseq_l :
+    forall {T1 T2:eqType} (x: T1) (y: T2) n l,
+      size l = n ->
+      ((x, y) \in zip (nseq n x) l) = (y \in l).
+  Proof.
+    intros T1 T2 x y n l SIZE.
+    apply/idP/idP.
+    {
+      intros IN.
+      generalize dependent n.
+      induction l.
+      {
+        intros n SIZE IN.
+        by destruct n; simpl in IN; rewrite in_nil in IN.
+      }
+      {
+        intros n SIZE; destruct n; first by ins.
+        by intros MEM; apply mem_zip in MEM; [des | by rewrite size_nseq].
+      }
+    }
+    {
+      intros IN; generalize dependent n.
+      induction l; first by rewrite in_nil in IN.
+      intros n SIZE; destruct n; first by ins.
+      rewrite in_cons in IN; move: IN => /orP [/eqP EQ | IN];
+        first by rewrite in_cons; apply/orP; left; apply/eqP; f_equal.
+      simpl in *; apply eq_add_S in SIZE.
+      by rewrite in_cons; apply/orP; right; apply IHl.
+    }
+  Qed.
+
 End Zip.
 
 (* Restate nth_error function from Coq library. *)
@@ -254,7 +334,7 @@ Section Nth.
     }
   Qed.
 
-Lemma nth_or_none_nth :
+  Lemma nth_or_none_nth :
     forall (l: seq T) n x x0,
       nth_or_none l n = Some x ->
       nth x0 l n = x.
@@ -299,3 +379,256 @@ Section PartialMap.
   Qed.
   
 End PartialMap.
+
+(* Define a set_nth that does not grow the vector. *)
+Program Definition set_nth_if_exists {T: Type} (l: seq T) n y :=
+  if n < size l then
+    set_nth _ l n y
+  else l.
+
+(* Define a function that replaces the first element that satisfies
+   some predicate with using a mapping function f. *)
+Fixpoint replace_first {T: Type} P f (l: seq T) :=
+  if l is x0 :: l' then
+    if P x0 then
+      f x0 :: l'
+    else x0 :: replace_first P f l'
+  else [::].
+
+(* Define a function that replaces the first element that satisfies
+   some predicate with a constant. *)
+Definition replace_first_const {T: Type} P y (l: seq T) :=
+  replace_first P (fun x => y) l.
+
+Definition set_pair_1nd {T1: Type} {T2: Type} (y: T2) (p: T1 * T2) :=
+  (fst p, y).
+
+Definition set_pair_2nd {T1: Type} {T2: Type} (y: T2) (p: T1 * T2) :=
+  (fst p, y).
+      
+Section Replace.
+
+  Context {T: eqType}.
+  
+  Lemma replace_first_size P f (l: seq T) :
+    size (replace_first P f l) = size l.
+  Proof.
+    induction l; simpl; first by done.
+    by destruct (P a); rewrite // /= IHl.
+  Qed.
+
+  Lemma replace_first_cases {P} {f} {l: seq T} {x}:
+    x \in replace_first P f l ->
+    x \in l \/ (exists y, x = f y /\ P y /\ y \in l).
+  Proof.
+    intros IN.
+    induction l; simpl in *; first by rewrite IN; left.
+    destruct (P a) eqn:HOLDS.
+    {
+      rewrite in_cons in IN; des;
+        last by left; rewrite in_cons IN orbT.
+      right; exists a; split; first by done.
+      by split; last by rewrite in_cons eq_refl orTb.
+    }
+    {
+      rewrite in_cons in IN; des;
+        first by left; rewrite in_cons IN eq_refl orTb.
+      specialize (IHl IN); des;
+        first by left; rewrite in_cons IHl orbT.
+      right; exists y; split; first by done.
+      by split; last by rewrite in_cons IHl1 orbT.
+    }
+  Qed.
+
+  Lemma replace_first_no_change {P} {f} {l: seq T} {x}:
+    x \in l ->
+    ~~ P x ->
+    x \in replace_first P f l.
+  Proof.
+    intros IN NOT.
+    induction l; simpl in *; first by rewrite in_nil in IN.
+    destruct (P a) eqn:HOLDS.
+    {
+      rewrite in_cons in IN; des; last by rewrite in_cons IN orbT.
+      by rewrite IN HOLDS in NOT.
+    }
+    {
+      rewrite in_cons in IN; des; first by rewrite IN in_cons eq_refl orTb.
+      by rewrite in_cons; apply/orP; right; apply IHl.
+    }
+  Qed.
+  
+  Lemma replace_first_idempotent {P} {f} {l: seq T} {x}:
+    x \in l ->
+    f x = x ->
+    x \in replace_first P f l.
+  Proof.
+    intros IN IDEMP.
+    induction l; simpl in *; first by rewrite in_nil in IN.
+    destruct (P a) eqn:HOLDS.
+    {
+      rewrite in_cons in IN; des; last by rewrite in_cons IN orbT.
+      by rewrite -IN -{1}IDEMP; rewrite in_cons eq_refl orTb.
+
+    }
+    {
+      rewrite in_cons in IN; des; first by rewrite IN in_cons eq_refl orTb.
+      by rewrite in_cons; apply/orP; right; apply IHl.
+    }
+  Qed.
+  
+  Lemma replace_first_new :
+    forall P f (l: seq T) x1 x2,
+    x1 \notin l ->
+    x2 \notin l ->
+    x1 \in replace_first P f l ->
+    x2 \in replace_first P f l ->
+    x1 = x2.
+  Proof.
+    intros P f l x1 x2 NOT1 NOT2 IN1 IN2.
+    induction l; simpl in *; first by rewrite in_nil in IN1.
+    {
+      destruct (P a) eqn:HOLDS.
+      {
+        rewrite 2!in_cons in IN1 IN2.
+        rewrite 2!in_cons 2!negb_or in NOT1 NOT2.
+        move: NOT1 NOT2 => /andP [NEQ1 NOT1] /andP [NEQ2 NOT2].
+        move: IN1 => /orP [/eqP F1 | IN1]; last by rewrite IN1 in NOT1.
+        move: IN2 => /orP [/eqP F2 | IN2]; last by rewrite IN2 in NOT2.
+        by rewrite F1 F2.
+      }
+      {
+        rewrite 2!in_cons in IN1 IN2.
+        rewrite 2!in_cons 2!negb_or in NOT1 NOT2.
+        move: NOT1 NOT2 => /andP [NEQ1 NOT1] /andP [NEQ2 NOT2].
+        move: IN1 => /orP [/eqP A1 | IN1]; first by rewrite A1 eq_refl in NEQ1.
+        move: IN2 => /orP [/eqP A2 | IN2]; first by rewrite A2 eq_refl in NEQ2.
+        by apply IHl.
+      }
+    }
+  Qed.
+
+  Lemma replace_first_previous P f {l: seq T} {x}:
+    x \in l ->
+      (x \in replace_first P f l) \/
+      (P x /\ f x \in replace_first P f l).
+  Proof.
+    intros IN; induction l; simpl in *; first by rewrite in_nil in IN.
+    destruct (P a) eqn:HOLDS.
+    {
+      rewrite in_cons in IN; des; subst.
+      {
+        right; rewrite HOLDS; split; first by done.
+        by rewrite in_cons; apply/orP; left.
+      }
+      by rewrite in_cons IN; left; apply/orP; right.
+    }
+    {
+      rewrite in_cons in IN; des; subst;
+        first by left; rewrite in_cons eq_refl orTb.
+      specialize (IHl IN); des;
+        first by left; rewrite in_cons IHl orbT.
+      right; rewrite IHl; split; first by done.
+      by rewrite in_cons IHl0 orbT.
+    }
+  Qed.
+
+  Lemma replace_first_failed P f {l: seq T}:
+    (forall x, x \in l -> f x \notin replace_first P f l) ->
+    (forall x, x \in l -> ~~ P x).
+  Proof.
+    intros NOTIN.
+    induction l as [| a l']; simpl in *;
+      first by intros x IN; rewrite in_nil in IN.
+    intros x IN.
+    destruct (P a) eqn:HOLDS.
+    {
+      exploit (NOTIN a); first by rewrite in_cons eq_refl orTb.
+      by rewrite in_cons eq_refl orTb.
+    }
+    {
+      rewrite in_cons in IN; move: IN => /orP [/eqP EQ | IN];
+        first by subst; rewrite HOLDS.
+      apply IHl'; last by done.
+      intros y INy.
+      exploit (NOTIN y); first by rewrite in_cons INy orbT.
+      intros NOTINy.
+      rewrite in_cons negb_or in NOTINy.
+      by move: NOTINy => /andP [_ NOTINy].
+    }
+  Qed.
+  
+End Replace.
+
+Definition pairs_to_function {T1: eqType} {T2: Type} y0 (l: seq (T1*T2)) :=
+  fun x => nth y0 (unzip2 l) (index x (unzip1 l)).
+
+Section Pairs.
+
+  Lemma pairs_to_function_neq_default {T1: eqType} {T2: eqType} y0 (l: seq (T1*T2)) x y :
+    pairs_to_function y0 l x = y ->
+    y <> y0 ->
+    (x,y) \in l.
+  Proof.
+    unfold pairs_to_function, unzip1, unzip2; intros PAIR NEQ.
+    induction l; simpl in *; first by subst.
+    destruct (fst a == x) eqn:FST; simpl in *.
+    {
+      move: FST => /eqP FST; subst.
+      by rewrite in_cons; apply/orP; left; destruct a.
+    }
+    {
+      by specialize (IHl PAIR); rewrite in_cons; apply/orP; right.
+    }
+  Qed.
+
+  Lemma pairs_to_function_mem {T1: eqType} {T2: eqType} y0 (l: seq (T1*T2)) x y :
+    uniq (unzip1 l) ->
+    (x,y) \in l ->
+    pairs_to_function y0 l x = y.
+  Proof.
+    unfold pairs_to_function, unzip1, unzip2; intros UNIQ IN.
+    induction l as [| [x' y'] l']; simpl in *; first by rewrite in_nil in IN.
+    {
+      move: UNIQ => /andP [NOTIN UNIQ]; specialize (IHl' UNIQ).
+      destruct (x' == x) eqn:FST; simpl in *.
+      {
+        move: FST => /eqP FST; subst.
+        rewrite in_cons /= in IN.
+        move: IN => /orP [/eqP EQ | IN];
+          first by case: EQ => ->.
+        exfalso; move: NOTIN => /negP NOTIN; apply NOTIN.
+        by apply/mapP; exists (x,y).
+      }
+      {
+        rewrite in_cons /= in IN.
+        move: IN => /orP [/eqP EQ | IN];
+          first by case: EQ => EQ1 EQ2; subst; rewrite eq_refl in FST.
+        by apply IHl'.
+      }
+    }
+  Qed.
+    
+End Pairs.
+
+Section Order.
+
+  Context {T: eqType}.
+  Variable rel: T -> T -> bool.
+  Variable l: seq T.
+  
+  Definition total_over_list :=
+    forall x1 x2,
+      x1 \in l ->
+      x2 \in l ->
+      (rel x1 x2 \/ rel x2 x1).
+      
+  Definition antisymmetric_over_list :=
+    forall x1 x2,
+      x1 \in l ->
+      x2 \in l ->
+      rel x1 x2 ->
+      rel x2 x1 ->
+      x1 = x2.
+
+End Order.
