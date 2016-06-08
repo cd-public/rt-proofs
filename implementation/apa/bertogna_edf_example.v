@@ -107,52 +107,26 @@ Module ResponseTimeAnalysisEDF.
         by rewrite unlock; compute.
       } rewrite STEPS; clear STEPS.
 
-      have cpu0P: 0 < 2 by done.
-      have cpu1P: 1 < 2 by done.
-
-      have cpu_compute :
-        forall (P: processor num_cpus -> bool),
-          [exists x, P x] =
-            if (P (cpu 0 cpu0P)) then true else
-              if P (cpu 1 cpu1P) then true else false.
-      {
-        unfold num_cpus in *; intros P.
-        destruct (P (cpu 0 cpu0P)) eqn:P0;
-          first by apply/existsP; exists (cpu 0 cpu0P).
-        destruct (P (cpu 1 cpu1P)) eqn:P1;
-          first by apply/existsP; exists (cpu 1 cpu1P).
-        apply negbTE; rewrite negb_exists; apply/forallP.
-        intros x; destruct x as [x LE]; apply negbT.
-        have GE0 := leq0n x.
-        rewrite leq_eqVlt in GE0; move: GE0 => /orP [/eqP EQ0 | GE1];
-          first by rewrite -P0; f_equal; apply ord_inj.
-        rewrite leq_eqVlt in GE1; move: GE1 => /orP [/eqP EQ1 | GE2];
-          first by rewrite -P1; f_equal; apply ord_inj.
-        have LE' := LE.
-        apply leq_ltn_trans with (m := 2) in LE'; last by done.
-        by rewrite ltnn in LE'.
-      }
-
-      Ltac f :=
+      Local Ltac f :=
         unfold edf_rta_iteration; simpl;
         unfold edf_response_time_bound, div_floor, total_interference_bound_edf, interference_bound_edf, interference_bound_generic, W, edf_specific_interference_bound, different_task_in, affinity_intersects; simpl;
         rewrite !addnE !set_card !big_cons ?big_nil /=.
 
-      
+      Local Ltac g := destruct master_key; f; simpl_exists_ord.      
       rewrite [edf_rta_iteration]lock; simpl.
-      unfold locked at 13; destruct master_key; f; rewrite !cpu_compute /=.
-      unfold locked at 12; destruct master_key; f; rewrite !cpu_compute /=.
-      unfold locked at 11; destruct master_key; f; rewrite !cpu_compute /=.
-      unfold locked at 10; destruct master_key; f; rewrite !cpu_compute /=.
-      unfold locked at 9; destruct master_key; f; rewrite !cpu_compute /=.
-      unfold locked at 8; destruct master_key; f; rewrite !cpu_compute /=.
-      unfold locked at 7; destruct master_key; f; rewrite !cpu_compute /=.
-      unfold locked at 6; destruct master_key; f; rewrite !cpu_compute /=.
-      unfold locked at 5; destruct master_key; f; rewrite !cpu_compute /=.
-      unfold locked at 4; destruct master_key; f; rewrite !cpu_compute /=.
-      unfold locked at 3; destruct master_key; f; rewrite !cpu_compute /=.
-      unfold locked at 2; destruct master_key; f; rewrite !cpu_compute /=.
-      by unfold locked at 1; destruct master_key; f; rewrite !cpu_compute /=.
+      unfold locked at 13; g.
+      unfold locked at 12; g.
+      unfold locked at 11; g.
+      unfold locked at 10; g.
+      unfold locked at 9; g.
+      unfold locked at 8; g.
+      unfold locked at 7; g.
+      unfold locked at 6; g.
+      unfold locked at 5; g.
+      unfold locked at 4; g.
+      unfold locked at 3; g.
+      unfold locked at 2; g.
+      by unfold locked at 1; g.
     Qed.
 
     (* Let arr_seq be the periodic arrival sequence from ts. *)

@@ -131,32 +131,6 @@ Module ResponseTimeAnalysisFP.
       rewrite big_nil div0n addn0 /=.
       unfold div_floor; rewrite !set_card /=.   
 
-      have cpu0P: 0 < 2 by done.
-      have cpu1P: 1 < 2 by done.
-
-      have cpu_compute :
-        forall (P: processor num_cpus -> bool),
-          [exists x, P x] =
-            if (P (cpu 0 cpu0P)) then true else
-              if P (cpu 1 cpu1P) then true else false.
-      {
-        unfold num_cpus in *; intros P.
-        destruct (P (cpu 0 cpu0P)) eqn:P0;
-          first by apply/existsP; exists (cpu 0 cpu0P).
-        destruct (P (cpu 1 cpu1P)) eqn:P1;
-          first by apply/existsP; exists (cpu 1 cpu1P).
-        apply negbTE; rewrite negb_exists; apply/forallP.
-        intros x; destruct x as [x LE]; apply negbT.
-        have GE0 := leq0n x.
-        rewrite leq_eqVlt in GE0; move: GE0 => /orP [/eqP EQ0 | GE1];
-          first by rewrite -P0; f_equal; apply ord_inj.
-        rewrite leq_eqVlt in GE1; move: GE1 => /orP [/eqP EQ1 | GE2];
-          first by rewrite -P1; f_equal; apply ord_inj.
-        have LE' := LE.
-        apply leq_ltn_trans with (m := 2) in LE'; last by done.
-        by rewrite ltnn in LE'.
-      }
-
       set I2 := total_interference_bound_fp task_cost task_period
                         task_affinity tsk2 alpha2  [:: (tsk1, 3)].
 
@@ -164,28 +138,28 @@ Module ResponseTimeAnalysisFP.
       {
         unfold I2, total_interference_bound_fp; rewrite big_cons big_nil.
         unfold higher_priority_task_in; simpl.
-        by rewrite /affinity_intersects cpu_compute /= addn0; compute.
+        by rewrite /affinity_intersects; simpl_exists_ord; compute.
       }
       rewrite H1 !divn1 !addn1; clear H1.
       assert (H1: I2 3 (RM task_period) = 2).
       {
         unfold I2, total_interference_bound_fp; rewrite big_cons big_nil.
         unfold higher_priority_task_in; simpl.
-        by rewrite /affinity_intersects cpu_compute /= addn0; compute.
+        by rewrite /affinity_intersects; simpl_exists_ord; compute.
       }
       rewrite H1 !addn2; clear H1.
       assert (H1: I2 4 (RM task_period) = 3).
       {
         unfold I2, total_interference_bound_fp; rewrite big_cons big_nil.
         unfold higher_priority_task_in; simpl.
-        by rewrite /affinity_intersects cpu_compute /= addn0; compute.
+        by rewrite /affinity_intersects; simpl_exists_ord; compute.
       }
       rewrite H1 !addn3; clear H1.
       assert (H1: I2 5 (RM task_period) = 3).
       {
         unfold I2, total_interference_bound_fp; rewrite big_cons big_nil.
         unfold higher_priority_task_in; simpl.
-        by rewrite /affinity_intersects cpu_compute /= addn0; compute.
+        by rewrite /affinity_intersects; simpl_exists_ord; compute.
       }
       rewrite H1 !addn3; clear H1.
       have H2: 4 < 5 by compute.
@@ -206,35 +180,36 @@ Module ResponseTimeAnalysisFP.
             rewrite /total_interference_bound_fp /interference_bound_generic
                     /W /max_jobs /div_floor !big_cons big_nil /= /higher_priority_task_in /=
                     /affinity_intersects.
+
         set x9 := total_interference_bound_fp _ _ _ _ _ _ _ _.
-        have I9: x9 = 1 by unfold x9; g; rewrite ?cpu_compute /=; compute.
+        have I9: x9 = 1 by unfold x9; g; simpl_exists_ord; compute.
         rewrite I9 iterSr.
         set x8 := total_interference_bound_fp _ _ _ _ _ _ _ _.
-        have I8: x8 = 2 by unfold x8; g; rewrite ?cpu_compute /=; compute.
+        have I8: x8 = 2 by unfold x8; g; simpl_exists_ord; compute.
         rewrite I8 iterSr.
         set x7 := total_interference_bound_fp _ _ _ _ _ _ _ _.
-        have I7: x7 = 3 by unfold x7; g; rewrite ?cpu_compute /=; compute.
+        have I7: x7 = 3 by unfold x7; g; simpl_exists_ord; compute.
         rewrite I7 iterSr.
         set x6 := total_interference_bound_fp _ _ _ _ _ _ _ _.
-        have I6: x6 = 3 by unfold x6; g; rewrite ?cpu_compute /=; compute.
+        have I6: x6 = 3 by unfold x6; g; simpl_exists_ord; compute.
         rewrite I6 iterSr.
         set x5 := total_interference_bound_fp _ _ _ _ _ _ _ _.
-        have I5: x5 = 3 by unfold x5; g; rewrite ?cpu_compute /=; compute.
+        have I5: x5 = 3 by unfold x5; g; simpl_exists_ord; compute.
         rewrite I5 iterSr.
         set x4 := total_interference_bound_fp _ _ _ _ _ _ _ _.
-        have I4: x4 = 3 by unfold x4; g; rewrite ?cpu_compute /=; compute.
+        have I4: x4 = 3 by unfold x4; g; simpl_exists_ord; compute.
         rewrite I4 iterSr.
         set x3 := total_interference_bound_fp _ _ _ _ _ _ _ _.
-        have I3: x3 = 3 by unfold x3; g; rewrite ?cpu_compute /=; compute.
+        have I3: x3 = 3 by unfold x3; g; simpl_exists_ord; compute.
         rewrite I3 iterSr.
         set x2 := total_interference_bound_fp _ _ _ _ _ _ _ _.
-        have I2: x2 = 3 by unfold x2; g; rewrite ?cpu_compute /=; compute.
+        have I2: x2 = 3 by unfold x2; g; simpl_exists_ord; compute.
         rewrite I2 iterSr.
         set x1 := total_interference_bound_fp _ _ _ _ _ _ _ _.
-        have I1: x1 = 3 by unfold x1; g; rewrite ?cpu_compute /=; compute.
+        have I1: x1 = 3 by unfold x1; g; simpl_exists_ord; compute.
         rewrite I1 iterSr /=.
         set x0 := total_interference_bound_fp _ _ _ _ _ _ _ _.
-        have I0: x0 = 3 by unfold x0; g; rewrite ?cpu_compute /=; compute.
+        have I0: x0 = 3 by unfold x0; g; simpl_exists_ord; compute.
         by rewrite I0; compute.
       }
       by rewrite H4.

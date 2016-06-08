@@ -6,7 +6,7 @@ Require Export rt.util.bigcat.
 Require Export rt.util.bigord.
 Require Export rt.util.counting.
 Require Export rt.util.divround.
-Require Export rt.util.exists.
+Require Export rt.util.ord_quantifier.
 Require Export rt.util.fixedpoint.
 Require Export rt.util.induction.
 Require Export rt.util.list.

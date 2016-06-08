@@ -1,4 +1,4 @@
-Require Import rt.util.tactics rt.util.exists.
+Require Import rt.util.tactics rt.util.ord_quantifier.
 From mathcomp Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop.
 
 (* Additional lemmas about counting. *)
