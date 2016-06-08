@@ -1,6 +1,6 @@
 Require Import rt.util.all rt.util.divround.
 Require Import rt.model.apa.task rt.model.apa.job rt.model.apa.task_arrival
-               rt.model.apa.schedule rt.model.apa.platform rt.model.apa.platform_fp
+               rt.model.apa.schedule rt.model.apa.platform rt.model.apa.constrained_deadlines
                rt.model.apa.workload rt.model.apa.schedulability rt.model.apa.priority
                rt.model.apa.response_time rt.model.apa.interference
                rt.model.apa.affinity rt.model.apa.constrained_deadlines.
@@ -10,7 +10,7 @@ From mathcomp Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop d
 Module ResponseTimeAnalysisFP.
 
   Export Job SporadicTaskset ScheduleOfSporadicTask Workload Interference InterferenceBoundFP
-         Platform PlatformFP Schedulability ResponseTime Priority
+         Platform Schedulability ResponseTime Priority
          SporadicTaskArrival WorkloadBound Affinity ConstrainedDeadlines.
     
 
