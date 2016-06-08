@@ -10,3 +10,5 @@ sed -i 's|$(notdir $(^:.vo=))|$(addprefix rt., $(subst /,., $(^:.vo=)))|g' Makef
 # Fix 'make html' so that it parses comments and has links to ssreflect.
 sed -i 's|-interpolate -utf8|-interpolate -utf8 --parse-comments --external https://math-comp.github.io/math-comp/htmldoc/ mathcomp|g' Makefile
 
+# Fix 'make clean' to remove all binary files, regardless of name
+sed -i 's|rm -f $(VOFILES) $(VOFILES:.vo=.vio) $(GFILES) $(VFILES:.v=.v.d) $(VFILES:=.beautified) $(VFILES:=.old)|find -name "*.vo" -delete -o -name "*.glob" -delete -o -name "*.v.d" -delete -o -name "*.vio" -delete -o -name "*.old" -delete -o -name "*.beautified" -delete|g' Makefile
