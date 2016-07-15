@@ -7,28 +7,22 @@ coq_makefile -f _CoqProject $(find . -name "*.v" ! -name "*#*" ! -name "*eqdec*.
 # adds the rt. prefix
 if [ "$(uname)" == "Darwin" ]; then
 	sed -i '' 's|$(notdir $(^:.vo=))|$(addprefix rt., $(subst /,., $(^:.vo=)))|g' Makefile
-elif [ "$(expr substr $(uname -s) 1 5)" == "Linux" ]; then
+else
 	sed -i 's|$(notdir $(^:.vo=))|$(addprefix rt., $(subst /,., $(^:.vo=)))|g' Makefile
-elif [ "$(expr substr $(uname -s) 1 10)" == "MINGW32_NT" ]; then
-	:
 fi
 
 
 # Fix 'make html' so that it parses comments and has links to ssreflect.
 if [ "$(uname)" == "Darwin" ]; then
 	sed -i '' 's|-interpolate -utf8|-interpolate -utf8 --plain-comments --parse-comments --external https://math-comp.github.io/math-comp/htmldoc/ mathcomp|g' Makefile
-elif [ "$(expr substr $(uname -s) 1 5)" == "Linux" ]; then
+else
 	sed -i 's|-interpolate -utf8|-interpolate -utf8 --plain-comments --parse-comments --external https://math-comp.github.io/math-comp/htmldoc/ mathcomp|g' Makefile
-elif [ "$(expr substr $(uname -s) 1 10)" == "MINGW32_NT" ]; then
-	:
 fi
 
 # Fix 'make clean' to remove all binary files, regardless of name
 if [ "$(uname)" == "Darwin" ]; then
 	sed -i '' 's|rm -f $(VOFILES) $(VOFILES:.vo=.vio) $(GFILES) $(VFILES:.v=.v.d) $(VFILES:=.beautified) $(VFILES:=.old)|find . -name "*.vo" -delete -o -name "*.glob" -delete -o -name "*.v.d" -delete -o -name "*.vio" -delete -o -name "*.old" -delete -o -name "*.beautified" -delete|g' Makefile
-elif [ "$(expr substr $(uname -s) 1 5)" == "Linux" ]; then
+else
 	sed -i 's|rm -f $(VOFILES) $(VOFILES:.vo=.vio) $(GFILES) $(VFILES:.v=.v.d) $(VFILES:=.beautified) $(VFILES:=.old)|find . -name "*.vo" -delete -o -name "*.glob" -delete -o -name "*.v.d" -delete -o -name "*.vio" -delete -o -name "*.old" -delete -o -name "*.beautified" -delete|g' Makefile
-elif [ "$(expr substr $(uname -s) 1 10)" == "MINGW32_NT" ]; then
-	:
 fi
 
