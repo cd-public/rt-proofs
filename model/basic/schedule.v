@@ -51,7 +51,7 @@ Module Schedule.
       [exists cpu, scheduled_on cpu t].
 
     (* A processor cpu is idle at time t if it doesn't contain any jobs. *)
-    Definition is_idle (cpu: 'I_(num_cpus)) (t: time) :=
+    Definition is_idle (cpu: processor num_cpus) (t: time) :=
       sched cpu t = None.
 
     (* The instantaneous service of job j at time t is the number of cpus
