@@ -1,4 +1,4 @@
-Require Import rt.util.all rt.model.basic.job rt.model.basic.task rt.model.basic.time.
+Require Import rt.util.all rt.model.basic.task rt.model.basic.time.
 From mathcomp Require Import ssreflect ssrbool ssrfun eqtype ssrnat seq fintype bigop.
 
 (* Definitions and properties of job arrival sequences. *)
@@ -24,26 +24,23 @@ Module ArrivalSequence.
 
     Context {Job: eqType}.
 
-    (* Whether a job arrives in a particular sequence at time t *)
+    (* First we define whether a job arrives in a particular sequence at time t. *)
     Definition arrives_at (j: Job) (arr_seq: arrival_sequence Job) (t: time) :=
       j \in arr_seq t.
 
-    (* A job j of type (JobIn arr_seq) is a job that arrives at some particular
-       time in arr_seq. It holds the arrival time and a proof of arrival. *)
-    Record JobIn (arr_seq: arrival_sequence Job) : Type :=
-    {
-      _job_in: Job;
-      _arrival_time: time; (* arrival time *)
-      _: arrives_at _job_in arr_seq _arrival_time (* proof of arrival *)
-    }.
+    (* Next, we define the type (JobIn arr_seq) to represent a job that belongs to arr_seq.
+       (Note: The notation might seem complicated, but it just means that the type JobIn is
+              constructed using a Job j, a time t, and a proof of arrival. *)
+    Inductive JobIn (arr_seq: arrival_sequence Job) :=
+      Build_JobIn j t of (arrives_at j arr_seq t).
 
-    (* Define a coercion that states that every JobIn is a Job. *)
-    Coercion JobIn_is_Job {arr_seq: arrival_sequence Job} (j: JobIn arr_seq) :=
-      _job_in arr_seq j.
+    (* Next, we define a coercion that returns the Job contained in the type JobIn. *)
+    Coercion job_of_job_in {arr_seq} (j: JobIn arr_seq) : Job :=
+      let: Build_JobIn actual_job _ _ := j in actual_job.
 
-    (* Define job arrival time as that time that the job arrives (only works for JobIn). *)
+    (* Similarly, we define a function that returns the arrival time of the job. *)
     Definition job_arrival {arr_seq: arrival_sequence Job} (j: JobIn arr_seq) :=
-      _arrival_time arr_seq j.
+      let: Build_JobIn _ arr _ := j in arr.
 
     (* Finally, we define a decidable equality for JobIn, in order to make
        it compatible with ssreflect (see jobin_eqdec.v). *)
@@ -56,7 +53,7 @@ Module ArrivalSequence.
 
     Context {Job: eqType}.
     Variable arr_seq: arrival_sequence Job.
-    
+
     (* The same job j cannot arrive at two different times. *)
     Definition no_multiple_arrivals :=
       forall (j: Job) t1 t2,
@@ -113,7 +110,7 @@ Module ArrivalSequence.
       (* There's an inverse function for recovering the original Job from JobIn. *)
       Lemma is_JobIn_inverse :
         forall t,
-          ocancel (is_JobIn t) (_job_in arr_seq).
+          ocancel (is_JobIn t) job_of_job_in.
       Proof.
         by intros t; red; intros x; unfold is_JobIn; des_eqrefl.
       Qed.
@@ -157,7 +154,7 @@ Module ArrivalSequence.
         apply bigcat_ord_uniq.
         {
           intros i; unfold jobs_arriving_at.
-          apply pmap_uniq with (g := (_job_in arr_seq)); first by apply is_JobIn_inverse.
+          apply pmap_uniq with (g := job_of_job_in); first by apply is_JobIn_inverse.
           by apply SET.
         }
         {
