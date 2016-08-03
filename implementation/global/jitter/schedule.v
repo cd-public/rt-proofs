@@ -181,7 +181,8 @@ Module ConcreteScheduler.
         {
           rewrite mem_sort mem_filter PENDING andTb.
           move: PENDING => /andP [ARRIVED _].
-          rewrite JobIn_has_arrived.
+          rewrite JobIn_arrived.
+          rewrite /arrived_before ltnS.
           by apply leq_trans with (n := job_arrival j + job_jitter j);
             first by apply leq_addr.
         }

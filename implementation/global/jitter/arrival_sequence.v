@@ -6,7 +6,7 @@ From mathcomp Require Import ssreflect ssrbool ssrfun ssrnat eqtype seq div.
 
 Module ConcreteArrivalSequence.
 
-  Import JobWithJitter ArrivalSequence ConcreteTask ConcreteJob SporadicTaskset SporadicTaskArrival.
+  Import JobWithJitter ArrivalSequence ConcreteTask ConcreteJob SporadicTaskset TaskArrival.
 
   Section PeriodicArrivals.
 

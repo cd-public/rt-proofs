@@ -1,12 +1,12 @@
 Require Import rt.util.all.
 Require Import rt.model.arrival_sequence rt.model.job
                rt.model.task rt.model.task_arrival.
-Require Import rt.implementation.global.basic.task rt.implementation.global.basic.job.
+Require Import rt.implementation.task rt.implementation.job.
 From mathcomp Require Import ssreflect ssrbool ssrfun ssrnat eqtype seq div.
 
 Module ConcreteArrivalSequence.
 
-  Import Job ArrivalSequence ConcreteTask ConcreteJob SporadicTaskset SporadicTaskArrival.
+  Import Job ArrivalSequence ConcreteTask ConcreteJob SporadicTaskset TaskArrival.
 
   Section PeriodicArrivals.
 

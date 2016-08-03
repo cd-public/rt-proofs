@@ -12,7 +12,7 @@ From mathcomp Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop d
 Module ResponseTimeAnalysisEDFJitter.
 
   Export JobWithJitter SporadicTaskset ScheduleOfSporadicTaskWithJitter Workload
-         Schedulability ResponseTime Priority SporadicTaskArrival WorkloadBoundJitter
+         Schedulability ResponseTime Priority TaskArrival WorkloadBoundJitter
          InterferenceBoundEDFJitter Platform Interference ConstrainedDeadlines.
 
   (* In this section, we prove that any fixed point in Bertogna and

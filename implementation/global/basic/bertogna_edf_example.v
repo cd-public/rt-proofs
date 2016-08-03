@@ -5,10 +5,9 @@ Require Import rt.model.global.basic.schedule rt.model.global.basic.platform.
 Require Import rt.analysis.global.basic.workload_bound
                rt.analysis.global.basic.interference_bound_edf
                rt.analysis.global.basic.bertogna_edf_comp.
-Require Import rt.implementation.global.basic.job
-               rt.implementation.global.basic.task
-               rt.implementation.global.basic.schedule
-               rt.implementation.global.basic.arrival_sequence.
+Require Import rt.implementation.job rt.implementation.task
+               rt.implementation.arrival_sequence.
+Require Import rt.implementation.global.basic.schedule.
 From mathcomp Require Import ssreflect ssrbool ssrnat eqtype seq bigop div.
 
 Module ResponseTimeAnalysisEDF.

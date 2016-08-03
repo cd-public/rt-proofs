@@ -7,7 +7,7 @@ From mathcomp Require Import ssreflect ssrbool ssrfun eqtype ssrnat seq fintype 
 Module Platform.
 
   Import Job SporadicTaskset ScheduleOfSporadicTask SporadicTaskset
-         SporadicTaskArrival Interference Priority Affinity.
+         TaskArrival Interference Priority Affinity.
 
   Section Properties.
     

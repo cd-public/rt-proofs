@@ -6,7 +6,7 @@ From mathcomp Require Import ssreflect ssrbool eqtype ssrnat seq div fintype big
 
 Module Workload.
 
-  Import Job SporadicTaskset Schedule ScheduleOfSporadicTask SporadicTaskArrival ResponseTime Schedulability.
+  Import Job SporadicTaskset Schedule ScheduleOfSporadicTask TaskArrival ResponseTime Schedulability.
 
   (* Let's define the workload. *)
   Section WorkloadDef.

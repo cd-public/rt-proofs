@@ -8,7 +8,7 @@ From mathcomp Require Import ssreflect ssrbool eqtype ssrnat seq div fintype big
 Module WorkloadBoundJitter.
   
   Import JobWithJitter SporadicTaskset ScheduleWithJitter ScheduleOfSporadicTask
-         SporadicTaskArrival ResponseTime Schedulability Workload.
+         TaskArrival ResponseTime Schedulability Workload.
 
   Section WorkloadBoundJitterDef.
 

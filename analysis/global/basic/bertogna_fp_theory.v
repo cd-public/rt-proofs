@@ -12,7 +12,7 @@ Module ResponseTimeAnalysisFP.
 
   Export Job SporadicTaskset ScheduleOfSporadicTask Workload Interference
          InterferenceBoundFP Platform Schedulability ResponseTime
-         Priority SporadicTaskArrival WorkloadBound ConstrainedDeadlines.
+         Priority TaskArrival WorkloadBound ConstrainedDeadlines.
 
   (* In this section, we prove that any fixed point in Bertogna and
      Cirinei's RTA for FP scheduling is a safe response-time bound.

@@ -7,7 +7,7 @@ From mathcomp Require Import ssreflect ssrbool ssrfun eqtype ssrnat seq fintype 
 Module ConstrainedDeadlines.
 
   Import Job SporadicTaskset ScheduleOfSporadicTask SporadicTaskset
-         SporadicTaskArrival Interference Priority Platform.
+         TaskArrival Interference Priority Platform.
   
   Section Lemmas.
 

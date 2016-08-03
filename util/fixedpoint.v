@@ -90,7 +90,7 @@ End Relations.
    is found, the function returns None. *)
 Section Iteration.
 
-  Variable T : eqType.
+  Context {T : eqType}.
   Variable f: T -> T.
 
   Fixpoint iter_fixpoint max_steps (x: T) :=
@@ -132,25 +132,33 @@ Section Iteration.
     Hypothesis H_reflexive: reflexive R.
     Hypothesis H_transitive: transitive R.
     Hypothesis H_monotone: monotone f R.
-                                  
+
     Lemma iter_fixpoint_ge_min:
+      forall max_steps x0 x1 x,
+        iter_fixpoint max_steps x1 = Some x ->
+        R x0 x1 ->
+        R x1 (f x1) ->
+        R x0 x.
+    Proof.
+      induction max_steps; first by done.
+      {
+        intros x0 x1 x SOME MIN BOT; simpl in SOME.
+        destruct (x1 == f x1) eqn:EQ1;
+          first by inversion SOME; subst.
+        apply IHmax_steps with (x0 := x0) in SOME; first by done.
+        - by apply (@H_transitive x1).
+        - by apply H_monotone.
+      }
+    Qed.
+
+    Lemma iter_fixpoint_ge_bottom:
       forall max_steps x0 x,
         iter_fixpoint max_steps x0 = Some x ->
         R x0 (f x0) ->
         R x0 x.
     Proof.
-      induction max_steps.
-      {
-        intros x0 x SOME MIN; first by done.
-      }
-      {
-        intros x0 x SOME MIN; simpl in SOME.
-        destruct (x0 == f x0) eqn:EQ1;
-          first by inversion SOME; apply H_reflexive.
-        apply IHmax_steps in SOME;
-          first by apply H_transitive with (y := f x0).
-        by apply H_monotone.
-      }
+      intros max_steps x0 x SOME BOT.
+      by apply iter_fixpoint_ge_min with (max_steps := max_steps) (x1 := x0). 
     Qed.
     
   End RelationLemmas.

@@ -12,7 +12,7 @@ Module InterferenceBoundEDF.
 
   Import Job SporadicTaskset Schedule ScheduleOfSporadicTask Schedulability
          WorkloadBound ResponseTime Priority
-         SporadicTaskArrival Interference InterferenceEDF.
+         TaskArrival Interference InterferenceEDF.
   Export InterferenceBoundGeneric.
 
   (* In this section, we define Bertogna and Cirinei's EDF-specific

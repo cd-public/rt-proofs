@@ -516,7 +516,7 @@ Module ConcreteScheduler.
         
         have IN: j \in l.
         {
-          rewrite mem_sort mem_filter PENDING andTb JobIn_has_arrived.
+          rewrite mem_sort mem_filter PENDING andTb JobIn_arrived.
           by move: PENDING => /andP [H _].
         }
         have INhp: j_hp \in l by apply scheduler_job_in_mapping in SCHED.
@@ -629,7 +629,7 @@ Module ConcreteScheduler.
         apply scheduler_job_in_mapping in SCHED.
         rewrite mem_sort mem_filter in SCHED.
         move: SCHED => /andP [_ ARR].
-        by apply JobIn_has_arrived in ARR.
+        by apply JobIn_arrived in ARR.
       }
       {
         unfold update_schedule at 1 in SCHED; rewrite eq_refl /= in SCHED.
@@ -638,7 +638,7 @@ Module ConcreteScheduler.
         apply scheduler_job_in_mapping in SCHED.
         rewrite mem_sort mem_filter in SCHED.
         move: SCHED => /andP [_ ARR].
-        by apply JobIn_has_arrived in ARR.
+        by apply JobIn_arrived in ARR.
       }
     Qed.
 
@@ -712,7 +712,7 @@ Module ConcreteScheduler.
       move: BACK => /andP [PENDING NOTSCHED].
       have IN: j \in l.
       {
-        rewrite mem_sort mem_filter PENDING andTb JobIn_has_arrived.
+        rewrite mem_sort mem_filter PENDING andTb JobIn_arrived.
         by move: PENDING => /andP [H _].
       }
       have WORK := scheduler_mapping_is_work_conserving j cpu t l IN SORT UNIQ.

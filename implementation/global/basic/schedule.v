@@ -179,7 +179,7 @@ Module ConcreteScheduler.
         {
           rewrite mem_sort mem_filter PENDING andTb.
           move: PENDING => /andP [ARRIVED _].
-          by rewrite JobIn_has_arrived.
+          by rewrite JobIn_arrived.
         }
         apply nth_or_none_mem_exists in IN; des.
         exists n; split; first by done.
@@ -233,14 +233,14 @@ Module ConcreteScheduler.
         apply (nth_or_none_mem _ cpu j) in SCHED.
         rewrite mem_sort mem_filter in SCHED.
         move: SCHED => /andP [_ ARR].
-        by apply JobIn_has_arrived in ARR.
+        by apply JobIn_arrived in ARR.
       }
       {
         unfold update_schedule at 1 in SCHED; rewrite eq_refl /= in SCHED.
         apply (nth_or_none_mem _ cpu j) in SCHED.
         rewrite mem_sort mem_filter in SCHED.
         move: SCHED => /andP [_ ARR].
-        by apply JobIn_has_arrived in ARR.
+        by apply JobIn_arrived in ARR.
       }
     Qed.
 

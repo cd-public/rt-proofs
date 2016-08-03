@@ -13,7 +13,7 @@ Module ResponseTimeAnalysisFP.
 
   Export JobWithJitter SporadicTaskset ScheduleOfSporadicTaskWithJitter
          Workload Interference Platform ConstrainedDeadlines Schedulability
-         ResponseTime Priority SporadicTaskArrival WorkloadBoundJitter
+         ResponseTime Priority TaskArrival WorkloadBoundJitter
          Interference InterferenceBoundFP.
     
   (* In this section, we prove that any fixed point in Bertogna and

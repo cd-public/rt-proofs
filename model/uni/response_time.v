@@ -1,32 +1,32 @@
 Require Import rt.util.all.
 Require Import rt.model.task rt.model.job rt.model.task_arrival.
-Require Import rt.model.global.basic.schedule.
+Require Import rt.model.uni.schedule.
 From mathcomp Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop.
 
-(* Definition of response-time bound and some simple lemmas. *)
 Module ResponseTime.
 
-  Import Schedule SporadicTaskset TaskArrival.
-  
+  Import UniprocessorSchedule SporadicTaskset TaskArrival.
+
+  (* In this section, we define the notion of a response-time bound. *)
   Section ResponseTimeBound.
 
     Context {sporadic_task: eqType}.
     Context {Job: eqType}.
-    Context {arr_seq: arrival_sequence Job}.
     Variable job_cost: Job -> time.
     Variable job_task: Job -> sporadic_task.
 
-    (* Given a task ...*)
+    (* Consider any uniprocessor schedule. *)
+    Context {arr_seq: arrival_sequence Job}.
+    Variable sched: schedule arr_seq.
+
+    (* Let tsk be any task that is to be analyzed. *)
     Variable tsk: sporadic_task.
 
-    (* ... and a particular schedule, ...*)
-    Context {num_cpus : nat}.
-    Variable sched: schedule num_cpus arr_seq.
+    (* For simplicity, let's define some local names. *)
+    Let job_has_completed_by := completed_by job_cost sched.
 
-    (* ... R is a response-time bound of tsk in this schedule ... *)
+    (* Then, we say that R is a response-time bound of tsk in this schedule ... *)
     Variable R: time.
-
-    Let job_has_completed_by := completed job_cost sched.
 
     (* ... iff any job j of tsk in this arrival sequence has
        completed by (job_arrival j + R). *)
@@ -37,36 +37,37 @@ Module ResponseTime.
         
   End ResponseTimeBound.
 
+  (* In this section, we prove some basic lemmas about response-time bounds. *)
   Section BasicLemmas.
 
     Context {sporadic_task: eqType}.
     Context {Job: eqType}.
     Variable job_cost: Job -> time.
     Variable job_task: Job -> sporadic_task.
-
-    Context {arr_seq: arrival_sequence Job}.
     
-    (* Consider any valid schedule... *)
-    Context {num_cpus : nat}.
-    Variable sched: schedule num_cpus arr_seq.
-
-    Let job_has_completed_by := completed job_cost sched.
+    (* Consider any uniprocessor schedule... *)
+    Context {arr_seq: arrival_sequence Job}.
+    Variable sched: schedule arr_seq.
 
     (* ... where jobs dont execute after completion. *)
     Hypothesis H_completed_jobs_dont_execute:
       completed_jobs_dont_execute job_cost sched.
 
+    (* For simplicity, let's define some local names. *)
+    Let job_has_completed_by := completed_by job_cost sched.
+
+    (* We begin by proving lemmas about job response-time bounds. *)
     Section SpecificJob.
 
-      (* Then, for any job j ...*)
+      (* Let j be any job... *)
       Variable j: JobIn arr_seq.
       
-      (* ...with response-time bound R in this schedule, ... *)
+      (* ...with response-time bound R. *)
       Variable R: time.
       Hypothesis response_time_bound:
         job_has_completed_by j (job_arrival j + R). 
 
-      (* the service received by j at any time t' after its response time is 0. *)
+      (* Then, the service received by j at any time t' after its response time is 0. *)
       Lemma service_after_job_rt_zero :
         forall t',
           t' >= job_arrival j + R ->
@@ -74,17 +75,17 @@ Module ResponseTime.
       Proof.
         rename response_time_bound into RT,
                H_completed_jobs_dont_execute into EXEC; ins.
-        unfold is_response_time_bound_of_task, completed,
+        unfold is_response_time_bound_of_task, completed_by,
                completed_jobs_dont_execute in *.
         apply/eqP; rewrite -leqn0.
         rewrite <- leq_add2l with (p := job_cost j).
         move: RT => /eqP RT; rewrite -{1}RT addn0.
         apply leq_trans with (n := service sched j t'.+1);
           last by apply EXEC.
-        unfold service; rewrite -> big_cat_nat with
-                                   (p := t'.+1) (n := job_arrival j + R);
-            [rewrite leq_add2l /= | by ins | by apply ltnW].
-          by rewrite big_nat_recr // /=; apply leq_addl.
+        unfold service, service_during.
+        rewrite -> big_cat_nat with (p := t'.+1) (n := job_arrival j + R);
+          [rewrite leq_add2l /= | by ins | by apply ltnW].
+        by rewrite big_nat_recr // /=; apply leq_addl.
       Qed.
 
       (* The same applies for the cumulative service of job j. *)
@@ -102,7 +103,8 @@ Module ResponseTime.
       Qed.
       
     End SpecificJob.
-    
+
+    (* Next, we prove properties about task response-time bounds. *)
     Section AllJobs.
 
       (* Consider any task tsk ...*)
@@ -111,13 +113,13 @@ Module ResponseTime.
       (* ... for which a response-time bound R is known. *)
       Variable R: time.
       Hypothesis response_time_bound:
-        is_response_time_bound_of_task job_cost job_task tsk sched R.
+        is_response_time_bound_of_task job_cost job_task sched tsk R.
 
       (* Then, for any job j of this task, ...*)
       Variable j: JobIn arr_seq.
       Hypothesis H_job_of_task: job_task j = tsk.
 
-      (* the service received by job j at any time t' after the response time is 0. *)
+      (* ...the service received by job j at any time t' after the response time is 0. *)
       Lemma service_after_task_rt_zero :
         forall t',
           t' >= job_arrival j + R ->

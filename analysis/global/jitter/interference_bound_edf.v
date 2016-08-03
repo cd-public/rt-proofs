@@ -11,7 +11,7 @@ From mathcomp Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop d
 Module InterferenceBoundEDFJitter.
 
   Import JobWithJitter SporadicTaskset ScheduleWithJitter ScheduleOfSporadicTask Schedulability
-         ResponseTime WorkloadBoundJitter Priority SporadicTaskArrival Interference InterferenceEDF.
+         ResponseTime WorkloadBoundJitter Priority TaskArrival Interference InterferenceEDF.
   Export InterferenceBoundJitter.
 
   (* In this section, we define Bertogna and Cirinei's EDF-specific

@@ -6,10 +6,9 @@ Require Import rt.model.global.basic.schedule rt.model.global.basic.platform
 Require Import rt.analysis.global.parallel.workload_bound
                rt.analysis.global.parallel.interference_bound_fp
                rt.analysis.global.parallel.bertogna_fp_comp.
-Require Import rt.implementation.global.parallel.job
-               rt.implementation.global.parallel.task
-               rt.implementation.global.parallel.schedule
-               rt.implementation.global.parallel.arrival_sequence.
+Require Import rt.implementation.job rt.implementation.task
+               rt.implementation.arrival_sequence.
+Require Import rt.implementation.global.basic.schedule. (* Use sequential scheduler. *)
 From mathcomp Require Import ssreflect ssrbool ssrnat eqtype seq bigop div.
 
 Module ResponseTimeAnalysisFP.

@@ -11,7 +11,7 @@ From mathcomp Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop d
 Module ResponseTimeAnalysisEDF.
 
   Export Job SporadicTaskset Schedule ScheduleOfSporadicTask Workload Schedulability ResponseTime
-         Priority SporadicTaskArrival WorkloadBound InterferenceBoundEDF
+         Priority TaskArrival WorkloadBound InterferenceBoundEDF
          Interference Platform ConstrainedDeadlines.
 
   (* In this section, we prove that any fixed point in Bertogna and

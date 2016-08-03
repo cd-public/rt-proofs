@@ -13,7 +13,7 @@ Module ResponseTimeAnalysisFP.
 
   Export Job SporadicTaskset ScheduleOfSporadicTask Workload Interference InterferenceBoundFP
          Platform Schedulability ResponseTime Priority
-         SporadicTaskArrival WorkloadBound Affinity ConstrainedDeadlines.
+         TaskArrival WorkloadBound Affinity ConstrainedDeadlines.
     
   (* In this section, we prove that any fixed point in the APA-reduction of Bertogna
      and Cirinei's RTA for FP scheduling with slack updates is a safe response-time

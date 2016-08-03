@@ -97,13 +97,21 @@ Module ArrivalSequence.
         Some (Build_JobIn arr_seq j t _)
       else None.
 
-    (* Now we define the list of JobIn that arrive at time t as the partial
+    (* Now we define the list of every JobIn that arrives at time t as the partial
        map of is_JobIn.  *)
     Definition jobs_arriving_at (t: time) := pmap (is_JobIn t) (arr_seq t).
 
-    (* The list of JobIn that have arrived up to time t follows by concatenation. *)
-    Definition jobs_arrived_up_to (t': time) :=
-      \cat_(t < t'.+1) jobs_arriving_at t.
+    (* By concatenation, we can construct the list of every JobIn that arrived before t2. *)
+    Definition jobs_arrived_before (t2: time) :=
+      \cat_(t < t2) jobs_arriving_at t.
+
+    (* Based on that, we define the list of every JobIn that has arrived up to time t2, ... *)
+    Definition jobs_arrived_up_to (t2: time) :=
+      jobs_arrived_before t2.+1.
+
+    (* ...and the list of every JobIn that arrived in the interval [t1, t2). *)
+    Definition jobs_arrived_between (t1 t2: time) :=
+      [seq j <- jobs_arrived_before t2 | job_arrival j >= t1].
 
     Section Lemmas.
       
@@ -116,9 +124,9 @@ Module ArrivalSequence.
       Qed.
 
       (* Prove that a member of the list indeed satisfies the property. *)
-      Lemma JobIn_has_arrived :
+      Lemma JobIn_arrived:
         forall j t,
-          j \in jobs_arrived_up_to t <-> has_arrived j t.
+          j \in jobs_arrived_before t <-> arrived_before j t.
       Proof.
         intros j t; split.
         {
@@ -130,11 +138,10 @@ Module ArrivalSequence.
           des_eqrefl; last by done.
           inversion SOME; subst.
           unfold has_arrived; simpl.
-          by rewrite -ltnS; apply ltn_ord.
+          by apply ltn_ord.
         }
         {
           unfold has_arrived; intros ARRIVED.
-          rewrite -ltnS in ARRIVED.
           apply mem_bigcat_ord with (j := Ordinal ARRIVED); first by done.
           rewrite mem_pmap; apply/mapP; exists j;
             first by destruct j as [j arr_j ARR].
@@ -148,7 +155,7 @@ Module ArrivalSequence.
          the same applies for the list of JobIn that arrive. *)
       Lemma JobIn_uniq :
         arrival_sequence_is_a_set arr_seq ->
-        forall t, uniq (jobs_arrived_up_to t).
+        forall t, uniq (jobs_arrived_before t).
       Proof.
         unfold jobs_arrived_up_to; intros SET t.
         apply bigcat_ord_uniq.
