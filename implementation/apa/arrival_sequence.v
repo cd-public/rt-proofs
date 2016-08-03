@@ -1,7 +1,6 @@
 (* We can reuse the.apa definition of periodic arrival sequence. *)
 Require Import rt.util.all.
-Require Import rt.model.apa.arrival_sequence rt.model.apa.job
-               rt.model.apa.task rt.model.apa.task_arrival.
+Require Import rt.model.arrival_sequence rt.model.job rt.model.task rt.model.task_arrival.
 Require Import rt.implementation.apa.task rt.implementation.apa.job.
 From mathcomp Require Import ssreflect ssrbool ssrfun ssrnat eqtype seq div.
 

@@ -1,7 +1,7 @@
 Require Import rt.util.all.
-Require Import rt.model.apa.task rt.model.apa.job rt.model.apa.schedule
-               rt.model.apa.priority rt.model.apa.task_arrival
-               rt.model.apa.interference rt.model.apa.affinity.
+Require Import rt.model.job rt.model.task rt.model.priority rt.model.task_arrival.
+Require Import rt.model.global.basic.schedule.
+Require Import rt.model.apa.interference rt.model.apa.affinity.
 From mathcomp Require Import ssreflect ssrbool ssrfun eqtype ssrnat seq fintype bigop.
 
 Module Platform.

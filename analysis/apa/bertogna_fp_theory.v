@@ -1,10 +1,12 @@
-Require Import rt.util.all rt.util.divround.
-Require Import rt.model.apa.task rt.model.apa.job rt.model.apa.task_arrival
-               rt.model.apa.schedule rt.model.apa.platform rt.model.apa.constrained_deadlines
-               rt.model.apa.workload rt.model.apa.schedulability rt.model.apa.priority
-               rt.model.apa.response_time rt.model.apa.interference
-               rt.model.apa.affinity rt.model.apa.constrained_deadlines.
-Require Import rt.analysis.apa.workload_bound rt.analysis.apa.interference_bound_fp.
+Require Import rt.util.all.
+Require Import rt.model.task rt.model.job rt.model.priority rt.model.task_arrival.
+Require Import rt.model.global.response_time rt.model.global.schedulability
+               rt.model.global.workload.
+Require Import rt.model.global.basic.schedule.
+Require Import rt.model.apa.platform rt.model.apa.constrained_deadlines
+               rt.model.apa.interference rt.model.apa.affinity.
+Require Import rt.analysis.apa.workload_bound
+               rt.analysis.apa.interference_bound_fp.
 From mathcomp Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop div path.
 
 Module ResponseTimeAnalysisFP.
@@ -13,7 +15,6 @@ Module ResponseTimeAnalysisFP.
          Platform Schedulability ResponseTime Priority
          SporadicTaskArrival WorkloadBound Affinity ConstrainedDeadlines.
     
-
   (* In this section, we prove that any fixed point in the APA-reduction of Bertogna
      and Cirinei's RTA for FP scheduling with slack updates is a safe response-time
      bound. This result corresponds to Lemma 9 in the revised version of the APA paper:

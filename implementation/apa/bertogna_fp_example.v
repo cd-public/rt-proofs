@@ -1,8 +1,8 @@
 Require Import rt.util.all.
-Require Import rt.model.apa.job rt.model.apa.task rt.model.apa.affinity
-               rt.model.apa.schedule rt.model.apa.schedulability
-               rt.model.apa.priority rt.model.apa.platform
-               rt.model.apa.interference.
+Require Import rt.model.job rt.model.task rt.model.priority.
+Require Import rt.model.global.schedulability.
+Require Import rt.model.global.basic.schedule.
+Require Import rt.model.apa.affinity rt.model.apa.interference rt.model.apa.platform.
 Require Import rt.analysis.apa.workload_bound
                rt.analysis.apa.interference_bound_fp
                rt.analysis.apa.bertogna_fp_comp.

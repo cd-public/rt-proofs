@@ -1,7 +1,8 @@
 Require Import rt.util.all rt.util.divround.
-Require Import rt.model.apa.task rt.model.apa.job rt.model.apa.schedule
-               rt.model.apa.task_arrival rt.model.apa.response_time
-               rt.model.apa.workload rt.model.apa.schedulability.
+Require Import rt.model.task rt.model.job rt.model.task_arrival.
+Require Import rt.model.global.response_time rt.model.global.schedulability
+               rt.model.global.workload.
+Require Import rt.model.global.basic.schedule.
 From mathcomp Require Import ssreflect ssrbool eqtype ssrnat seq div fintype bigop path.
 
 Module WorkloadBound.

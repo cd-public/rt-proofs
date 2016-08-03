@@ -1,6 +1,8 @@
 Require Import rt.util.all rt.util.divround.
-Require Import rt.model.apa.task rt.model.apa.job rt.model.apa.schedule
-               rt.model.apa.priority rt.model.apa.workload rt.model.apa.affinity.
+Require Import rt.model.job rt.model.task rt.model.priority.
+Require Import rt.model.global.workload.
+Require Import rt.model.global.basic.schedule.
+Require Import rt.model.apa.affinity.
 From mathcomp Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop.
 
 Module Interference.

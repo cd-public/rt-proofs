@@ -1,5 +1,6 @@
-Require Import rt.model.apa.time rt.util.all.
-Require Import rt.model.apa.task rt.model.apa.affinity.
+Require Import rt.util.all.
+Require Import rt.model.time rt.model.task.
+Require Import rt.model.apa.affinity.
 From mathcomp Require Import ssreflect ssrbool ssrnat eqtype seq.
 
 Module ConcreteTask.

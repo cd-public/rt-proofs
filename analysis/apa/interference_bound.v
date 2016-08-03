@@ -1,5 +1,5 @@
 Require Import rt.util.all.
-Require Import rt.model.apa.schedule.
+Require Import rt.model.global.basic.schedule.
 Require Import rt.analysis.apa.workload_bound.
 From mathcomp Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop.
 

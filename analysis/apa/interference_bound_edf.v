@@ -1,9 +1,10 @@
 Require Import rt.util.all rt.util.divround.
-Require Import rt.model.apa.task rt.model.apa.job rt.model.apa.schedule
-               rt.model.apa.task_arrival rt.model.apa.platform rt.model.apa.response_time
-               rt.model.apa.workload rt.model.apa.priority rt.model.apa.schedulability
-               rt.model.apa.interference rt.model.apa.interference_edf
-               rt.model.apa.affinity.
+Require Import rt.model.job rt.model.task rt.model.priority rt.model.task_arrival.
+Require Import rt.model.global.workload rt.model.global.response_time
+               rt.model.global.schedulability.
+Require Import rt.model.global.basic.schedule.
+Require Import rt.model.apa.platform rt.model.apa.interference
+               rt.model.apa.interference_edf rt.model.apa.affinity.
 Require Import rt.analysis.apa.workload_bound rt.analysis.apa.interference_bound.
 From mathcomp Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop div path.
 

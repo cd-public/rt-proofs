@@ -2,17 +2,39 @@
 
 This repository contains the main Coq proof spec & proof development of the RT-PROOFS project.
 
+## Directory Structure
 
-## Plan
+The Prosa directory is organized in a hierarchy: while generic, reusable foundations stay in
+the upper levels, definitions for specific analyses should go deeper into the directory tree.
 
-For now, this is more or less just a "code dump" with a flat hierarchy to get things started.
+### Base Directories
 
-Going forward, the goal is to both
+Currently, Prosa contains the following base directories:
 
-- restructure the repository as it grows in scope, and to
+- **model/:** Specification of task and scheduler models, as well as generic lemmas related to scheduling.
+	  
+- **analysis/:** Definition, proofs and implementation of schedulability analyses.
 
-- add significant documentation to make it easier to bring new collaborators who are not yet familiar with Coq into the project.
+- **implementation/:** Instantiation of each schedulability analysis with concrete task and scheduler implementations.
+		       Testing the main theorems in an assumption free environment shows the absence of contradictions.
 
+### Internal Directories
+
+Within each base directory you can find the different classes of schedulers.
+
+- **model/uni:** Uniprocessor scheduling.
+- **model/global:** Global scheduling.
+- **model/partitioned:** Partitioned scheduling.
+- **model/apa:** APA scheduling.
+
+### Extending Prosa
+
+When adding a new model or analysis to Prosa, please extend the corresponding directory.
+For example, the schedulability analysis for global scheduling with release jitter is organized as follows.
+
+- **model/global/jitter:** Definitions and lemmas for global scheduling with release jitter.
+- **analysis/global/jitter:** Analysis for global scheduling with release jitter.
+- **implementation/global/jitter:** Implementation of the concrete scheduler with release jitter. 
 
 ## Commit and Development Rules
 
@@ -27,3 +49,5 @@ Going forward, the goal is to both
 5. Pushing fixes, small improvements, etc. is always ok. 
 
 6. Document the tactics that you use in the [list of tactics](doc/tactics.md).
+
+7. Whenever you have time available, please help with extending the documentation. :-)

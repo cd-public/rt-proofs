@@ -1,6 +1,6 @@
 Require Import rt.util.all.
-Require Import rt.model.apa.job rt.model.apa.task
-               rt.model.apa.arrival_sequence rt.model.apa.schedule.
+Require Import rt.model.job rt.model.task rt.model.arrival_sequence.
+Require Import rt.model.global.basic.schedule.
 From mathcomp Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop.
 
 (* Definition and properties about processor affinities. *)
