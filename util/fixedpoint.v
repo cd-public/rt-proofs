@@ -71,3 +71,46 @@ Section FixedPoint.
   Qed.
 
 End FixedPoint.
+
+(* In this section we define a fixed-point iteration function
+   that stops as soon as it finds the solution. If no solution
+   is found, the function returns None. *)
+Section Iteration.
+
+  Variable T : eqType.
+  Variable f: T -> T.
+
+  Fixpoint iter_fixpoint max_steps (x: T) :=
+    if max_steps is step.+1 then
+      let x' := f x in
+        if x == x' then
+          Some x
+        else iter_fixpoint step x'
+    else None.
+
+  Section Lemmas.
+
+    (* We prove that iter_fixpoint either returns either None
+       or Some y, where y is a fixed point. *)
+    Lemma iter_fixpoint_cases :
+      forall max_steps x0,
+        iter_fixpoint max_steps x0 = None \/
+        exists y,
+          iter_fixpoint max_steps x0 = Some y /\
+          y = f y. 
+    Proof.
+      induction max_steps.
+      {
+        by ins; simpl; destruct (x0 == f x0); left. 
+      }
+      {
+        intros x0; simpl.
+        destruct (x0 == f x0) eqn:EQ1;
+          first by right; exists x0; split; last by apply/eqP.
+        by destruct (IHmax_steps (f x0)) as [NONE | FOUND].
+      }
+    Qed. 
+
+  End Lemmas.
+  
+End Iteration.
