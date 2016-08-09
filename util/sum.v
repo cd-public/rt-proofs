@@ -94,6 +94,74 @@ Section ExtraLemmasSumMax.
     by destruct (m2 < n2) eqn:LT; [by apply/orP; right | by apply/orP; left].
   Qed.
 
+  Lemma bigmax_ord_ltn_identity n :
+    n > 0 ->
+    \max_(i < n) i < n.
+  Proof.
+    intros LT.
+    destruct n; first by rewrite ltn0 in LT.
+    clear LT.
+    induction n; first by rewrite big_ord_recr /= big_ord0 maxn0.
+    rewrite big_ord_recr /=.
+    unfold maxn at 1; desf.
+    by apply leq_trans with (n := n.+1).
+  Qed.
+    
+  Lemma bigmax_ltn_ord n (P : pred nat) (i0: 'I_n) :
+    P i0 ->
+    \max_(i < n | P i) i < n.
+  Proof.
+    intros LT.
+    destruct n; first by destruct i0 as [i0 P0]; move: (P0) => P0'; rewrite ltn0 in P0'.
+    rewrite big_mkcond.
+    apply leq_ltn_trans with (n := \max_(i < n.+1) i).
+    {
+      apply/bigmax_leqP; ins.
+      destruct (P i); last by done.
+      by apply leq_bigmax_cond.
+    }
+    by apply bigmax_ord_ltn_identity.
+  Qed.
+
+  Lemma bigmax_pred n (P : pred nat) (i0: 'I_n) :
+    P (i0) ->
+    P (\max_(i < n | P i) i).
+  Proof.
+    intros PRED.
+    induction n.
+    {
+      destruct i0 as [i0 P0].
+      by move: (P0) => P1; rewrite ltn0 in P1. 
+    }
+    rewrite big_mkcond big_ord_recr /=; desf.
+    {
+      destruct n; first by rewrite big_ord0 maxn0.
+      unfold maxn at 1; desf.
+      exfalso.
+      apply negbT in Heq0; move: Heq0 => /negP BUG.
+      apply BUG. 
+      apply leq_ltn_trans with (n := \max_(i < n.+1) i).
+      {
+        apply/bigmax_leqP; ins.
+        destruct (P i); last by done.
+        by apply leq_bigmax_cond.
+      }
+      by apply bigmax_ord_ltn_identity.
+    }
+    {
+      rewrite maxn0.
+      rewrite -big_mkcond /=.
+      have LT: i0 < n.
+      {
+        rewrite ltn_neqAle; apply/andP; split;
+          last by rewrite -ltnS; apply ltn_ord.
+        apply/negP; move => /eqP BUG.
+        by rewrite -BUG PRED in Heq.
+      }
+      by rewrite (IHn (Ordinal LT)).
+    }
+  Qed.
+  
   Lemma sum_nat_eq0_nat (T : eqType) (F : T -> nat) (r: seq T) :
     all (fun x => F x == 0) r = (\sum_(i <- r) F i == 0).
   Proof.
