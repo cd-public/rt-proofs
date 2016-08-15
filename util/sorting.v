@@ -20,6 +20,18 @@ Section Sorting.
     by rewrite addnS ltnS leq_addr.
   Qed.
 
+  Lemma sort_ordered:
+    forall {T: eqType} (leT: rel T) (s: seq T) x0 idx,
+      sorted leT s ->
+      idx < (size s).-1 ->
+      leT (nth x0 s idx) (nth x0 s idx.+1).
+  Proof.
+    intros T leT s x0 idx SORT LT.
+    induction s; first by rewrite /= ltn0 in LT.
+    simpl in SORT, LT; move: SORT => /pathP SORT.
+    by simpl; apply SORT.
+  Qed.
+  
   Lemma sorted_rcons_prefix :
     forall {T: eqType} (leT: rel T) s x,
       sorted leT (rcons s x) ->
