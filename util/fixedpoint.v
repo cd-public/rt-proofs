@@ -72,6 +72,19 @@ Section FixedPoint.
 
 End FixedPoint.
 
+(* In this section, we define some properties of relations
+   that are important for fixed-point iterations. *)
+Section Relations.
+
+  Context {T: Type}.
+  Variable R: rel T.
+  Variable f: T -> T.
+  
+  Definition monotone (R: rel T) :=
+    forall x y, R x y -> R (f x) (f y).
+
+End Relations.
+
 (* In this section we define a fixed-point iteration function
    that stops as soon as it finds the solution. If no solution
    is found, the function returns None. *)
@@ -88,7 +101,7 @@ Section Iteration.
         else iter_fixpoint step x'
     else None.
 
-  Section Lemmas.
+  Section BasicLemmas.
 
     (* We prove that iter_fixpoint either returns either None
        or Some y, where y is a fixed point. *)
@@ -111,6 +124,35 @@ Section Iteration.
       }
     Qed. 
 
-  End Lemmas.
+  End BasicLemmas.
+
+  Section RelationLemmas.
+
+    Variable R: rel T.
+    Hypothesis H_reflexive: reflexive R.
+    Hypothesis H_transitive: transitive R.
+    Hypothesis H_monotone: monotone f R.
+                                  
+    Lemma iter_fixpoint_ge_min:
+      forall max_steps x0 x,
+        iter_fixpoint max_steps x0 = Some x ->
+        R x0 (f x0) ->
+        R x0 x.
+    Proof.
+      induction max_steps.
+      {
+        intros x0 x SOME MIN; first by done.
+      }
+      {
+        intros x0 x SOME MIN; simpl in SOME.
+        destruct (x0 == f x0) eqn:EQ1;
+          first by inversion SOME; apply H_reflexive.
+        apply IHmax_steps in SOME;
+          first by apply H_transitive with (y := f x0).
+        by apply H_monotone.
+      }
+    Qed.
+    
+  End RelationLemmas.
   
 End Iteration.
