@@ -90,10 +90,15 @@ Notation "\max_ ( ( m , n ) <- r | P ) F" :=
   (\max_(i <- r | (let '(m,n) := i in P))
     (let '(m,n) := i in F)) : nat_scope.
 
-Notation "[ 'seq' ( x , y ) <- s | C ]" :=
+Notation "[ 'pairs' ( x , y ) <- s | C ]" :=
   (filter (fun i => let '(x,y) := i in C%B) s)
  (at level 0, x at level 99,
-  format "[ '[hv' 'seq' ( x , y ) <- s '/ ' | C ] ']'") : seq_scope.
+  format "[ '[hv' 'pairs' ( x , y ) <- s '/ ' | C ] ']'") : seq_scope.
+
+Notation "[ 'pairs' ( E , F ) | x <- s ]" :=
+    (map (fun y => ((fun x1 => let x := x1 in E) y, (fun x2 => let x := x2 in F) y)) s)
+  (at level 0, E at level 1, F at level 1, 
+   format "[ '[hv' 'pairs' ( E , F )  |  x  <-  s ] ']'") : seq_scope.
 
 (* In case we use an (option list T), we can define membership
    without having to match the option type. *)
