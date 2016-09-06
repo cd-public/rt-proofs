@@ -43,7 +43,7 @@ Module Platform.
             exists j_other,
               scheduled_on sched j_other cpu t.
 
-      (* In a schedule that enforces affinities, a job is scheduled
+      (* In a schedule that respects affinities, a job is scheduled
          only if its affinity allows it. *)
       Definition respects_affinity :=
         forall j cpu t,
@@ -52,16 +52,52 @@ Module Platform.
 
     End Execution.
 
+    Section FP.
+
+      (* An FP policy ...*)
+      Variable higher_eq_priority: FP_policy sporadic_task.
+
+      (* ... is respected by a weak APA scheduler iff for any
+         backlogged job j, if there is another job j_hp
+         executing on j's affinity, then j_hp's task priority
+         must be as high as j's task priority. *)
+      Definition respects_FP_policy_under_weak_APA :=
+        forall (j j_hp: JobIn arr_seq) cpu t,
+          backlogged job_cost sched j t ->
+          scheduled_on sched j_hp cpu t ->
+          can_execute_on alpha (job_task j) cpu ->
+          higher_eq_priority (job_task j_hp) (job_task j).
+
+    End FP.
+
+    Section JLFP.
+
+      (* A JLFP policy ...*)
+      Variable higher_eq_priority: JLFP_policy arr_seq.
+
+      (* ... is respected by a weak APA scheduler iff for
+         any backlogged job j, if there is another job j_hp
+         executing on j's affinity, then j_hp's priority
+         must be as high as j's priority. *)
+      Definition respects_JLFP_policy_under_weak_APA :=
+        forall (j j_hp: JobIn arr_seq) cpu t,
+          backlogged job_cost sched j t ->
+          scheduled_on sched j_hp cpu t ->
+          can_execute_on alpha (job_task j) cpu ->
+          higher_eq_priority j_hp j.
+      
+    End JLFP.
+
     Section JLDP.
 
       (* A JLFP/JLDP policy ...*)
       Variable higher_eq_priority: JLDP_policy arr_seq.
 
-      (* ... is enforced by a weak APA scheduler iff at any time t,
+      (* ... is respected by a weak APA scheduler iff at any time t,
          for any backlogged job j, if there is another job j_hp
          executing on j's affinity, then j_hp's priority must be
          as high as j's priority. *)
-      Definition enforces_JLDP_policy_under_weak_APA :=
+      Definition respects_JLDP_policy_under_weak_APA :=
         forall (j j_hp: JobIn arr_seq) cpu t,
           backlogged job_cost sched j t ->
           scheduled_on sched j_hp cpu t ->
@@ -70,18 +106,6 @@ Module Platform.
       
     End JLDP.
     
-    Section FP.
-
-      (* Given an FP policy, ...*)
-      Variable higher_eq_priority: FP_policy sporadic_task.
-
-      (* ... this policy is enforced by a weak APA scheduler iff
-         the corresponding JLDP policy is enforced by the scheduler. *)
-      Definition enforces_FP_policy_under_weak_APA :=
-        enforces_JLDP_policy_under_weak_APA (FP_to_JLDP job_task higher_eq_priority).
-
-    End FP.
-
   End Properties.
   
 End Platform.

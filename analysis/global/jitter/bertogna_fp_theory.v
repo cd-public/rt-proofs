@@ -76,10 +76,10 @@ Module ResponseTimeAnalysisFP.
     (* Consider a given FP policy, ... *)
     Variable higher_eq_priority: FP_policy sporadic_task.
 
-    (* ...and assume that the schedule is work-conserving and enforces this policy. *)
+    (* ...and assume that the schedule is work-conserving and respects this policy. *)
     Hypothesis H_work_conserving: work_conserving job_cost job_jitter sched.
-    Hypothesis H_enforces_priority:
-      enforces_FP_policy job_cost job_task job_jitter sched higher_eq_priority.
+    Hypothesis H_respects_priority:
+      respects_FP_policy job_cost job_task job_jitter sched higher_eq_priority.
 
     (* Let's define some local names to avoid passing many parameters. *)
     Let no_deadline_is_missed_by_tsk (tsk: sporadic_task) :=
@@ -416,7 +416,7 @@ Module ResponseTimeAnalysisFP.
                  H_work_conserving into WORK,
                  H_constrained_deadlines into CONSTR,
                  H_previous_jobs_of_tsk_completed into PREV,
-                 H_enforces_priority into FP,
+                 H_respects_priority into FP,
                  H_response_time_no_larger_than_deadline into NOMISS.
           unfold sporadic_task_model in *.
           unfold x, X, total_interference, task_interference.
@@ -470,7 +470,7 @@ Module ResponseTimeAnalysisFP.
                  H_response_time_no_larger_than_deadline into NOMISS,
                  H_constrained_deadlines into CONSTR,
                  H_sequential_jobs into SEQ,
-                 H_enforces_priority into FP,
+                 H_respects_priority into FP,
                  H_hp_bounds_has_interfering_tasks into HASHP,
                  H_interfering_tasks_miss_no_deadlines into NOMISSHP.
           unfold sporadic_task_model, valid_sporadic_job_with_jitter, valid_sporadic_job in *.

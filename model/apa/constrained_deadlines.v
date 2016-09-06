@@ -44,8 +44,8 @@ Module ConstrainedDeadlines.
       Variable higher_eq_priority: JLDP_policy arr_seq.
       Hypothesis H_work_conserving:
         apa_work_conserving job_cost job_task sched alpha.
-      Hypothesis H_enforces_JLDP_policy:
-        enforces_JLDP_policy_under_weak_APA job_cost job_task sched alpha higher_eq_priority.
+      Hypothesis H_respects_JLDP_policy:
+        respects_JLDP_policy_under_weak_APA job_cost job_task sched alpha higher_eq_priority.
 
       (* Consider task set ts. *)
       Variable ts: taskset_of sporadic_task.
@@ -135,8 +135,8 @@ Module ConstrainedDeadlines.
       (* Assume any work-conserving priority-based scheduler. *)
       Variable higher_eq_priority: FP_policy sporadic_task.
       Hypothesis H_work_conserving: apa_work_conserving job_cost job_task sched alpha.
-      Hypothesis H_enforces_JLDP_policy:
-        enforces_FP_policy_under_weak_APA job_cost job_task sched alpha higher_eq_priority.
+      Hypothesis H_respects_JLDP_policy:
+        respects_FP_policy_under_weak_APA job_cost job_task sched alpha higher_eq_priority.
 
       (* Consider any task set ts. *)
       Variable ts: taskset_of sporadic_task.

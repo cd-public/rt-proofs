@@ -163,7 +163,7 @@ Module InterferenceBoundEDFJitter.
 
     (* Assume that we have a work-conserving EDF scheduler. *)
     Hypothesis H_work_conserving: work_conserving job_cost job_jitter sched.
-    Hypothesis H_edf_policy: enforces_JLDP_policy job_cost job_jitter sched (EDF job_deadline).
+    Hypothesis H_edf_policy: respects_JLFP_policy job_cost job_jitter sched (EDF job_deadline).
 
     (* Let tsk_i be the task to be analyzed, ...*)
     Variable tsk_i: sporadic_task.

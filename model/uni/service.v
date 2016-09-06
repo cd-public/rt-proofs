@@ -27,7 +27,7 @@ Module Service.
       Section ServiceOfJobs.
 
         (* Given any predicate over jobs, ...*)
-        Variable P: Job -> bool.
+        Variable P: JobIn arr_seq -> bool.
 
         (* ...we define the cumulative service received during [t1, t2)
            by the jobs that satisfy this predicate. *)
@@ -36,8 +36,9 @@ Module Service.
 
       End ServiceOfJobs.
 
-      (* Next, we define the service received by tasks with higher or equal priority. *)
-      Section PerPriorityLevel.
+      (* Then, we define the service received by tasks with higher or equal priority
+         under FP policies. *)
+      Section PerTaskPriority.
 
         Context {Task: eqType}.
         Variable job_task: Job -> Task.
@@ -52,10 +53,29 @@ Module Service.
         Let of_higher_or_equal_priority j := higher_eq_priority (job_task j) tsk.
        
         (* ...we define the service received during [t1, t2) by jobs of higher or equal priority. *)
-        Definition service_of_higher_or_equal_priority (t1 t2: time) :=
+        Definition service_of_higher_or_equal_priority_tasks (t1 t2: time) :=
           service_of_jobs of_higher_or_equal_priority t1 t2.
 
-      End PerPriorityLevel.
+      End PerTaskPriority.
+      
+      (* Next, we define the service received by jobs with higher or equal priority
+         under JLFP policies. *)
+      Section PerJobPriority.
+
+        (* Consider any JLDP policy. *)
+        Variable higher_eq_priority: JLFP_policy arr_seq.
+
+        (* Let j be the job to be analyzed. *)
+        Variable j: JobIn arr_seq.
+
+        (* Based on the definition of jobs of higher or equal priority, ... *)
+        Let of_higher_or_equal_priority j_hp := higher_eq_priority j_hp j.
+       
+        (* ...we define the service received during [t1, t2) by jobs of higher or equal priority. *)
+        Definition service_of_higher_or_equal_priority_jobs (t1 t2: time) :=
+          service_of_jobs of_higher_or_equal_priority t1 t2.
+
+      End PerJobPriority.
 
     End Definitions.
 

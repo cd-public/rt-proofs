@@ -245,11 +245,11 @@ Module ConcreteScheduler.
       by apply JobIn_arrived; move: PEND => /andP [ARR _].
     Qed.
 
-    (* ... and enforces the JLDP policy. *)
-    Theorem scheduler_enforces_policy :
-      enforces_JLDP_policy job_cost sched higher_eq_priority.
+    (* ... and respects the JLDP policy. *)
+    Theorem scheduler_respects_policy :
+      respects_JLDP_policy job_cost sched higher_eq_priority.
     Proof.
-      unfold enforces_JLDP_policy; move => j j_hp t BACK /eqP SCHED.
+      unfold respects_JLDP_policy; move => j j_hp t BACK /eqP SCHED.
       move: (SCHED) => OHEAD.
       rewrite scheduler_picks_first_job in OHEAD.
       set jobs := sorted_pending_jobs job_cost arr_seq higher_eq_priority sched t in OHEAD.

@@ -68,11 +68,11 @@ Module ResponseTimeAnalysisEDF.
       completed_jobs_dont_execute job_cost sched.
 
     (* Assume that the schedule is an work-conserving APA schedule that
-       enforces EDF priorities. *)
+       respects EDF priorities. *)
     Hypothesis H_respects_affinity: respects_affinity job_task sched alpha.
     Hypothesis H_work_conserving: apa_work_conserving job_cost job_task sched alpha.
     Hypothesis H_edf_policy:
-      enforces_JLDP_policy_under_weak_APA job_cost job_task sched alpha (EDF job_deadline).
+      respects_JLFP_policy_under_weak_APA job_cost job_task sched alpha (EDF job_deadline).
 
     (* Let's define some local names to avoid passing many parameters. *)
     Let no_deadline_is_missed_by_tsk (tsk: sporadic_task) :=

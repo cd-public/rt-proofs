@@ -492,7 +492,7 @@ Module ConcreteScheduler.
         }
       Qed.
 
-      (* Next, we prove that the mapping enforces priority. *)
+      (* Next, we prove that the mapping respects priority. *)
       Lemma scheduler_priority :
         forall j j_hp cpu t,
           backlogged job_cost sched j t ->
@@ -733,11 +733,11 @@ Module ConcreteScheduler.
       by rewrite -scheduler_scheduled_on.
     Qed.
     
-    (* ... and enforces the JLDP policy under weak APA scheduling. *)
-    Theorem scheduler_enforces_policy :
-      enforces_JLDP_policy_under_weak_APA job_cost job_task sched alpha higher_eq_priority.
+    (* ... and respects the JLDP policy under weak APA scheduling. *)
+    Theorem scheduler_respects_policy :
+      respects_JLDP_policy_under_weak_APA job_cost job_task sched alpha higher_eq_priority.
     Proof.
-      unfold enforces_JLDP_policy_under_weak_APA.
+      unfold respects_JLDP_policy_under_weak_APA.
       intros j j_hp cpu t BACK SCHED ALPHA.
       rewrite scheduler_scheduled_on in SCHED.
       apply scheduler_priority with (cpu := cpu); try by done.

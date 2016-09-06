@@ -1,7 +1,6 @@
 Require Import rt.util.all.
 Require Import rt.model.job rt.model.task rt.model.priority.
 Require Import rt.model.uni.schedule rt.model.uni.schedulability.
-Require Import rt.model.global.basic.platform.
 Require Import rt.analysis.uni.basic.workload_bound_fp
                rt.analysis.uni.basic.fp_rta_comp.
 Require Import rt.implementation.job rt.implementation.task
@@ -12,7 +11,7 @@ From mathcomp Require Import ssreflect ssrbool ssrnat eqtype seq bigop div.
 Module ResponseTimeAnalysisFP.
 
   Import Job UniprocessorSchedule SporadicTaskset Priority Schedulability
-         Platform WorkloadBoundFP ResponseTimeIterationFP.
+         WorkloadBoundFP ResponseTimeIterationFP.
   Import ConcreteJob ConcreteTask ConcreteArrivalSequence ConcreteScheduler.
 
   (* In this section, we run the FP RTA on a simple task set to show that the theorems
@@ -107,15 +106,15 @@ Module ResponseTimeAnalysisFP.
     Let arr_seq := periodic_arrival_sequence ts.
     
     (* Assume rate-monotonic priorities... *)
-    Let higher_eq_priority : JLDP_policy arr_seq := (FP_to_JLDP job_task (RM task_period)).
+    Let higher_eq_priority : JLDP_policy arr_seq := (FP_to_JLDP job_task arr_seq (RM task_period)).
 
     (* ... and recall that this priority assignment is total. *)
     Fact priority_is_total:
       forall t, total (higher_eq_priority t).
     Proof.
-      rewrite /higher_eq_priority /FP_to_JLDP /RM.
+      rewrite /higher_eq_priority /FP_to_JLDP /RM /FP_to_JLFP.
       intros t x y; apply/orP.
-      elim LEQ: (_ <= _); first by left.
+      case LEQ: (_ <= _); first by left.
       apply negbT in LEQ; rewrite -ltnNge in LEQ.
       by right; apply ltnW.
     Qed.
@@ -148,7 +147,7 @@ Module ResponseTimeAnalysisFP.
       - by apply scheduler_jobs_must_arrive_to_execute.
       - by apply scheduler_completed_jobs_dont_execute; intro j'; specialize (VALID j'); des.
       - by apply scheduler_work_conserving.
-      - apply scheduler_enforces_policy.
+      - apply scheduler_respects_policy.
         -- by intros t; apply RM_is_transitive.
         -- by apply priority_is_total. 
       - by apply schedulability_test_succeeds.

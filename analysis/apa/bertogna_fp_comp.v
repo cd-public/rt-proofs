@@ -531,11 +531,11 @@ Module ResponseTimeIterationFP.
       (* ...and jobs are sequential. *)
       Hypothesis H_sequential_jobs: sequential_jobs sched.
 
-      (* Assume a work-conserving APA scheduler that enforces the FP policy. *)
+      (* Assume a work-conserving APA scheduler that respects the FP policy. *)
       Hypothesis H_respects_affinity: respects_affinity job_task sched alpha.
       Hypothesis H_work_conserving: apa_work_conserving job_cost job_task sched alpha.
-      Hypothesis H_enforces_FP_policy:
-        enforces_FP_policy_under_weak_APA job_cost job_task sched alpha higher_priority.
+      Hypothesis H_respects_FP_policy:
+        respects_FP_policy_under_weak_APA job_cost job_task sched alpha higher_priority.
 
       (* To avoid a long list of parameters, we provide some local definitions. *)
       Let no_deadline_missed_by_task (tsk: sporadic_task) :=

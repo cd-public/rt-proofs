@@ -72,11 +72,11 @@ Module ResponseTimeAnalysisFP.
     Variable higher_eq_priority: FP_policy sporadic_task.
 
     (* ... and assume that the schedule is an APA work-conserving
-       schedule that enforces this policy. *)
+       schedule that respects this policy. *)
     Hypothesis H_respects_affinity: respects_affinity job_task sched alpha.
     Hypothesis H_work_conserving: apa_work_conserving job_cost job_task sched alpha.
-    Hypothesis H_enforces_FP_policy:
-      enforces_FP_policy_under_weak_APA job_cost job_task sched alpha higher_eq_priority.
+    Hypothesis H_respects_FP_policy:
+      respects_FP_policy_under_weak_APA job_cost job_task sched alpha higher_eq_priority.
 
     (* Let's define some local names to avoid passing many parameters. *)
     Let no_deadline_is_missed_by_tsk (tsk: sporadic_task) :=
@@ -383,7 +383,7 @@ Module ResponseTimeAnalysisFP.
                  H_previous_jobs_of_tsk_completed into BEFOREok,
                  H_response_time_no_larger_than_deadline into NOMISS,
                  H_constrained_deadlines into RESTR,
-                 H_respects_affinity into APA, H_enforces_FP_policy into FP.
+                 H_respects_affinity into APA, H_respects_FP_policy into FP.
           unfold sporadic_task_model in *.
           unfold x, X, total_interference, task_interference.
           rewrite -big_mkcond -exchange_big big_distrl /= mul1n.
@@ -444,7 +444,7 @@ Module ResponseTimeAnalysisFP.
                  H_work_conserving into WORK,
                  H_response_time_no_larger_than_deadline into NOMISS,
                  H_constrained_deadlines into RESTR,
-                 H_enforces_FP_policy into FP,
+                 H_respects_FP_policy into FP,
                  H_respects_affinity into APA, H_affinity_subset into SUB.
           unfold sporadic_task_model in *.
           unfold x, X, total_interference, task_interference.
@@ -512,7 +512,7 @@ Module ResponseTimeAnalysisFP.
                  H_valid_task_parameters into PARAMS,
                  H_previous_jobs_of_tsk_completed into BEFOREok,
                  H_sequential_jobs into SEQ, H_constrained_deadlines into CONSTR,
-                 H_enforces_FP_policy into FP.
+                 H_respects_FP_policy into FP.
           move => t /andP [GEt LTt] BACK. 
           move: WORK  => WORK.
           specialize (WORK j t BACK).
@@ -667,7 +667,7 @@ Module ResponseTimeAnalysisFP.
                  H_job_of_tsk into JOBtsk, H_affinity_subset into SUB,
                  H_sporadic_tasks into SPO, H_respects_affinity into APA,
                  H_constrained_deadlines into RESTR,
-                 H_sequential_jobs into SEQ, H_enforces_FP_policy into FP.
+                 H_sequential_jobs into SEQ, H_respects_FP_policy into FP.
           unfold sporadic_task_model in *.
           move => delta /andP [HAS LT]. 
           rewrite -has_count in HAS.

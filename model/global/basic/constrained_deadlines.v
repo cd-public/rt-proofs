@@ -40,8 +40,8 @@ Module ConstrainedDeadlines.
       (* Assume any work-conserving priority-based scheduler. *)
       Variable higher_eq_priority: JLDP_policy arr_seq.
       Hypothesis H_work_conserving: work_conserving job_cost sched.
-      Hypothesis H_enforces_JLDP_policy:
-        enforces_JLDP_policy job_cost sched higher_eq_priority.
+      Hypothesis H_respects_JLDP_policy:
+        respects_JLDP_policy job_cost sched higher_eq_priority.
 
       (* Consider task set ts. *)
       Variable ts: taskset_of sporadic_task.
@@ -127,7 +127,7 @@ Module ConstrainedDeadlines.
         rename H_all_jobs_from_taskset into FROMTS,
                H_sequential_jobs into SEQUENTIAL,
                H_work_conserving into WORK,
-               H_enforces_JLDP_policy into PRIO,
+               H_respects_JLDP_policy into PRIO,
                H_j_backlogged into BACK,
                H_job_of_tsk into JOBtsk,
                H_valid_job_parameters into JOBPARAMS,
@@ -137,7 +137,7 @@ Module ConstrainedDeadlines.
                H_jobs_must_arrive_to_execute into ARRIVE.
         apply work_conserving_eq_work_conserving_count in WORK.
         unfold valid_sporadic_job, valid_realtime_job,
-               enforces_JLDP_policy, completed_jobs_dont_execute,
+               respects_JLDP_policy, completed_jobs_dont_execute,
                sporadic_task_model, is_valid_sporadic_task,
                jobs_of_same_task_dont_execute_in_parallel,
                sequential_jobs in *.  
@@ -200,8 +200,8 @@ Module ConstrainedDeadlines.
       (* Assume any work-conserving priority-based scheduler. *)
       Variable higher_eq_priority: FP_policy sporadic_task.
       Hypothesis H_work_conserving: work_conserving job_cost sched.
-      Hypothesis H_enforces_JLDP_policy:
-        enforces_FP_policy job_cost job_task sched higher_eq_priority.
+      Hypothesis H_respects_JLDP_policy:
+        respects_FP_policy job_cost job_task sched higher_eq_priority.
 
       (* Consider any task set ts. *)
       Variable ts: taskset_of sporadic_task.
@@ -341,7 +341,7 @@ Module ConstrainedDeadlines.
         rename H_all_jobs_from_taskset into FROMTS,
                H_sequential_jobs into SEQUENTIAL,
                H_work_conserving into WORK,
-               H_enforces_JLDP_policy into PRIO,
+               H_respects_JLDP_policy into PRIO,
                H_j_backlogged into BACK,
                H_job_of_tsk into JOBtsk,
                H_sporadic_tasks into SPO,
@@ -353,7 +353,7 @@ Module ConstrainedDeadlines.
                H_jobs_must_arrive_to_execute into ARRIVE.
         apply work_conserving_eq_work_conserving_count in WORK.
         unfold valid_sporadic_job, valid_realtime_job,
-               enforces_FP_policy, enforces_JLDP_policy, FP_to_JLDP,
+               respects_FP_policy, respects_JLDP_policy, FP_to_JLDP,
                completed_jobs_dont_execute, sequential_jobs,
                sporadic_task_model, is_valid_sporadic_task,
                jobs_of_same_task_dont_execute_in_parallel,

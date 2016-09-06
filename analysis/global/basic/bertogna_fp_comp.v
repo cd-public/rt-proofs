@@ -518,10 +518,10 @@ Module ResponseTimeIterationFP.
       (* Also assume that jobs are sequential (as required by the workload bound). *)
       Hypothesis H_sequential_jobs: sequential_jobs sched.
 
-      (* Assume that the scheduler is work-conserving and enforces the FP policy. *)
+      (* Assume that the scheduler is work-conserving and respects the FP policy. *)
       Hypothesis H_work_conserving: work_conserving job_cost sched.
-      Hypothesis H_enforces_FP_policy:
-        enforces_FP_policy job_cost job_task sched higher_priority.
+      Hypothesis H_respects_FP_policy:
+        respects_FP_policy job_cost job_task sched higher_priority.
 
       Let no_deadline_missed_by_task (tsk: sporadic_task) :=
         task_misses_no_deadline job_cost job_deadline job_task sched tsk.

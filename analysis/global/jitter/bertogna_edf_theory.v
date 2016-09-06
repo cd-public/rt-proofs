@@ -75,7 +75,7 @@ Module ResponseTimeAnalysisEDFJitter.
 
     (* Assume that the schedule is a work-conserving EDF schedule. *)
     Hypothesis H_work_conserving: work_conserving job_cost job_jitter sched.
-    Hypothesis H_edf_policy: enforces_JLDP_policy job_cost job_jitter sched (EDF job_deadline).
+    Hypothesis H_edf_policy: respects_JLFP_policy job_cost job_jitter sched (EDF job_deadline).
 
     (* Let's define some local names to avoid passing many parameters. *)
     Let no_deadline_is_missed_by_tsk (tsk: sporadic_task) :=

@@ -25,7 +25,7 @@ Module InterferenceEDF.
        for EDF, i.e., if any job of tsk is backlogged, every processor
        must be busy with jobs with no larger absolute deadline. *)
     Hypothesis H_scheduler_uses_EDF:
-      enforces_JLDP_policy job_cost sched (EDF job_deadline). 
+      respects_JLFP_policy job_cost sched (EDF job_deadline). 
 
     (* Under EDF scheduling, a job only causes interference if its deadline
        is not larger than the deadline of the analyzed job. *)

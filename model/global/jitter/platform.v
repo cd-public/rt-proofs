@@ -48,34 +48,53 @@ Module Platform.
 
     End Execution.
 
-    Section JLDP.
+    Section FP.
 
-      (* A JLFP/JLDP policy ...*)
-      Variable higher_eq_priority: JLDP_policy arr_seq.
+      (* An FP policy ...*)
+      Variable higher_eq_priority: FP_policy sporadic_task.
 
-      (* ... is enforced by the scheduler iff at any time t,
+      (* ... is respected by the schedule iff every scheduled
+         job has higher (or same) priority than (as) a backlogged job. *)
+      Definition respects_FP_policy :=
+        forall (j j_hp: JobIn arr_seq) t,
+          backlogged job_cost job_jitter sched j t ->
+          scheduled sched j_hp t ->
+          higher_eq_priority (job_task j_hp) (job_task j).
+
+    End FP.
+    
+    Section JLFP.
+
+      (* A JLFP policy ...*)
+      Variable higher_eq_priority: JLFP_policy arr_seq.
+
+      (* ... is respected by the schedule iff at any time t,
          a scheduled job has higher (or same) priority than (as)
          a backlogged job. *)
-      Definition enforces_JLDP_policy :=
+      Definition respects_JLFP_policy :=
+        forall (j j_hp: JobIn arr_seq) t,
+          backlogged job_cost job_jitter sched j t ->
+          scheduled sched j_hp t ->
+          higher_eq_priority j_hp j.
+      
+    End JLFP.
+
+    Section JLDP.
+
+      (* A JLDP policy ...*)
+      Variable higher_eq_priority: JLDP_policy arr_seq.
+
+      (* ... is respected by the schedule iff at any time t,
+         a scheduled job has higher (or same) priority than (as)
+         a backlogged job. *)
+      Definition respects_JLDP_policy :=
         forall (j j_hp: JobIn arr_seq) t,
           backlogged job_cost job_jitter sched j t ->
           scheduled sched j_hp t ->
           higher_eq_priority t j_hp j.
       
     End JLDP.
-    
-    Section FP.
 
-      (* Given an FP policy, ...*)
-      Variable higher_eq_priority: FP_policy sporadic_task.
-
-      (* ... this policy is enforced by the scheduler iff
-         a corresponding JLDP policy is enforced by the scheduler. *)
-      Definition enforces_FP_policy :=
-        enforces_JLDP_policy (FP_to_JLDP job_task higher_eq_priority).
-
-    End FP.
-    
     Section Lemmas.
 
       (* Assume all jobs have valid parameters, ...*)

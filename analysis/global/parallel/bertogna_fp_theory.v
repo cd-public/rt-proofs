@@ -68,10 +68,10 @@ Module ResponseTimeAnalysisFP.
     Variable higher_eq_priority: FP_policy sporadic_task.
     
     (* ... and assume that the schedule is an APA work-conserving
-       schedule that enforces this policy. *)
+       schedule that respects this policy. *)
     Hypothesis H_work_conserving: work_conserving job_cost sched.
-    Hypothesis H_enforces_FP_policy:
-      enforces_FP_policy job_cost job_task sched higher_eq_priority.
+    Hypothesis H_respects_FP_policy:
+      respects_FP_policy job_cost job_task sched higher_eq_priority.
     
     (* Assume that there exists at least one processor. *)
     Hypothesis H_at_least_one_cpu: num_cpus > 0.
@@ -267,11 +267,11 @@ Module ResponseTimeAnalysisFP.
                  H_sporadic_tasks into SPO,
                  H_work_conserving into WORK,
                  H_constrained_deadlines into RESTR,
-                 H_enforces_FP_policy into FP,
+                 H_respects_FP_policy into FP,
                  H_previous_jobs_of_tsk_completed into BEFOREok,
                  H_response_time_no_larger_than_deadline into NOMISS.
-          unfold sporadic_task_model, enforces_FP_policy,
-                 enforces_JLDP_policy, FP_to_JLDP in *.
+          unfold sporadic_task_model, respects_FP_policy,
+                 respects_JLDP_policy, FP_to_JLDP in *.
           unfold x, X, total_interference, task_interference.
           rewrite -big_mkcond -exchange_big big_distrl /=.
           rewrite [\sum_(_ <= _ < _ | backlogged _ _ _ _) _]big_mkcond.

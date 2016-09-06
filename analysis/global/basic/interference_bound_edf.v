@@ -161,7 +161,7 @@ Module InterferenceBoundEDF.
     (* Assume that the scheduler is a work-conserving EDF scheduler. *)
     Hypothesis H_work_conserving: work_conserving job_cost sched.
     Hypothesis H_edf_scheduler:
-      enforces_JLDP_policy job_cost sched (EDF job_deadline).
+      respects_JLFP_policy job_cost sched (EDF job_deadline).
 
     (* Let tsk_i be the task to be analyzed, ...*)
     Variable tsk_i: sporadic_task.

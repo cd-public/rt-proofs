@@ -96,7 +96,8 @@ Module ResponseTimeAnalysisEDF.
     Let arr_seq := periodic_arrival_sequence ts.
 
     (* Let sched be the work-conserving EDF scheduler. *)
-    Let sched := scheduler job_cost num_cpus arr_seq (EDF job_deadline).
+    Let sched := scheduler job_cost num_cpus arr_seq
+                           (JLFP_to_JLDP arr_seq (EDF job_deadline)).
 
     (* Recall the definition of deadline miss. *)
     Let no_deadline_missed_by :=
@@ -112,7 +113,8 @@ Module ResponseTimeAnalysisEDF.
       have VALID := periodic_arrivals_valid_job_parameters ts ts_has_valid_parameters.
       have TSVALID := ts_has_valid_parameters.
       unfold valid_sporadic_job, valid_realtime_job in *; des.
-      apply taskset_schedulable_by_edf_rta with (task_cost := task_cost) (task_period := task_period) (task_deadline := task_deadline) (ts0 := ts).
+      apply taskset_schedulable_by_edf_rta with (task_cost := task_cost)
+                     (task_period := task_period) (task_deadline := task_deadline) (ts0 := ts).
       - by apply ts_has_valid_parameters. 
       - by apply ts_has_constrained_deadlines.
       - by apply periodic_arrivals_all_jobs_from_taskset.
@@ -124,9 +126,9 @@ Module ResponseTimeAnalysisEDF.
         -- by specialize (VALID j'); des.
         -- by apply periodic_arrivals_is_a_set.
       - by apply scheduler_work_conserving.
-      - apply scheduler_enforces_policy.
-        -- by apply EDF_is_transitive.
-        -- by apply EDF_is_total.
+      - apply scheduler_respects_policy.
+        -- by intro t; apply EDF_is_transitive.
+        -- by intro t; apply EDF_is_total.
       - by apply schedulability_test_succeeds.
       - by apply IN.
     Qed.

@@ -36,15 +36,47 @@ Module Platform.
 
     End Execution.
 
+    (* Next, we define properties related to FP scheduling. *)
+    Section FP.
+
+      (* We say that an FP policy...*)
+      Variable higher_eq_priority: FP_policy sporadic_task.
+
+      (* ...is respected by the schedule iff a scheduled task has
+         higher (or same) priority than (as) any backlogged task. *)
+      Definition respects_FP_policy :=
+        forall (j j_hp: JobIn arr_seq) t,
+          backlogged job_cost sched j t ->
+          scheduled_at sched j_hp t ->
+          higher_eq_priority (job_task j_hp) (job_task j).
+
+    End FP.
+    
+    (* Next, we define properties related to JLFP policies. *)
+    Section JLFP.
+
+      (* We say that a JLFP policy ...*)
+      Variable higher_eq_priority: JLFP_policy arr_seq.
+
+      (* ... is respected by the scheduler iff a scheduled job has
+         higher (or same) priority than (as) any backlogged job. *)
+      Definition respects_JLFP_policy :=
+        forall (j j_hp: JobIn arr_seq) t,
+          backlogged job_cost sched j t ->
+          scheduled_at sched j_hp t ->
+          higher_eq_priority j_hp j.
+      
+    End JLFP.
+
     (* Next, we define properties related to JLDP policies. *)
     Section JLDP.
 
       (* We say that a JLFP/JLDP policy ...*)
       Variable higher_eq_priority: JLDP_policy arr_seq.
 
-      (* ... is enforced by the scheduler iff at any time t, a scheduled job
+      (* ... is respected by the scheduler iff at any time t, a scheduled job
          has higher (or same) priority than (as) any backlogged job. *)
-      Definition enforces_JLDP_policy :=
+      Definition respects_JLDP_policy :=
         forall (j j_hp: JobIn arr_seq) t,
           backlogged job_cost sched j t ->
           scheduled_at sched j_hp t ->
@@ -52,19 +84,6 @@ Module Platform.
       
     End JLDP.
 
-    (* Next, we define properties related to FP scheduling. *)
-    Section FP.
-
-      (* We say that an FP policy...*)
-      Variable higher_eq_priority: FP_policy sporadic_task.
-
-      (* ...is enforced by the scheduler iff the corresponding JLDP
-         policy is enforced by the scheduler. *)
-      Definition enforces_FP_policy :=
-        enforces_JLDP_policy (FP_to_JLDP job_task higher_eq_priority).
-
-    End FP.
-    
   End Properties.
 
   (* In this section, we prove some lemmas about the processor platform. *)

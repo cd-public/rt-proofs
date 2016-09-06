@@ -31,7 +31,7 @@ Module InterferenceEDF.
        for EDF, i.e., if any job of tsk is backlogged, every processor
        must be busy with jobs with no larger absolute deadline. *)
     Hypothesis H_scheduler_uses_EDF:
-      enforces_JLDP_policy_under_weak_APA job_cost job_task sched alpha (EDF job_deadline). 
+      respects_JLFP_policy_under_weak_APA job_cost job_task sched alpha (EDF job_deadline). 
 
     (* Under EDF scheduling, a job only causes interference if its deadline
        is not larger than the deadline of the analyzed job. *)
@@ -41,7 +41,7 @@ Module InterferenceEDF.
         job_arrival j + job_deadline j <= job_arrival j' + job_deadline j'.
     Proof.
       rename H_scheduler_uses_EDF into PRIO.
-      unfold enforces_JLDP_policy_under_weak_APA in *.
+      unfold respects_JLDP_policy_under_weak_APA in *.
       intros j j' t1 t2 INTERF.
       unfold job_interference in INTERF.
       destruct ([exists t': 'I_t2,
@@ -52,7 +52,7 @@ Module InterferenceEDF.
                       scheduled_on sched j cpu t']]) eqn:EX.
       {
         move: EX => /existsP [t' /existsP [cpu /andP [/andP [/andP [LE BACK] CAN] SCHED]]].
-        by eapply PRIO in SCHED; last by apply CAN.
+        by specialize (PRIO j' j cpu t' BACK SCHED CAN).
       }
       {
         apply negbT in EX; rewrite negb_exists in EX; move: EX => /forallP ALL.

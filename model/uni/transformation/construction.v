@@ -69,42 +69,79 @@ Module ScheduleConstruction.
         }
       Qed.
 
-      (* If the generation function only depends on the service
+      Section ServiceDependent.
+        
+        (* If the generation function only depends on the service
          received by jobs during the schedule prefix, ...*)
-      Hypothesis H_depends_only_on_service:
-        forall sched1 sched2 t,
-          (forall j, service sched1 j t = service sched2 j t) ->          
-          build_schedule sched1 t = build_schedule sched2 t.
+        Hypothesis H_depends_only_on_service:
+          forall sched1 sched2 t,
+            (forall j, service sched1 j t = service sched2 j t) ->          
+            build_schedule sched1 t = build_schedule sched2 t.
 
-      (* ...then we can prove that the final schedule, at any time t,
+        (* ...then we can prove that the final schedule, at any time t,
          is exactly the result of the construction function. *)
-      Lemma prefix_construction_uses_function:
-        forall t,
-          sched t = build_schedule sched t.
-      Proof.
-        intros t.
-        feed (prefix_construction_same_prefix t t); [by done | intros EQ].
-        rewrite -{}EQ.
-        induction t as [t IH] using strong_ind.
-        destruct t.
-        {
-          rewrite /= /update_schedule eq_refl.
-          apply H_depends_only_on_service.
-          by intros j; rewrite /service /service_during big_geq // big_geq //.
-        }
-        {
-          rewrite /= /update_schedule eq_refl.
-          apply H_depends_only_on_service.
-          intros j; rewrite /service /service_during.
-          rewrite big_nat_recr //= big_nat_recr //=; f_equal.
-          apply eq_big_nat; move => i /= LT.
-          rewrite /service_at /scheduled_at.
-          by rewrite prefix_construction_same_prefix; last by apply ltnW.
-        }
-      Qed.
-            
+        Lemma service_dependent_schedule_construction:
+          forall t,
+            sched t = build_schedule sched t.
+        Proof.
+          intros t.
+          feed (prefix_construction_same_prefix t t); [by done | intros EQ].
+          rewrite -{}EQ.
+          induction t as [t IH] using strong_ind.
+          destruct t.
+          {
+            rewrite /= /update_schedule eq_refl.
+            apply H_depends_only_on_service.
+              by intros j; rewrite /service /service_during big_geq // big_geq //.
+          }
+          {
+            rewrite /= /update_schedule eq_refl.
+            apply H_depends_only_on_service.
+            intros j; rewrite /service /service_during.
+            rewrite big_nat_recr //= big_nat_recr //=; f_equal.
+            apply eq_big_nat; move => i /= LT.
+            rewrite /service_at /scheduled_at.
+              by rewrite prefix_construction_same_prefix; last by apply ltnW.
+          }
+        Qed.
+
+      End ServiceDependent.
+
+      Section PrefixDependent.
+
+        (* If the generation function only depends on the schedule prefix, ... *)
+        Hypothesis H_depends_only_on_prefix:
+          forall (sched1 sched2: schedule arr_seq) t,
+            (forall t0, t0 < t -> sched1 t0 = sched2 t0) ->          
+            build_schedule sched1 t = build_schedule sched2 t.
+
+        (* ...then we can prove that the final schedule, at any time t,
+         is exactly the result of the construction function. *)
+        Lemma prefix_dependent_schedule_construction:
+          forall t, sched t = build_schedule sched t.
+        Proof.
+          intros t.
+          feed (prefix_construction_same_prefix t t); [by done | intros EQ].
+          rewrite -{}EQ.
+          induction t using strong_ind.
+          destruct t.
+          {
+            rewrite /= /update_schedule eq_refl.
+            apply H_depends_only_on_prefix.
+            by intros t; rewrite ltn0.
+          }
+          {
+            rewrite /= /update_schedule eq_refl.
+            apply H_depends_only_on_prefix.
+            intros t0 LT.
+            by rewrite prefix_construction_same_prefix.
+          }
+        Qed.
+
+      End PrefixDependent.
+
     End Lemmas.
-    
+      
   End ConstructionFromPrefixes.
 
 End ScheduleConstruction.

@@ -893,7 +893,7 @@ Module ResponseTimeIterationEDF.
 
       (* Assume a work-conserving scheduler with EDF policy. *)
       Hypothesis H_work_conserving: work_conserving job_cost sched.
-      Hypothesis H_edf_policy: enforces_JLDP_policy job_cost sched (EDF job_deadline).
+      Hypothesis H_edf_policy: respects_JLFP_policy job_cost sched (EDF job_deadline).
 
       Definition no_deadline_missed_by_task (tsk: sporadic_task) :=
         task_misses_no_deadline job_cost job_deadline job_task sched tsk.

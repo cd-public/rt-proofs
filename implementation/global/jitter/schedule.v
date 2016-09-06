@@ -324,11 +324,11 @@ Module ConcreteScheduler.
       by apply nth_or_none_size_some in NTH; apply ltnW.
     Qed.
 
-    (* ... and enforces the JLDP policy. *)
-    Theorem scheduler_enforces_policy :
-      enforces_JLDP_policy job_cost job_jitter sched higher_eq_priority.
+    (* ... and respects the JLDP policy. *)
+    Theorem scheduler_respects_policy :
+      respects_JLDP_policy job_cost job_jitter sched higher_eq_priority.
     Proof.
-      unfold enforces_JLDP_policy; intros j j_hp t BACK SCHED.
+      unfold respects_JLDP_policy; intros j j_hp t BACK SCHED.
       set jobs := sorted_pending_jobs job_cost job_jitter num_cpus arr_seq higher_eq_priority sched t.
       apply scheduler_nth_or_none_backlogged in BACK.
       destruct BACK as [cpu_out [SOME GE]].

@@ -104,7 +104,7 @@ Module ResponseTimeAnalysisFP.
 
     (* Assume rate-monotonic priorities. *)
     Let higher_priority : JLDP_policy arr_seq :=
-      (FP_to_JLDP job_task (RM task_period)).
+      (FP_to_JLDP job_task arr_seq (RM task_period)).
 
     Section FactsAboutPriorityOrder.
 
@@ -160,7 +160,7 @@ Module ResponseTimeAnalysisFP.
         -- by apply periodic_arrivals_is_a_set.
       - by apply scheduler_sequential_jobs, periodic_arrivals_is_a_set.
       - by apply scheduler_work_conserving.
-      - apply scheduler_enforces_policy.
+      - apply scheduler_respects_policy.
         -- by intros t; apply RM_is_transitive.
         {
           unfold FP_to_JLDP; intros t x y; apply/orP.

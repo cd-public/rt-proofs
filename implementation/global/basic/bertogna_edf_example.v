@@ -89,7 +89,8 @@ Module ResponseTimeAnalysisEDF.
     Let arr_seq := periodic_arrival_sequence ts.
 
     (* Let sched be the work-conserving EDF scheduler. *)
-    Let sched := scheduler job_cost num_cpus arr_seq (EDF job_deadline).
+    Let sched := scheduler job_cost num_cpus arr_seq
+                           (JLFP_to_JLDP arr_seq (EDF job_deadline)).
 
     (* Recall the definition of deadline miss. *)
     Let no_deadline_missed_by :=
@@ -118,9 +119,9 @@ Module ResponseTimeAnalysisEDF.
         -- by apply periodic_arrivals_is_a_set.
       - by apply scheduler_sequential_jobs, periodic_arrivals_is_a_set.
       - by apply scheduler_work_conserving.
-      - apply scheduler_enforces_policy.
-        -- by apply EDF_is_transitive.
-        -- by apply EDF_is_total.
+      - apply scheduler_respects_policy.
+        -- by intro t; apply EDF_is_transitive.
+        -- by intro t; apply EDF_is_total.
       - by apply schedulability_test_succeeds.
       - by apply IN.
     Qed.

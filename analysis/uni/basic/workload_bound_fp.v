@@ -187,7 +187,7 @@ Module WorkloadBoundFP.
     
     (* First, let's define some local names for clarity. *)
     Let hp_workload :=
-      workload_of_higher_or_equal_priority job_cost job_task arr_seq higher_eq_priority tsk.
+      workload_of_higher_or_equal_priority_tasks job_cost job_task arr_seq higher_eq_priority tsk.
     Let workload_bound :=
       total_workload_bound_fp task_cost task_period higher_eq_priority ts tsk.
 
@@ -206,7 +206,7 @@ Module WorkloadBoundFP.
       rename H_fixed_point into FIX, H_all_jobs_from_taskset into FROMTS,
              H_valid_job_parameters into JOBPARAMS,
              H_valid_task_parameters into PARAMS.
-      unfold hp_workload, workload_of_higher_or_equal_priority,
+      unfold hp_workload, workload_of_higher_or_equal_priority_tasks,
              valid_sporadic_job, valid_realtime_job,
              valid_sporadic_taskset, is_valid_sporadic_task in *.
       intro t.

@@ -71,10 +71,10 @@ Module ResponseTimeAnalysisFP.
     Variable higher_eq_priority: FP_policy sporadic_task.
 
     (* ... and assume that the schedule is a work-conserving
-       schedule that enforces this policy. *)
+       schedule that respects this policy. *)
     Hypothesis H_work_conserving: work_conserving job_cost sched.
-    Hypothesis H_enforces_FP_policy:
-      enforces_FP_policy job_cost job_task sched higher_eq_priority.
+    Hypothesis H_respects_FP_policy:
+      respects_FP_policy job_cost job_task sched higher_eq_priority.
 
     (* Let's define some local names to avoid passing many parameters. *)    
     Let no_deadline_is_missed_by_tsk (tsk: sporadic_task) :=
@@ -383,7 +383,7 @@ Module ResponseTimeAnalysisFP.
           \sum_(tsk_k <- hp_tasks) x tsk_k = X * num_cpus.
         Proof.
           have DIFFTASK := bertogna_fp_interference_by_different_tasks.
-          rename H_work_conserving into WORK, H_enforces_FP_policy into FP,
+          rename H_work_conserving into WORK, H_respects_FP_policy into FP,
                  H_all_jobs_from_taskset into FROMTS, H_job_of_tsk into JOBtsk.
           unfold sporadic_task_model in *.
           unfold x, X, total_interference, task_interference.
@@ -436,7 +436,7 @@ Module ResponseTimeAnalysisFP.
                  H_response_time_no_larger_than_deadline into NOMISS,
                  H_constrained_deadlines into CONSTR,
                  H_sequential_jobs into SEQ,
-                 H_enforces_FP_policy into FP,
+                 H_respects_FP_policy into FP,
                  H_hp_bounds_has_interfering_tasks into HASHP,
                  H_interfering_tasks_miss_no_deadlines into NOMISSHP.
           unfold sporadic_task_model in *.

@@ -66,7 +66,7 @@ Module ResponseTimeAnalysisFP.
     
     (* Next, assume that the schedule is a work-conserving FP schedule. *)
     Hypothesis H_work_conserving: work_conserving job_cost sched.
-    Hypothesis H_enforces_fp_policy: enforces_FP_policy job_cost job_task sched higher_eq_priority.
+    Hypothesis H_respects_fp_policy: respects_FP_policy job_cost job_task sched higher_eq_priority.
     
     (* Now we proceed with the analysis.
        Let tsk be any task in ts that is to be analyzed. *)
@@ -92,13 +92,17 @@ Module ResponseTimeAnalysisFP.
     Theorem uniprocessor_response_time_bound_fp:
       response_time_bounded_by tsk R.
     Proof.
+      rename H_response_time_is_fixed_point into FIX.
       intros j JOBtsk.
-      apply busy_interval_bounds_response_time with
-        (job_task0 := job_task) (tsk0 := tsk)
-        (higher_eq_priority0 := higher_eq_priority); try (by done).
+      have bla := busy_interval_bounds_response_time.
+      set prio := FP_to_JLFP job_task arr_seq higher_eq_priority.
+      apply busy_interval_bounds_response_time with (higher_eq_priority0 := prio); try (by done).
+        - by intros x; apply H_priority_is_reflexive.
+        - by intros x z y; apply H_priority_is_transitive.
       apply fp_workload_bound_holds with (task_cost0 := task_cost)
         (task_period0 := task_period) (task_deadline0 := task_deadline)
         (job_deadline0 := job_deadline) (ts0 := ts); try (by done).
+      by rewrite JOBtsk.
     Qed.
 
   End ResponseTimeBound.

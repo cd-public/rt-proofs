@@ -911,10 +911,10 @@ Module ResponseTimeIterationEDF.
       (* ...and jobs are sequential. *)
       Hypothesis H_sequential_jobs: sequential_jobs sched.
       
-      (* Assume a work-conserving APA scheduler that enforces EDF policy. *)
+      (* Assume a work-conserving APA scheduler that respects EDF policy. *)
       Hypothesis H_respects_affinity: respects_affinity job_task sched alpha.
       Hypothesis H_work_conserving: apa_work_conserving job_cost job_task sched alpha.
-      Hypothesis H_edf_policy: enforces_JLDP_policy_under_weak_APA job_cost job_task sched alpha (EDF job_deadline).
+      Hypothesis H_edf_policy: respects_JLFP_policy_under_weak_APA job_cost job_task sched alpha (EDF job_deadline).
 
       (* To avoid a long list of parameters, we provide some local definitions. *)      
       Definition no_deadline_missed_by_task (tsk: sporadic_task) :=
