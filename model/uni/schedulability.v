@@ -38,7 +38,7 @@ Module Schedulability.
         (* ...misses no deadline if it completes by its absolute deadline.*)
         Definition job_misses_no_deadline :=
           job_completed_by j (job_arrival j + job_deadline j).
-
+          
       End JobLevel.
 
       (* Next, we define the notion of deadline miss for a task. *)
@@ -55,6 +55,20 @@ Module Schedulability.
         
       End TaskLevel.
 
+      (* Next, we define the notion of deadline miss for a task set. *)
+      Section TaskSetLevel.
+
+        (* We say that a task set ts... *)
+        Variable ts: seq Task.
+
+        (* ...misses no deadline if all of its tasks do not miss any deadlines. *)
+        Definition taskset_misses_no_deadline :=
+          forall tsk,
+            tsk \in ts ->
+            task_misses_no_deadline tsk.
+        
+      End TaskSetLevel.
+      
     End Definitions.
 
     (* In this section, we prove some lemmas related to schedulability. *)
