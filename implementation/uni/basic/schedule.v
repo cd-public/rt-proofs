@@ -63,13 +63,9 @@ Module ConcreteScheduler.
     Context {Job: eqType}.
     Variable job_cost: Job -> time.
 
-    (* Let arr_seq be any job arrival sequence with no duplicates, ... *)
+    (* Let arr_seq be any job arrival sequence with no duplicates. *)
     Variable arr_seq: arrival_sequence Job.
     Hypothesis H_arrival_sequence_is_a_set: arrival_sequence_is_a_set arr_seq.
-    
-    (* ...where jobs have positive cost. *)
-    Hypothesis H_job_cost_positive:
-      forall (j: JobIn arr_seq), job_cost_positive job_cost j.
 
     (* Consider any JLDP policy that is transitive and total. *)
     Variable higher_eq_priority: JLDP_policy arr_seq.
@@ -189,7 +185,6 @@ Module ConcreteScheduler.
     Theorem scheduler_completed_jobs_dont_execute:
       completed_jobs_dont_execute job_cost sched.
     Proof.
-      rename H_job_cost_positive into GT0.
       unfold completed_jobs_dont_execute, service, service_during.
       intros j t.
       induction t; first by rewrite big_geq.
@@ -204,9 +199,15 @@ Module ConcreteScheduler.
         rewrite EQ -{2}[job_cost j]addn0; apply leq_add; first by done.
         destruct t.
         {
-          rewrite big_geq // in EQ.
-          specialize (GT0 j); unfold job_cost_positive in *.
-          by rewrite -EQ ltn0 in GT0.
+          rewrite /service_at /scheduled_at.
+          destruct (sched 0 == Some j) eqn:SCHED; last by done.
+          move: SCHED => /eqP SCHED.
+          rewrite scheduler_picks_first_job in SCHED.
+          set jobs := sorted_pending_jobs _ _ _ _ _ in SCHED.
+          have IN: j \in jobs.
+            by destruct jobs; last by move: SCHED => /=; case => SAME; subst; rewrite in_cons eq_refl.
+          rewrite mem_sort mem_filter in IN; move: IN => /andP [/andP [_ NOTCOMP] _].
+          by rewrite /completed_by -EQ eq_refl in NOTCOMP. 
         }
         {
           unfold service_at, scheduled_at.
