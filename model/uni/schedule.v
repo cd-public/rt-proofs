@@ -310,8 +310,131 @@ Module UniprocessorSchedule.
           by rewrite SCHED1 in SCHED2; inversion SCHED2.
         Qed.
           
-      End OnlyOneJobScheduled.        
-      
+      End OnlyOneJobScheduled.
+
+      Section ServiceIsAStepFunction.
+
+        (* First, we show that the service received by any job j
+           is a step function. *)
+        Lemma service_is_a_step_function:
+          forall j,
+            is_step_function (service sched j).
+        Proof.
+          unfold is_step_function, service, service_during; intros j t.
+          rewrite addn1 big_nat_recr //=.
+          by apply leq_add; last by apply leq_b1.
+        Qed.
+
+        (* Next, consider any job j at any time t... *)
+        Variable j: JobIn arr_seq.
+        Variable t: time.
+
+        (* ...and let s0 be any value less than the service received
+           by job j by time t. *)
+        Variable s0: time.
+        Hypothesis H_less_than_s: s0 < service sched j t.
+
+        (* Then, we show that there exists an earlier time t0 where
+           job j had s0 units of service. *)
+        Corollary exists_intermediate_service:
+          exists t0,
+            t0 < t /\
+            service sched j t0 = s0.
+        Proof.
+          feed (exists_intermediate_point (service sched j));
+            [by apply service_is_a_step_function | intros EX].
+          feed (EX 0 t); first by done.
+          feed (EX s0);
+            first by rewrite /service /service_during big_geq //. 
+          by move: EX => /= [x_mid EX]; exists x_mid.
+        Qed.
+
+      End ServiceIsAStepFunction.
+
+      Section ServiceNotZero.
+
+        (* Let j be any job. *)
+        Variable j: JobIn arr_seq.
+
+        (* Assume that the service received by j during [t1, t2) is not zero. *)
+        Variable t1 t2: time.
+        Hypothesis H_service_not_zero: service_during sched j t1 t2 > 0.
+        
+        (* Then, there must be a time t where job j is scheduled. *)
+        Lemma cumulative_service_implies_scheduled :
+          exists t,
+            t1 <= t < t2 /\ 
+            scheduled_at sched j t.
+        Proof.
+          rename H_service_not_zero into NONZERO.
+          case (boolP([exists t: 'I_t2,
+                 (t >= t1) && (service_at sched j t != 0)])) => [EX | ALL].
+          {
+            move: EX => /existsP [x /andP [GE SERV]].
+            rewrite eqb0 negbK in SERV.
+            exists x; split; last by done.
+            by apply/andP; split; last by apply ltn_ord.
+          }
+          {
+            rewrite negb_exists in ALL; move: ALL => /forallP ALL. 
+            rewrite /service_during big_nat_cond in NONZERO.
+            rewrite big1 ?ltn0 // in NONZERO.
+            intros i; rewrite andbT; move => /andP [GT LT].
+            specialize (ALL (Ordinal LT)); simpl in ALL.
+            by rewrite GT andTb negbK in ALL; apply/eqP.
+          }
+        Qed.
+
+      End ServiceNotZero.
+
+      (* In this section, we prove some lemmas about time instants
+         with same service. *)
+      Section TimesWithSameService.
+
+        (* Let j be any job in the arrival sequence. *)
+        Variable j: JobIn arr_seq.
+
+        (* Consider any time instants t1 and t2... *)
+        Variable t1 t2: time.
+
+        (* ...where job j has received the same amount of service. *)
+        Hypothesis H_same_service: service sched j t1 = service sched j t2.
+
+        (* First, we show that job j is scheduled at some point t < t1 iff
+           j is scheduled at some point t' < t2.  *)
+        Lemma same_service_implies_scheduled_at_earlier_times:
+          [exists t: 'I_t1, scheduled_at sched j t] =
+            [exists t': 'I_t2, scheduled_at sched j t'].
+        Proof.
+          rename H_same_service into SERV.
+          move: t1 t2 SERV; clear t1 t2; move => t t'.
+          wlog: t t' / (t <= t') => [EX SAME | LE SERV].
+            by case/orP: (leq_total t t'); ins; [|symmetry]; apply EX.
+          apply/idP/idP; move => /existsP [t0 SCHED].
+          {
+            have LT0: t0 < t' by apply: (leq_trans _ LE).
+            by apply/existsP; exists (Ordinal LT0). 
+          }
+          {
+            destruct (ltnP t0 t) as [LT01 | LE10];
+              first by apply/existsP; exists (Ordinal LT01).
+            exfalso; move: SERV => /eqP SERV.
+            rewrite -[_ == _]negbK in SERV.
+            move: SERV => /negP BUG; apply BUG; clear BUG.
+            rewrite neq_ltn; apply/orP; left.
+            rewrite /service /service_during.
+            rewrite -> big_cat_nat with (n := t0) (p := t');
+              [simpl | by done | by apply ltnW].
+            rewrite -addn1; apply leq_add; first by apply extend_sum.
+            destruct t0 as [t0 LT]; simpl in *.
+            destruct t'; first by rewrite ltn0 in LT.
+            rewrite big_nat_recl; last by done.
+            by rewrite /service_at SCHED.
+          }
+        Qed.
+        
+      End TimesWithSameService.
+
     End Lemmas.
   
   End Schedule.
