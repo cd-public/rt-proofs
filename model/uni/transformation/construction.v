@@ -20,8 +20,8 @@ Module ScheduleConstruction.
     Variable build_schedule:
       schedule arr_seq -> time -> option (JobIn arr_seq).
 
-    (* Then, starting from the empty schedule as a base, ... *)
-    Definition empty_schedule : schedule arr_seq := fun t => None.
+    (* Then, starting from a base schedule, ... *)
+    Variable base_sched: schedule arr_seq.
 
     (* ...we can update individual times using the build_schedule function, ... *)
     Definition update_schedule (prev_sched: schedule arr_seq)
@@ -36,7 +36,7 @@ Module ScheduleConstruction.
       if t_max is t_prev.+1 then
         update_schedule (schedule_prefix t_prev) t_prev.+1
       else
-        update_schedule empty_schedule 0.
+        update_schedule base_sched 0.
 
     (* Based on the schedule prefixes, we construct a complete schedule. *)
     Definition build_schedule_from_prefixes := fun t => schedule_prefix t t.
