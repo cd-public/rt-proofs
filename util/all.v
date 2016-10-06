@@ -13,4 +13,5 @@ Require Export rt.util.powerset.
 Require Export rt.util.sorting.
 Require Export rt.util.ssromega.
 Require Export rt.util.sum.
+Require Export rt.util.minmax.
 Require Export rt.util.seqset.
