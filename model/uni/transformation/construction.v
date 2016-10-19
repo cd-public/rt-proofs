@@ -140,6 +140,29 @@ Module ScheduleConstruction.
 
       End PrefixDependent.
 
+      Section ImmediateProperty.
+
+        Variable P: option (JobIn arr_seq) -> Prop.
+
+        Hypothesis H_immediate_property:
+          forall sched_prefix t, P (build_schedule sched_prefix t).
+
+        Lemma immediate_property_of_schedule_construction:
+          forall t, P (sched t).
+        Proof.
+          destruct t.
+          {
+            rewrite /sched /build_schedule_from_prefixes /schedule_prefix /update_schedule eq_refl.
+            by apply H_immediate_property.
+          }
+          {
+            rewrite /sched /build_schedule_from_prefixes /schedule_prefix /update_schedule eq_refl.
+            by apply H_immediate_property.
+          }
+        Qed.
+
+      End ImmediateProperty.
+
     End Lemmas.
       
   End ConstructionFromPrefixes.
