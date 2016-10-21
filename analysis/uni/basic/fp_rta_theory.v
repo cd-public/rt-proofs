@@ -1,10 +1,10 @@
 Require Import rt.util.all.
-Require Import rt.model.job rt.model.task rt.model.priority rt.model.task_arrival
-               rt.model.arrival_bounds.
-Require Import rt.model.uni.schedule_of_task rt.model.uni.workload
-               rt.model.uni.schedulability rt.model.uni.response_time
-               rt.model.uni.service.
-Require Import rt.model.uni.basic.busy_interval rt.model.uni.basic.platform.
+Require Import rt.model.arrival.basic.job rt.model.arrival.basic.task rt.model.priority rt.model.arrival.basic.task_arrival
+               rt.model.arrival.basic.arrival_bounds.
+Require Import rt.model.schedule.uni.schedule_of_task rt.model.schedule.uni.workload
+               rt.model.schedule.uni.schedulability rt.model.schedule.uni.response_time
+               rt.model.schedule.uni.service.
+Require Import rt.model.schedule.uni.basic.busy_interval rt.model.schedule.uni.basic.platform.
 Require Import rt.analysis.uni.basic.workload_bound_fp.
 From mathcomp Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop.
 

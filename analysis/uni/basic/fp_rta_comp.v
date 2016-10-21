@@ -1,8 +1,8 @@
 Require Import rt.util.all.
-Require Import rt.model.task rt.model.job rt.model.arrival_sequence rt.model.priority
-               rt.model.task_arrival.
-Require Import rt.model.uni.schedule rt.model.uni.schedulability rt.model.uni.response_time.
-Require Import rt.model.uni.basic.platform.
+Require Import rt.model.arrival.basic.task rt.model.arrival.basic.job rt.model.arrival.basic.arrival_sequence rt.model.priority
+               rt.model.arrival.basic.task_arrival.
+Require Import rt.model.schedule.uni.schedule rt.model.schedule.uni.schedulability rt.model.schedule.uni.response_time.
+Require Import rt.model.schedule.uni.basic.platform.
 Require Import rt.analysis.uni.basic.workload_bound_fp rt.analysis.uni.basic.fp_rta_theory.
 From mathcomp Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop path ssrfun.
 

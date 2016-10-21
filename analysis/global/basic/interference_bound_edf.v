@@ -1,9 +1,9 @@
 Require Import rt.util.all.
-Require Import rt.model.task rt.model.job rt.model.task_arrival rt.model.priority.
-Require Import rt.model.global.response_time rt.model.global.workload
-               rt.model.global.schedulability.
-Require Import rt.model.global.basic.schedule rt.model.global.basic.platform
-               rt.model.global.basic.interference rt.model.global.basic.interference_edf.
+Require Import rt.model.arrival.basic.task rt.model.arrival.basic.job rt.model.arrival.basic.task_arrival rt.model.priority.
+Require Import rt.model.schedule.global.response_time rt.model.schedule.global.workload
+               rt.model.schedule.global.schedulability.
+Require Import rt.model.schedule.global.basic.schedule rt.model.schedule.global.basic.platform
+               rt.model.schedule.global.basic.interference rt.model.schedule.global.basic.interference_edf.
 Require Import rt.analysis.global.basic.workload_bound
                rt.analysis.global.basic.interference_bound.
 From mathcomp Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop div path.

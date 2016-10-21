@@ -1,5 +1,5 @@
 Require Import rt.util.all.
-Require Import rt.model.task rt.model.job rt.model.arrival_sequence.
+Require Import rt.model.arrival.basic.task rt.model.arrival.basic.job rt.model.arrival.basic.arrival_sequence.
 From mathcomp Require Import ssreflect ssrbool eqtype ssrnat seq.
 
 (* Definitions of FP, JLFP and JLDP priority relations. *)

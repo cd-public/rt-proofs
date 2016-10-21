@@ -1,8 +1,8 @@
 Require Import rt.util.all.
-Require Import rt.model.task rt.model.job rt.model.task_arrival.
-Require Import rt.model.global.workload rt.model.global.response_time
-               rt.model.global.schedulability.
-Require Import rt.model.global.basic.schedule.
+Require Import rt.model.arrival.basic.task rt.model.arrival.basic.job rt.model.arrival.basic.task_arrival.
+Require Import rt.model.schedule.global.workload rt.model.schedule.global.response_time
+               rt.model.schedule.global.schedulability.
+Require Import rt.model.schedule.global.basic.schedule.
 From mathcomp Require Import ssreflect ssrbool eqtype ssrnat seq div fintype bigop path.
 
 Module WorkloadBound.

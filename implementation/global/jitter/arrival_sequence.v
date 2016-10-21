@@ -1,6 +1,6 @@
 Require Import rt.util.all.
-Require Import rt.model.arrival_sequence rt.model.task rt.model.task_arrival.
-Require Import rt.model.global.jitter.job.
+Require Import rt.model.arrival.basic.arrival_sequence rt.model.arrival.basic.task rt.model.arrival.basic.task_arrival.
+Require Import rt.model.schedule.global.jitter.job.
 Require Import rt.implementation.global.jitter.task rt.implementation.global.jitter.job.
 From mathcomp Require Import ssreflect ssrbool ssrfun ssrnat eqtype seq div.
 

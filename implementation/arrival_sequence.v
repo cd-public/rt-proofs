@@ -1,6 +1,6 @@
 Require Import rt.util.all.
-Require Import rt.model.arrival_sequence rt.model.job
-               rt.model.task rt.model.task_arrival.
+Require Import rt.model.arrival.basic.arrival_sequence rt.model.arrival.basic.job
+               rt.model.arrival.basic.task rt.model.arrival.basic.task_arrival.
 Require Import rt.implementation.task rt.implementation.job.
 From mathcomp Require Import ssreflect ssrbool ssrfun ssrnat eqtype seq div.
 

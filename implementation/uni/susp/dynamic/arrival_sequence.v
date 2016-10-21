@@ -1,5 +1,5 @@
 Require Import rt.util.all.
-Require Import rt.model.arrival_sequence rt.model.task rt.model.task_arrival rt.model.job.
+Require Import rt.model.arrival.basic.arrival_sequence rt.model.arrival.basic.task rt.model.arrival.basic.task_arrival rt.model.arrival.basic.job.
 Require Import rt.implementation.uni.susp.dynamic.task
                rt.implementation.uni.susp.dynamic.job.
 From mathcomp Require Import ssreflect ssrbool ssrfun ssrnat eqtype seq div.

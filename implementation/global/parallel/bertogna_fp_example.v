@@ -1,8 +1,8 @@
 Require Import rt.util.all.
-Require Import rt.model.job rt.model.task rt.model.priority.
-Require Import rt.model.global.schedulability.
-Require Import rt.model.global.basic.schedule rt.model.global.basic.platform
-               rt.model.global.basic.interference.
+Require Import rt.model.arrival.basic.job rt.model.arrival.basic.task rt.model.priority.
+Require Import rt.model.schedule.global.schedulability.
+Require Import rt.model.schedule.global.basic.schedule rt.model.schedule.global.basic.platform
+               rt.model.schedule.global.basic.interference.
 Require Import rt.analysis.global.parallel.workload_bound
                rt.analysis.global.parallel.interference_bound_fp
                rt.analysis.global.parallel.bertogna_fp_comp.

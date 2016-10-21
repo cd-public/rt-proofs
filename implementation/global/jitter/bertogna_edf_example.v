@@ -1,8 +1,8 @@
 Require Import rt.util.all.
-Require Import rt.model.task rt.model.priority.
-Require Import rt.model.global.schedulability.
-Require Import rt.model.global.jitter.job rt.model.global.jitter.schedule
-               rt.model.global.jitter.platform.
+Require Import rt.model.arrival.basic.task rt.model.priority.
+Require Import rt.model.schedule.global.schedulability.
+Require Import rt.model.schedule.global.jitter.job rt.model.schedule.global.jitter.schedule
+               rt.model.schedule.global.jitter.platform.
 Require Import rt.analysis.global.jitter.workload_bound
                rt.analysis.global.jitter.interference_bound_edf
                rt.analysis.global.jitter.bertogna_edf_comp.

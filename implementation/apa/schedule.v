@@ -1,8 +1,8 @@
 Require Import rt.util.all.
-Require Import rt.model.arrival_sequence rt.model.job rt.model.task rt.model.priority
-               rt.model.task_arrival.
-Require Import rt.model.global.basic.schedule.
-Require Import rt.model.apa.affinity rt.model.apa.platform.
+Require Import rt.model.arrival.basic.arrival_sequence rt.model.arrival.basic.job rt.model.arrival.basic.task rt.model.priority
+               rt.model.arrival.basic.task_arrival.
+Require Import rt.model.schedule.global.basic.schedule.
+Require Import rt.model.schedule.apa.affinity rt.model.schedule.apa.platform.
 From mathcomp Require Import ssreflect ssrbool ssrfun eqtype ssrnat fintype bigop seq path.
 
 Module ConcreteScheduler.

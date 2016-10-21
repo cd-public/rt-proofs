@@ -1,6 +1,6 @@
 Require Import rt.util.all.
-Require Import rt.model.job rt.model.arrival_sequence rt.model.priority.
-Require Import rt.model.global.basic.schedule rt.model.global.basic.platform.
+Require Import rt.model.arrival.basic.job rt.model.arrival.basic.arrival_sequence rt.model.priority.
+Require Import rt.model.schedule.global.basic.schedule rt.model.schedule.global.basic.platform.
 From mathcomp Require Import ssreflect ssrbool ssrfun eqtype ssrnat fintype bigop seq path.
 
 Module ConcreteScheduler.

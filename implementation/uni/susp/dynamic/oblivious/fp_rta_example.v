@@ -1,7 +1,7 @@
 Require Import rt.util.all.
-Require Import rt.model.job rt.model.task rt.model.priority.
-Require Import rt.model.uni.schedule rt.model.uni.schedulability.
-Require Import rt.model.uni.susp.suspension_intervals.
+Require Import rt.model.arrival.basic.job rt.model.arrival.basic.task rt.model.priority.
+Require Import rt.model.schedule.uni.schedule rt.model.schedule.uni.schedulability.
+Require Import rt.model.schedule.uni.susp.suspension_intervals.
 Require Import rt.analysis.uni.basic.workload_bound_fp.
 Require Import rt.analysis.uni.susp.dynamic.oblivious.fp_rta.
 Require Import rt.implementation.uni.susp.dynamic.job

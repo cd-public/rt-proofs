@@ -1,6 +1,6 @@
 Require Import rt.util.all.
-Require Import rt.model.job rt.model.task rt.model.priority.
-Require Import rt.model.uni.schedule rt.model.uni.schedulability.
+Require Import rt.model.arrival.basic.job rt.model.arrival.basic.task rt.model.priority.
+Require Import rt.model.schedule.uni.schedule rt.model.schedule.uni.schedulability.
 Require Import rt.analysis.uni.basic.workload_bound_fp
                rt.analysis.uni.basic.fp_rta_comp.
 Require Import rt.implementation.job rt.implementation.task

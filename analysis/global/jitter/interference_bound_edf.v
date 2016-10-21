@@ -1,10 +1,10 @@
 Require Import rt.util.all.
-Require Import rt.model.task rt.model.priority rt.model.task_arrival.
-Require Import rt.model.global.response_time rt.model.global.workload
-               rt.model.global.schedulability.
-Require Import rt.model.global.jitter.job rt.model.global.jitter.schedule
-               rt.model.global.jitter.platform rt.model.global.jitter.interference
-               rt.model.global.jitter.interference_edf.
+Require Import rt.model.arrival.basic.task rt.model.priority rt.model.arrival.basic.task_arrival.
+Require Import rt.model.schedule.global.response_time rt.model.schedule.global.workload
+               rt.model.schedule.global.schedulability.
+Require Import rt.model.schedule.global.jitter.job rt.model.schedule.global.jitter.schedule
+               rt.model.schedule.global.jitter.platform rt.model.schedule.global.jitter.interference
+               rt.model.schedule.global.jitter.interference_edf.
 Require Import rt.analysis.global.jitter.workload_bound rt.analysis.global.jitter.interference_bound.
 From mathcomp Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop div path.
 

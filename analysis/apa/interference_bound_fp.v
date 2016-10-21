@@ -1,8 +1,8 @@
 Require Import rt.util.all.
 Require Import rt.model.priority.
-Require Import rt.model.global.workload.
-Require Import rt.model.global.basic.schedule.
-Require Import rt.model.apa.interference rt.model.apa.affinity.
+Require Import rt.model.schedule.global.workload.
+Require Import rt.model.schedule.global.basic.schedule.
+Require Import rt.model.schedule.apa.interference rt.model.schedule.apa.affinity.
 Require Import rt.analysis.apa.workload_bound rt.analysis.apa.interference_bound.
 From mathcomp Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop.
 

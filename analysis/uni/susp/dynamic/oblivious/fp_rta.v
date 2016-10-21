@@ -1,9 +1,9 @@
 Require Import rt.util.all.
-Require Import rt.model.job rt.model.task rt.model.arrival_sequence
-               rt.model.priority rt.model.suspension rt.model.task_arrival.
-Require Import rt.model.uni.schedule rt.model.uni.schedulability.
-Require Import rt.model.uni.susp.suspension_intervals
-               rt.model.uni.susp.schedule rt.model.uni.susp.platform.
+Require Import rt.model.arrival.basic.job rt.model.arrival.basic.task rt.model.arrival.basic.arrival_sequence
+               rt.model.priority rt.model.suspension rt.model.arrival.basic.task_arrival.
+Require Import rt.model.schedule.uni.schedule rt.model.schedule.uni.schedulability.
+Require Import rt.model.schedule.uni.susp.suspension_intervals
+               rt.model.schedule.uni.susp.schedule rt.model.schedule.uni.susp.platform.
 Require Import rt.analysis.uni.basic.fp_rta_comp.
 Require Import rt.analysis.uni.susp.dynamic.oblivious.reduction.
 From mathcomp Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop.

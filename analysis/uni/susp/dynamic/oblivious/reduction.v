@@ -1,11 +1,11 @@
 Require Import rt.util.all.
-Require Import rt.model.job rt.model.task rt.model.arrival_sequence
+Require Import rt.model.arrival.basic.job rt.model.arrival.basic.task rt.model.arrival.basic.arrival_sequence
                rt.model.priority rt.model.suspension.
-Require Import rt.model.uni.schedule rt.model.uni.schedulability.
-Require Import rt.model.uni.basic.platform.
-Require Import rt.model.uni.susp.suspension_intervals
-               rt.model.uni.susp.schedule rt.model.uni.susp.platform.
-Require Import rt.model.uni.transformation.construction.
+Require Import rt.model.schedule.uni.schedule rt.model.schedule.uni.schedulability.
+Require Import rt.model.schedule.uni.basic.platform.
+Require Import rt.model.schedule.uni.susp.suspension_intervals
+               rt.model.schedule.uni.susp.schedule rt.model.schedule.uni.susp.platform.
+Require Import rt.model.schedule.uni.transformation.construction.
 Require Import rt.implementation.uni.basic.schedule.
 From mathcomp Require Import ssreflect ssrbool eqtype ssrnat seq fintype bigop path.
 
