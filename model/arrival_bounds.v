@@ -24,7 +24,7 @@ Module ArrivalBounds.
 
     (* In this section, we prove an upper bound on the number of jobs that can arrive
        in any interval. *)
-    Section SporadicArrivalsAfterQuietTime.
+    Section BoundOnSporadicArrivals.
 
       (* Assume that jobs are sporadic. *)
       Hypothesis H_sporadic_tasks: sporadic_task_model task_period arr_seq job_task.
@@ -119,106 +119,23 @@ Module ArrivalBounds.
           Let a_first := job_arrival j_first.
           Let a_last := job_arrival j_last.
 
-          (* Next, we prove some auxiliary lemmas.
-             First, we show that the jobs in the sequence satisfy some basic properties... *)
-          Local Corollary sporadic_arrival_bound_properties_of_nth:
+          (* Recall from task_arrival.v the properties of the n-th job ...*)
+          Corollary sporadic_arrival_bound_properties_of_nth:
             forall idx,
               idx < num_arrivals ->
               t1 <= job_arrival (nth_task idx) < t2 /\
               job_task (nth_task idx) = tsk.
           Proof.
             intros idx LTidx.
-            have IN: nth_task idx \in sorted_jobs by rewrite mem_nth // size_sort.
-            rewrite mem_sort in IN.
-            rewrite 2!mem_filter in IN.
-            move: IN => /andP [JOB /andP [GE LT]]; apply JobIn_arrived in LT.
-            split; last by apply/eqP.
-            by apply/andP; split.
+            by apply sorted_arrivals_properties_of_nth.
           Qed.
 
-          (* ...and that consecutive jobs in the sequence are different. *)
-          Local Corollary sporadic_arrival_bound_current_differs_from_next:
-            forall idx,
-              idx < num_arrivals.-1 ->
-              nth_task idx <> nth_task idx.+1.
-          Proof.
-            rename H_at_least_two_jobs into TWO.
-            intros idx LT; apply/eqP.
-            rewrite nth_uniq ?size_sort /arriving_jobs -/(num_arrivals_of_task _ _ _ _ _)
-                    -/num_arrivals; first by rewrite neq_ltn ltnSn orTb.
-            {
-              apply leq_trans with (n := num_arrivals.-1); first by done.              
-              by destruct num_arrivals; first by rewrite ltn0 in TWO.
-            }
-            {
-              destruct num_arrivals; first by rewrite ltn0 in TWO.
-              by simpl in LT; rewrite ltnS.
-            }
-            {
-              rewrite sort_uniq filter_uniq // filter_uniq //.
-              by apply JobIn_uniq.
-            }
-          Qed.
-
-          (* Since the list is sorted, we prove that each job arrives at
-             least (task_period tsk) time units after the previous job. *)
-          Lemma sporadic_arrival_bound_separated_by_period:
-            forall idx,
-              idx < num_arrivals.-1 ->
-              job_arrival (nth_task idx.+1) >= job_arrival (nth_task idx) + task_period tsk.
-          Proof.
-            have NTH := sporadic_arrival_bound_properties_of_nth.
-            have NEQ := sporadic_arrival_bound_current_differs_from_next.
-            rename H_sporadic_tasks into SPO, H_at_least_two_jobs into TWO.
-            intros idx LT.
-            exploit (NTH idx); last intro NTH1.
-            {
-              apply leq_trans with (n := num_arrivals.-1); first by done.
-              by destruct num_arrivals; first by rewrite ltn0 in TWO.
-            }
-            exploit (NTH idx.+1); last intro NTH2.
-            {
-              destruct num_arrivals; first by rewrite ltn0 in TWO.
-              by simpl in LT; rewrite ltnS.
-            }
-            move: NTH1 NTH2 => [_ JOB1] [_ JOB2].
-            rewrite -JOB1.
-            apply SPO; [by apply NEQ | by rewrite JOB1 JOB2 |].
-            suff ORDERED: by_arrival_time (nth_task idx) (nth_task idx.+1) by done.
-            apply sort_ordered;
-              first by apply sort_sorted; intros x y; apply leq_total. 
-            by rewrite size_sort.
-          Qed.
-
-            (* By induction, we prove that that each job with index 'idx' arrives at
-             least idx*(task_period tsk) units after the first job. *)
-          Lemma sporadic_arrival_bound_distance_from_first_job:
-            forall idx,
-              idx < num_arrivals ->
-              job_arrival (nth_task idx) >= a_first + idx * task_period tsk.
-          Proof.
-            have SEP := sporadic_arrival_bound_separated_by_period.
-            unfold sporadic_task_model in *.
-            rename H_sporadic_tasks into SPO.
-            induction idx; first by intros _; rewrite mul0n addn0.
-            intros LT.
-            have LT': idx < num_arrivals by apply leq_ltn_trans with (n := idx.+1).
-            specialize (IHidx LT'). 
-            apply leq_trans with (n := job_arrival (nth_task idx) + task_period tsk);
-              first by rewrite mulSn [task_period _ + _]addnC addnA leq_add2r.
-            apply SEP.
-            by rewrite -(ltn_add2r 1) 2!addn1 (ltn_predK LT).
-          Qed.
-
-          (* Therefore, the first and last jobs are separated by at least
-             (num_arrivals - 1) periods. *)
+          (* ...and the distance between the first and last jobs. *)
           Corollary sporadic_arrival_bound_distance_between_first_and_last:
             a_last >= a_first + (num_arrivals-1) * task_period tsk.
           Proof.
-            have DIST := sporadic_arrival_bound_distance_from_first_job.
-            rename H_at_least_two_jobs into TWO.
-            rewrite subn1; apply DIST.
-            by destruct num_arrivals; first by rewrite ltn0 in TWO.
+            apply sorted_arrivals_distance_between_first_and_last; try (by done).
+            by apply leq_ltn_trans with (n := 1).
           Qed.
 
           (* Because the number of arrivals is larger than the ceiling term,
@@ -300,7 +217,7 @@ Module ArrivalBounds.
         by apply sporadic_task_arrival_bound_at_least_two_jobs; rewrite CEIL.
       Qed.
 
-    End SporadicArrivalsAfterQuietTime.
+    End BoundOnSporadicArrivals.
     
   End Lemmas.
   
