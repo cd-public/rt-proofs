@@ -166,7 +166,7 @@ Module ResponseTimeAnalysisFP.
       - by apply RM_is_reflexive.
       - by apply RM_is_transitive.
       - by intros tsk_a tsk_b INa INb; apply/orP; apply leq_total.
- 
+      - by apply inflated_cost_le_deadline_and_period. 
       - by apply scheduler_jobs_must_arrive_to_execute.
       - by apply scheduler_completed_jobs_dont_execute; intro j'; specialize (VALID j'); des.
       - by apply scheduler_work_conserving.
@@ -174,7 +174,6 @@ Module ResponseTimeAnalysisFP.
         -- by intros t; apply RM_is_transitive.
         -- by intros _ j1 j2; apply leq_total.
       - by apply scheduler_respects_self_suspensions.
-      - by apply inflated_cost_le_deadline_and_period.
       - by apply schedulability_test_succeeds.
     Qed.
 
