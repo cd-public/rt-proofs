@@ -16,14 +16,15 @@ Module Platform.
     Variable task_deadline: sporadic_task -> time.
     
     Context {Job: eqType}.
+    Variable job_arrival: Job -> time.    
     Variable job_cost: Job -> time.
     Variable job_deadline: Job -> time.
     Variable job_jitter: Job -> time.
     Variable job_task: Job -> sporadic_task.
     
     (* Consider any jitter-aware uniprocessor schedule. *)
-    Context {arr_seq: arrival_sequence Job}.
-    Variable sched: schedule arr_seq.
+    Variable arr_seq: arrival_sequence Job.
+    Variable sched: schedule Job.
 
     (* First, we define properties related to execution. *)
     Section Execution.
@@ -33,7 +34,8 @@ Module Platform.
          (Note that the definition of backlogged depends on the jitter.) *)
       Definition work_conserving :=
         forall j t,
-          backlogged job_cost job_jitter sched j t ->
+          arrives_in arr_seq j ->          
+          backlogged job_arrival job_cost job_jitter sched j t ->
           exists j_other, scheduled_at sched j_other t.
 
     End Execution.
@@ -48,8 +50,9 @@ Module Platform.
          higher (or same) priority than (as) any backlogged task.
          (Note that the definition of backlogged depends on the jitter.) *)
       Definition respects_FP_policy :=
-        forall (j j_hp: JobIn arr_seq) t,
-          backlogged job_cost job_jitter sched j t ->
+        forall j j_hp t,
+          arrives_in arr_seq j ->          
+          backlogged job_arrival job_cost job_jitter sched j t ->
           scheduled_at sched j_hp t ->
           higher_eq_priority (job_task j_hp) (job_task j).
 
@@ -59,14 +62,15 @@ Module Platform.
     Section JLFP.
 
       (* We say that a JLFP policy ...*)
-      Variable higher_eq_priority: JLFP_policy arr_seq.
+      Variable higher_eq_priority: JLFP_policy Job.
 
       (* ... is respected by the scheduler iff a scheduled job has
          higher (or same) priority than (as) any backlogged job.
          (Note that the definition of backlogged depends on the jitter.) *)
       Definition respects_JLFP_policy :=
-        forall (j j_hp: JobIn arr_seq) t,
-          backlogged job_cost job_jitter sched j t ->
+        forall j j_hp t,
+          arrives_in arr_seq j ->          
+          backlogged job_arrival job_cost job_jitter sched j t ->
           scheduled_at sched j_hp t ->
           higher_eq_priority j_hp j.
       
@@ -76,14 +80,15 @@ Module Platform.
     Section JLDP.
 
       (* We say that a JLFP/JLDP policy ...*)
-      Variable higher_eq_priority: JLDP_policy arr_seq.
+      Variable higher_eq_priority: JLDP_policy Job.
 
       (* ... is respected by the scheduler iff at any time t, a scheduled job
          has higher (or same) priority than (as) any backlogged job.
          (Note that the definition of backlogged depends on the jitter.) *)
       Definition respects_JLDP_policy :=
-        forall (j j_hp: JobIn arr_seq) t,
-          backlogged job_cost job_jitter sched j t ->
+        forall j j_hp t,
+          arrives_in arr_seq j ->
+          backlogged job_arrival job_cost job_jitter sched j t ->
           scheduled_at sched j_hp t ->
           higher_eq_priority t j_hp j.
       

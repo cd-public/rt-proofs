@@ -106,7 +106,7 @@ Module ResponseTimeAnalysisFP.
     Let arr_seq := periodic_arrival_sequence ts.
     
     (* Assume rate-monotonic priorities... *)
-    Let higher_eq_priority : JLDP_policy arr_seq := (FP_to_JLDP job_task arr_seq (RM task_period)).
+    Let higher_eq_priority := FP_to_JLDP job_task (RM task_period).
 
     (* ... and recall that this priority assignment is total. *)
     Fact priority_is_total:
@@ -120,11 +120,11 @@ Module ResponseTimeAnalysisFP.
     Qed.
       
     (* Let sched be the work-conserving RM scheduler. *)
-    Let sched := scheduler job_cost arr_seq higher_eq_priority.
+    Let sched := scheduler job_arrival job_cost arr_seq higher_eq_priority.
 
     (* Recall the definition of deadline miss. *)
     Let no_deadline_missed_by :=
-      task_misses_no_deadline job_cost job_deadline job_task sched.
+      task_misses_no_deadline job_arrival job_cost job_deadline job_task arr_seq sched.
 
     (* Next, by using the result of the RTA, we prove that the task set is schedulable. *)
     Corollary ts_is_schedulable:
@@ -139,15 +139,17 @@ Module ResponseTimeAnalysisFP.
       apply taskset_schedulable_by_fp_rta with (task_cost := task_cost)
        (task_period := task_period) (task_deadline := task_deadline)
        (ts0 := ts) (higher_eq_priority0 := RM task_period); try (by done).
+      - by apply periodic_arrivals_are_consistent.
       - by apply periodic_arrivals_is_a_set.
       - by apply periodic_arrivals_all_jobs_from_taskset.
       - by apply periodic_arrivals_are_sporadic.
       - by apply RM_is_reflexive.
       - by apply RM_is_transitive.
-      - by apply scheduler_jobs_must_arrive_to_execute.
-      - by apply scheduler_completed_jobs_dont_execute; intro j'; specialize (VALID j'); des.
-      - by apply scheduler_work_conserving.
-      - apply scheduler_respects_policy.
+      - by apply scheduler_jobs_come_from_arrival_sequence, periodic_arrivals_are_consistent.
+      - by apply scheduler_jobs_must_arrive_to_execute, periodic_arrivals_are_consistent.
+      - apply scheduler_completed_jobs_dont_execute, periodic_arrivals_are_consistent.
+      - by apply scheduler_work_conserving, periodic_arrivals_are_consistent.
+      - apply scheduler_respects_policy; first by apply periodic_arrivals_are_consistent.
         -- by intros t; apply RM_is_transitive.
         -- by apply priority_is_total. 
       - by apply schedulability_test_succeeds.

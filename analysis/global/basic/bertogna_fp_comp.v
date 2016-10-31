@@ -20,6 +20,7 @@ Module ResponseTimeIterationFP.
     Let task_with_response_time := (sporadic_task * time)%type.
     
     Context {Job: eqType}.
+    Variable job_arrival: Job -> time.
     Variable job_cost: Job -> time.
     Variable job_deadline: Job -> time.
     Variable job_task: Job -> sporadic_task.
@@ -493,25 +494,28 @@ Module ResponseTimeIterationFP.
 
      (* ...all jobs come from task set ts, ...*)
       Hypothesis H_all_jobs_from_taskset:
-        forall (j: JobIn arr_seq), job_task j \in ts.
+        forall j, arrives_in arr_seq j -> job_task j \in ts.
       
       (* ...jobs have valid parameters,...*)
       Hypothesis H_valid_job_parameters:
-        forall (j: JobIn arr_seq),
+        forall j,
+          arrives_in arr_seq j ->
           valid_sporadic_job task_cost task_deadline job_cost job_deadline job_task j.
       
       (* ... and satisfy the sporadic task model.*)
       Hypothesis H_sporadic_tasks:
-        sporadic_task_model task_period arr_seq job_task.
+        sporadic_task_model task_period job_arrival job_task arr_seq.
 
-      (* Then, consider any platform with at least one CPU such that...*)
-      Variable sched: schedule num_cpus arr_seq.
+      (* Then, consider any schedule of this arrival sequence such that... *)
+      Variable sched: schedule Job num_cpus.
       Hypothesis H_at_least_one_cpu: num_cpus > 0.
-
+      Hypothesis H_jobs_come_from_arrival_sequence:
+        jobs_come_from_arrival_sequence sched arr_seq.
+      
       (* ...jobs only execute after they arrived and no longer
          than their execution costs. *)
       Hypothesis H_jobs_must_arrive_to_execute:
-        jobs_must_arrive_to_execute sched.
+        jobs_must_arrive_to_execute job_arrival sched.
       Hypothesis H_completed_jobs_dont_execute:
         completed_jobs_dont_execute job_cost sched.
 
@@ -519,16 +523,16 @@ Module ResponseTimeIterationFP.
       Hypothesis H_sequential_jobs: sequential_jobs sched.
 
       (* Assume that the scheduler is work-conserving and respects the FP policy. *)
-      Hypothesis H_work_conserving: work_conserving job_cost sched.
+      Hypothesis H_work_conserving: work_conserving job_arrival job_cost arr_seq sched.
       Hypothesis H_respects_FP_policy:
-        respects_FP_policy job_cost job_task sched higher_priority.
+        respects_FP_policy job_arrival job_cost job_task arr_seq sched higher_priority.
 
       Let no_deadline_missed_by_task (tsk: sporadic_task) :=
-        task_misses_no_deadline job_cost job_deadline job_task sched tsk.
+        task_misses_no_deadline job_arrival job_cost job_deadline job_task arr_seq sched tsk.
       Let no_deadline_missed_by_job :=
-        job_misses_no_deadline job_cost job_deadline sched.
+        job_misses_no_deadline job_arrival job_cost job_deadline sched.
       Let response_time_bounded_by (tsk: sporadic_task) :=
-        is_response_time_bound_of_task job_cost job_task tsk sched.
+        is_response_time_bound_of_task job_arrival job_cost job_task arr_seq sched tsk.
           
       (* In the following theorem, we prove that any response-time bound contained
          in fp_claimed_bounds is safe. The proof follows by induction on the task set:
@@ -565,20 +569,13 @@ Module ResponseTimeIterationFP.
         clear EQ.
 
         assert (PAIR: forall idx, (TASK idx, RESP idx) = NTH idx).
-        {
           by intros i; unfold TASK, RESP; destruct (NTH i).
-        }
 
         assert (SUBST: forall i, i < size hp_bounds -> TASK i = nth tsk ts i).
-        {
-
           by intros i LTi; rewrite /TASK /NTH -UNZIP (nth_map elem) //.
-        }
 
         assert (SIZE: size hp_bounds = size ts).
-        {
           by rewrite -UNZIP size_map.
-        }
 
         induction idx as [idx IH'] using strong_ind.
 
@@ -672,7 +669,7 @@ Module ResponseTimeIterationFP.
                job_misses_no_deadline, completed,
                fp_schedulable, valid_sporadic_job in *.
         rename H_valid_job_parameters into JOBPARAMS.
-        move => tsk INtsk j JOBtsk.
+        move => tsk INtsk j ARRj JOBtsk.
         destruct (fp_claimed_bounds ts) as [rt_bounds |]; last by ins.
         feed (UNZIP rt_bounds); first by done.
         assert (EX: exists R, (tsk, R) \in rt_bounds).
@@ -680,14 +677,14 @@ Module ResponseTimeIterationFP.
           rewrite set_mem -UNZIP in INtsk; move: INtsk => /mapP EX.
           by destruct EX as [p]; destruct p as [tsk' R]; simpl in *; subst tsk'; exists R.
         } des.
-        exploit (RLIST tsk R); [by ins | by apply JOBtsk | intro COMPLETED].
+        exploit (RLIST tsk R EX j ARRj); [by done | intro COMPLETED].
         exploit (DL rt_bounds tsk R); [by ins | by ins | clear DL; intro DL].
         rewrite eqn_leq; apply/andP; split; first by apply cumulative_service_le_job_cost.
         apply leq_trans with (n := service sched j (job_arrival j + R)); last first.
         {
           unfold valid_sporadic_taskset, is_valid_sporadic_task in *.
           apply extend_sum; rewrite // leq_add2l.
-          specialize (JOBPARAMS j); des; rewrite JOBPARAMS1.
+          specialize (JOBPARAMS j ARRj); des; rewrite JOBPARAMS1.
           by rewrite JOBtsk.
         }
         rewrite leq_eqVlt; apply/orP; left; rewrite eq_sym.
@@ -698,12 +695,12 @@ Module ResponseTimeIterationFP.
          are spawned by the task set, we also conclude that no job in
          the schedule misses its deadline. *)
       Theorem jobs_schedulable_by_fp_rta :
-        forall (j: JobIn arr_seq), no_deadline_missed_by_job j.
+        forall j, arrives_in arr_seq j -> no_deadline_missed_by_job j.
       Proof.
-        intros j.
+        intros j ARRj.
         have SCHED := taskset_schedulable_by_fp_rta.
         unfold no_deadline_missed_by_task, task_misses_no_deadline in *.
-        apply SCHED with (tsk := job_task j); last by done.
+        apply SCHED with (tsk := job_task j); try (by done).
         by apply H_all_jobs_from_taskset.
       Qed.
       

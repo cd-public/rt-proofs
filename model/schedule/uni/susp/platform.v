@@ -12,21 +12,24 @@ Module PlatformWithSuspensions.
     
     Context {Task: eqType}.
     Context {Job: eqType}.
+    Variable job_arrival: Job -> time.
     Variable job_cost: Job -> time.
     Variable job_task: Job -> Task.
 
     (* Assume that job suspension times are given. *)
     Variable next_suspension: job_suspension Job.
 
-    (* Consider any uniprocessor schedule. *)
-    Context {arr_seq: arrival_sequence Job}.
-    Variable sched: schedule arr_seq.
+    (* Consider any job arrival sequence ...*)
+    Variable arr_seq: arrival_sequence Job.
+    
+    (* ...and any uniprocessor schedule of these jobs. *)
+    Variable sched: schedule Job.
 
     (* For simplicity, let's recall the definitions of pending, scheduled, and backlogged job.
        Note that this notion of backlogged is specific for suspension-aware schedulers. *)
-    Let job_pending_at := pending job_cost sched.
+    Let job_pending_at := pending job_arrival job_cost sched.
     Let job_scheduled_at := scheduled_at sched.
-    Let job_backlogged_at := backlogged job_cost next_suspension sched.
+    Let job_backlogged_at := backlogged job_arrival job_cost next_suspension sched.
     
     (* In this section, we define schedule constraints for suspension-aware schedules. *)
     Section ScheduleConstraints.
@@ -38,6 +41,7 @@ Module PlatformWithSuspensions.
            is backlogged, the processor is always busy with another job. *)
         Definition work_conserving :=
           forall j t,
+            arrives_in arr_seq j ->
             job_backlogged_at j t ->
             exists j_other, job_scheduled_at j_other t.
 
@@ -52,7 +56,8 @@ Module PlatformWithSuspensions.
         (* ... is respected by the scheduler iff at any time t, a scheduled job
            has higher (or same) priority than (as) any backlogged job. *)
         Definition respects_FP_policy :=
-          forall (j j_hp: JobIn arr_seq) t,
+          forall j j_hp t,
+            arrives_in arr_seq j ->
             job_backlogged_at j t ->
             job_scheduled_at j_hp t ->
             higher_eq_priority (job_task j_hp) (job_task j).
@@ -63,12 +68,13 @@ Module PlatformWithSuspensions.
       Section JLFP.
 
         (* We say that a JLFP policy ...*)
-        Variable higher_eq_priority: JLFP_policy arr_seq.
+        Variable higher_eq_priority: JLFP_policy Job.
 
         (* ... is respected by the scheduler iff every scheduled job
            has higher (or same) priority than (as) any backlogged job. *)
         Definition respects_JLFP_policy :=
-          forall (j j_hp: JobIn arr_seq) t,
+          forall j j_hp t,
+            arrives_in arr_seq j ->
             job_backlogged_at j t ->
             job_scheduled_at j_hp t ->
             higher_eq_priority j_hp j.
@@ -79,12 +85,13 @@ Module PlatformWithSuspensions.
       Section JLDP.
 
         (* We say that a JLDP policy ...*)
-        Variable higher_eq_priority: JLDP_policy arr_seq.
+        Variable higher_eq_priority: JLDP_policy Job.
 
         (* ... is respected by the scheduler iff at any time t, a scheduled job
            has higher (or same) priority than (as) any backlogged job. *)
         Definition respects_JLDP_policy :=
-          forall (j j_hp: JobIn arr_seq) t,
+          forall j j_hp t,
+            arrives_in arr_seq j ->
             job_backlogged_at j t ->
             job_scheduled_at j_hp t ->
             higher_eq_priority t j_hp j.

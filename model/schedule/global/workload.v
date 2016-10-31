@@ -14,22 +14,24 @@ Module Workload.
     Context {sporadic_task: eqType}.
     Context {Job: eqType}.
     Variable job_task: Job -> sporadic_task.
-    Context {arr_seq: arrival_sequence Job}.
-    
-    Context {num_cpus: nat}.
-    Variable sched: schedule num_cpus arr_seq.
 
-    (* Consider some task *)
+    (* Consider any job arrival sequence ...*)
+    Variable arr_seq: arrival_sequence Job.
+
+    (* ...and any schedule of these jobs. *)
+    Context {num_cpus: nat}.
+    Variable sched: schedule Job num_cpus.
+
+    (* Let tsk be any task. *)
     Variable tsk: sporadic_task.
 
     (* First, we define a function that returns the amount of service
        received by this task in a particular processor. *)
     Definition service_of_task (cpu: processor num_cpus)
-                               (j: option (JobIn arr_seq)) : time :=
-      match j with
-        | Some j' => (job_task j' == tsk)
-        | None => 0
-      end.
+                               (scheduled_job: option Job) : time :=
+      if scheduled_job is Some j' then
+        (job_task j' == tsk)
+      else 0.
 
     (* Next, workload is defined as the service received by jobs of
        the task in the interval [t1,t2). *)
@@ -58,7 +60,7 @@ Module Workload.
         last by ins; rewrite big_mkcond; apply eq_bigr; ins; rewrite mulnbl.
       rewrite exchange_big /=; apply eq_bigr.
       intros cpu LEcpu; rewrite -big_filter.
-      destruct (sched cpu t) eqn:SCHED; simpl;
+      destruct (sched cpu t) as [j|] eqn:SCHED; simpl;
         last by rewrite big_const_seq iter_addn mul0n addn0. 
       destruct (job_task j == tsk) eqn:EQtsk;
         try rewrite mul1n; try rewrite mul0n.
@@ -68,9 +70,8 @@ Module Workload.
           rewrite -> eq_bigr with (F2 := fun i => 0); last first.
           {
             intros i DIFF.
-            destruct (Some j == Some i) eqn:SOME; rewrite SOME; last by done.
-            move: SOME => /eqP SOME; inversion SOME as [EQ].
-            by rewrite EQ eq_refl in DIFF.
+            apply/eqP; rewrite eqb0; apply/eqP; case => SAME; subst.
+            by rewrite eq_refl in DIFF.
           }
           by rewrite /= big_const_seq iter_addn mul0n 2!addn0 eq_refl.
         }

@@ -15,6 +15,7 @@ Module ConcreteJob.
     Record concrete_job :=
     {
       job_id: nat;
+      job_arrival: nat;
       job_cost: time;
       job_deadline: time;
       job_task: @concrete_task num_cpus
@@ -24,6 +25,7 @@ Module ConcreteJob.
        equality for concrete jobs. *)
     Definition job_eqdef (j1 j2: concrete_job) :=
       (job_id j1 == job_id j2) &&
+      (job_arrival j1 == job_arrival j2) &&
       (job_cost j1 == job_cost j2) &&
       (job_deadline j1 == job_deadline j2) &&
       (job_task j1 == job_task j2).
@@ -35,7 +37,7 @@ Module ConcreteJob.
       destruct (job_eqdef x y) eqn:EQ.
       {
         apply ReflectT; unfold job_eqdef in *.
-        move: EQ => /andP [/andP [/andP [/eqP ID /eqP COST] /eqP DL] /eqP TASK].
+        move: EQ => /andP [/andP [/andP [/andP [/eqP ID /eqP ARRIVAL] /eqP COST] /eqP DL] /eqP TASK].
         by destruct x, y; simpl in *; subst.
       }
       {
@@ -45,12 +47,12 @@ Module ConcreteJob.
         destruct x, y.
         rewrite negb_and in EQ.
         move: EQ => /orP [EQ | /eqP TASK]; last by apply TASK; inversion BUG.
-        move: EQ => /orP [EQ | /eqP DL].
+        move: EQ => /orP [EQ | /eqP DL]; last by apply DL; inversion BUG.
         rewrite negb_and in EQ.
-        move: EQ => /orP [/eqP ID | /eqP COST].
+        move: EQ => /orP [EQ | /eqP COST]; last by apply COST; inversion BUG.
+        rewrite negb_and in EQ.
+        move: EQ => /orP [/eqP ID | /eqP ARRIVAL]; last by apply ARRIVAL; inversion BUG.
         by apply ID; inversion BUG.
-        by apply COST; inversion BUG.
-        by apply DL; inversion BUG.
       }
     Qed.
 

@@ -12,12 +12,15 @@ Module ResponseTime.
 
     Context {sporadic_task: eqType}.
     Context {Job: eqType}.
+    Variable job_arrival: Job -> time.
     Variable job_cost: Job -> time.
     Variable job_task: Job -> sporadic_task.
 
-    (* Consider any uniprocessor schedule. *)
-    Context {arr_seq: arrival_sequence Job}.
-    Variable sched: schedule arr_seq.
+    (* Consider any job arrival sequence... *)
+    Variable arr_seq: arrival_sequence Job.
+
+    (* ...and any uniprocessor schedule of these jobs. *)
+    Variable sched: schedule Job.
 
     (* Let tsk be any task that is to be analyzed. *)
     Variable tsk: sporadic_task.
@@ -31,7 +34,8 @@ Module ResponseTime.
     (* ... iff any job j of tsk in this arrival sequence has
        completed by (job_arrival j + R). *)
     Definition is_response_time_bound_of_task :=
-      forall (j: JobIn arr_seq),
+      forall j,
+        arrives_in arr_seq j ->
         job_task j = tsk ->
         job_has_completed_by j (job_arrival j + R).
         
@@ -42,14 +46,17 @@ Module ResponseTime.
 
     Context {sporadic_task: eqType}.
     Context {Job: eqType}.
+    Variable job_arrival: Job -> time.
     Variable job_cost: Job -> time.
     Variable job_task: Job -> sporadic_task.
     
-    (* Consider any uniprocessor schedule... *)
-    Context {arr_seq: arrival_sequence Job}.
-    Variable sched: schedule arr_seq.
+    (* Consider any job arrival sequence... *)
+    Variable arr_seq: arrival_sequence Job.
 
-    (* ... where jobs dont execute after completion. *)
+    (* ...and any uniprocessor schedule of these jobs. *)
+    Variable sched: schedule Job.
+
+    (* Assume that jobs don't execute after completion. *)
     Hypothesis H_completed_jobs_dont_execute:
       completed_jobs_dont_execute job_cost sched.
 
@@ -60,7 +67,7 @@ Module ResponseTime.
     Section SpecificJob.
 
       (* Let j be any job... *)
-      Variable j: JobIn arr_seq.
+      Variable j: Job.
       
       (* ...with response-time bound R. *)
       Variable R: time.
@@ -113,10 +120,11 @@ Module ResponseTime.
       (* ... for which a response-time bound R is known. *)
       Variable R: time.
       Hypothesis response_time_bound:
-        is_response_time_bound_of_task job_cost job_task sched tsk R.
+        is_response_time_bound_of_task job_arrival job_cost job_task arr_seq sched tsk R.
 
       (* Then, for any job j of this task, ...*)
-      Variable j: JobIn arr_seq.
+      Variable j: Job.
+      Hypothesis H_from_arrival_sequence: arrives_in arr_seq j.
       Hypothesis H_job_of_task: job_task j = tsk.
 
       (* ...the service received by job j at any time t' after the response time is 0. *)
@@ -125,7 +133,9 @@ Module ResponseTime.
           t' >= job_arrival j + R ->
           service_at sched j t' = 0.
       Proof.
-        by ins; apply service_after_job_rt_zero with (R := R); [apply response_time_bound |].
+        intros t' LE.
+        apply service_after_job_rt_zero with (R := R); last by done.
+        by apply response_time_bound.
       Qed.
 
       (* The same applies for the cumulative service of job j. *)

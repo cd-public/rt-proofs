@@ -10,21 +10,27 @@ Module Schedulability.
 
   Section SchedulableDefs.
 
-    (* Assume that the cost and deadline of a job is known. *)
+    Context {sporadic_task: eqType}.
+
     Context {Job: eqType}.
-    Context {arr_seq: arrival_sequence Job}.
+    Variable job_arrival: Job -> time.
     Variable job_cost: Job -> time.
     Variable job_deadline: Job -> time.
-  
+    Variable job_task: Job -> sporadic_task.
+    
+    (* Consider any job arrival sequence... *)
+    Variable arr_seq: arrival_sequence Job.
+    
+    (* ...and any multiprocessor schedule of these jobs. *)
+    Context {num_cpus: nat}.
+    Variable sched: schedule Job num_cpus.
+
     Section ScheduleOfJobs.
 
-      (* For any job j in schedule sched, ...*)
-      Context {num_cpus: nat}.
-      Variable sched: schedule num_cpus arr_seq.
+      (* Let j be any job. *)
+      Variable j: Job.
 
-      Variable j: JobIn arr_seq.
-
-      (* job j misses no deadline in sched if it completed by its absolute deadline. *)
+      (* We say that job j misses no deadline in sched if it completed by its absolute deadline. *)
       Definition job_misses_no_deadline :=
         completed job_cost sched j (job_arrival j + job_deadline j).
 
@@ -32,28 +38,24 @@ Module Schedulability.
 
     Section ScheduleOfTasks.
 
-      Context {sporadic_task: eqType}.
-      Variable job_task: Job -> sporadic_task.
-    
-      Context {num_cpus: nat}.
-      Variable sched: schedule num_cpus arr_seq.
-
       (* Consider any task tsk. *)
       Variable tsk: sporadic_task.
 
       (* Task tsk doesn't miss its deadline iff all of its jobs don't miss their deadline. *)
       Definition task_misses_no_deadline :=
-        forall (j: JobIn arr_seq),
+        forall j,
+          arrives_in arr_seq j ->
           job_task j = tsk ->
-          job_misses_no_deadline sched j.
+          job_misses_no_deadline j.
 
       (* Task tsk doesn't miss its deadline before time t' iff all of its jobs don't miss
          their deadline by that time. *)
       Definition task_misses_no_deadline_before (t': time) :=
-        forall (j: JobIn arr_seq),
+        forall j,
+          arrives_in arr_seq j ->
           job_task j = tsk ->
           job_arrival j + job_deadline j < t' ->
-          job_misses_no_deadline sched j.
+          job_misses_no_deadline j.
 
     End ScheduleOfTasks.
 
@@ -67,15 +69,17 @@ Module Schedulability.
     Variable task_deadline: sporadic_task -> time.
     
     Context {Job: eqType}.
+    Variable job_arrival: Job -> time.
     Variable job_cost: Job -> time.
     Variable job_deadline: Job -> time.
     Variable job_task: Job -> sporadic_task.
 
-    Context {arr_seq: arrival_sequence Job}.
+    (* Consider any job arrival sequence... *)
+    Variable arr_seq: arrival_sequence Job.
     
-    (* Consider any valid schedule... *)
+    (* ...and any schedule of these jobs... *)
     Context {num_cpus : nat}.
-    Variable sched: schedule num_cpus arr_seq.
+    Variable sched: schedule Job num_cpus.
 
     (* ... where jobs dont execute after completion. *)
     Hypothesis H_completed_jobs_dont_execute:
@@ -84,11 +88,12 @@ Module Schedulability.
     Section SpecificJob.
 
       (* Then, for any job j ...*)
-      Variable j: JobIn arr_seq.
-      
+      Variable j: Job.
+      Hypothesis H_j_arrives: arrives_in arr_seq j.
+
       (* ...that doesn't miss a deadline in this schedule, ... *)
       Hypothesis no_deadline_miss:
-        job_misses_no_deadline job_cost job_deadline sched j.
+        job_misses_no_deadline job_arrival job_cost job_deadline sched j.
 
       (* the service received by j at any time t' after its deadline is 0. *)
       Lemma service_after_job_deadline_zero :
@@ -133,10 +138,11 @@ Module Schedulability.
 
       (* ... that doesn't miss any deadline. *)
       Hypothesis no_deadline_misses:
-        task_misses_no_deadline job_cost job_deadline job_task sched tsk.
+        task_misses_no_deadline job_arrival job_cost job_deadline job_task arr_seq sched tsk.
 
       (* Then, for any valid job j of this task, ...*)
-      Variable j: JobIn arr_seq.
+      Variable j: Job.
+      Hypothesis H_j_arrives: arrives_in arr_seq j.
       Hypothesis H_job_of_task: job_task j = tsk.
       Hypothesis H_valid_job:
         valid_sporadic_job task_cost task_deadline job_cost job_deadline job_task j.

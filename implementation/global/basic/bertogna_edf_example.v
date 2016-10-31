@@ -89,12 +89,12 @@ Module ResponseTimeAnalysisEDF.
     Let arr_seq := periodic_arrival_sequence ts.
 
     (* Let sched be the work-conserving EDF scheduler. *)
-    Let sched := scheduler job_cost num_cpus arr_seq
-                           (JLFP_to_JLDP arr_seq (EDF job_deadline)).
+    Let sched := scheduler job_arrival job_cost num_cpus arr_seq
+                           (JLFP_to_JLDP (EDF job_arrival job_deadline)).
 
     (* Recall the definition of deadline miss. *)
     Let no_deadline_missed_by :=
-      task_misses_no_deadline job_cost job_deadline job_task sched.
+      task_misses_no_deadline job_arrival job_cost job_deadline job_task arr_seq sched.
 
     (* Next, we prove that ts is schedulable with the result of the test. *)
     Corollary ts_is_schedulable:
@@ -106,24 +106,25 @@ Module ResponseTimeAnalysisEDF.
       have VALID := periodic_arrivals_valid_job_parameters ts ts_has_valid_parameters.
       have TSVALID := ts_has_valid_parameters.
       unfold valid_sporadic_job, valid_realtime_job in *; des.
-      apply taskset_schedulable_by_edf_rta with (task_cost := task_cost) (task_period := task_period) (task_deadline := task_deadline) (ts0 := ts).
-      - by apply ts_has_valid_parameters. 
+      apply taskset_schedulable_by_edf_rta with (task_cost := task_cost) (task_period := task_period)
+            (task_deadline := task_deadline) (ts0 := ts); try (by done).
       - by apply ts_has_constrained_deadlines.
       - by apply periodic_arrivals_all_jobs_from_taskset.
-      - by apply periodic_arrivals_valid_job_parameters, ts_has_valid_parameters.
       - by apply periodic_arrivals_are_sporadic.
-      - by compute.
+      - by apply scheduler_jobs_come_from_arrival_sequence.
       - by apply scheduler_jobs_must_arrive_to_execute.
-      - apply scheduler_completed_jobs_dont_execute; intro j'.
-        -- by specialize (VALID j'); des.
+      - apply scheduler_completed_jobs_dont_execute.
+        -- by apply periodic_arrivals_are_consistent.
         -- by apply periodic_arrivals_is_a_set.
-      - by apply scheduler_sequential_jobs, periodic_arrivals_is_a_set.
-      - by apply scheduler_work_conserving.
+      - apply scheduler_sequential_jobs.
+        -- by apply periodic_arrivals_are_consistent.
+        -- by apply periodic_arrivals_is_a_set. 
+      - by apply scheduler_work_conserving, periodic_arrivals_are_consistent.
       - apply scheduler_respects_policy.
-        -- by intro t; apply EDF_is_transitive.
-        -- by intro t; apply EDF_is_total.
+        -- by apply periodic_arrivals_are_consistent.
+        -- by intros t; apply RM_is_transitive.
+        -- by intros t x y; apply leq_total.
       - by apply schedulability_test_succeeds.
-      - by apply IN.
     Qed.
 
   End ExampleRTA.

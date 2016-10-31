@@ -30,6 +30,7 @@ Module ResponseTimeAnalysisFP.
     Variable task_jitter: sporadic_task -> time.
     
     Context {Job: eqType}.
+    Variable job_arrival: Job -> time.
     Variable job_cost: Job -> time.
     Variable job_deadline: Job -> time.
     Variable job_task: Job -> sporadic_task.
@@ -40,9 +41,10 @@ Module ResponseTimeAnalysisFP.
 
     (* ... in which jobs arrive sporadically and have valid parameters. *)
     Hypothesis H_sporadic_tasks:
-      sporadic_task_model task_period arr_seq job_task.
+      sporadic_task_model task_period job_arrival job_task arr_seq.
     Hypothesis H_valid_job_parameters:
-      forall (j: JobIn arr_seq),
+      forall j,
+        arrives_in arr_seq j ->
         valid_sporadic_job_with_jitter task_cost task_deadline task_jitter job_cost
                                        job_deadline job_task job_jitter j.
 
@@ -56,17 +58,19 @@ Module ResponseTimeAnalysisFP.
 
     (* ... and that all jobs in the arrival sequence come from the task set. *)
     Hypothesis H_all_jobs_from_taskset:
-      forall (j: JobIn arr_seq), job_task j \in ts.
+      forall j,
+        arrives_in arr_seq j -> job_task j \in ts.
 
-    (* Next, consider any schedule such that...*)
+    (* Next, consider any schedule of this arrival sequence such that...*)
     Variable num_cpus: nat.
-    Variable sched: schedule num_cpus arr_seq.
+    Variable sched: schedule Job num_cpus.
+    Hypothesis H_jobs_come_from_arrival_sequence: jobs_come_from_arrival_sequence sched arr_seq.
 
     (* ...jobs are sequential, do not execute before the jitter
        has passed and nor longer than their execution costs. *)
     Hypothesis H_sequential_jobs: sequential_jobs sched.
     Hypothesis H_jobs_execute_after_jitter:
-      jobs_execute_after_jitter job_jitter sched.
+      jobs_execute_after_jitter job_arrival job_jitter sched.
     Hypothesis H_completed_jobs_dont_execute:
       completed_jobs_dont_execute job_cost sched.
 
@@ -77,15 +81,15 @@ Module ResponseTimeAnalysisFP.
     Variable higher_eq_priority: FP_policy sporadic_task.
 
     (* ...and assume that the schedule is work-conserving and respects this policy. *)
-    Hypothesis H_work_conserving: work_conserving job_cost job_jitter sched.
+    Hypothesis H_work_conserving: work_conserving job_arrival job_cost job_jitter arr_seq sched.
     Hypothesis H_respects_priority:
-      respects_FP_policy job_cost job_task job_jitter sched higher_eq_priority.
+      respects_FP_policy job_arrival job_cost job_task job_jitter arr_seq sched higher_eq_priority.
 
     (* Let's define some local names to avoid passing many parameters. *)
     Let no_deadline_is_missed_by_tsk (tsk: sporadic_task) :=
-      task_misses_no_deadline job_cost job_deadline job_task sched tsk.
+      task_misses_no_deadline job_arrival job_cost job_deadline job_task arr_seq sched tsk.
     Let response_time_bounded_by (tsk: sporadic_task) :=
-      is_response_time_bound_of_task job_cost job_task tsk sched.
+      is_response_time_bound_of_task job_arrival job_cost job_task arr_seq sched tsk.
 
     (* Next, we consider the response-time recurrence.
        Let tsk be a task in ts that is to be analyzed. *)
@@ -140,7 +144,8 @@ Module ResponseTimeAnalysisFP.
     Section Lemmas.
 
       (* Consider any job j of tsk. *)
-      Variable j: JobIn arr_seq.
+      Variable j: Job.
+      Hypothesis H_job_arrives: arrives_in arr_seq j.
       Hypothesis H_job_of_tsk: job_task j = tsk.
 
       (* Let t1 be the first point in time where j can actually be scheduled. *)
@@ -149,17 +154,18 @@ Module ResponseTimeAnalysisFP.
       (* Assume that job j is the first job of tsk not to complete by the response time bound. *)
       Hypothesis H_j_not_completed: ~~ completed job_cost sched j (t1 + R).
       Hypothesis H_previous_jobs_of_tsk_completed :
-        forall (j0: JobIn arr_seq),
+        forall j0,
+          arrives_in arr_seq j0 ->
           job_task j0 = tsk ->
           job_arrival j0 < job_arrival j ->
           completed job_cost sched j0 (job_arrival j0 + task_jitter tsk + R).
       
       (* Let's call x the interference incurred by job j due to tsk_other, ...*)
       Let x (tsk_other: sporadic_task) :=
-        task_interference job_cost job_task job_jitter sched j tsk_other t1 (t1 + R).
+        task_interference job_arrival job_cost job_task job_jitter sched j tsk_other t1 (t1 + R).
 
       (* ...and X the total interference incurred by job j due to any task. *)
-      Let X := total_interference job_cost job_jitter sched j t1 (t1 + R).
+      Let X := total_interference job_arrival job_cost job_jitter sched j t1 (t1 + R).
 
       (* Recall Bertogna and Cirinei's workload bound. *)
       Let workload_bound (tsk_other: sporadic_task) (R_other: time) :=
@@ -211,12 +217,16 @@ Module ResponseTimeAnalysisFP.
           }
           move: SCHED => /existsP [t /existsP [cpu SCHED]].
           unfold task_scheduled_on in SCHED.
-          destruct (sched cpu t) as [j0 |]; last by done.
+          destruct (sched cpu t) as [j0 |] eqn:SCHED0; last by done.
           assert (INts: tsk_other \in ts).
-            by move: SCHED => /eqP <-; rewrite FROMTS.
+          {
+            move: SCHED => /eqP <-. apply FROMTS, (H_jobs_come_from_arrival_sequence j0 t).
+            by apply/existsP; exists cpu; apply/eqP.
+          }
           apply leq_trans with (n := workload job_task sched tsk_other t1 (t1 + R));
-              first by apply task_interference_le_workload.
-          by apply workload_bounded_by_W with (task_deadline0 := task_deadline)
+            first by apply task_interference_le_workload.
+          apply workload_bounded_by_W with (task_deadline0 := task_deadline)
+              (job_arrival0 := job_arrival) (arr_seq0 := arr_seq)
               (job_jitter0 := job_jitter) (job_cost0 := job_cost) (job_deadline0 := job_deadline);
             try (by ins); last 2 first;
               [ by apply NOMISS
@@ -252,21 +262,21 @@ Module ResponseTimeAnalysisFP.
             by apply cumulative_service_le_job_cost.
           }
           apply leq_ltn_trans with (n := (\sum_(t1 <= t < t1 + R)
-                                       backlogged job_cost job_jitter sched j t) +
+                                       backlogged job_arrival job_cost job_jitter sched j t) +
                                      service sched j (t1 + R)); last first.
           {
             rewrite -addn1 -addnA leq_add2l addn1.
             apply leq_trans with (n := job_cost j); first by done.
-            by specialize (PARAMS j); des; rewrite -JOBtsk.
+            by specialize (PARAMS j H_job_arrives); des; rewrite -JOBtsk.
           }
           unfold service.
           rewrite -> big_cat_nat with (n := t1) (m := 0); rewrite ?leq_addr // /=.
-          rewrite (cumulative_service_before_jitter_zero job_jitter) // add0n.
+          rewrite (cumulative_service_before_jitter_zero job_arrival job_jitter) // add0n.
           rewrite -big_split /=.
           apply leq_trans with (n := \sum_(t1 <= i < t1 + R) 1);
             first by simpl_sum_const; rewrite addKn.
           apply leq_sum_nat; move => i /andP [GEi LTi] _.
-          destruct (backlogged job_cost job_jitter sched j i) eqn:BACK;
+          destruct (backlogged job_arrival job_cost job_jitter sched j i) eqn:BACK;
             first by rewrite -addn1 addnC; apply leq_add.
           apply negbT in BACK.
           rewrite add0n lt0n -not_scheduled_no_service negbK.
@@ -285,7 +295,8 @@ Module ResponseTimeAnalysisFP.
         Lemma bertogna_fp_interference_by_different_tasks :
           forall t j_other,
             t1 <= t < t1 + R ->
-            backlogged job_cost job_jitter sched j t ->
+            arrives_in arr_seq j_other ->
+            backlogged job_arrival job_cost job_jitter sched j t ->
             scheduled sched j_other t ->
             job_task j_other != tsk.
         Proof.
@@ -297,19 +308,18 @@ Module ResponseTimeAnalysisFP.
                  H_previous_jobs_of_tsk_completed into PREV,
                  H_response_time_no_larger_than_deadline into NOMISS.
           unfold valid_sporadic_job_with_jitter, valid_sporadic_job in *.
-          move => t j_other /andP [LEt GEt] BACK SCHED.
+          move => t j_other /andP [LEt GEt] ARRother BACK SCHED.
           apply/eqP; red; intro SAMEtsk.
           move: SCHED => /existsP [cpu SCHED].
-          assert (SCHED': scheduled sched j_other t).
-            by apply/existsP; exists cpu.
+          have SCHED': scheduled sched j_other t by apply/existsP; exists cpu.
           clear SCHED; rename SCHED' into SCHED.
           move: (SCHED) => PENDING.
-          apply scheduled_implies_pending with (job_cost0 := job_cost) (job_jitter0 := job_jitter)
-            in PENDING; try (by done).
+          apply scheduled_implies_pending with (job_arrival0 := job_arrival)
+                (job_cost0 := job_cost) (job_jitter0 := job_jitter) in PENDING; try (by done).
           destruct (ltnP (job_arrival j_other) (job_arrival j)) as [BEFOREother | BEFOREj].
           {
             move: (BEFOREother) => LT; rewrite -(ltn_add2r R) in LT.
-            specialize (PREV j_other SAMEtsk BEFOREother).
+            specialize (PREV j_other ARRother SAMEtsk BEFOREother).
             move: PENDING => /andP [_ /negP NOTCOMP]; apply NOTCOMP.
             apply completion_monotonic with (t0 := job_arrival j_other + task_jitter tsk + R);
               try by done.
@@ -321,12 +331,12 @@ Module ResponseTimeAnalysisFP.
               by apply leq_trans with (n := task_deadline tsk);
                 [by apply NOMISS | by apply CONSTR; rewrite -JOBtsk FROMTS].
             }
-            rewrite -SAMEtsk; apply SPO; [ | by rewrite JOBtsk | by apply ltnW].
+            rewrite -SAMEtsk; apply SPO; [ | by done | by done | by rewrite JOBtsk | by apply ltnW].
             by red; intro EQ; subst j_other; rewrite ltnn in BEFOREother.
           }
           {
             move: PENDING => /andP [ARRIVED _].
-            exploit (SPO j j_other); [ | by rewrite SAMEtsk | by done | ]; last first.
+            exploit (SPO j j_other); try (by done); [ | by rewrite SAMEtsk | ]; last first.
             {
               apply/negP; rewrite -ltnNge JOBtsk.
               apply leq_trans with (n := job_arrival j + task_deadline tsk);
@@ -336,7 +346,7 @@ Module ResponseTimeAnalysisFP.
               apply leq_trans with (n := t1 + R); last first.
               {
                 rewrite leq_add2r leq_add2l -JOBtsk.
-                by specialize (JOBPARAMS j); des.
+                by specialize (JOBPARAMS j H_job_arrives); des.
               }
               apply leq_ltn_trans with (n := job_arrival j_other + job_jitter j_other);
                 first by apply leq_addr.
@@ -357,7 +367,7 @@ Module ResponseTimeAnalysisFP.
         Lemma bertogna_fp_all_cpus_are_busy:
           forall t,
             t1 <= t < t1 + R ->
-            backlogged job_cost job_jitter sched j t ->
+            backlogged job_arrival job_cost job_jitter sched j t ->
             count (other_scheduled_task t) ts = num_cpus.
         Proof.
           rename H_valid_task_parameters into PARAMS,
@@ -376,23 +386,23 @@ Module ResponseTimeAnalysisFP.
 
           apply platform_fp_cpus_busy_with_interfering_tasks with (task_cost0 := task_cost)
           (task_period0 := task_period) (task_deadline0 := task_deadline) (job_task0 := job_task)
-          (ts0 := ts) (tsk0 := tsk) (higher_eq_priority0 := higher_eq_priority) in BACK;
-            try (by done); first by apply PARAMS; rewrite -JOBtsk FROMTS.
+          (ts0 := ts) (tsk0 := tsk) (higher_eq_priority0 := higher_eq_priority) (arr_seq0 := arr_seq)
+            in BACK; try (by done); first by apply PARAMS; rewrite -JOBtsk FROMTS.
           {
             apply leq_trans with (n := job_arrival j + job_jitter j + R); first by done.
             rewrite -addnA leq_add2l.
             apply leq_trans with (n := task_deadline tsk); last by apply RESTR.
             apply leq_trans with (n := task_jitter tsk + R); last by done.
-            by rewrite leq_add2r -JOBtsk; specialize (JOBPARAMS j); des.
+            by rewrite leq_add2r -JOBtsk; specialize (JOBPARAMS j H_job_arrives); des.
           }
           {
-            intros j_other tsk_other JOBother INTERF.
+            intros j_other tsk_other ARRother JOBother INTERF.
             feed (HAS tsk_other); first by rewrite -JOBother FROMTS.
             move: (HAS INTERF) => [R' IN].
             apply completion_monotonic with (t0 := job_arrival j_other + task_jitter tsk_other + R');
               try (by done); last by rewrite -addnA; apply PREV.
-            by rewrite -addnA leq_add2l; apply leq_trans with (n := task_deadline tsk_other);
-              [by apply NOMISS | by apply RESTR; rewrite -JOBother].
+            rewrite -addnA leq_add2l; apply leq_trans with (n := task_deadline tsk_other);
+              [by apply NOMISS | by apply RESTR; rewrite -JOBother; apply FROMTS].
           }
           {
             ins; apply completion_monotonic with (t0 := job_arrival j0 + task_jitter tsk + R);
@@ -402,7 +412,6 @@ Module ResponseTimeAnalysisFP.
           }
         Qed.
 
-
         (* 3) Now we prove that, at all times that j is backlogged, the number
               of tasks other than tsk that are scheduled is exactly the number
               of processors in the system. This is required to prove lemma (4). *)
@@ -411,25 +420,23 @@ Module ResponseTimeAnalysisFP.
         Proof.
           have DIFFTASK := bertogna_fp_interference_by_different_tasks.
           rename H_all_jobs_from_taskset into FROMTS,
-                 H_valid_task_parameters into PARAMS,
+                 H_valid_task_parameters into PARAMS, H_jobs_come_from_arrival_sequence into SEQ,
                  H_job_of_tsk into JOBtsk, H_sporadic_tasks into SPO,
-                 H_work_conserving into WORK,
-                 H_constrained_deadlines into CONSTR,
+                 H_work_conserving into WORK, H_constrained_deadlines into CONSTR,
                  H_previous_jobs_of_tsk_completed into PREV,
-                 H_respects_priority into FP,
-                 H_response_time_no_larger_than_deadline into NOMISS.
+                 H_respects_priority into FP, H_response_time_no_larger_than_deadline into NOMISS.
           unfold sporadic_task_model in *.
           unfold x, X, total_interference, task_interference.
           rewrite -big_mkcond -exchange_big big_distrl /= mul1n.
-          rewrite [\sum_(_ <= _ < _ | backlogged _ _ _ _ _) _]big_mkcond.
+          rewrite [\sum_(_ <= _ < _ | backlogged _ _ _ _ _ _) _]big_mkcond.
           apply eq_big_nat; move => t /andP [GEt LTt].
-          destruct (backlogged job_cost job_jitter sched j t) eqn:BACK;
+          destruct (backlogged job_arrival job_cost job_jitter sched j t) eqn:BACK;
             last by rewrite big1 //; ins; rewrite big1.
           rewrite big_mkcond /=.
           rewrite exchange_big /=.
           apply eq_trans with (y := \sum_(cpu < num_cpus) 1); last by simpl_sum_const.
           apply eq_bigr; intros cpu _.
-          move: (WORK j t BACK cpu) => [j_other /eqP SCHED]; unfold scheduled_on in *.
+          move: (WORK j t H_job_arrives BACK cpu) => [j_other /eqP SCHED]; unfold scheduled_on in *.
           rewrite (bigD1_seq (job_task j_other)) /=; last by rewrite filter_uniq; destruct ts.
           {
             rewrite (eq_bigr (fun i => 0));
@@ -437,13 +444,15 @@ Module ResponseTimeAnalysisFP.
             simpl_sum_const; apply/eqP; rewrite eqb1.
             by unfold task_scheduled_on; rewrite SCHED.
           }
+          have ARRother: arrives_in arr_seq j_other.
+            by apply (SEQ j_other t); apply/existsP; exists cpu; apply/eqP.
           rewrite mem_filter; apply/andP; split; last by apply FROMTS.
           unfold is_hp_task, higher_priority_task; apply/andP; split.
           {
             rewrite -JOBtsk; apply FP with (t := t); try by done.
             by apply/existsP; exists cpu; apply/eqP.
           }
-          apply DIFFTASK with (t := t); [by auto | by done |].
+          apply DIFFTASK with (t := t); [by auto | by done | by done |].
           by apply/existsP; exists cpu; apply/eqP.
         Qed.
 
@@ -462,27 +471,24 @@ Module ResponseTimeAnalysisFP.
         Proof.
           have INV := bertogna_fp_all_cpus_are_busy.
           rename H_all_jobs_from_taskset into FROMTS,
-                 H_valid_task_parameters into PARAMS,
-                 H_valid_job_parameters into JOBPARAMS,
-                 H_job_of_tsk into JOBtsk,
-                 H_sporadic_tasks into SPO,
+                 H_valid_task_parameters into PARAMS, H_valid_job_parameters into JOBPARAMS,
+                 H_job_of_tsk into JOBtsk, H_sporadic_tasks into SPO,
                  H_previous_jobs_of_tsk_completed into BEFOREok,
                  H_response_time_no_larger_than_deadline into NOMISS,
                  H_constrained_deadlines into CONSTR,
-                 H_sequential_jobs into SEQ,
-                 H_respects_priority into FP,
-                 H_hp_bounds_has_interfering_tasks into HASHP,
+                 H_sequential_jobs into SEQ, H_jobs_come_from_arrival_sequence into FROMSEQ,
+                 H_respects_priority into FP, H_hp_bounds_has_interfering_tasks into HASHP,
                  H_interfering_tasks_miss_no_deadlines into NOMISSHP.
           unfold sporadic_task_model, valid_sporadic_job_with_jitter, valid_sporadic_job in *.
           move => delta /andP [HAS LT]. 
           rewrite -has_count in HAS.
 
           set some_interference_A := fun t =>
-            has (fun tsk_k => backlogged job_cost job_jitter sched j t &&
+            has (fun tsk_k => backlogged job_arrival job_cost job_jitter sched j t &&
                               (x tsk_k >= delta) &&
                               task_is_scheduled job_task sched tsk_k t) hp_tasks.
           set total_interference_B := fun t =>
-              backlogged job_cost job_jitter sched j t *
+              backlogged job_arrival job_cost job_jitter sched j t *
               count (fun tsk_k => (x tsk_k < delta) &&
                     task_is_scheduled job_task sched tsk_k t) hp_tasks.
 
@@ -494,7 +500,7 @@ Module ResponseTimeAnalysisFP.
             apply leq_trans with (n := x tsk_a); first by apply LEa.
             unfold x, task_interference, some_interference_A.
             apply leq_sum_nat; move => t /andP [GEt LTt] _.
-            destruct (backlogged job_cost job_jitter sched j t) eqn:BACK;
+            destruct (backlogged job_arrival job_cost job_jitter sched j t) eqn:BACK;
               last by rewrite (eq_bigr (fun x => 0)); [by simpl_sum_const | by ins].
             destruct ([exists cpu, task_scheduled_on job_task sched tsk_a cpu t]) eqn:SCHED;
               last first.
@@ -520,12 +526,16 @@ Module ResponseTimeAnalysisFP.
             destruct (sched cpu' t) as [j2|] eqn:SCHED2; last by done.
             move: SCHED SCHED' => /eqP JOB /eqP JOB'.
             subst tsk_a; symmetry in JOB'.
-            assert (PENDING1: pending job_cost job_jitter sched j1 t).
+            have ARR1: arrives_in arr_seq j1.
+              by apply (FROMSEQ j1 t); apply/existsP; exists cpu; apply/eqP. 
+            have ARR2: arrives_in arr_seq j2.
+              by apply (FROMSEQ j2 t); apply/existsP; exists cpu'; apply/eqP. 
+            assert (PENDING1: pending job_arrival job_cost job_jitter sched j1 t).
             {
               apply scheduled_implies_pending; try by done.
               by apply/existsP; exists cpu; apply/eqP.
             }
-            assert (PENDING2: pending job_cost job_jitter sched j2 t).
+            assert (PENDING2: pending job_arrival job_cost job_jitter sched j2 t).
             {
               apply scheduled_implies_pending; try by done.
               by apply/existsP; exists cpu'; apply/eqP.
@@ -537,19 +547,19 @@ Module ResponseTimeAnalysisFP.
                 move: SAMEtsk => /eqP SAMEtsk.
                 move: (PENDING1) => SAMEjob. 
                 apply platform_fp_no_multiple_jobs_of_tsk with (task_cost0 := task_cost)
-                  (task_period0 := task_period) (task_deadline0 := task_deadline)
+                  (task_period0 := task_period) (task_deadline0 := task_deadline) (arr_seq0 := arr_seq)
                   (job_task0 := job_task) (tsk0 := tsk) (j0 := j) in SAMEjob; try (by done);
                   [ | by apply PARAMS | |]; last 2 first.
                 {
                   apply (leq_trans LTt); rewrite -addnA leq_add2l.
                   apply leq_trans with (n := task_deadline tsk); last by apply CONSTR.
                   apply leq_trans with (n := task_jitter tsk + R); last by apply NOMISS.
-                  by rewrite leq_add2r -JOBtsk; specialize (JOBPARAMS j); des.
+                  by rewrite leq_add2r -JOBtsk; specialize (JOBPARAMS j H_job_arrives); des.
                 }
                 {
-                  intros j0 JOB0 LT0.
-                  apply completion_monotonic with (t0 := job_arrival j0 + task_jitter tsk + R); try (by done);
-                      last by apply BEFOREok.
+                  intros j0 ARR0 JOB0 LT0.
+                  apply completion_monotonic with (t0 := job_arrival j0 + task_jitter tsk + R);
+                    try (by done); last by apply BEFOREok.
                   rewrite -addnA leq_add2l.
                   by apply leq_trans with (n := task_deadline tsk); last by apply CONSTR.
                 }
@@ -560,16 +570,17 @@ Module ResponseTimeAnalysisFP.
                 assert (INTERF: is_hp_task (job_task j1)).
                 {
                   apply/andP; split; last by rewrite SAMEtsk.
-                  rewrite -JOBtsk; apply FP with (t := t); first by done.
+                  rewrite -JOBtsk; apply FP with (t := t); try (by done).
                   by apply/existsP; exists cpu; apply/eqP.
                 }
                 apply platform_fp_no_multiple_jobs_of_interfering_tasks with
-                 (task_period0 := task_period) (tsk0 := tsk)
+                 (task_period0 := task_period) (tsk0 := tsk) (job_arrival0 := job_arrival)
                  (higher_eq_priority0 := higher_eq_priority) (job_jitter0 := job_jitter)
+                 (arr_seq0 := arr_seq)
                  (job_cost0 := job_cost) (job_task0 := job_task) (sched0 := sched) (t0 := t);
                   rewrite ?JOBtsk ?SAMEtsk //.
                 {
-                  intros j0 tsk0 JOB0 INTERF0.
+                  intros j0 tsk0 ARR0 JOB0 INTERF0.
                   feed (HASHP tsk0); first by rewrite -JOB0 FROMTS.
                   move: (HASHP INTERF0) => [R0 IN0].
                   apply completion_monotonic with (t0 := job_arrival j0 + task_jitter tsk0 + R0);
@@ -593,7 +604,7 @@ Module ResponseTimeAnalysisFP.
             rewrite big_distrl /=.
             apply leq_sum_nat; move => t LEt _.
             unfold some_interference_A, total_interference_B. 
-            destruct (backlogged job_cost job_jitter sched j t) eqn:BACK;
+            destruct (backlogged job_arrival job_cost job_jitter sched j t) eqn:BACK;
               [rewrite mul1n /= | by rewrite has_pred0 //].
 
             destruct (has (fun tsk_k : sporadic_task => (delta <= x tsk_k) &&
@@ -622,7 +633,7 @@ Module ResponseTimeAnalysisFP.
           {
             unfold x at 2, total_interference_B.
             rewrite exchange_big /=; apply leq_sum; intros t _.
-            destruct (backlogged job_cost job_jitter sched j t) eqn:BACK; last by ins.
+            destruct (backlogged job_arrival job_cost job_jitter sched j t) eqn:BACK; last by ins.
             rewrite mul1n -sum1_count.
             rewrite big_mkcond [\sum_(i <- hp_tasks | _ < _) _]big_mkcond /=.
             apply leq_sum_seq; move => tsk_k IN _.
@@ -771,7 +782,7 @@ Module ResponseTimeAnalysisFP.
       have WORKLOAD := bertogna_fp_workload_bounds_interference.
       rename H_valid_job_parameters into PARAMS.
       unfold valid_sporadic_job_with_jitter, valid_sporadic_job in *.
-      intros j JOBtsk.
+      intros j ARRj JOBtsk.
 
       (* First, rewrite the claim in terms of the *absolute* response-time bound (arrival + R) *)
       remember (job_arrival j + (task_jitter tsk + R)) as ctime.
@@ -780,10 +791,11 @@ Module ResponseTimeAnalysisFP.
       generalize dependent j.
       induction ctime as [ctime IH] using strong_ind.
 
-      intros j JOBtsk EQc; subst ctime.
+      intros j ARRj JOBtsk EQc; subst ctime.
 
       (* First, let's simplify the induction hypothesis. *)
-      assert (BEFOREok: forall (j0: JobIn arr_seq),
+      assert (BEFOREok: forall j0,
+                          arrives_in arr_seq j0 ->
                           job_task j0 = tsk ->
                           job_arrival j0 < job_arrival j ->
                           completed job_cost sched j0 (job_arrival j0 + task_jitter tsk + R)).
@@ -797,7 +809,7 @@ Module ResponseTimeAnalysisFP.
       apply completion_monotonic with (t := job_arrival j + job_jitter j + R); first by done.
       {
         rewrite leq_add2r leq_add2l.
-        specialize (PARAMS j); des.
+        specialize (PARAMS j ARRj); des.
         by rewrite -JOBtsk; apply PARAMS0.
       }
       destruct (completed job_cost sched j (job_arrival j + job_jitter j + R)) eqn:NOTCOMP;
@@ -805,7 +817,7 @@ Module ResponseTimeAnalysisFP.
       apply negbT in NOTCOMP; exfalso.
 
       (* We derive a contradiction using the previous lemmas. *)
-      specialize (EX j JOBtsk NOTCOMP BEFOREok).
+      specialize (EX j ARRj JOBtsk NOTCOMP BEFOREok).
       destruct EX as [tsk_k [R_k [HPk LTmin]]].
       unfold minn at 1 in LTmin.
       specialize (WORKLOAD j tsk_k R_k HPk).

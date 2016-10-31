@@ -113,30 +113,32 @@ Module InterferenceBoundEDF.
     Variable task_deadline: sporadic_task -> time.
     
     Context {Job: eqType}.
+    Variable job_arrival: Job -> time.
     Variable job_cost: Job -> time.
     Variable job_deadline: Job -> time.
     Variable job_task: Job -> sporadic_task.
     
     (* Assume any job arrival sequence... *)
-    Context {arr_seq: arrival_sequence Job}.
+    Variable arr_seq: arrival_sequence Job.
 
     (* ... in which jobs arrive sporadically and have valid parameters. *)
     Hypothesis H_sporadic_tasks:
-      sporadic_task_model task_period arr_seq job_task.
+      sporadic_task_model task_period job_arrival job_task arr_seq.
     Hypothesis H_valid_job_parameters:
-      forall (j: JobIn arr_seq),
+      forall j,
+        arrives_in arr_seq j ->
         valid_sporadic_job task_cost task_deadline job_cost job_deadline job_task j.
 
     (* Consider any schedule such that...*)
     Variable num_cpus: nat.
-    Variable sched: schedule num_cpus arr_seq.
+    Variable sched: schedule Job num_cpus.
+    Hypothesis H_jobs_come_from_arrival_sequence:
+      jobs_come_from_arrival_sequence sched arr_seq.
 
     (* ...jobs do not execute before their arrival times nor longer
        than their execution costs. *)
-    Hypothesis H_jobs_must_arrive_to_execute:
-      jobs_must_arrive_to_execute sched.
-    Hypothesis H_completed_jobs_dont_execute:
-      completed_jobs_dont_execute job_cost sched.
+    Hypothesis H_jobs_must_arrive_to_execute: jobs_must_arrive_to_execute job_arrival sched.
+    Hypothesis H_completed_jobs_dont_execute: completed_jobs_dont_execute job_cost sched.
 
     (* Also assume that jobs are sequential and that there exists at
        least one processor. *)
@@ -147,28 +149,29 @@ Module InterferenceBoundEDF.
        and tasks have valid parameters and constrained deadlines. *)
     Variable ts: taskset_of sporadic_task.
     Hypothesis all_jobs_from_taskset:
-      forall (j: JobIn arr_seq), job_task j \in ts.
+      forall j, arrives_in arr_seq j -> job_task j \in ts.
     Hypothesis H_valid_task_parameters:
       valid_sporadic_taskset task_cost task_period task_deadline ts.
     Hypothesis H_constrained_deadlines:
       forall tsk, tsk \in ts -> task_deadline tsk <= task_period tsk.
 
     Let no_deadline_is_missed_by_tsk (tsk: sporadic_task) :=
-      task_misses_no_deadline job_cost job_deadline job_task sched tsk.
+      task_misses_no_deadline job_arrival job_cost job_deadline job_task arr_seq sched tsk.
     Let response_time_bounded_by (tsk: sporadic_task) :=
-      is_response_time_bound_of_task job_cost job_task tsk sched.
+      is_response_time_bound_of_task job_arrival job_cost job_task arr_seq sched tsk.
 
     (* Assume that the scheduler is a work-conserving EDF scheduler. *)
-    Hypothesis H_work_conserving: work_conserving job_cost sched.
+    Hypothesis H_work_conserving: work_conserving job_arrival job_cost arr_seq sched.
     Hypothesis H_edf_scheduler:
-      respects_JLFP_policy job_cost sched (EDF job_deadline).
+      respects_JLFP_policy job_arrival job_cost arr_seq sched (EDF job_arrival job_deadline).
 
     (* Let tsk_i be the task to be analyzed, ...*)
     Variable tsk_i: sporadic_task.
     Hypothesis H_tsk_i_in_task_set: tsk_i \in ts.
     
     (* ... and j_i one of its jobs. *)
-    Variable j_i: JobIn arr_seq.
+    Variable j_i: Job.
+    Hypothesis H_j_i_arrives: arrives_in arr_seq j_i.
     Hypothesis H_job_of_tsk_i: job_task j_i = tsk_i.
 
     (* Let tsk_k denote any interfering task, ... *)
@@ -185,7 +188,8 @@ Module InterferenceBoundEDF.
 
     (* Assume that the jobs of tsk_k satisfy the response-time bound before the end of the interval *)
     Hypothesis H_all_previous_jobs_completed_on_time :
-      forall (j_k: JobIn arr_seq),
+      forall j_k,
+        arrives_in arr_seq j_k ->
         job_task j_k = tsk_k ->
         job_arrival j_k + R_k < job_arrival j_i + delta ->
         completed job_cost sched j_k (job_arrival j_k + R_k).
@@ -196,7 +200,7 @@ Module InterferenceBoundEDF.
                                     
       (* Let's call x the task interference incurred by job j due to tsk_k. *)
       Let x :=
-        task_interference job_cost job_task sched j_i tsk_k
+        task_interference job_arrival job_cost job_task sched j_i tsk_k
                           (job_arrival j_i) (job_arrival j_i + delta).
 
       (* Also, recall the EDF-specific interference bound for EDF. *)
@@ -213,17 +217,17 @@ Module InterferenceBoundEDF.
       Let n_k := div_floor D_i p_k.
 
       (* Let's give a simpler name to job interference. *)
-      Let interference_caused_by := job_interference job_cost sched j_i.
+      Let interference_caused_by := job_interference job_arrival job_cost sched j_i.
       
       (* Identify the subset of jobs that actually cause interference *)
       Let interfering_jobs :=
-        filter (fun (x: JobIn arr_seq) =>
-                 (job_task x == tsk_k) && (interference_caused_by x t1 t2 != 0))
+        filter (fun j' =>
+                 (job_task j' == tsk_k) && (interference_caused_by j' t1 t2 != 0))
                (jobs_scheduled_between sched t1 t2).
       
       (* Now, consider the list of interfering jobs sorted by arrival time. *)
-      Let earlier_arrival := fun (x y: JobIn arr_seq) => job_arrival x <= job_arrival y.
-      Let sorted_jobs := (sort earlier_arrival interfering_jobs).
+      Let earlier_arrival := fun x y => job_arrival x <= job_arrival y.
+      Let sorted_jobs := sort earlier_arrival interfering_jobs.
 
       (* Now we proceed with the proof. The first step consists in simplifying the sum corresponding to the workload. *)
       Section SimplifyJobSequence.
@@ -271,13 +275,20 @@ Module InterferenceBoundEDF.
         Lemma interference_bound_edf_all_jobs_from_tsk_k :
           forall j,
             j \in sorted_jobs ->
+            arrives_in arr_seq j /\
             job_task j = tsk_k /\
             interference_caused_by j t1 t2 != 0 /\
             j \in jobs_scheduled_between sched t1 t2.
         Proof.
-          intros j LT.
-          rewrite -interference_bound_edf_job_in_same_sequence mem_filter in LT.
-          by move: LT => /andP [/andP [/eqP JOBi SERVi] INi]; repeat split.
+          rename H_jobs_come_from_arrival_sequence into FROMarr.
+          intros j LTi.
+          rewrite -interference_bound_edf_job_in_same_sequence mem_filter in LTi; des.
+          have IN := LTi0.
+          unfold jobs_scheduled_between in *; rewrite mem_undup in IN.
+          apply mem_bigcat_nat_exists in IN; des.
+          rewrite mem_scheduled_jobs_eq_scheduled in IN.
+          repeat split; try (by done).
+          by apply (FROMarr j i).
         Qed.
 
         (* ...and consecutive jobs are ordered by arrival. *)
@@ -299,13 +310,16 @@ Module InterferenceBoundEDF.
             interference_caused_by j t1 t2 <= task_cost tsk_k.
         Proof.
           rename H_valid_job_parameters into PARAMS.
-          intros j; rewrite mem_filter; move => /andP [/andP [/eqP JOBj _] _].
-          specialize (PARAMS j); des.
+          intros j IN.
+          feed (interference_bound_edf_all_jobs_from_tsk_k j);
+            first by rewrite -interference_bound_edf_job_in_same_sequence.
+          move => [ARRj [TSKj _]].
           apply leq_trans with (n := service_during sched j t1 t2);
             first by apply job_interference_le_service.
-          by apply cumulative_service_le_task_cost with (job_task0 := job_task)
-                              (task_deadline0 := task_deadline) (job_cost0 := job_cost)
-                                                        (job_deadline0 := job_deadline).
+          apply cumulative_service_le_task_cost with (job_task0 := job_task)
+            (task_deadline0 := task_deadline) (job_cost0 := job_cost) (job_deadline0 := job_deadline);
+            try (by done).
+          by apply PARAMS.
         Qed.
 
       End SimplifyJobSequence.
@@ -346,7 +360,7 @@ Module InterferenceBoundEDF.
         Qed.
 
         (* Let j_fst be the first job, and a_fst its arrival time. *)
-        Variable elem: JobIn arr_seq.
+        Variable elem: Job.
         Let j_fst := nth elem sorted_jobs 0.
         Let a_fst := job_arrival j_fst.
 
@@ -355,6 +369,7 @@ Module InterferenceBoundEDF.
           
           (* The first job is an interfering job of task tsk_k. *)
           Lemma interference_bound_edf_j_fst_is_job_of_tsk_k :
+            arrives_in arr_seq j_fst /\
             job_task j_fst = tsk_k /\
             interference_caused_by j_fst t1 t2 != 0 /\
             j_fst \in jobs_scheduled_between sched t1 t2.
@@ -370,8 +385,8 @@ Module InterferenceBoundEDF.
             unfold valid_sporadic_job in *.
             rename H_valid_job_parameters into PARAMS.
             have FST := interference_bound_edf_j_fst_is_job_of_tsk_k.
-            destruct FST as [FSTtask _].
-            by specialize (PARAMS j_fst); des; rewrite PARAMS1 FSTtask.
+            destruct FST as [FSTarr [FSTtask _]].
+            by specialize (PARAMS j_fst FSTarr); des; rewrite PARAMS1 FSTtask.
           Qed.
 
           (* The deadline of j_i is the deadline of tsk_i. *)
@@ -381,7 +396,7 @@ Module InterferenceBoundEDF.
             unfold valid_sporadic_job in *.
             rename H_valid_job_parameters into PARAMS,
                    H_job_of_tsk_i into JOBtsk.
-            by specialize (PARAMS j_i); des; rewrite PARAMS1 JOBtsk.
+            by specialize (PARAMS j_i H_j_i_arrives); des; rewrite PARAMS1 JOBtsk.
           Qed.
 
           (* If j_fst completes by its response-time bound, then t1 <= a_fst + R_k,
@@ -393,13 +408,13 @@ Module InterferenceBoundEDF.
             intros RBOUND.
             rewrite leqNgt; apply/negP; unfold not; intro BUG.
             have FST := interference_bound_edf_j_fst_is_job_of_tsk_k.
-            destruct FST as [_ [ FSTserv _]].
+            destruct FST as [FSTarr [_ [ FSTserv _]]].
             move: FSTserv => /negP FSTserv; apply FSTserv.
             rewrite -leqn0; apply leq_trans with (n := service_during sched j_fst t1 t2);
               first by apply job_interference_le_service.
             rewrite leqn0; apply/eqP.
-            by apply cumulative_service_after_job_rt_zero with (job_cost0 := job_cost) (R := R_k);
-              try (by done); apply ltnW.
+            by apply cumulative_service_after_job_rt_zero with (job_cost0 := job_cost) (R := R_k)
+              (job_arrival0 := job_arrival); try (by done); apply ltnW.
           Qed. 
           
         End FactsAboutFirstJob.
@@ -438,20 +453,20 @@ Module InterferenceBoundEDF.
               completed job_cost sched j_fst (a_fst + R_k).
             
             Lemma interference_bound_edf_holds_for_single_job_that_completes_on_time :
-              job_interference job_cost sched j_i j_fst t1 t2 <= D_i - (D_k - R_k).
+              job_interference job_arrival job_cost sched j_i j_fst t1 t2 <= D_i - (D_k - R_k).
             Proof.
               rename H_j_fst_completed_by_rt_bound into RBOUND.
               have AFTERt1 :=
                 interference_bound_edf_j_fst_completion_implies_rt_bound_inside_interval RBOUND.
               have FST := interference_bound_edf_j_fst_is_job_of_tsk_k.
-              destruct FST as [_ [ LEdl _]].            
+              destruct FST as [FSTarr [_ [ LEdl _]]].            
               apply interference_under_edf_implies_shorter_deadlines with
-                   (job_deadline0 := job_deadline) in LEdl; try (by done).
+                    (arr_seq0 := arr_seq) (job_deadline0 := job_deadline) in LEdl; try (by done).
               destruct (D_k - R_k <= D_i) eqn:LEdk; last first.
               {
                 apply negbT in LEdk; rewrite -ltnNge in LEdk.
                 apply leq_trans with (n := 0); last by done.
-                apply leq_trans with (n := job_interference job_cost sched j_i j_fst
+                apply leq_trans with (n := job_interference job_arrival job_cost sched j_i j_fst
                                                                         (a_fst + R_k) t2).
                 {
                   apply extend_sum; last by apply leqnn.
@@ -465,8 +480,8 @@ Module InterferenceBoundEDF.
                 apply leq_trans with (n := service_during sched j_fst (a_fst + R_k) t2);
                   first by apply job_interference_le_service.
                 unfold service_during; rewrite leqn0; apply/eqP.
-                by apply cumulative_service_after_job_rt_zero with (job_cost0 := job_cost) (R := R_k);
-                  try (by done); apply leqnn.
+                by apply cumulative_service_after_job_rt_zero with (job_cost0 := job_cost) (R := R_k)
+                   (job_arrival0 := job_arrival); try (by done); apply leqnn.
               }
               {
                 rewrite -(leq_add2r (D_k - R_k)) subh1 // -addnBA // subnn addn0.
@@ -476,7 +491,7 @@ Module InterferenceBoundEDF.
                   rewrite addnC -subnBA; last by apply leq_addr.
                   by rewrite addnC -addnBA // subnn addn0.
                 }
-                apply leq_trans with (n := job_interference job_cost sched j_i j_fst t1
+                apply leq_trans with (n := job_interference job_arrival job_cost sched j_i j_fst t1
                                                             (a_fst + D_k) + (D_k - R_k)).
                 {
                   rewrite leq_add2r.
@@ -491,7 +506,7 @@ Module InterferenceBoundEDF.
                     apply negbT in LEt2; rewrite -ltnNge in LEt2.
                     rewrite -> big_cat_nat with (n := a_fst + R_k);
                       [simpl | by apply AFTERt1 | by apply ltnW].
-                    apply leq_trans with (n := job_interference job_cost sched j_i j_fst t1
+                    apply leq_trans with (n := job_interference job_arrival job_cost sched j_i j_fst t1
                                  (a_fst + R_k) + service_during sched j_fst (a_fst + R_k) t2).
                     {
                       rewrite leq_add2l.
@@ -499,7 +514,7 @@ Module InterferenceBoundEDF.
                     }
                     unfold service_during.
                     rewrite -> cumulative_service_after_job_rt_zero with
-                      (job_cost0 := job_cost) (R := R_k); try (by done). 
+                      (job_arrival0 := job_arrival) (job_cost0 := job_cost) (R := R_k); try (by done). 
                     rewrite addn0; apply extend_sum; first by apply leqnn.
                     by rewrite leq_add2l; apply H_R_k_le_deadline.
                   }
@@ -508,7 +523,7 @@ Module InterferenceBoundEDF.
                 unfold job_interference.
                 rewrite -> big_cat_nat with (n := a_fst + R_k);
                   [simpl| by apply AFTERt1 | by rewrite leq_add2l; apply H_R_k_le_deadline].
-                apply leq_trans with (n := job_interference job_cost sched j_i j_fst t1
+                apply leq_trans with (n := job_interference job_arrival job_cost sched j_i j_fst t1
                   (a_fst+R_k) + service_during sched j_fst (a_fst+R_k) (a_fst+D_k) + (D_k-R_k)).
                 {
                   rewrite leq_add2r leq_add2l.
@@ -516,7 +531,7 @@ Module InterferenceBoundEDF.
                 }
                 unfold service_during.
                 rewrite -> cumulative_service_after_job_rt_zero with
-                  (job_cost0 := job_cost) (R:=R_k); try (by done).
+                  (job_arrival0 := job_arrival) (job_cost0 := job_cost) (R:=R_k); try (by done).
                 rewrite addn0.
                 apply leq_trans with (n := (\sum_(t1 <= t < a_fst + R_k) 1) +
                                            \sum_(a_fst + R_k <= t < a_fst + D_k) 1).
@@ -549,7 +564,7 @@ Module InterferenceBoundEDF.
               job_arrival j_fst + R_k >= job_arrival j_i + delta.
             Proof.
               have FST := interference_bound_edf_j_fst_is_job_of_tsk_k.
-              destruct FST as [FSTtask _].            
+              destruct FST as [FSTarr [FSTtask _]].            
               rewrite leqNgt; apply/negP; intro LT.
               move: H_j_fst_not_complete_by_rt_bound => /negP BUG; apply BUG.
               by apply H_all_previous_jobs_completed_on_time.
@@ -570,8 +585,10 @@ Module InterferenceBoundEDF.
                 by apply interference_bound_edf_response_time_bound_of_j_fst_after_interval.
               }
               apply/eqP; rewrite -[_ _ _ _ == 0]negbK; apply/negP; red; intro BUG.
+              have FST := interference_bound_edf_j_fst_is_job_of_tsk_k.
+              destruct FST as [FSTarr [_ [LEdl _]]].  
               apply interference_under_edf_implies_shorter_deadlines with
-                     (job_deadline0 := job_deadline) in BUG; try (by done).
+                     (arr_seq0 := arr_seq) (job_deadline0 := job_deadline) in BUG; try (by done).
               rewrite interference_bound_edf_j_fst_deadline
                       interference_bound_edf_j_i_deadline in BUG.
               by apply (leq_trans LTdk) in BUG; rewrite ltnn in BUG.
@@ -585,10 +602,10 @@ Module InterferenceBoundEDF.
             Proof.
               intro LEdk.
               have FST := interference_bound_edf_j_fst_is_job_of_tsk_k.
-              destruct FST as [FSTtask [LEdl _]].            
+              destruct FST as [FSTarr [FSTtask [LEdl _]]].            
               have LTr := interference_bound_edf_response_time_bound_of_j_fst_after_interval.
               apply subh3; last by apply LEdk.
-              apply leq_trans with (n := job_interference job_cost sched j_i j_fst t1
+              apply leq_trans with (n := job_interference job_arrival job_cost sched j_i j_fst t1
                                                           (job_arrival j_fst + R_k) + (D_k - R_k));
                 first by rewrite leq_add2r; apply extend_sum; [by apply leqnn|]. 
               apply leq_trans with (n := \sum_(t1 <= t < a_fst + R_k) 1 +
@@ -615,7 +632,7 @@ Module InterferenceBoundEDF.
               unfold D_i, D_k, t1, a_fst; rewrite -interference_bound_edf_j_fst_deadline
                                                   -interference_bound_edf_j_i_deadline.
               by apply interference_under_edf_implies_shorter_deadlines with
-                (job_deadline0 := job_deadline) in LEdl.
+                (arr_seq0 := arr_seq) (job_deadline0 := job_deadline) in LEdl.
             Qed.
 
           End ResponseTimeOfSingleJobNotBounded.
@@ -672,6 +689,7 @@ Module InterferenceBoundEDF.
 
             (* The last job is an interfering job of task tsk_k. *)
             Lemma interference_bound_edf_j_lst_is_job_of_tsk_k :
+              arrives_in arr_seq j_lst /\
               job_task j_lst = tsk_k /\
               interference_caused_by j_lst t1 t2 != 0 /\
               j_lst \in jobs_scheduled_between sched t1 t2.
@@ -687,8 +705,8 @@ Module InterferenceBoundEDF.
               unfold valid_sporadic_job in *.
               rename H_valid_job_parameters into PARAMS.
               have LST := interference_bound_edf_j_lst_is_job_of_tsk_k.
-              destruct LST as [LSTtask _].
-              by specialize (PARAMS j_lst); des; rewrite PARAMS1 LSTtask.
+              destruct LST as [LSTarr [LSTtask _]].
+              by specialize (PARAMS j_lst LSTarr); des; rewrite PARAMS1 LSTtask.
             Qed.
 
             (* The first job arrives before the last job. *)
@@ -711,12 +729,12 @@ Module InterferenceBoundEDF.
                 apply mem_nth; instantiate (1 := num_mid_jobs.+1).
                 by rewrite -(ltn_add2r 1) addn1 H_at_least_two_jobs addn1.
               }  
-              instantiate (1 := elem); move => [LSTtsk [/eqP LSTserv LSTin]].
+              instantiate (1 := elem); move => [LSTarr [LSTtsk [/eqP LSTserv LSTin]]].
               apply LSTserv; apply/eqP; rewrite -leqn0.
               apply leq_trans with (n := service_during sched j_lst t1 t2);
                 first by apply job_interference_le_service.
               rewrite leqn0; apply/eqP; unfold service_during.
-              by apply cumulative_service_before_job_arrival_zero.
+              by apply cumulative_service_before_job_arrival_zero with (job_arrival0 := job_arrival).
             Qed.
 
             (* Since there are multiple jobs, j_fst is far enough from the end of
@@ -731,7 +749,7 @@ Module InterferenceBoundEDF.
               {
                 by apply mem_nth; instantiate (1 := 1); rewrite H_at_least_two_jobs.
               }
-              instantiate (1 := elem); move => [SNDtsk [/eqP SNDserv _]].
+              instantiate (1 := elem); move => [SNDarr [SNDtsk [/eqP SNDserv _]]].
               apply H_all_previous_jobs_completed_on_time; try (by done).
               apply leq_ltn_trans with (n := job_arrival j_snd); last first.
               {
@@ -740,7 +758,7 @@ Module InterferenceBoundEDF.
                                                                           sched j_snd t1 t2);
                   first by apply job_interference_le_service.
                 rewrite leqn0; apply/eqP.
-                by apply cumulative_service_before_job_arrival_zero.
+                by apply cumulative_service_before_job_arrival_zero with (job_arrival0 := job_arrival).
               }
               apply leq_trans with (n := a_fst + p_k).
               {
@@ -750,8 +768,8 @@ Module InterferenceBoundEDF.
             
               (* Since jobs are sporadic, we know that the first job arrives
                  at least p_k units before the second. *)
-              unfold p_k; rewrite -FST.
-              apply H_sporadic_tasks; [| by rewrite SNDtsk | ]; last first.
+              unfold p_k; rewrite -FST0.
+              apply H_sporadic_tasks; try (by done); [| by rewrite SNDtsk | ]; last first.
               {
                 apply interference_bound_edf_jobs_ordered_by_arrival.
                 by rewrite H_at_least_two_jobs.
@@ -787,14 +805,13 @@ Module InterferenceBoundEDF.
             assert (ARRle: job_arrival cur <= job_arrival next).
               by unfold cur, next; apply interference_bound_edf_jobs_ordered_by_arrival.
              
-            (* Show that both cur and next are in the arrival sequence *)
-            assert (INnth: cur \in interfering_jobs /\ next \in interfering_jobs).
-            {
-              rewrite 2!interference_bound_edf_job_in_same_sequence; split.
-                by apply mem_nth, (ltn_trans LT0); destruct sorted_jobs; ins.
-                by apply mem_nth; destruct sorted_jobs; ins.
-            }
-            rewrite 2?mem_filter in INnth; des.
+            feed (interference_bound_edf_all_jobs_from_tsk_k cur).
+              by apply mem_nth, (ltn_trans LT0); destruct sorted_jobs.
+            intros [CURarr [CURtsk [_ CURin]]].
+
+            feed (interference_bound_edf_all_jobs_from_tsk_k next).
+              by apply mem_nth; destruct sorted_jobs.
+            intros [NEXTarr [NEXTtsk [_ NEXTin]]].
 
             (* Use the sporadic task model to conclude that cur and next are separated
                by at least (task_period tsk) units. Of course this only holds if cur != next.
@@ -802,15 +819,15 @@ Module InterferenceBoundEDF.
                also prove that it doesn't contain duplicates. *)
             assert (CUR_LE_NEXT: job_arrival cur + task_period (job_task cur) <= job_arrival next).
             {
-              apply H_sporadic_tasks; last by ins.
+              apply H_sporadic_tasks; try (by done).
               unfold cur, next, not; intro EQ; move: EQ => /eqP EQ.
               rewrite nth_uniq in EQ; first by move: EQ => /eqP EQ; intuition.
                 by apply ltn_trans with (n := (size sorted_jobs).-1); destruct sorted_jobs; ins.
                 by destruct sorted_jobs; ins.
                 by rewrite sort_uniq -/interfering_jobs filter_uniq // undup_uniq.
-                by rewrite INnth INnth0.  
+                by rewrite CURtsk.
             }
-            by rewrite subh3 // addnC /p_k -INnth.
+            by rewrite subh3 // addnC /p_k -CURtsk.
           Qed.
 
           (* Using the lemma above, we prove that the ratio n_k is at least the number of
@@ -836,9 +853,9 @@ Module InterferenceBoundEDF.
               by rewrite leq_add2l; apply H_R_k_le_deadline.
             }
             have LST := interference_bound_edf_j_lst_is_job_of_tsk_k.
-            destruct LST as [_ [ LEdl _]].  
+            destruct LST as [LSTarr [_ [ LEdl _]]].  
             apply interference_under_edf_implies_shorter_deadlines with
-                (job_deadline0 := job_deadline) in LEdl; try (by done).
+                  (arr_seq0 := arr_seq) (job_deadline0 := job_deadline) in LEdl; try (by done).
             unfold D_i, D_k in DIST; rewrite interference_bound_edf_j_lst_deadline
                                              interference_bound_edf_j_i_deadline in LEdl.
             by rewrite ltnNge LEdl in DIST.
@@ -919,11 +936,11 @@ Module InterferenceBoundEDF.
               apply leq_trans with (n := t1 + D_i);
                 last by rewrite -addnA [D_i + _]addnC addnA leq_add2r addnC AFTERt1.
               have LST := interference_bound_edf_j_lst_is_job_of_tsk_k.
-              destruct LST as [_ [ LSTserv _]].
+              destruct LST as [LSTarr [_ [ LSTserv _]]].
               unfold D_i, D_k, a_lst, t1; rewrite -interference_bound_edf_j_lst_deadline
                                                   -interference_bound_edf_j_i_deadline.
               by apply interference_under_edf_implies_shorter_deadlines with
-                                (job_deadline0 := job_deadline) in LSTserv.
+                            (arr_seq0 := arr_seq) (job_deadline0 := job_deadline) in LSTserv.
             Qed.
 
             (* To conclude that the interference bound holds, it suffices to show that
@@ -949,7 +966,7 @@ Module InterferenceBoundEDF.
               }
               destruct (leqP t2 (a_fst + R_k)) as [LEt2 | GTt2].
               {
-                apply leq_trans with (n := job_interference job_cost sched j_i j_fst t1
+                apply leq_trans with (n := job_interference job_arrival job_cost sched j_i j_fst t1
                                                                               (a_fst + R_k));
                   first by apply extend_sum; rewrite ?leqnn.
                 simpl_sum_const; rewrite -{1}[_ + R_k](addKn t1) -addnBA //.
@@ -967,8 +984,8 @@ Module InterferenceBoundEDF.
                 apply leq_trans with (n := service_during sched j_fst (a_fst + R_k) t2);
                   first by apply job_interference_le_service.
                 rewrite leqn0; apply/eqP.
-                apply cumulative_service_after_job_rt_zero with (job_cost0 := job_cost) (R := R_k);
-                  [ by done | | by apply leqnn].
+                apply cumulative_service_after_job_rt_zero with (job_cost0 := job_cost) (R := R_k)
+                  (job_arrival0 := job_arrival); [ by done | | by apply leqnn].
                 by apply interference_bound_edf_j_fst_completed_on_time.
               }
             Qed.
@@ -1041,11 +1058,11 @@ Module InterferenceBoundEDF.
               apply (leq_trans interference_bound_edf_bounding_interference_with_interval_lengths).
               rewrite interference_bound_edf_simpl_by_concatenation_of_intervals leq_subLR.
               have LST := interference_bound_edf_j_lst_is_job_of_tsk_k.
-              destruct LST as [_ [ LSTserv _]].
+              destruct LST as [LSTarr [_ [ LSTserv _]]].
               unfold D_i, D_k, a_lst, t1; rewrite -interference_bound_edf_j_lst_deadline
                                                   -interference_bound_edf_j_i_deadline.
               by apply interference_under_edf_implies_shorter_deadlines
-                with (job_deadline0 := job_deadline) in LSTserv.
+                with (arr_seq0 := arr_seq) (job_deadline0 := job_deadline) in LSTserv.
             Qed.
 
           End InterferenceOfFirstJob.
@@ -1099,7 +1116,7 @@ Module InterferenceBoundEDF.
         apply negbT in NUM; rewrite -ltnNge in NUM.
 
         (* Find some dummy element to use in the nth function *)
-        assert (EX: exists elem: JobIn arr_seq, True).
+        assert (EX: exists elem: Job, True).
           destruct sorted_jobs as [| j]; [by rewrite ltn0 in NUM | by exists j].
         destruct EX as [elem _].
 
@@ -1111,7 +1128,7 @@ Module InterferenceBoundEDF.
           first by rewrite big_geq.
 
         (* Then, we show the same for a single job, or for multiple jobs. *)
-        rewrite SIZE; destruct n as [| num_mid_jobs].
+        destruct n as [| num_mid_jobs].
         {
           rewrite big_nat_recr // big_geq //.
           rewrite [nth]lock /= -lock add0n.

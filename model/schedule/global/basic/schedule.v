@@ -12,16 +12,16 @@ Module Schedule.
   
   Section ScheduleDef.
 
-    Context {Job: eqType}.
+    (* Consider any type of job. *)
+    Variable Job: eqType.
 
-    (* Given the number of processors and an arrival sequence, ...*)
+    (* Given the number of processors... *)
     Variable num_cpus: nat.
-    Variable arr_seq: arrival_sequence Job.
 
     (* ... we define a schedule as a mapping such that each processor
        at each time contains either a job from the sequence or none. *)
     Definition schedule :=
-      processor num_cpus -> time -> option (JobIn arr_seq).
+      processor num_cpus -> time -> option Job.
 
   End ScheduleDef.
 
@@ -29,6 +29,7 @@ Module Schedule.
   Section ScheduledJobs.
 
     Context {Job: eqType}.
+    Variable job_arrival: Job -> time.
 
     (* Given an arrival sequence, ... *)
     Context {arr_seq: arrival_sequence Job}.
@@ -39,8 +40,8 @@ Module Schedule.
     Context {num_cpus: nat}.
 
     (* ... we define the following properties for job j in schedule sched. *)
-    Variable sched: schedule num_cpus arr_seq.
-    Variable j: JobIn arr_seq.
+    Variable sched: schedule Job num_cpus.
+    Variable j: Job.
 
     (* A job j is scheduled on processor cpu at time t iff such a mapping exists. *)
     Definition scheduled_on (cpu: processor num_cpus) (t: time) :=
@@ -70,18 +71,18 @@ Module Schedule.
     Definition completed (t: time) := service t == job_cost j.
 
     (* Job j is pending at time t iff it has arrived but has not completed. *)
-    Definition pending (t: time) := has_arrived j t && ~~completed t.
+    Definition pending (t: time) := has_arrived job_arrival j t && ~~completed t.
 
     (* Job j is backlogged at time t iff it is pending and not scheduled. *)
     Definition backlogged (t: time) := pending t && ~~scheduled t.
 
     (* Job j is carry-in in interval [t1, t2) iff it arrives before t1 and is
        not complete at time t1 *)
-    Definition carried_in (t1: time) := arrived_before j t1 && ~~ completed t1.
+    Definition carried_in (t1: time) := arrived_before job_arrival j t1 && ~~ completed t1.
 
     (* Job j is carry-out in interval [t1, t2) iff it arrives after t1 and is
        not complete at time t2 *)
-    Definition carried_out (t1 t2: time) := arrived_before j t2 && ~~ completed t2.
+    Definition carried_out (t1 t2: time) := arrived_before job_arrival j t2 && ~~ completed t2.
 
     (* The list of scheduled jobs at time t is the concatenation of the jobs
        scheduled on each processor. *)
@@ -98,14 +99,13 @@ Module Schedule.
   (* In this section, we define properties of valid schedules. *)
   Section ValidSchedules.
 
-    Context {Job: eqType}. (* Assume a job type with decidable equality, ...*)
-    Context {arr_seq: arrival_sequence Job}. (* ..., an arrival sequence, ...*)
+    Context {Job: eqType}.
+    Variable job_arrival: Job -> time.
+    Variable job_cost: Job -> time.
 
-    Variable job_cost: Job -> time. (* ... a cost function, .... *)
-
-    (* ... and a schedule. *)
+    (* Consider any multiprocessor schedule. *)
     Context {num_cpus: nat}.
-    Variable sched: schedule num_cpus arr_seq.
+    Variable sched: schedule Job num_cpus.
 
     (* Next, we define whether job are sequential, ... *)
     Definition sequential_jobs :=
@@ -114,30 +114,33 @@ Module Schedule.
 
     (* ... whether a job can only be scheduled if it has arrived, ... *)
     Definition jobs_must_arrive_to_execute :=
-      forall j t, scheduled sched j t -> has_arrived j t.
+      forall j t,
+        scheduled sched j t ->
+        has_arrived job_arrival j t.
 
     (* ... whether a job can be scheduled after it completes. *)
     Definition completed_jobs_dont_execute :=
       forall j t, service sched j t <= job_cost j.
 
+    (* We also define whether jobs come from some arrival sequence. *)
+    Definition jobs_come_from_arrival_sequence (arr_seq: arrival_sequence Job) :=
+      forall j t, scheduled sched j t -> arrives_in arr_seq j.
+    
   End ValidSchedules.
 
   (* In this section, we prove some basic lemmas about a job. *)
   Section JobLemmas.
 
-    (* Consider an arrival sequence, ...*)
     Context {Job: eqType}.
-    Context {arr_seq: arrival_sequence Job}.
-
-    (* ... a job cost function, ...*)
+    Variable job_arrival: Job -> time.
     Variable job_cost: Job -> time.
 
-    (* ..., and a particular schedule. *)
+    (* Consider any multiprocessor schedule. *)
     Context {num_cpus: nat}.
-    Variable sched: schedule num_cpus arr_seq.
+    Variable sched: schedule Job num_cpus.
 
     (* Next, we prove some lemmas about the service received by a job j. *)
-    Variable j: JobIn arr_seq.
+    Variable j: Job.
 
     Section Basic.
 
@@ -318,7 +321,7 @@ Module Schedule.
 
       (* Assume that jobs must arrive to execute. *)
       Hypothesis H_jobs_must_arrive:
-        jobs_must_arrive_to_execute sched.
+        jobs_must_arrive_to_execute job_arrival sched.
 
       (* Then, job j does not receive service at any time t prior to its arrival. *)
       Lemma service_before_job_arrival_zero :
@@ -329,7 +332,7 @@ Module Schedule.
         rename H_jobs_must_arrive into ARR; red in ARR; intros t LT.
         specialize (ARR j t).
         apply contra with (c := scheduled sched j t)
-                            (b := has_arrived j t) in ARR;
+                            (b := has_arrived job_arrival j t) in ARR;
           last by rewrite -ltnNge.
         apply/eqP; rewrite -leqn0; unfold service_at.
         rewrite big_pred0 //; red.
@@ -359,7 +362,8 @@ Module Schedule.
           \sum_(t0 <= t < job_arrival j + t) service_at sched j t =
           \sum_(job_arrival j <= t < job_arrival j + t) service_at sched j t.
       Proof.
-        intros t0 t LE; rewrite -> big_cat_nat with (n := job_arrival j); [| by ins | by apply leq_addr].
+        intros t0 t LE; rewrite -> big_cat_nat with (n := job_arrival j);
+          [| by ins | by apply leq_addr].
         by rewrite /= cumulative_service_before_job_arrival_zero; [rewrite add0n | apply leqnn].
       Qed.
       
@@ -369,7 +373,7 @@ Module Schedule.
 
       (* Assume that jobs must arrive to execute. *)
       Hypothesis H_jobs_must_arrive:
-        jobs_must_arrive_to_execute sched.
+        jobs_must_arrive_to_execute job_arrival sched.
       
      (* Assume that completed jobs do not execute. *)
       Hypothesis H_completed_jobs:
@@ -379,7 +383,7 @@ Module Schedule.
       Lemma scheduled_implies_pending:
         forall t,
           scheduled sched j t ->
-          pending job_cost sched j t.
+          pending job_arrival job_cost sched j t.
       Proof.
         rename H_jobs_must_arrive into ARRIVE,
                H_completed_jobs into COMP.
@@ -405,13 +409,11 @@ Module Schedule.
      scheduled at time t. *)
   Section ScheduledJobsLemmas.
 
-    (* Consider an arrival sequence ...*)
     Context {Job: eqType}.
-    Context {arr_seq: arrival_sequence Job}.
 
-    (* ... and some schedule. *)
+    (* Consider any multiprocessor schedule. *)
     Context {num_cpus: nat}.
-    Variable sched: schedule num_cpus arr_seq.
+    Variable sched: schedule Job num_cpus.
 
     Section Membership.
       
@@ -462,8 +464,8 @@ Module Schedule.
             intros x i1 i2 IN1 IN2; unfold make_sequence in *.
             desf; move: Heq0 Heq => SOME1 SOME2.
             rewrite mem_seq1 in IN1; rewrite mem_seq1 in IN2.
-            move: IN1 IN2 => /eqP IN1 /eqP IN2; subst x j0.
-            specialize (SEQUENTIAL j t (widen_ord (leqnSn n) i1)
+            move: IN1 IN2 => /eqP IN1 /eqP IN2; subst x s0.
+            specialize (SEQUENTIAL s t (widen_ord (leqnSn n) i1)
                            (widen_ord (leqnSn n) i2) SOME1 SOME2).
             by inversion SEQUENTIAL; apply ord_inj.
           }
@@ -480,8 +482,8 @@ Module Schedule.
             unfold make_sequence in IN'.
             desf; rename Heq into SCHEDi.
             rewrite mem_seq1 in INx; rewrite mem_seq1 in IN'.
-            move: INx IN' => /eqP INx /eqP IN'; subst x j0.
-            specialize (SEQUENTIAL j t ord_max (widen_ord (leqnSn n) i) SCHED SCHEDi).
+            move: INx IN' => /eqP INx /eqP IN'; subst x s0.
+            specialize (SEQUENTIAL s t ord_max (widen_ord (leqnSn n) i) SCHED SCHEDi).
             inversion SEQUENTIAL; destruct i as [i EQ]; simpl in *.
             clear SEQUENTIAL SCHEDi.
             by rewrite H0 ltnn in EQ.
@@ -524,10 +526,9 @@ Module ScheduleOfSporadicTask.
     Context {Job: eqType}.
     Variable job_task: Job -> sporadic_task.
     
-    (* Consider any schedule. *)
-    Context {arr_seq: arrival_sequence Job}.
+    (* Consider any multiprocessor schedule. *)
     Context {num_cpus: nat}.
-    Variable sched: schedule num_cpus arr_seq.
+    Variable sched: schedule Job num_cpus.
 
     (* Given a task tsk, ...*)
     Variable tsk: sporadic_task.
@@ -544,7 +545,7 @@ Module ScheduleOfSporadicTask.
     
     (* We also define the list of jobs scheduled during [t1, t2). *)
     Definition jobs_of_task_scheduled_between (t1 t2: time) :=
-      filter (fun (j: JobIn arr_seq) => job_task j == tsk)
+      filter (fun j => job_task j == tsk)
              (jobs_scheduled_between sched t1 t2).
     
   End ScheduledJobs.
@@ -556,22 +557,22 @@ Module ScheduleOfSporadicTask.
     Variable job_cost: Job -> time.
     Variable job_task: Job -> sporadic_task.
 
-    (* Consider any schedule. *)
-    Context {arr_seq: arrival_sequence Job}.
+    (* Consider any multiprocessor schedule. *)
     Context {num_cpus: nat}.
-    Variable sched: schedule num_cpus arr_seq.
+    Variable sched: schedule Job num_cpus.
 
     (* Next we define intra-task parallelism. *)
     Definition jobs_of_same_task_dont_execute_in_parallel :=
-      forall (j j': JobIn arr_seq) t,
+      forall j j' t,
         job_task j = job_task j' ->
-        scheduled sched j t -> scheduled sched j' t -> j = j'.
+        scheduled sched j t ->
+        scheduled sched j' t ->
+        j = j'.
     
   End ScheduleProperties.
 
   Section BasicLemmas.
 
-    (* Assume the job cost and task are known. *)
     Context {sporadic_task: eqType}.
     Variable task_cost: sporadic_task -> time.
     Variable task_deadline: sporadic_task -> time.
@@ -581,18 +582,19 @@ Module ScheduleOfSporadicTask.
     Variable job_deadline: Job -> time.
     Variable job_task: Job -> sporadic_task.
 
-    (* Then, in a valid schedule of sporadic tasks ...*)
-    Context {arr_seq: arrival_sequence Job}.
+    (* Consider any valid schedule of sporadic tasks ...*)
     Context {num_cpus: nat}.
-    Variable sched: schedule num_cpus arr_seq.
+    Variable sched: schedule Job num_cpus.
 
-    (* ...such that jobs do not execute after completion, ...*)
+    (* ...such that jobs do not execute after completion.*)
     Hypothesis jobs_dont_execute_after_completion :
        completed_jobs_dont_execute job_cost sched.
 
+    (* Let tsk be any tsk...*)
     Variable tsk: sporadic_task.
-    
-    Variable j: JobIn arr_seq.
+
+    (* ...and let j be any valid job of tsk. *)
+    Variable j: Job.
     Hypothesis H_job_of_task: job_task j = tsk.
     Hypothesis valid_job:
       valid_sporadic_job task_cost task_deadline job_cost job_deadline job_task j.

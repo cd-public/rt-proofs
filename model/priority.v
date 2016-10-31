@@ -9,42 +9,17 @@ Module Priority.
 
   Section PriorityDefs.
 
-    Section FP.
-
-      (* Let Task denote any type of task. *)
-      Variable Task: eqType.
-
-      (* We define an FP policy as a relation between tasks. *)
-      Definition FP_policy := rel Task.
-
-    End FP.
+    Variable Task: eqType.
+    Variable Job: eqType.
     
-    Section JLFP.
+    (* We define an FP policy as a relation between tasks, ... *)
+    Definition FP_policy := rel Task.
 
-      (* Consider any job arrival sequence. *)
-      Context {Job: eqType}.
-      Variable arr_seq: arrival_sequence Job.
-      
-      (* We define a JLFP policy as a relation between jobs in the arrival sequence. *)
-      Definition JLFP_policy := rel (JobIn arr_seq).
+    (* ...JLFP policy as a relation between jobs, ... *)
+    Definition JLFP_policy := rel Job.
 
-    End JLFP.
-
-    Section JLDP.
-
-      (* Consider any job arrival sequence. *)
-      Context {Job: eqType}.
-      Variable arr_seq: arrival_sequence Job.
-      
-      (* We define a JLDP policy as a time-dependent relation between jobs
-         in the arrival sequence.
-         Although this definition doesn't specify how the policy was constructed
-         (e.g., whether it depends on the schedule, on job parameters, etc.), it is
-         as general as possible. Knowing the priority of the jobs is sufficient
-         to make scheduling decisions. *)
-      Definition JLDP_policy := time -> rel (JobIn arr_seq).
-
-    End JLDP.
+    (* ...and JLDP as any time-dependent relation between jobs. *)
+    Definition JLDP_policy := time -> rel Job.
 
   End PriorityDefs.
 
@@ -56,19 +31,18 @@ Module Priority.
     Context {Task: eqType}.
     Context {Job: eqType}.
     Variable job_task: Job -> Task.
-    Variable arr_seq: arrival_sequence Job.
 
     (* We show how to convert FP to JLFP,... *)
-    Definition FP_to_JLFP (task_hp: FP_policy Task) : JLFP_policy arr_seq :=
-      fun (jhigh jlow: JobIn arr_seq) =>
+    Definition FP_to_JLFP (task_hp: FP_policy Task) :=
+      fun (jhigh jlow: Job) =>
         task_hp (job_task jhigh) (job_task jlow).
     
     (* ...FP to JLDP, ... *)
-    Definition FP_to_JLDP (task_hp: FP_policy Task) : JLDP_policy arr_seq :=
+    Definition FP_to_JLDP (task_hp: FP_policy Task) :=
       fun (t: time) => FP_to_JLFP task_hp.
 
     (* ...and JLFP to JLDP. *)
-    Definition JLFP_to_JLDP (job_hp: JLFP_policy arr_seq) : JLDP_policy arr_seq :=
+    Definition JLFP_to_JLDP (job_hp: JLFP_policy Job) :=
       fun (t: time) => job_hp.
     
   End Generalization.
@@ -81,10 +55,7 @@ Module Priority.
     Context {Task: eqType}.
     Variable job_task: Job -> Task.
 
-    (* Consider any job arrival sequence... *)
-    Variable arr_seq: arrival_sequence Job.
-
-    (* ...and let task_priority be any FP policy. *)
+    (* Let task_priority be any FP policy. *)
     Variable task_priority: FP_policy Task.
 
     (* Now we define the properties. *)
@@ -122,8 +93,9 @@ Module Priority.
 
     (* Consider any JLFP policy. *)
     Context {Job: eqType}.
-    Context {arr_seq: arrival_sequence Job}.
-    Variable job_priority: JLFP_policy arr_seq.
+    Variable arr_seq: arrival_sequence Job.
+
+    Variable job_priority: JLFP_policy Job.
 
     (* Now we define the properties. *)
     
@@ -136,8 +108,12 @@ Module Priority.
     (* Whether the JLFP policy is transitive. *)
     Definition JLFP_is_transitive := transitive job_priority.
 
-    (* Whether the JLFP policy is total. *)
-    Definition JLFP_is_total := total job_priority.
+    (* Whether the JLFP policy is total over the arrival sequence. *)
+    Definition JLFP_is_total :=
+      forall j1 j2,
+        arrives_in arr_seq j1 ->
+        arrives_in arr_seq j2 ->
+        job_priority j1 j2 || job_priority j2 j1.
 
   End PropertiesJLFP.
 
@@ -146,8 +122,9 @@ Module Priority.
 
     (* Consider any JLDP policy. *)
     Context {Job: eqType}.
-    Context {arr_seq: arrival_sequence Job}.
-    Variable job_priority: JLDP_policy arr_seq.
+    Variable arr_seq: arrival_sequence Job.
+    
+    Variable job_priority: JLDP_policy Job.
 
     (* Now we define the properties. *)
     
@@ -165,7 +142,10 @@ Module Priority.
 
     (* Whether the JLDP policy is total. *)
     Definition JLDP_is_total :=
-      forall t, total (job_priority t).
+      forall j1 j2 t,
+        arrives_in arr_seq j1 ->
+        arrives_in arr_seq j2 ->
+        job_priority t j1 j2 || job_priority t j2 j1.
 
   End PropertiesJLDP.
 
@@ -187,8 +167,6 @@ Module Priority.
       task_deadline tsk1 <= task_deadline tsk2.
 
     Section Properties.
-
-      Variable arr_seq: arrival_sequence Job.
 
       (* RM is reflexive. *)
       Lemma RM_is_reflexive : FP_is_reflexive RM.
@@ -226,11 +204,13 @@ Module Priority.
   Section KnownJLFPPolicies.
 
     Context {Job: eqType}.
-    Context {arr_seq: arrival_sequence Job}.
+    Variable job_arrival: Job -> time.
     Variable job_deadline: Job -> time.
 
-    (* Earliest deadline first (EDF) orders jobs by absolute deadlines. *)
-    Definition EDF (j1 j2: JobIn arr_seq) :=
+    Variable arr_seq: arrival_sequence Job.
+
+    (* We define earliest deadline first (EDF) as ordering jobs by absolute deadlines. *)
+    Definition EDF (j1 j2: Job) :=
       job_arrival j1 + job_deadline j1 <= job_arrival j2 + job_deadline j2.
 
     Section Properties.
@@ -248,11 +228,11 @@ Module Priority.
       Qed.
 
       (* EDF is total. *)
-      Lemma EDF_is_total : JLFP_is_total EDF.
+      Lemma EDF_is_total : JLFP_is_total arr_seq EDF.
       Proof.
-        unfold EDF; intros x y.
-        by case (leqP (job_arrival x + job_deadline x)
-                      (job_arrival y + job_deadline y));
+        unfold EDF; intros x y ARRx ARRy.
+        case (leqP (job_arrival x + job_deadline x)
+                    (job_arrival y + job_deadline y));
           [by rewrite orTb | by move/ltnW => ->].
       Qed.
 

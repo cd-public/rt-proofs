@@ -1,11 +1,11 @@
 Require Import rt.util.all.
-Require Import rt.model.arrival.basic.job rt.model.arrival.basic.arrival_sequence.
-Require Import rt.model.schedule.uni.schedule.
+Require Import rt.model.arrival.basic.arrival_sequence.
+Require Import rt.model.schedule.global.basic.schedule.
 From mathcomp Require Import ssreflect ssrbool ssrfun eqtype ssrnat fintype bigop seq path finfun.
 
 Module ScheduleConstruction.
 
-  Import Job ArrivalSequence UniprocessorSchedule.
+  Import ArrivalSequence Schedule.
 
  (* In this section, we construct a schedule recursively by augmenting prefixes. *)
   Section ConstructionFromPrefixes.
@@ -15,31 +15,34 @@ Module ScheduleConstruction.
     (* Let arr_seq be any arrival sequence.*)
     Variable arr_seq: arrival_sequence Job.
 
-    (* Assume we are given a function that takes an existing schedule prefix
-       up to interval [0, t) and returns what should be scheduled at time t. *)
+    (* Let num_cpus denote the number of processors. *)
+    Variable num_cpus: nat.
+    
+    (* Assume we are given a function that takes an existing schedule prefix [0, t)
+       and returns what should be scheduled at time t on each processor. *)
     Variable build_schedule:
-      schedule Job -> time -> option Job.
+      schedule Job num_cpus -> schedule Job num_cpus.
 
     (* Then, starting from a base schedule, ... *)
-    Variable base_sched: schedule Job.
+    Variable base_sched: schedule Job num_cpus.
 
     (* ...we can update individual times using the build_schedule function, ... *)
-    Definition update_schedule (prev_sched: schedule Job)
-                               (t_next: time) : schedule Job :=
-      fun t =>
+    Definition update_schedule (prev_sched: schedule Job num_cpus)
+                               (t_next: time) : schedule Job num_cpus :=
+      fun (cpu: processor num_cpus) t =>
         if t == t_next then
-          build_schedule prev_sched t
-        else prev_sched t.
+          build_schedule prev_sched cpu t
+        else prev_sched cpu t.
 
     (* ...which recursively generates schedule prefixes up to time t_max. *)
-    Fixpoint schedule_prefix (t_max: time) : schedule Job :=
+    Fixpoint schedule_prefix (t_max: time) : schedule Job num_cpus :=
       if t_max is t_prev.+1 then
         update_schedule (schedule_prefix t_prev) t_prev.+1
       else
         update_schedule base_sched 0.
 
     (* Based on the schedule prefixes, we construct a complete schedule. *)
-    Definition build_schedule_from_prefixes := fun t => schedule_prefix t t.
+    Definition build_schedule_from_prefixes := fun cpu t => schedule_prefix t cpu t.
 
     (* In this section, we prove some lemmas about the construction. *)
     Section Lemmas.
@@ -49,11 +52,11 @@ Module ScheduleConstruction.
 
       (* First, we show that the scheduler preserves its prefixes. *)
       Lemma prefix_construction_same_prefix:
-        forall t t_max,
+        forall t t_max cpu,
           t <= t_max ->
-          schedule_prefix t_max t = sched t.
+          schedule_prefix t_max cpu t = sched cpu t.
       Proof.
-        intros t t_max LEt.
+        intros t t_max cpu LEt.
         induction t_max;
           first by rewrite leqn0 in LEt; move: LEt => /eqP EQ; subst.
         rewrite leq_eqVlt in LEt.
@@ -74,25 +77,25 @@ Module ScheduleConstruction.
         (* If the generation function only depends on the service
          received by jobs during the schedule prefix, ...*)
         Hypothesis H_depends_only_on_service:
-          forall sched1 sched2 t,
+          forall sched1 sched2 cpu t,
             (forall j, service sched1 j t = service sched2 j t) ->          
-            build_schedule sched1 t = build_schedule sched2 t.
+            build_schedule sched1 cpu t = build_schedule sched2 cpu t.
 
         (* ...then we can prove that the final schedule, at any time t,
          is exactly the result of the construction function. *)
         Lemma service_dependent_schedule_construction:
-          forall t,
-            sched t = build_schedule sched t.
+          forall cpu t,
+            sched cpu t = build_schedule sched cpu t.
         Proof.
-          intros t.
-          feed (prefix_construction_same_prefix t t); [by done | intros EQ].
+          intros cpu t.
+          feed (prefix_construction_same_prefix t t cpu); [by done | intros EQ].
           rewrite -{}EQ.
           induction t as [t IH] using strong_ind.
           destruct t.
           {
             rewrite /= /update_schedule eq_refl.
             apply H_depends_only_on_service.
-              by intros j; rewrite /service /service_during big_geq // big_geq //.
+            by intros j; rewrite /service /service_during big_geq // big_geq //.
           }
           {
             rewrite /= /update_schedule eq_refl.
@@ -100,8 +103,9 @@ Module ScheduleConstruction.
             intros j; rewrite /service /service_during.
             rewrite big_nat_recr //= big_nat_recr //=; f_equal.
             apply eq_big_nat; move => i /= LT.
-            rewrite /service_at /scheduled_at.
-              by rewrite prefix_construction_same_prefix; last by apply ltnW.
+            rewrite /service_at.
+            apply eq_bigl; intros cpu'; rewrite /scheduled_on.
+            by rewrite prefix_construction_same_prefix; last by apply ltnW.
           }
         Qed.
 
@@ -111,17 +115,17 @@ Module ScheduleConstruction.
 
         (* If the generation function only depends on the schedule prefix, ... *)
         Hypothesis H_depends_only_on_prefix:
-          forall (sched1 sched2: schedule Job) t,
-            (forall t0, t0 < t -> sched1 t0 = sched2 t0) ->          
-            build_schedule sched1 t = build_schedule sched2 t.
+          forall (sched1 sched2: schedule Job num_cpus) cpu t,
+            (forall t0 cpu, t0 < t -> sched1 cpu t0 = sched2 cpu t0) ->          
+            build_schedule sched1 cpu t = build_schedule sched2 cpu t.
 
         (* ...then we can prove that the final schedule, at any time t,
          is exactly the result of the construction function. *)
         Lemma prefix_dependent_schedule_construction:
-          forall t, sched t = build_schedule sched t.
+          forall cpu t, sched cpu t = build_schedule sched cpu t.
         Proof.
-          intros t.
-          feed (prefix_construction_same_prefix t t); [by done | intros EQ].
+          intros cpu t.
+          feed (prefix_construction_same_prefix t t cpu); [by done | intros EQ].
           rewrite -{}EQ.
           induction t using strong_ind.
           destruct t.
@@ -133,35 +137,12 @@ Module ScheduleConstruction.
           {
             rewrite /= /update_schedule eq_refl.
             apply H_depends_only_on_prefix.
-            intros t0 LT.
+            intros t0 cpu0 LT.
             by rewrite prefix_construction_same_prefix.
           }
         Qed.
 
       End PrefixDependent.
-
-      Section ImmediateProperty.
-
-        Variable P: option Job -> Prop.
-
-        Hypothesis H_immediate_property:
-          forall sched_prefix t, P (build_schedule sched_prefix t).
-
-        Lemma immediate_property_of_schedule_construction:
-          forall t, P (sched t).
-        Proof.
-          destruct t.
-          {
-            rewrite /sched /build_schedule_from_prefixes /schedule_prefix /update_schedule eq_refl.
-            by apply H_immediate_property.
-          }
-          {
-            rewrite /sched /build_schedule_from_prefixes /schedule_prefix /update_schedule eq_refl.
-            by apply H_immediate_property.
-          }
-        Qed.
-
-      End ImmediateProperty.
 
     End Lemmas.
       

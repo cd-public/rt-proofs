@@ -253,6 +253,7 @@ Module ResponseTimeIterationFP.
     Variable task_jitter: SporadicTask -> time.
 
     Context {Job: eqType}.
+    Variable job_arrival: Job -> time.
     Variable job_cost: Job -> time.
     Variable job_deadline: Job -> time.
     Variable job_jitter: Job -> time.
@@ -265,23 +266,27 @@ Module ResponseTimeIterationFP.
     Hypothesis H_valid_task_parameters:
       valid_sporadic_taskset task_cost task_period task_deadline ts.
 
-    (* Next, consider any arrival sequence such that...*)
-    Context {arr_seq: arrival_sequence Job}.
-    Hypothesis H_no_duplicate_arrivals: arrival_sequence_is_a_set arr_seq.
+    (* Next, consider any job arrival sequence with consistent, non-duplicate arrivals, ... *)
+    Variable arr_seq: arrival_sequence Job.
+    Hypothesis H_arrival_times_are_consistent: arrival_times_are_consistent job_arrival arr_seq.
+    Hypothesis H_arr_seq_is_a_set: arrival_sequence_is_a_set arr_seq.
 
    (* ...where all jobs come from task set ts, ...*)
     Hypothesis H_all_jobs_from_taskset:
-      forall (j: JobIn arr_seq), job_task j \in ts.
+      forall j,
+        arrives_in arr_seq j ->
+        job_task j \in ts.
 
-    (* ...jobs have valid parameters...*)
+    (* ...have valid parameters,...*)
     Hypothesis H_valid_job_parameters:
-      forall (j: JobIn arr_seq),
+      forall j,
+        arrives_in arr_seq j ->
         valid_sporadic_job_with_jitter task_cost task_deadline task_jitter
                                        job_cost job_deadline job_jitter job_task j.
 
     (* ... and satisfy the sporadic task model.*)
     Hypothesis H_sporadic_tasks:
-      sporadic_task_model task_period arr_seq job_task.
+      sporadic_task_model task_period job_arrival job_task arr_seq.
 
     (* Assume any fixed-priority policy... *)
     Variable higher_eq_priority: FP_policy SporadicTask.
@@ -290,26 +295,27 @@ Module ResponseTimeIterationFP.
     Hypothesis H_priority_reflexive: FP_is_reflexive higher_eq_priority.
     Hypothesis H_priority_transitive: FP_is_transitive higher_eq_priority.
 
-    (* Next, consider any jitter-aware uniprocessor schedule... *)
-    Variable sched: schedule arr_seq.
+    (* Next, consider any jitter-aware uniprocessor schedule of these jobs... *)
+    Variable sched: schedule Job.
+    Hypothesis H_jobs_come_from_arrival_sequence:
+      jobs_come_from_arrival_sequence sched arr_seq.
 
-    (* ...where jobs only execute after the jitter has passed and no longer
-       than their execution costs. *)
-    Hypothesis H_jobs_execute_after_jitter: jobs_execute_after_jitter job_jitter sched.
+    (* ...where jobs do not execute before the jitter has passed nor after completion. *)
+    Hypothesis H_jobs_execute_after_jitter: jobs_execute_after_jitter job_arrival job_jitter sched.
     Hypothesis H_completed_jobs_dont_execute: completed_jobs_dont_execute job_cost sched.
 
     (* Also assume that the scheduler is jitter-aware work-conserving and respects the FP policy. *)
-    Hypothesis H_work_conserving: work_conserving job_cost job_jitter sched.
+    Hypothesis H_work_conserving: work_conserving job_arrival job_cost job_jitter arr_seq sched.
     Hypothesis H_respects_FP_policy:
-      respects_FP_policy job_cost job_jitter job_task sched higher_eq_priority.
+      respects_FP_policy job_arrival job_cost job_jitter job_task arr_seq sched higher_eq_priority.
 
     (* For simplicity, let's define some local names. *)
     Let no_deadline_missed_by_task :=
-      task_misses_no_deadline job_cost job_deadline job_task sched.
+      task_misses_no_deadline job_arrival job_cost job_deadline job_task arr_seq sched.
     Let no_deadline_missed_by_job :=
-      job_misses_no_deadline job_cost job_deadline sched.
+      job_misses_no_deadline job_arrival job_cost job_deadline sched.
     Let response_time_bounded_by:=
-      is_response_time_bound_of_task job_cost job_task sched.
+      is_response_time_bound_of_task job_arrival job_cost job_task arr_seq sched.
 
     (* Recall the response-time analysis and the corresponding schedulability test. *)
     Let RTA_claimed_bounds :=
@@ -369,11 +375,11 @@ Module ResponseTimeIterationFP.
         intros tsk IN.
         move: (RESP rt_bounds TEST tsk IN) => [R INbounds].
         specialize (DL rt_bounds TEST tsk R INbounds).
-        apply task_completes_before_deadline with (task_cost0 := task_cost)
+        apply task_completes_before_deadline with
                 (task_deadline0 := task_deadline) (R0 := task_jitter tsk + R); try (by done).
         {
-          intros j; unfold valid_sporadic_job_with_jitter in *.
-          by specialize (JOBPARAMS j); move: JOBPARAMS => [JOBPARAMS _].
+          intros j ARRj; unfold valid_sporadic_job_with_jitter in *.
+          by specialize (JOBPARAMS j ARRj); move: JOBPARAMS => [[_ [_ EQ]] _].
         }
         by apply BOUND; rewrite /RTA_claimed_bounds TEST.
       Qed.
@@ -381,12 +387,14 @@ Module ResponseTimeIterationFP.
       (* Since all jobs of the arrival sequence are spawned by the task set,
          we also conclude that no job in the schedule misses its deadline. *)
       Theorem jobs_schedulable_by_fp_rta :
-        forall (j: JobIn arr_seq), no_deadline_missed_by_job j.
+        forall j,
+          arrives_in arr_seq j ->
+          no_deadline_missed_by_job j.
       Proof.
-        intros j.
+        intros j ARRj.
         have SCHED := taskset_schedulable_by_fp_rta.
         unfold no_deadline_missed_by_task, task_misses_no_deadline in *.
-        apply SCHED with (tsk := job_task j); last by done.
+        apply SCHED with (tsk := job_task j); try (by done).
         by apply H_all_jobs_from_taskset.
       Qed.
 

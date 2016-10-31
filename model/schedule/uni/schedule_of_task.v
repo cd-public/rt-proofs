@@ -16,8 +16,7 @@ Module ScheduleOfTask.
     Variable job_task: Job -> Task.
 
     (* Consider any uniprocessor schedule. *)
-    Context {arr_seq: arrival_sequence Job}.
-    Variable sched: schedule arr_seq.
+    Variable sched: schedule Job.
 
     Section TaskProperties.
 

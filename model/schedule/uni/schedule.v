@@ -12,14 +12,12 @@ Module UniprocessorSchedule.
     (* We begin by defining a uniprocessor schedule. *)
     Section ScheduleDef.
 
-      Context {Job: eqType}.
+      (* Consider any job type. *)
+      Variable Job: eqType.
 
-      (* Consider any job arrival sequence. *)
-      Variable arr_seq: arrival_sequence Job.
-
-      (* A uniprocessor schedule associates each point in time to either
+      (* We define a uniprocessor schedule by mapping each point in time to either
          Some job that is scheduled or None, if the processor is idle. *)
-      Definition schedule := time -> option (JobIn arr_seq).
+      Definition schedule := time -> option Job.
 
     End ScheduleDef.
 
@@ -27,17 +25,17 @@ Module UniprocessorSchedule.
     Section ScheduleProperties.
 
       Context {Job: eqType}.
+      Variable job_arrival: Job -> time.
       Variable job_cost: Job -> time.
 
       (* Consider any uniprocessor schedule. *)
-      Context {arr_seq: arrival_sequence Job}.
-      Variable sched: schedule arr_seq.
+      Variable sched: schedule Job.
 
       (* Let's define properties of the jobs to be scheduled. *)
       Section JobProperties.
         
-        (* Let j be any job from the arrival sequence. *)
-        Variable j: JobIn arr_seq.
+        (* Let j be any job. *)
+        Variable j: Job.
 
         (* First, we define whether a job j is scheduled at time t, ... *)
         Definition scheduled_at (t: time) := sched t == Some j.
@@ -60,10 +58,10 @@ Module UniprocessorSchedule.
         Definition completed_by (t: time) := service t == job_cost j.
 
         (* Job j is pending at time t iff it has arrived but has not yet completed. *)
-        Definition pending (t: time) := has_arrived j t && ~~completed_by t.
+        Definition pending (t: time) := has_arrived job_arrival j t && ~~ completed_by t.
 
         (* Job j is backlogged at time t iff it is pending and not scheduled. *)
-        Definition backlogged (t: time) := pending t && ~~scheduled_at t.
+        Definition backlogged (t: time) := pending t && ~~ scheduled_at t.
 
       End JobProperties.
 
@@ -89,17 +87,21 @@ Module UniprocessorSchedule.
     Section ValidSchedules.
 
       Context {Job: eqType}.
+      Variable job_arrival: Job -> time.
       Variable job_cost: Job -> time.
 
       (* Consider any uniprocessor schedule. *)
-      Context {arr_seq: arrival_sequence Job}.
-      Variable sched: schedule arr_seq.
+      Variable sched: schedule Job.
 
-      (* We define whether a job can only be scheduled if it has arrived ... *)
+      (* We define whether jobs come from some arrival sequence... *)
+      Definition jobs_come_from_arrival_sequence (arr_seq: arrival_sequence Job) :=
+        forall j t, scheduled_at sched j t -> arrives_in arr_seq j.
+      
+      (* ..., whether a job can only be scheduled if it has arrived ... *)
       Definition jobs_must_arrive_to_execute :=
-        forall j t, scheduled_at sched j t -> has_arrived j t.
+        forall j t, scheduled_at sched j t -> has_arrived job_arrival j t.
 
-      (* ... and whether a job can be scheduled after it completes. *)
+      (* ... and whether a job cannot be scheduled after it completes. *)
       Definition completed_jobs_dont_execute :=
         forall j t, service sched j t <= job_cost j.
 
@@ -109,17 +111,17 @@ Module UniprocessorSchedule.
     Section Lemmas.
 
       Context {Job: eqType}.
+      Variable job_arrival: Job -> time.
       Variable job_cost: Job -> time.
 
       (* Consider any uniprocessor schedule. *)
-      Context {arr_seq: arrival_sequence Job}.
-      Variable sched: schedule arr_seq.
+      Variable sched: schedule Job.
 
       (* Let's begin with lemmas about service. *)
       Section Service.
 
         (* Let j be any job that is to be scheduled. *)
-        Variable j: JobIn arr_seq.
+        Variable j: Job.
         
         (* First, we prove that the instantaneous service cannot be greater than 1, ... *)
         Lemma service_at_most_one:
@@ -150,7 +152,7 @@ Module UniprocessorSchedule.
           completed_jobs_dont_execute job_cost sched.
               
         (* Let j be any job that is to be scheduled. *)
-        Variable j: JobIn arr_seq.
+        Variable j: Job.
         
         (* We prove that after job j completes, it remains completed. *)
         Lemma completion_monotonic:
@@ -205,10 +207,10 @@ Module UniprocessorSchedule.
 
         (* Assume that jobs must arrive to execute. *)
         Hypothesis H_jobs_must_arrive:
-          jobs_must_arrive_to_execute sched.
+          jobs_must_arrive_to_execute job_arrival sched.
 
         (* Let j be any job that is to be scheduled. *)
-        Variable j: JobIn arr_seq.
+        Variable j: Job.
 
         (* First, we show that job j does not receive service at any time t
            prior to its arrival. *)
@@ -220,7 +222,7 @@ Module UniprocessorSchedule.
           rename H_jobs_must_arrive into ARR; red in ARR; intros t LT.
           specialize (ARR j t).
           apply contra with (c := scheduled_at sched j t)
-                              (b := has_arrived j t) in ARR;
+                              (b := has_arrived job_arrival j t) in ARR;
             last by rewrite -ltnNge.
           by apply/eqP; rewrite eqb0.
         Qed.
@@ -261,20 +263,20 @@ Module UniprocessorSchedule.
 
         (* Assume that jobs must arrive to execute... *)
         Hypothesis H_jobs_must_arrive:
-          jobs_must_arrive_to_execute sched.
+          jobs_must_arrive_to_execute job_arrival sched.
 
        (* ...and that completed jobs do not execute. *)
         Hypothesis H_completed_jobs:
           completed_jobs_dont_execute job_cost sched.
 
         (* Let j be any job. *)
-        Variable j: JobIn arr_seq.
+        Variable j: Job.
 
         (* First, we show that if job j is scheduled, then it must be pending. *)
         Lemma scheduled_implies_pending:
           forall t,
             scheduled_at sched j t ->
-            pending job_cost sched j t.
+            pending job_arrival job_cost sched j t.
         Proof.
           rename H_jobs_must_arrive into ARRIVE,
                  H_completed_jobs into COMP.
@@ -296,7 +298,7 @@ Module UniprocessorSchedule.
       Section OnlyOneJobScheduled.
 
         (* Let j1 and j2 be any jobs. *)
-        Variable j1 j2: JobIn arr_seq.
+        Variable j1 j2: Job.
 
         (* At any time t, if both j1 and j2 are scheduled, then they must be the same job. *)
         Lemma only_one_job_scheduled:
@@ -325,7 +327,7 @@ Module UniprocessorSchedule.
         Qed.
 
         (* Next, consider any job j at any time t... *)
-        Variable j: JobIn arr_seq.
+        Variable j: Job.
         Variable t: time.
 
         (* ...and let s0 be any value less than the service received
@@ -350,10 +352,32 @@ Module UniprocessorSchedule.
 
       End ServiceIsAStepFunction.
 
+      Section ScheduledAtEarlierTime.
+
+        (* Next, we show that if the service is positive,
+           then the job is scheduled at some earlier time. *)
+        Lemma scheduled_at_earlier_time:
+          forall j t,
+            service sched j t > 0 ->
+            exists t0,
+              t0 < t /\
+              scheduled_at sched j t0.
+        Proof.
+          intros j t GT.
+          case (boolP ([exists t0:'I_t, scheduled_at sched j t0])) => [EX | ALL];
+            first by move: EX => /existsP [t0 SCHED]; exists t0; split. 
+          rewrite negb_exists in ALL; move: ALL => /forallP ALL.
+          rewrite /service /service_during big_nat_cond big1 in GT; first by rewrite ltnn in GT.
+          move => i => /andP [/= LT _].
+          by apply/eqP; rewrite eqb0; apply (ALL (Ordinal LT)).
+        Qed.
+        
+      End ScheduledAtEarlierTime.
+
       Section ServiceNotZero.
 
         (* Let j be any job. *)
-        Variable j: JobIn arr_seq.
+        Variable j: Job.
 
         (* Assume that the service received by j during [t1, t2) is not zero. *)
         Variable t1 t2: time.
@@ -390,8 +414,8 @@ Module UniprocessorSchedule.
          with same service. *)
       Section TimesWithSameService.
 
-        (* Let j be any job in the arrival sequence. *)
-        Variable j: JobIn arr_seq.
+        (* Let j be any job. *)
+        Variable j: Job.
 
         (* Consider any time instants t1 and t2... *)
         Variable t1 t2: time.

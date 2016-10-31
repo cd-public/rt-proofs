@@ -17,23 +17,23 @@ Module Interference.
 
     Context {sporadic_task: eqType}.
     Context {Job: eqType}.
+    Variable job_arrival: Job -> time.
     Variable job_cost: Job -> time.
     Variable job_task: Job -> sporadic_task.
     Variable job_jitter: Job -> time.
 
-    (* Assume any job arrival sequence...*)
-    Context {arr_seq: arrival_sequence Job}.
+    (* Consider any job arrival sequence...*)
+    Variable arr_seq: arrival_sequence Job.
 
-    (* ... and any schedule. *)
+    (* ... and any schedule of those jobs. *)
     Context {num_cpus: nat}.
-    Variable sched: schedule num_cpus arr_seq.
+    Variable sched: schedule Job num_cpus.
 
     (* Consider any job j that incurs interference. *)
-    Variable j: JobIn arr_seq.
+    Variable j: Job.
 
     (* Recall the definition of backlogged (pending and not scheduled). *)
-    Let job_is_backlogged (t: time) :=
-      backlogged job_cost job_jitter sched j t.
+    Let job_is_backlogged := backlogged job_arrival job_cost job_jitter sched j.
 
     (* First, we define total interference. *)
     Section TotalInterference.
@@ -49,7 +49,7 @@ Module Interference.
     Section JobInterference.
 
       (* Let job_other be a job that interferes with j. *)
-      Variable job_other: JobIn arr_seq.
+      Variable job_other: Job.
 
       (* The interference caused by job_other during [t1, t2) is the cumulative
          time in which j is backlogged while job_other is scheduled. *)
@@ -92,7 +92,7 @@ Module Interference.
     (* Now we prove some basic lemmas about interference. *)
     Section BasicLemmas.
 
-      (* Interference cannot be larger than the considered time window. *)
+      (* First, we show that total interference cannot be larger than the interval length. *)
       Lemma total_interference_le_delta :
         forall t1 t2,
           total_interference t1 t2 <= t2 - t1.
@@ -103,7 +103,7 @@ Module Interference.
         by rewrite big_const_nat iter_addn mul1n addn0 leqnn.
       Qed.
 
-      (* Job interference is bounded by the service of the interfering job. *)
+      (* Next, we prove that job interference is bounded by the service of the interfering job. *)
       Lemma job_interference_le_service :
         forall j_other t1 t2,
           job_interference j_other t1 t2 <= service_during sched j_other t1 t2.
@@ -116,7 +116,7 @@ Module Interference.
         by destruct (scheduled_on sched j_other cpu t).
       Qed.
       
-      (* Task interference is bounded by the workload of the interfering task. *)
+      (* We also prove that task interference is bounded by the workload of the interfering task. *)
       Lemma task_interference_le_workload :
         forall tsk t1 t2,
           task_interference tsk t1 t2 <= workload job_task sched tsk t1 t2.
@@ -185,7 +185,7 @@ Module Interference.
         apply leq_sum; move => t /andP [LEt _].
         rewrite exchange_big /=.
         apply leq_sum; intros cpu _.
-        destruct (backlogged job_cost job_jitter sched j t) eqn:BACK;      
+        destruct (backlogged job_arrival job_cost job_jitter sched j t) eqn:BACK;      
           last by rewrite andFb (eq_bigr (fun x => 0));
             first by rewrite big_const_seq iter_addn mul0n addn0.
         rewrite andTb.

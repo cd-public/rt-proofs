@@ -1,66 +1,96 @@
 Require Import rt.util.all.
-Require Import rt.model.arrival.basic.arrival_sequence rt.model.priority.
-Require Import rt.model.schedule.global.jitter.job rt.model.schedule.global.jitter.schedule
+Require Import rt.model.arrival.jitter.arrival_sequence rt.model.priority.
+Require Import rt.model.schedule.global.jitter.schedule
                rt.model.schedule.global.jitter.platform.
+Require Import rt.model.schedule.global.transformation.construction.
 From mathcomp Require Import ssreflect ssrbool ssrfun eqtype ssrnat fintype bigop seq path.
 
 Module ConcreteScheduler.
 
-  Import Job ArrivalSequence ScheduleWithJitter Platform Priority.
+  Import ArrivalSequenceWithJitter ScheduleWithJitter Platform Priority ScheduleConstruction.
   
   Section Implementation.
     
     Context {Job: eqType}.
+    Variable job_arrival: Job -> time.
     Variable job_cost: Job -> time.
     Variable job_jitter: Job -> time.
 
     (* Let num_cpus denote the number of processors, ...*)
     Variable num_cpus: nat.
 
-    (* ... and let arr_seq be any arrival sequence.*)
+    (* ...and let arr_seq be any job arrival sequence.*)
     Variable arr_seq: arrival_sequence Job.
 
     (* Assume a JLDP policy is given. *)
-    Variable higher_eq_priority: JLDP_policy arr_seq.
+    Variable higher_eq_priority: JLDP_policy Job.
 
-    (* Consider the list of pending jobs at time t. *)
-    Definition jobs_pending_at (sched: schedule num_cpus arr_seq) (t: time) :=
-      [seq j <- jobs_arrived_up_to arr_seq t | pending job_cost job_jitter sched j t].
+    (* Next, we show how to recursively construct the schedule. *)
+    Section ScheduleConstruction.
 
-    (* Next, we sort this list by priority. *)
-    Definition sorted_pending_jobs (sched: schedule num_cpus arr_seq) (t: time) :=
-      sort (higher_eq_priority t) (jobs_pending_at sched t).
+      (* For any time t, suppose that we have generated the schedule prefix in the
+         interval [0, t). Then, we must define what should be scheduled at time t. *)
+      Variable sched_prefix: schedule Job num_cpus.
+      Variable cpu: processor num_cpus.
+      Variable t: time.
 
-    (* Starting from the empty schedule as a base, ... *)
-    Definition empty_schedule : schedule num_cpus arr_seq :=
-      fun t cpu => None.
+      (* For simplicity, let's use some local names. *)
+      Let is_pending := pending job_arrival job_cost job_jitter sched_prefix.
+      Let actual_arrivals := actual_arrivals_up_to job_arrival job_jitter arr_seq.
+      
+      (* Consider the list of pending jobs at time t, ... *)
+      Definition pending_jobs :=
+        [seq j <- actual_arrivals t | is_pending j t].
 
-    (* ..., we redefine the mapping of jobs to processors at any time t as follows.
-       The i-th job in the sorted list is assigned to the i-th cpu, or to None
-       if the list is short. *)
-    Definition update_schedule (prev_sched: schedule num_cpus arr_seq)
-                               (t_next: time) : schedule num_cpus arr_seq :=
-      fun cpu t =>
-        if t == t_next then
-          nth_or_none (sorted_pending_jobs prev_sched t) cpu
-        else prev_sched cpu t.
+      (* ...which we sort by priority. *)
+      Definition sorted_pending_jobs :=
+        sort (higher_eq_priority t) pending_jobs.
+
+      (* Then, we take the n-th highest-priority job from the list. *)
+      Definition nth_highest_priority_job :=
+        nth_or_none sorted_pending_jobs cpu.
+      
+    End ScheduleConstruction.
+
+    (* Starting from the empty schedule, the final schedule is obtained by iteratively
+       picking the highest-priority job. *)
+    Let empty_schedule : schedule Job num_cpus := fun cpu t => None.
+    Definition scheduler :=
+      build_schedule_from_prefixes num_cpus nth_highest_priority_job empty_schedule.
+
+    (* Then, by showing that the construction function depends only on the prefix, ... *)
+    Lemma scheduler_depends_only_on_prefix:
+      forall sched1 sched2 cpu t,
+        (forall t0 cpu0, t0 < t -> sched1 cpu0 t0 = sched2 cpu0 t0) ->
+        nth_highest_priority_job sched1 cpu t = nth_highest_priority_job sched2 cpu t.
+    Proof.
+      intros sched1 sched2 cpu t ALL.
+      rewrite /nth_highest_priority_job.
+      suff SAME: sorted_pending_jobs sched1 t = sorted_pending_jobs sched2 t by rewrite SAME.
+      rewrite /sorted_pending_jobs; f_equal.
+      apply eq_in_filter.
+      intros j ARR.
+      rewrite /pending; do 2 f_equal.
+      rewrite /completed; f_equal.
+      apply eq_big_nat; move => i /= LTi.
+      rewrite /service_at /scheduled_on; apply eq_bigl; move => cpu'.
+      by rewrite ALL.
+    Qed.
+      
+    (* ...we infer that the generated schedule is indeed based on the construction function. *)
+    Corollary scheduler_uses_construction_function:
+      forall t cpu, scheduler cpu t = nth_highest_priority_job scheduler cpu t.
+    Proof.
+      by ins; apply prefix_dependent_schedule_construction,
+                    scheduler_depends_only_on_prefix.
+    Qed.
     
-    (* The schedule is iteratively constructed by applying assign_jobs at every time t, ... *)
-    Fixpoint schedule_prefix (t_max: time) : schedule num_cpus arr_seq := 
-      if t_max is t_prev.+1 then
-        (* At time t_prev + 1, schedule jobs that have not completed by time t_prev. *)
-        update_schedule (schedule_prefix t_prev) t_prev.+1
-      else
-        (* At time 0, schedule any jobs that arrive. *)
-        update_schedule empty_schedule 0.
-
-    Definition scheduler (cpu: processor num_cpus) (t: time) := (schedule_prefix t) cpu t.
-
   End Implementation.
 
   Section Proofs.
 
     Context {Job: eqType}.
+    Variable job_arrival: Job -> time.
     Variable job_cost: Job -> time.
     Variable job_jitter: Job -> time.
 
@@ -68,278 +98,171 @@ Module ConcreteScheduler.
     Variable num_cpus: nat.
     Hypothesis H_at_least_one_cpu: num_cpus > 0.
 
-    (* Let arr_seq be any arrival sequence of jobs where ...*)
+    (* Let arr_seq be any job arrival sequence with consistent, non-duplicate arrivals. *)
     Variable arr_seq: arrival_sequence Job.
-    (* ...jobs have positive cost and...*)
-    Hypothesis H_job_cost_positive:
-      forall (j: JobIn arr_seq), job_cost_positive job_cost j.
-    (* ... at any time, there are no duplicates of the same job. *)
-    Hypothesis H_arrival_sequence_is_a_set :
-      arrival_sequence_is_a_set arr_seq.
+    Hypothesis H_arrival_times_are_consistent: arrival_times_are_consistent job_arrival arr_seq.
+    Hypothesis H_arrival_sequence_is_a_set: arrival_sequence_is_a_set arr_seq.
 
     (* Consider any JLDP policy higher_eq_priority that is transitive and total. *)
-    Variable higher_eq_priority: JLDP_policy arr_seq.
-    Hypothesis H_priority_transitive: forall t, transitive (higher_eq_priority t).
+    Variable higher_eq_priority: JLDP_policy Job.
+    Hypothesis H_priority_transitive: JLDP_is_transitive higher_eq_priority.
     Hypothesis H_priority_total: forall t, total (higher_eq_priority t).
 
     (* Let sched denote our concrete scheduler implementation. *)
-    Let sched := scheduler job_cost job_jitter num_cpus arr_seq higher_eq_priority.
+    Let sched := scheduler job_arrival job_cost job_jitter num_cpus arr_seq higher_eq_priority.
 
     (* Next, we provide some helper lemmas about the scheduler construction. *)
     Section HelperLemmas.
 
-      (* Let's use a shorter name for the schedule prefix function. *)
-      Let sched_prefix := schedule_prefix job_cost job_jitter num_cpus arr_seq higher_eq_priority.
-      
-      (* First, we show that the scheduler preserves its prefixes. *)
-      Lemma scheduler_same_prefix :
-        forall t t_max cpu,
-          t <= t_max ->
-          sched_prefix t_max cpu t = sched cpu t.
-      Proof.
-        intros t t_max cpu LEt.
-        induction t_max.
-        {
-          by rewrite leqn0 in LEt; move: LEt => /eqP EQ; subst.
-        }
-        {
-          rewrite leq_eqVlt in LEt.
-          move: LEt => /orP [/eqP EQ | LESS]; first by subst.
-          {
-            feed IHt_max; first by done.
-            unfold sched_prefix, schedule_prefix, update_schedule at 1.
-            assert (FALSE: t == t_max.+1 = false).
-            {
-              by apply negbTE; rewrite neq_ltn LESS orTb.
-            } rewrite FALSE.
-            by rewrite -IHt_max.
-          }
-        }
-      Qed.
+      Let sorted_jobs :=
+        sorted_pending_jobs job_arrival job_cost job_jitter num_cpus arr_seq higher_eq_priority sched.
 
-      (* With respect to the sorted list of pending jobs, ...*)
-      Let sorted_jobs (t: time) :=
-        sorted_pending_jobs job_cost job_jitter num_cpus arr_seq higher_eq_priority sched t.
-
-      (* ..., we show that a job is mapped to a processor based on that list, ... *)
-      Lemma scheduler_nth_or_none_mapping :
-        forall t cpu x,
-          sched cpu t = x ->
-          nth_or_none (sorted_jobs t) cpu = x.
+      (* First, we recall that the schedule picks the nth highest-priority job. *)
+      Corollary scheduler_nth_or_none_mapping :
+        forall t cpu,
+          sched cpu t = nth_or_none (sorted_jobs t) cpu.
       Proof.
-        intros t cpu x SCHED.
-        unfold sched, scheduler, schedule_prefix in *.
-        destruct t.
-        {
-          unfold update_schedule in SCHED; rewrite eq_refl in SCHED.
-          rewrite -SCHED; f_equal.
-          unfold sorted_jobs, sorted_pending_jobs; f_equal.
-          unfold jobs_pending_at; apply eq_filter; red; intro j'.
-          unfold pending; f_equal; f_equal.
-          unfold completed, service.
-          by rewrite big_geq // big_geq //.
-        }
-        {
-          unfold update_schedule at 1 in SCHED; rewrite eq_refl in SCHED.
-          rewrite -SCHED; f_equal.
-          unfold sorted_jobs, sorted_pending_jobs; f_equal.
-          unfold jobs_pending_at; apply eq_filter; red; intro j'.
-          unfold pending; f_equal; f_equal.
-          unfold completed, service; f_equal.
-          apply eq_big_nat; move => t0 /andP [_ LT].
-          unfold service_at; apply eq_bigl; red; intros cpu'.
-          unfold scheduled_on; f_equal.
-          fold (schedule_prefix job_cost job_jitter num_cpus arr_seq higher_eq_priority).
-          have SAME := scheduler_same_prefix; unfold sched_prefix, sched in *.
-          by rewrite /schedule_prefix SAME.
-        }
+        intros t cpu.
+        by rewrite /sched scheduler_uses_construction_function.
       Qed.
       
-      (* ..., a scheduled job is mapped to a cpu corresponding to its position, ... *)
-      Lemma scheduler_nth_or_none_scheduled :
-        forall j t,
-          scheduled sched j t ->
-          exists (cpu: processor num_cpus),
-            nth_or_none (sorted_jobs t) cpu = Some j. 
-      Proof.
-        move => j t /existsP [cpu /eqP SCHED]; exists cpu.
-        by apply scheduler_nth_or_none_mapping.
-      Qed.
-
-      (* ..., and that a backlogged job has a position larger than or equal to the number
+      (* We also prove that a backlogged job has priority larger than or equal to the number
          of processors. *)
       Lemma scheduler_nth_or_none_backlogged :
         forall j t,
-          backlogged job_cost job_jitter sched j t ->
+          arrives_in arr_seq j ->
+          backlogged job_arrival job_cost job_jitter sched j t ->
           exists i,
             nth_or_none (sorted_jobs t) i = Some j /\ i >= num_cpus.
       Proof.
-        have SAME := scheduler_same_prefix.
-        intros j t BACK.
+        intros j t ARRj BACK.
         move: BACK => /andP [PENDING /negP NOTCOMP].
         assert (IN: j \in sorted_jobs t).
         {
           rewrite mem_sort mem_filter PENDING andTb.
           move: PENDING => /andP [ARRIVED _].
-          rewrite JobIn_arrived.
-          rewrite /arrived_before ltnS.
-          by apply leq_trans with (n := job_arrival j + job_jitter j);
-            first by apply leq_addr.
+          by apply arrived_between_implies_in_actual_arrivals with (job_arrival0 := job_arrival).
         }
         apply nth_or_none_mem_exists in IN; des.
         exists n; split; first by done.
         rewrite leqNgt; apply/negP; red; intro LT.
         apply NOTCOMP; clear NOTCOMP PENDING.
         apply/existsP; exists (Ordinal LT); apply/eqP.
-        unfold sorted_jobs in *; clear sorted_jobs.
-        unfold sched, scheduler, schedule_prefix in *; clear sched.
-        destruct t. 
-        {
-          unfold update_schedule; rewrite eq_refl.
-          rewrite -IN; f_equal.
-          fold (schedule_prefix job_cost job_jitter num_cpus arr_seq higher_eq_priority).
-          unfold sorted_pending_jobs; f_equal.
-          apply eq_filter; red; intros x.
-          unfold pending; f_equal; f_equal.
-          unfold completed; f_equal.
-          by unfold service; rewrite 2?big_geq //.
-        }
-        {
-          unfold update_schedule at 1; rewrite eq_refl.
-          rewrite -IN; f_equal.
-          unfold sorted_pending_jobs; f_equal.
-          apply eq_filter; red; intros x.
-          unfold pending; f_equal; f_equal.
-          unfold completed; f_equal.
-          unfold service; apply eq_big_nat; move => i /andP [_ LTi].
-          unfold service_at; apply eq_bigl; red; intro cpu.
-          unfold scheduled_on; f_equal.
-          fold (schedule_prefix job_cost job_jitter num_cpus arr_seq higher_eq_priority).
-          by unfold sched_prefix in *; rewrite /schedule_prefix SAME.
-        }
+        by rewrite scheduler_nth_or_none_mapping.
       Qed.
 
     End HelperLemmas.
 
     (* Now, we prove the important properties about the implementation. *)
     
-    (* Jobs do not execute before the jitter, ...*)
+    (* First, we show that scheduled jobs come from the arrival sequence. *)
+      Lemma scheduler_jobs_come_from_arrival_sequence:
+        jobs_come_from_arrival_sequence sched arr_seq.
+      Proof.
+        move => j t /existsP [cpu /eqP SCHED].
+        rewrite scheduler_nth_or_none_mapping in SCHED.
+        apply nth_or_none_mem in SCHED.
+        rewrite mem_sort mem_filter in SCHED.
+        move: SCHED => /andP [_ ARR].
+        rewrite /actual_arrivals_up_to in ARR.
+        by eapply in_actual_arrivals_between_implies_arrived; eauto 1.
+      Qed.
+
+    (* Next, we show that jobs do not execute before the jitter has passed...*)
     Theorem scheduler_jobs_execute_after_jitter:
-      jobs_execute_after_jitter job_jitter sched.
+      jobs_execute_after_jitter job_arrival job_jitter sched.
     Proof.
-      unfold jobs_must_arrive_to_execute.
-      intros j t SCHED.
-      move: SCHED => /existsP [cpu /eqP SCHED].
-      unfold sched, scheduler, schedule_prefix in SCHED.
-      destruct t.
-      {
-        rewrite /update_schedule eq_refl in SCHED.
-        apply (nth_or_none_mem _ cpu j) in SCHED.
-        rewrite mem_sort mem_filter in SCHED.
-        by move: SCHED => /andP [/andP [PENDING _] _]. 
-      }
-      {
-        unfold update_schedule at 1 in SCHED; rewrite eq_refl /= in SCHED.
-        apply (nth_or_none_mem _ cpu j) in SCHED.
-        rewrite mem_sort mem_filter in SCHED.
-        by move: SCHED => /andP [/andP [PENDING _] _].
-      }
+      move => j t /existsP [cpu /eqP SCHED].
+      rewrite scheduler_nth_or_none_mapping in SCHED.
+      apply nth_or_none_mem in SCHED.
+      rewrite mem_sort mem_filter in SCHED.
+      by move: SCHED => /andP [/andP [ARR _] _].
     Qed.
 
-    (* ..., jobs are sequential, ... *)
+    (* ...jobs are sequential, ... *)
     Theorem scheduler_sequential_jobs: sequential_jobs sched.
     Proof.
-      unfold sequential_jobs, sched, scheduler, schedule_prefix.
       intros j t cpu1 cpu2 SCHED1 SCHED2.
-      destruct t; rewrite /update_schedule eq_refl in SCHED1 SCHED2;
-      have UNIQ := nth_or_none_uniq _ cpu1 cpu2 j _ SCHED1 SCHED2; (apply ord_inj, UNIQ);
-      rewrite sort_uniq filter_uniq //;
-      by apply JobIn_uniq.
+      rewrite 2!scheduler_nth_or_none_mapping in SCHED1 SCHED2.
+      set l := sorted_pending_jobs _ _ _ _ _ _ _ _ in SCHED1 SCHED2.
+      apply ord_inj, nth_or_none_uniq with (l0 := l) (x := j); try (by done).
+      by rewrite sort_uniq filter_uniq // /actual_arrivals_up_to; apply actual_arrivals_uniq.
     Qed.
-               
+    
     (* ... and jobs do not execute after completion. *)
     Theorem scheduler_completed_jobs_dont_execute:
       completed_jobs_dont_execute job_cost sched.
     Proof.
-      rename H_job_cost_positive into GT0.
-      unfold completed_jobs_dont_execute, service.
       intros j t.
-      induction t; first by rewrite big_geq.
+      induction t;
+        first by rewrite /service /service_during big_geq //.
+      rewrite /service /service_during big_nat_recr //=.
+      rewrite leq_eqVlt in IHt; move: IHt => /orP [/eqP EQ | LT]; last first.
       {
-        rewrite big_nat_recr // /=.
-        rewrite leq_eqVlt in IHt; move: IHt => /orP [/eqP EQ | LESS]; last first.
+        apply: leq_trans LT; rewrite -addn1.
+        apply leq_add; first by done.
+        rewrite /service_at.
+        case (boolP ([exists cpu, scheduled_on sched j cpu t])) => [EX | ALL]; last first.
         {
-          destruct (job_cost j); first by rewrite ltn0 in LESS.
-          rewrite -addn1; rewrite ltnS in LESS.
-          apply leq_add; first by done.
-          by apply service_at_most_one, scheduler_sequential_jobs.
+          rewrite negb_exists in ALL; move: ALL => /forallP ALL.
+          rewrite big1 //; intros cpu SCHED.
+          by specialize (ALL cpu); rewrite SCHED in ALL.
         }
-        rewrite EQ -{2}[job_cost j]addn0; apply leq_add; first by done.
-        destruct t.
-        {
-          rewrite big_geq // in EQ.
-          specialize (GT0 j); unfold job_cost_positive in *.
-          by rewrite -EQ ltn0 in GT0.
-        }
-        {
-          unfold service_at; rewrite big_mkcond.
-          apply leq_trans with (n := \sum_(cpu < num_cpus) 0);
-            last by rewrite big_const_ord iter_addn mul0n addn0.
-          apply leq_sum; intros cpu _; desf.
-          move: Heq => /eqP SCHED.
-          unfold scheduler, schedule_prefix in SCHED.
-          unfold sched, scheduler, schedule_prefix, update_schedule at 1 in SCHED.
-          rewrite eq_refl in SCHED.
-          apply (nth_or_none_mem _ cpu j) in SCHED.
-          rewrite mem_sort mem_filter in SCHED.
-          fold (update_schedule job_cost job_jitter num_cpus arr_seq higher_eq_priority) in SCHED.
-          move: SCHED => /andP [/andP [_ /negP NOTCOMP] _].
-          exfalso; apply NOTCOMP; clear NOTCOMP.
-          unfold completed; apply/eqP.
-          unfold service; rewrite -EQ.
-          rewrite big_nat_cond [\sum_(_ <= _ < _ | true)_]big_nat_cond.
-          apply eq_bigr; move => i /andP [/andP [_ LT] _].
-          apply eq_bigl; red; ins.
-          unfold scheduled_on; f_equal.
-          fold (schedule_prefix job_cost job_jitter num_cpus arr_seq higher_eq_priority).
-          by rewrite scheduler_same_prefix.
-        }
+        move: EX => /existsP [cpu SCHED].
+        rewrite (bigD1 cpu) /=; last by done.
+        rewrite big1; first by rewrite addn0.
+        move => cpu' /andP [SCHED' NEQ].
+        move: NEQ => /eqP NEQ; exfalso; apply NEQ, ord_inj.
+        move: SCHED SCHED' => /eqP SCHED /eqP SCHED'.
+        rewrite 2!scheduler_nth_or_none_mapping in SCHED SCHED'.
+        set l := sorted_pending_jobs _ _ _ _ _ _ _ _ in SCHED SCHED'.
+        apply nth_or_none_uniq with (l0 := l) (x := j); try (by done).
+        by rewrite sort_uniq filter_uniq //; apply actual_arrivals_uniq.
       }
+      rewrite -[job_cost _]addn0; apply leq_add; first by rewrite -EQ.
+      rewrite leqn0 /service_at big1 // /scheduled_on.
+      move => cpu /eqP SCHED.
+      rewrite scheduler_nth_or_none_mapping in SCHED.
+      apply nth_or_none_mem in SCHED.
+      rewrite mem_sort mem_filter in SCHED.
+      move: SCHED => /andP [/andP [_ NOTCOMP] _].
+      by rewrite /completed EQ eq_refl in NOTCOMP.
     Qed.
-
-    (* In addition, the scheduler is work conserving ... *)
+    
+    (* In addition, the scheduler is (jitter-aware) work conserving, ... *)
     Theorem scheduler_work_conserving:
-      work_conserving job_cost job_jitter sched.
+      work_conserving job_arrival job_cost job_jitter arr_seq sched. 
     Proof.
-      unfold work_conserving; intros j t BACK cpu.
-      set jobs := sorted_pending_jobs job_cost job_jitter num_cpus arr_seq higher_eq_priority sched t.
-      destruct (sched cpu t) eqn:SCHED; first by exists j0; apply/eqP.
-      apply scheduler_nth_or_none_backlogged in BACK.
+      intros j t ARRj BACK cpu.
+      set jobs := sorted_pending_jobs job_arrival job_cost job_jitter num_cpus
+                                      arr_seq higher_eq_priority sched t.
+      destruct (sched cpu t) as [j0 |] eqn:SCHED; first by exists j0; apply/eqP.
+      apply scheduler_nth_or_none_backlogged in BACK; last by done.
       destruct BACK as [cpu_out [NTH GE]].
       exfalso; rewrite leqNgt in GE; move: GE => /negP GE; apply GE.
       apply leq_ltn_trans with (n := cpu); last by done.
-      apply scheduler_nth_or_none_mapping in SCHED.
+      rewrite scheduler_nth_or_none_mapping in SCHED.
       apply nth_or_none_size_none in SCHED.
       apply leq_trans with (n := size jobs); last by done.
       by apply nth_or_none_size_some in NTH; apply ltnW.
     Qed.
 
-    (* ... and respects the JLDP policy. *)
+    (* ...and respects the JLDP policy. *)
     Theorem scheduler_respects_policy :
-      respects_JLDP_policy job_cost job_jitter sched higher_eq_priority.
+      respects_JLDP_policy job_arrival job_cost job_jitter arr_seq sched higher_eq_priority.
     Proof.
-      unfold respects_JLDP_policy; intros j j_hp t BACK SCHED.
-      set jobs := sorted_pending_jobs job_cost job_jitter num_cpus arr_seq higher_eq_priority sched t.
-      apply scheduler_nth_or_none_backlogged in BACK.
+      move => j j_hp t ARRj BACK /existsP [cpu /eqP SCHED].
+      apply scheduler_nth_or_none_backlogged in BACK; last by done.
+      set jobs := sorted_pending_jobs _ _ _ _ _ _ _ _ in BACK.
       destruct BACK as [cpu_out [SOME GE]].
-      apply scheduler_nth_or_none_scheduled in SCHED.
-      destruct SCHED as [cpu SCHED].
+      rewrite scheduler_nth_or_none_mapping in SCHED. 
       have EQ1 := nth_or_none_nth jobs cpu j_hp j SCHED.
       have EQ2 := nth_or_none_nth jobs cpu_out j j SOME.
       rewrite -EQ1 -{2}EQ2.
-      apply sorted_lt_idx_implies_rel; [by done | by apply sort_sorted | |].
+      apply sorted_lt_idx_implies_rel; try (by done); last 2 first.
       - by apply leq_trans with (n := num_cpus).
       - by apply nth_or_none_size_some in SOME.
+      - by apply sort_sorted, H_priority_total.
     Qed.
 
   End Proofs.

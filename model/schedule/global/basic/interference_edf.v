@@ -11,6 +11,7 @@ Module InterferenceEDF.
   Section Lemmas. 
 
     Context {Job: eqType}.
+    Variable job_arrival: Job -> time.
     Variable job_cost: Job -> time.
     Variable job_deadline: Job -> time.
     
@@ -19,32 +20,34 @@ Module InterferenceEDF.
 
     (* Consider any schedule. *)
     Variable num_cpus: nat.
-    Variable sched: schedule num_cpus arr_seq.
+    Variable sched: schedule Job num_cpus.
     
     (* Assume that the schedule satisfies the global scheduling invariant
        for EDF, i.e., if any job of tsk is backlogged, every processor
        must be busy with jobs with no larger absolute deadline. *)
     Hypothesis H_scheduler_uses_EDF:
-      respects_JLFP_policy job_cost sched (EDF job_deadline). 
+      respects_JLFP_policy job_arrival job_cost arr_seq sched (EDF job_arrival job_deadline). 
 
     (* Under EDF scheduling, a job only causes interference if its deadline
        is not larger than the deadline of the analyzed job. *)
     Lemma interference_under_edf_implies_shorter_deadlines :
-      forall (j j': JobIn arr_seq) t1 t2,
-        job_interference job_cost sched j' j t1 t2 != 0 ->
+      forall j j' t1 t2,
+        arrives_in arr_seq j ->
+        arrives_in arr_seq j' ->
+        job_interference job_arrival job_cost sched j' j t1 t2 != 0 ->
         job_arrival j + job_deadline j <= job_arrival j' + job_deadline j'.
     Proof.
       rename H_scheduler_uses_EDF into PRIO.
-      intros j j' t1 t2 INTERF.
+      intros j j' t1 t2 ARR1 ARR2 INTERF.
       unfold job_interference in INTERF.
       destruct ([exists t': 'I_t2,
                    [exists cpu: processor num_cpus,
                       (t' >= t1) &&
-                      backlogged job_cost sched j' t' &&
+                      backlogged job_arrival job_cost sched j' t' &&
                       scheduled_on sched j cpu t']]) eqn:EX.
       {
         move: EX => /existsP [t' /existsP [cpu /andP [/andP [LE BACK] SCHED]]].
-        apply PRIO with (t := t'); first by done.
+        apply PRIO with (t := t'); try (by done).
         by apply/existsP; exists cpu.
       }
       {
@@ -58,7 +61,7 @@ Module InterferenceEDF.
         rewrite (eq_bigr (fun x => 0));
           first by rewrite big_const_ord iter_addn mul0n addn0.
         intros cpu _; specialize (ALL cpu); simpl in ALL.
-        destruct (backlogged job_cost sched j' i); last by rewrite andFb.
+        destruct (backlogged job_arrival job_cost sched j' i); last by rewrite andFb.
         rewrite GEi 2!andTb in ALL; rewrite andTb.
         by apply negbTE in ALL; rewrite ALL.
       }

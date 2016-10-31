@@ -6,7 +6,6 @@ Require Import rt.model.arrival.jitter.job rt.model.arrival.jitter.task_arrival
 Require Import rt.model.schedule.uni.schedule_of_task rt.model.schedule.uni.service
                rt.model.schedule.uni.schedulability rt.model.schedule.uni.response_time.
 Require Import rt.model.schedule.uni.jitter.schedule
-               rt.model.schedule.uni.jitter.workload
                rt.model.schedule.uni.jitter.busy_interval
                rt.model.schedule.uni.jitter.platform.
 Require Import rt.analysis.uni.jitter.workload_bound_fp.
@@ -16,7 +15,7 @@ Module ResponseTimeAnalysisFP.
 
   Import ArrivalSequenceWithJitter JobWithJitter TaskArrivalWithJitter ArrivalBounds
          UniprocessorScheduleWithJitter ScheduleOfTask SporadicTaskset Priority
-         ResponseTime WorkloadBoundFP Platform Schedulability BusyInterval Workload Service.
+         ResponseTime WorkloadBoundFP Platform Schedulability BusyInterval.
 
   (* In this section, we prove that any fixed point in the RTA for jitter-aware
      uniprocessor FP scheduling is a response-time bound. *)
@@ -29,20 +28,23 @@ Module ResponseTimeAnalysisFP.
     Variable task_jitter: SporadicTask -> time.
     
     Context {Job: eqType}.
+    Variable job_arrival: Job -> time.
     Variable job_cost: Job -> time.
     Variable job_deadline: Job -> time.
     Variable job_jitter: Job -> time.
     Variable job_task: Job -> SporadicTask.
     
-    (* Assume any job arrival sequence without duplicates... *)
-    Context {arr_seq: arrival_sequence Job}.
-    Hypothesis H_no_duplicate_arrivals: arrival_sequence_is_a_set arr_seq.
+    (* Consider any job arrival sequence with consistent, non-duplicate arrivals... *)
+    Variable arr_seq: arrival_sequence Job.
+    Hypothesis H_arrival_times_are_consistent: arrival_times_are_consistent job_arrival arr_seq.
+    Hypothesis H_arr_seq_is_a_set: arrival_sequence_is_a_set arr_seq.
     
     (* ... in which jobs arrive sporadically and have valid parameters. *)
     Hypothesis H_sporadic_tasks:
-      sporadic_task_model task_period arr_seq job_task.
+      sporadic_task_model task_period job_arrival job_task arr_seq.
     Hypothesis H_valid_job_parameters:
-      forall (j: JobIn arr_seq),
+      forall j,
+        arrives_in arr_seq j ->
         valid_sporadic_job_with_jitter task_cost task_deadline task_jitter
                                        job_cost job_deadline job_jitter job_task j.
 
@@ -53,13 +55,17 @@ Module ResponseTimeAnalysisFP.
 
     (* ... and assume that all jobs in the arrival sequence come from the task set. *)
     Hypothesis H_all_jobs_from_taskset:
-      forall (j: JobIn arr_seq), job_task j \in ts.
+      forall j,
+        arrives_in arr_seq j ->
+        job_task j \in ts.
 
-    (* Next, consider any uniprocessor schedule such that...*)
-    Variable sched: schedule arr_seq.
-
-    (* ...jobs do not execute before the jitter has passed nor after completion. *)
-    Hypothesis H_jobs_execute_after_jitter: jobs_execute_after_jitter job_jitter sched.
+    (* Next, consider any uniprocessor schedule of this arrival sequence... *)
+    Variable sched: schedule Job.
+    Hypothesis H_jobs_come_from_arrival_sequence:
+      jobs_come_from_arrival_sequence sched arr_seq.
+    
+    (* ...such that jobs do not execute before the jitter has passed nor after completion. *)
+    Hypothesis H_jobs_execute_after_jitter: jobs_execute_after_jitter job_arrival job_jitter sched.
     Hypothesis H_completed_jobs_dont_execute: completed_jobs_dont_execute job_cost sched.
 
     (* Consider any FP policy that indicates a higher-or-equal priority relation,
@@ -69,9 +75,9 @@ Module ResponseTimeAnalysisFP.
     Hypothesis H_priority_is_transitive: FP_is_transitive higher_eq_priority.
     
     (* Next, assume that the schedule is a jitter-aware, work-conserving FP schedule. *)
-    Hypothesis H_work_conserving: work_conserving job_cost job_jitter sched.
+    Hypothesis H_work_conserving: work_conserving job_arrival job_cost job_jitter arr_seq sched.
     Hypothesis H_respects_fp_policy:
-      respects_FP_policy job_cost job_jitter job_task sched higher_eq_priority.
+      respects_FP_policy job_arrival job_cost job_jitter job_task arr_seq sched higher_eq_priority.
     
     (* Now we proceed with the analysis.
        Let tsk be any task in ts that is to be analyzed. *)
@@ -81,7 +87,7 @@ Module ResponseTimeAnalysisFP.
     (* Recall the definition of response-time bound and the total workload bound W
        for higher-or-equal-priority tasks (with respect to tsk). *)
     Let response_time_bounded_by :=
-      is_response_time_bound_of_task job_cost job_task sched.
+      is_response_time_bound_of_task job_arrival job_cost job_task arr_seq sched.
     Let W := total_workload_bound_fp task_cost task_period task_jitter higher_eq_priority ts tsk.
 
     (* Let R be any positive fixed point of the response-time recurrence. *)
@@ -102,14 +108,16 @@ Module ResponseTimeAnalysisFP.
       rename H_response_time_is_fixed_point into FIX,
              H_valid_task_parameters into PARAMS,
              H_valid_job_parameters into JOBPARAMS.
-      intros j JOBtsk.
-      apply completion_monotonic with (t := actual_arrival job_jitter j + R); try (by done).
+      intros j IN JOBtsk.
+      set arr := actual_arrival job_arrival job_jitter.
+      apply completion_monotonic with (t := arr j + R); try (by done).
       {
-        rewrite /actual_arrival -addnA leq_add2l leq_add2r.
-        by rewrite -JOBtsk; specialize (JOBPARAMS j); des.
+        rewrite -addnA leq_add2l leq_add2r.
+        by rewrite -JOBtsk; specialize (JOBPARAMS j IN); des.
       }
-      set prio := FP_to_JLFP job_task arr_seq higher_eq_priority.
-      apply busy_interval_bounds_response_time with (higher_eq_priority0 := prio); try (by done).
+      set prio := FP_to_JLFP job_task higher_eq_priority.
+      apply busy_interval_bounds_response_time with (arr_seq0 := arr_seq)
+                                                    (higher_eq_priority0 := prio); try (by done).
         - by intros x; apply H_priority_is_reflexive.
         - by intros x z y; apply H_priority_is_transitive.
       intros t.

@@ -136,14 +136,14 @@ Module ResponseTimeAnalysisFP.
        dynamic_suspension_model job_cost job_task next_suspension task_suspension_bound.
 
     (* Also assume rate-monotonic priorities. *)
-    Let higher_eq_priority : JLDP_policy arr_seq := (FP_to_JLDP job_task arr_seq (RM task_period)).
+    Let higher_eq_priority := FP_to_JLDP job_task (RM task_period).
      
     (* Next, let sched be the suspension-aware RM schedule with those job suspension times. *)
-    Let sched := scheduler job_cost arr_seq next_suspension higher_eq_priority.
+    Let sched := scheduler job_arrival job_cost arr_seq next_suspension higher_eq_priority.
 
     (* To conclude, based on the definition of deadline miss,... *)
     Let no_deadline_missed_by :=
-      task_misses_no_deadline job_cost job_deadline job_task sched.
+      task_misses_no_deadline job_arrival job_cost job_deadline job_task arr_seq sched.
 
     (* ...we use the result of the suspension-oblivious FP RTA to conclude that
        no task misses its deadline. *)
@@ -160,20 +160,22 @@ Module ResponseTimeAnalysisFP.
                 (task_period := task_period) (task_deadline := task_deadline) (ts0 := ts)
                 (higher_eq_priority0 := RM task_period) (next_suspension0 := next_suspension)
                 (task_suspension_bound := task_suspension_bound); try (by done).
+      - by apply periodic_arrivals_are_consistent.
       - by apply periodic_arrivals_is_a_set.
       - by apply periodic_arrivals_all_jobs_from_taskset.
       - by apply periodic_arrivals_are_sporadic.
       - by apply RM_is_reflexive.
       - by apply RM_is_transitive.
       - by intros tsk_a tsk_b INa INb; apply/orP; apply leq_total.
-      - by apply inflated_cost_le_deadline_and_period. 
-      - by apply scheduler_jobs_must_arrive_to_execute.
-      - by apply scheduler_completed_jobs_dont_execute; intro j'; specialize (VALID j'); des.
-      - by apply scheduler_work_conserving.
-      - apply scheduler_respects_policy.
+      - by apply inflated_cost_le_deadline_and_period.
+      - by apply scheduler_jobs_come_from_arrival_sequence, periodic_arrivals_are_consistent.
+      - by apply scheduler_jobs_must_arrive_to_execute, periodic_arrivals_are_consistent.
+      - by apply scheduler_completed_jobs_dont_execute, periodic_arrivals_are_consistent.
+      - by apply scheduler_work_conserving, periodic_arrivals_are_consistent.
+      - apply scheduler_respects_policy; first by apply periodic_arrivals_are_consistent.
         -- by intros t; apply RM_is_transitive.
-        -- by intros _ j1 j2; apply leq_total.
-      - by apply scheduler_respects_self_suspensions.
+        -- by intros j1 j2 _ _ _; apply leq_total.
+      - by apply scheduler_respects_self_suspensions, periodic_arrivals_are_consistent.
       - by apply schedulability_test_succeeds.
     Qed.
 

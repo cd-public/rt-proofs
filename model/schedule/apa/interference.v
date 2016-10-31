@@ -70,6 +70,7 @@ Module Interference.
 
     Context {sporadic_task: eqType}.
     Context {Job: eqType}.
+    Variable job_arrival: Job -> time.
     Variable job_cost: Job -> time.
     Variable job_task: Job -> sporadic_task.
 
@@ -78,16 +79,16 @@ Module Interference.
 
     (* ... and any schedule. *)
     Context {num_cpus: nat}.
-    Variable sched: schedule num_cpus arr_seq.
+    Variable sched: schedule Job num_cpus.
 
     (* Assume that every job at any time has a processor affinity alpha. *)
     Variable alpha: task_affinity sporadic_task num_cpus.
     
     (* Consider any job j that incurs interference. *)
-    Variable j: JobIn arr_seq.
+    Variable j: Job.
 
     (* Recall the definition of backlogged (pending and not scheduled). *)
-    Let job_is_backlogged (t: time) := backlogged job_cost sched j t.
+    Let job_is_backlogged (t: time) := backlogged job_arrival job_cost sched j t.
 
     (* First, we define total interference. *)
     Section TotalInterference.
@@ -103,7 +104,7 @@ Module Interference.
     Section JobInterference.
 
       (* Let job_other be a job that interferes with j. *)
-      Variable job_other: JobIn arr_seq.
+      Variable job_other: Job.
 
       (* The interference caused by job_other during [t1, t2) is the cumulative
          time in which j is backlogged while job_other is scheduled. *)
@@ -243,7 +244,7 @@ Module Interference.
         apply leq_sum; move => t /andP [LEt _].
         rewrite exchange_big /=.
         apply leq_sum; intros cpu _.
-        destruct (backlogged job_cost sched j t) eqn:BACK;      
+        destruct (backlogged job_arrival job_cost sched j t) eqn:BACK;      
           last by rewrite andFb (eq_bigr (fun x => 0));
             first by rewrite big_const_seq iter_addn mul0n addn0.
         rewrite andTb.

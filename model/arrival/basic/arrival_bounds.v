@@ -15,19 +15,20 @@ Module ArrivalBounds.
     Variable task_period: Task -> time.
 
     Context {Job: eqType}.
+    Variable job_arrival: Job -> time.
     Variable job_cost: Job -> time.
     Variable job_task: Job -> Task.
 
-    (* Consider any job arrival sequence that does not contain duplicate jobs. *)
+    (* Consider any job arrival sequence with consistent, non-duplicate arrivals. *)
     Variable arr_seq: arrival_sequence Job.
+    Hypothesis H_arrival_times_are_consistent: arrival_times_are_consistent job_arrival arr_seq.    
     Hypothesis H_arrival_sequence_is_a_set: arrival_sequence_is_a_set arr_seq.
 
-    (* In this section, we prove an upper bound on the number of jobs that can arrive
-       in any interval. *)
+    (* In this section, we upper bound the number of jobs that can arrive in any interval. *)
     Section BoundOnSporadicArrivals.
 
       (* Assume that jobs are sporadic. *)
-      Hypothesis H_sporadic_tasks: sporadic_task_model task_period arr_seq job_task.
+      Hypothesis H_sporadic_tasks: sporadic_task_model task_period job_arrival job_task arr_seq.
       
       (* Consider any time interval [t1, t2)... *)
       Variable t1 t2: time.
@@ -73,9 +74,10 @@ Module ArrivalBounds.
           destruct arriving_jobs as [| j l] eqn:EQ; first by done.
           have IN: j \in arriving_jobs by rewrite EQ in_cons eq_refl orTb.
           rewrite mem_filter in IN; move: IN => /andP [_ ARR].
-          rewrite mem_filter in ARR; move: ARR => /andP [GE ARR].
-          apply JobIn_arrived in ARR.
-          by apply leq_ltn_trans with (n := job_arrival j).
+          apply in_arrivals_implies_arrived_between with (job_arrival0 := job_arrival) in ARR;
+            last by done.
+          move: ARR => /andP [GE LT].
+          by apply: (leq_ltn_trans GE).
         Qed.
         
         (* Therefore, if there is one job of tsk arriving during [t1, t2), ... *)
@@ -106,16 +108,16 @@ Module ArrivalBounds.
           Hypothesis H_many_arrivals: div_ceil (t2 - t1) (task_period tsk) < num_arrivals.
 
           (* Consider the list of jobs ordered by arrival times. *)
-          Let by_arrival_time (j j': JobIn arr_seq) := job_arrival j <= job_arrival j'. 
+          Let by_arrival_time j j' := job_arrival j <= job_arrival j'. 
           Let sorted_jobs := sort by_arrival_time arriving_jobs.
 
           (* Based on the notation for the n-th job in the sorted list of arrivals, ... *)
-          Variable elem: JobIn arr_seq.
-          Let nth_task := nth elem sorted_jobs.
+          Variable elem: Job.
+          Let nth_job := nth elem sorted_jobs.
 
           (* ...we identify the first and last jobs and their respective arrival times. *)
-          Let j_first := nth_task 0.
-          Let j_last := nth_task (num_arrivals.-1).
+          Let j_first := nth_job 0.
+          Let j_last := nth_job (num_arrivals.-1).
           Let a_first := job_arrival j_first.
           Let a_last := job_arrival j_last.
 
@@ -123,8 +125,9 @@ Module ArrivalBounds.
           Corollary sporadic_arrival_bound_properties_of_nth:
             forall idx,
               idx < num_arrivals ->
-              t1 <= job_arrival (nth_task idx) < t2 /\
-              job_task (nth_task idx) = tsk.
+              t1 <= job_arrival (nth_job idx) < t2 /\
+              job_task (nth_job idx) = tsk /\
+              arrives_in arr_seq (nth_job idx).
           Proof.
             intros idx LTidx.
             by apply sorted_arrivals_properties_of_nth.
@@ -196,10 +199,10 @@ Module ArrivalBounds.
           rename H_at_least_two_jobs into TWO.
           set l := arrivals_of_task_between job_task arr_seq tsk t1 t2; fold l in TWO.
           apply contraT; rewrite -ltnNge; intro MANY; exfalso.
-          have DUMMY: exists (j: JobIn arr_seq), True.
+          have DUMMY: exists (j: Job), True.
           {
             destruct l eqn:EQ; first by rewrite /= ltn0 in TWO.
-            by exists j.
+            by exists s.
           } destruct DUMMY as [elem _].
           by apply CONTRA; last by apply elem.
         Qed.

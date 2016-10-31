@@ -16,18 +16,22 @@ Module Platform.
     Variable task_deadline: sporadic_task -> time.
     
     Context {Job: eqType}.
+    Variable job_arrival: Job -> time.
     Variable job_cost: Job -> time.
     Variable job_deadline: Job -> time.
     Variable job_task: Job -> sporadic_task.
     Variable job_jitter: Job -> time.
     
     (* Assume any job arrival sequence... *)
-    Context {arr_seq: arrival_sequence Job}.
+    Variable arr_seq: arrival_sequence Job.
 
     (* Consider any schedule. *)
     Context {num_cpus: nat}.
-    Variable sched: schedule num_cpus arr_seq.
+    Variable sched: schedule Job num_cpus.
 
+    (* For simplicity, let's define local names. *)
+    Let job_is_backlogged := backlogged job_arrival job_cost job_jitter sched.
+    
     Section Execution.
 
       (* A scheduler is work-conserving iff when a job j is backlogged,
@@ -35,7 +39,8 @@ Module Platform.
          Note: backlogged means that jitter has already passed. *)
       Definition work_conserving :=
         forall j t,
-          backlogged job_cost job_jitter sched j t ->
+          arrives_in arr_seq j ->
+          job_is_backlogged j t ->
           forall cpu, exists j_other,
             scheduled_on sched j_other cpu t.
 
@@ -43,7 +48,8 @@ Module Platform.
          based on counting the number of scheduled jobs. *)
       Definition work_conserving_count :=
         forall j t,
-          backlogged job_cost job_jitter sched j t ->
+          arrives_in arr_seq j ->
+          job_is_backlogged j t ->
           size (jobs_scheduled_at sched t) = num_cpus.
 
     End Execution.
@@ -56,8 +62,9 @@ Module Platform.
       (* ... is respected by the schedule iff every scheduled
          job has higher (or same) priority than (as) a backlogged job. *)
       Definition respects_FP_policy :=
-        forall (j j_hp: JobIn arr_seq) t,
-          backlogged job_cost job_jitter sched j t ->
+        forall j j_hp t,
+          arrives_in arr_seq j ->
+          job_is_backlogged j t ->
           scheduled sched j_hp t ->
           higher_eq_priority (job_task j_hp) (job_task j).
 
@@ -66,14 +73,15 @@ Module Platform.
     Section JLFP.
 
       (* A JLFP policy ...*)
-      Variable higher_eq_priority: JLFP_policy arr_seq.
+      Variable higher_eq_priority: JLFP_policy Job.
 
       (* ... is respected by the schedule iff at any time t,
          a scheduled job has higher (or same) priority than (as)
          a backlogged job. *)
       Definition respects_JLFP_policy :=
-        forall (j j_hp: JobIn arr_seq) t,
-          backlogged job_cost job_jitter sched j t ->
+        forall j j_hp t,
+          arrives_in arr_seq j ->
+          job_is_backlogged j t ->
           scheduled sched j_hp t ->
           higher_eq_priority j_hp j.
       
@@ -82,14 +90,15 @@ Module Platform.
     Section JLDP.
 
       (* A JLDP policy ...*)
-      Variable higher_eq_priority: JLDP_policy arr_seq.
+      Variable higher_eq_priority: JLDP_policy Job.
 
       (* ... is respected by the schedule iff at any time t,
          a scheduled job has higher (or same) priority than (as)
          a backlogged job. *)
       Definition respects_JLDP_policy :=
-        forall (j j_hp: JobIn arr_seq) t,
-          backlogged job_cost job_jitter sched j t ->
+        forall j j_hp t,
+          arrives_in arr_seq j ->
+          job_is_backlogged j t ->
           scheduled sched j_hp t ->
           higher_eq_priority t j_hp j.
       
@@ -99,7 +108,8 @@ Module Platform.
 
       (* Assume all jobs have valid parameters, ...*)
       Hypothesis H_valid_job_parameters:
-        forall (j: JobIn arr_seq),
+        forall j,
+          arrives_in arr_seq j ->
           valid_sporadic_job task_cost task_deadline job_cost job_deadline job_task j.
 
       (* In this section, we prove that the two definitions of work-conserving are equivalent. *)
@@ -110,8 +120,8 @@ Module Platform.
         Proof.
           unfold work_conserving, work_conserving_count; split.
           {
-            intros EX j t BACK.
-            specialize (EX j t BACK).
+            intros EX j t ARRin BACK.
+            specialize (EX j t ARRin BACK).
             apply eq_trans with (y := size (enum (processor num_cpus)));
               last by rewrite size_enum_ord.
             unfold jobs_scheduled_at.
@@ -130,13 +140,13 @@ Module Platform.
             by apply eq_bigr.
           }
           {
-            intros SIZE j t BACK cpu.
-            specialize (SIZE j t BACK).
+            intros SIZE j t ARRin BACK cpu.
+            specialize (SIZE j t ARRin BACK).
             destruct ([exists cpu, sched cpu t == None]) eqn:EX; last first.
             {
               apply negbT in EX; rewrite negb_exists in EX.
               move: EX => /forallP ALL; specialize (ALL cpu).
-              destruct (sched cpu t) eqn:SOME; last by done.
+              destruct (sched cpu t) as [j0|] eqn:SOME; last by done.
               by exists j0; apply/eqP.
             }
             {
@@ -159,7 +169,8 @@ Module Platform.
               } 
               des; rewrite {5}DIFF.
               rewrite big_nat_recl; last by apply leq_addr.
-              apply leq_trans with (n := (\sum_(0 <= i < cpu') 1) + 1 + (\sum_(cpu' <= i < cpu' + k) 1));
+              apply leq_trans with (n := (\sum_(0 <= i < cpu') 1) + 1 +
+                                         (\sum_(cpu' <= i < cpu' + k) 1));
                 last first.
               {
                 rewrite 2!big_const_nat 2!iter_addn 2!mul1n addn0 subn0.

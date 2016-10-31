@@ -15,19 +15,20 @@ Module PartitionSchedulability.
 
     Context {Task: eqType}.
     Context {Job: eqType}.
+    Variable job_arrival: Job -> time.
     Variable job_cost: Job -> time.
     Variable job_deadline: Job -> time.
     Variable job_task: Job -> Task.
     
     (* Consider any job arrival sequence that is to be scheduled. *)
-    Context {arr_seq: arrival_sequence Job}.
+    Variable arr_seq: arrival_sequence Job.
     Context {num_cpus: nat}.
-    Variable sched: schedule num_cpus arr_seq.
+    Variable sched: schedule Job num_cpus.
 
     (* Assume that all jobs in the arrival sequence come from a task set ts. *)
     Variable ts: list Task.
     Hypothesis H_all_jobs_from_ts:
-      forall (j: JobIn arr_seq), job_task j \in ts.
+      forall j, arrives_in arr_seq j -> job_task j \in ts.
 
     (* Also assume that every task is assigned to a processor, ... *)
     Variable assigned_cpu: Task -> processor num_cpus.
@@ -39,16 +40,20 @@ Module PartitionSchedulability.
     Section SameService.
 
       (* Consider the partition where each job is assigned to. *)
-      Let partition_of (j: JobIn arr_seq) := assigned_cpu (job_task j).
+      Let partition_of j := assigned_cpu (job_task j).
 
+      (* Let j be any job. *)
+      Variable j: Job.
+      Hypothesis H_j_arrives: arrives_in arr_seq j.
+      
       (* We prove that the service received by job j (on the multiprocessor)
          is the same as the service received by job j in its partition. *)
       Lemma same_per_processor_service :
-        forall j t1 t2,
+        forall t1 t2,
           service_during sched j t1 t2 =
           uni.service_during (sched (partition_of j)) j t1 t2.
       Proof.
-        intros j t1 t2.
+        intros t1 t2.
         unfold partitioned_schedule, task_local_to_processor,
                job_local_to_processor, service_during, service_at,
                uni.service_during, uni.service_at,
@@ -56,7 +61,9 @@ Module PartitionSchedulability.
         rename H_partitioned into PART, H_all_jobs_from_ts into FROMTS.
         apply eq_bigr; intros t _.
         unfold uni.service_at, uni.scheduled_at.
-        feed (PART (job_task j) (FROMTS j) j); [by done | specialize (PART t)].
+        feed (PART (job_task j)); first by apply FROMTS.
+        feed (PART j); first by done.
+        specialize (PART t).
         destruct (scheduled sched j t) eqn:SCHED; last first.
         {
           apply negbT in SCHED; rewrite negb_exists in SCHED.
@@ -86,8 +93,11 @@ Module PartitionSchedulability.
 
       (* Recall the definitions of schedulability on a uniprocessor and on
          a multiprocessor. *)
-      Let schedulable_on tsk cpu := uni_sched.task_misses_no_deadline job_cost job_deadline job_task (sched cpu) tsk.
-      Let schedulable := task_misses_no_deadline job_cost job_deadline job_task sched.
+      Let schedulable_on tsk cpu :=
+        uni_sched.task_misses_no_deadline job_arrival job_cost job_deadline job_task
+                                                               arr_seq (sched cpu) tsk.
+      Let schedulable :=
+        task_misses_no_deadline job_arrival job_cost job_deadline job_task arr_seq sched.
 
 
       (* Here we prove that if every task is schedulable in their assigned processors, ...*)
@@ -108,11 +118,11 @@ Module PartitionSchedulability.
                uni_sched.job_misses_no_deadline, uni.completed_by in *.
         rename H_locally_schedulable into SCHED,
                H_partitioned into PART.
-        intros tsk IN j JOBtsk.
-        specialize (SCHED tsk IN j JOBtsk).
+        intros tsk IN j ARRj JOBtsk.
+        specialize (SCHED tsk IN j ARRj JOBtsk).
         move: SCHED => /eqP <-.
         unfold service, uni.service, service_during, uni.service_during in *.
-        by apply/eqP; rewrite SAME JOBtsk.
+        by apply/eqP; rewrite SAME // JOBtsk.
       Qed.
 
     End Schedulability.

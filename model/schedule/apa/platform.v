@@ -17,16 +17,17 @@ Module Platform.
     Variable task_deadline: sporadic_task -> time.
     
     Context {Job: eqType}.
+    Variable job_arrival: Job -> time.
     Variable job_cost: Job -> time.
     Variable job_deadline: Job -> time.
     Variable job_task: Job -> sporadic_task.
     
     (* Assume any job arrival sequence ... *)
-    Context {arr_seq: arrival_sequence Job}.
+    Variable arr_seq: arrival_sequence Job.
 
     (* ... and any schedule of this arrival sequence. *)
     Context {num_cpus: nat}.
-    Variable sched: schedule num_cpus arr_seq.
+    Variable sched: schedule Job num_cpus.
 
     (* Assume that every task has a processor affinity alpha. *)
     Variable alpha: task_affinity sporadic_task num_cpus.
@@ -37,7 +38,8 @@ Module Platform.
          processors *on which j can be scheduled* are busy with other jobs. *)
       Definition apa_work_conserving :=
         forall j t,
-          backlogged job_cost sched j t ->
+          arrives_in arr_seq j ->
+          backlogged job_arrival job_cost sched j t ->
           forall cpu,
             can_execute_on alpha (job_task j) cpu ->
             exists j_other,
@@ -62,8 +64,9 @@ Module Platform.
          executing on j's affinity, then j_hp's task priority
          must be as high as j's task priority. *)
       Definition respects_FP_policy_under_weak_APA :=
-        forall (j j_hp: JobIn arr_seq) cpu t,
-          backlogged job_cost sched j t ->
+        forall j j_hp cpu t,
+          arrives_in arr_seq j ->
+          backlogged job_arrival job_cost sched j t ->
           scheduled_on sched j_hp cpu t ->
           can_execute_on alpha (job_task j) cpu ->
           higher_eq_priority (job_task j_hp) (job_task j).
@@ -73,15 +76,16 @@ Module Platform.
     Section JLFP.
 
       (* A JLFP policy ...*)
-      Variable higher_eq_priority: JLFP_policy arr_seq.
+      Variable higher_eq_priority: JLFP_policy Job.
 
       (* ... is respected by a weak APA scheduler iff for
          any backlogged job j, if there is another job j_hp
          executing on j's affinity, then j_hp's priority
          must be as high as j's priority. *)
       Definition respects_JLFP_policy_under_weak_APA :=
-        forall (j j_hp: JobIn arr_seq) cpu t,
-          backlogged job_cost sched j t ->
+        forall j j_hp cpu t,
+          arrives_in arr_seq j ->
+          backlogged job_arrival job_cost sched j t ->
           scheduled_on sched j_hp cpu t ->
           can_execute_on alpha (job_task j) cpu ->
           higher_eq_priority j_hp j.
@@ -91,15 +95,16 @@ Module Platform.
     Section JLDP.
 
       (* A JLFP/JLDP policy ...*)
-      Variable higher_eq_priority: JLDP_policy arr_seq.
+      Variable higher_eq_priority: JLDP_policy Job.
 
       (* ... is respected by a weak APA scheduler iff at any time t,
          for any backlogged job j, if there is another job j_hp
          executing on j's affinity, then j_hp's priority must be
          as high as j's priority. *)
       Definition respects_JLDP_policy_under_weak_APA :=
-        forall (j j_hp: JobIn arr_seq) cpu t,
-          backlogged job_cost sched j t ->
+        forall j j_hp cpu t,
+          arrives_in arr_seq j ->
+          backlogged job_arrival job_cost sched j t ->
           scheduled_on sched j_hp cpu t ->
           can_execute_on alpha (job_task j) cpu ->
           higher_eq_priority t j_hp j.

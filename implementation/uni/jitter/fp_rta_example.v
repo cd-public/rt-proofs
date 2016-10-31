@@ -1,8 +1,9 @@
 Require Import rt.util.all.
 Require Import rt.model.priority.
 Require Import rt.model.arrival.basic.task.
-Require Import rt.model.schedule.uni.schedule rt.model.schedule.uni.schedulability.
+Require Import rt.model.schedule.uni.schedulability.
 Require Import rt.model.arrival.jitter.job.
+Require Import rt.model.schedule.uni.jitter.schedule.
 Require Import rt.analysis.uni.jitter.workload_bound_fp
                rt.analysis.uni.jitter.fp_rta_comp.
 Require Import rt.implementation.uni.jitter.job
@@ -13,7 +14,7 @@ From mathcomp Require Import ssreflect ssrbool ssrnat eqtype seq bigop div.
 
 Module ResponseTimeAnalysisFP.
 
-  Import JobWithJitter UniprocessorSchedule SporadicTaskset Priority Schedulability
+  Import JobWithJitter UniprocessorScheduleWithJitter SporadicTaskset Priority Schedulability
          WorkloadBoundFP ResponseTimeIterationFP.
   Import ConcreteJob ConcreteTask ConcreteArrivalSequence ConcreteScheduler.
 
@@ -120,20 +121,21 @@ Module ResponseTimeAnalysisFP.
     Let arr_seq := periodic_arrival_sequence ts.
 
     (* ...subject to rate-monotonic priority. *)
-    Let higher_eq_priority : JLDP_policy arr_seq := (FP_to_JLDP job_task arr_seq (RM task_period)).
+    Let higher_eq_priority := FP_to_JLDP job_task (RM task_period).
 
     (* Assume that jobs have jitter that is no larger than the jitter of their tasks. *)
      Variable job_jitter: concrete_job -> time.
      Hypothesis H_jitter_is_bounded:
-       forall (j: JobIn arr_seq),
+       forall j,
+         arrives_in arr_seq j ->
          job_jitter_leq_task_jitter task_jitter job_jitter job_task j.
 
     (* Next, let sched be the jitter-aware RM schedule with those jitter values. *)
-    Let sched := scheduler job_cost job_jitter arr_seq higher_eq_priority.
+    Let sched := scheduler job_arrival job_cost job_jitter arr_seq higher_eq_priority.
 
     (* To conclude, based on the definition of deadline miss,... *)
     Let no_deadline_missed_by :=
-      task_misses_no_deadline job_cost job_deadline job_task sched.
+      task_misses_no_deadline job_arrival job_cost job_deadline job_task arr_seq sched.
 
     (* ...we use the result of the jitter-aware FP RTA to conclude that
        no task misses its deadline. *)
@@ -142,6 +144,7 @@ Module ResponseTimeAnalysisFP.
         tsk \in ts ->
         no_deadline_missed_by tsk.
     Proof.
+      rename H_jitter_is_bounded into JIT.
       intros tsk IN.
       have VALID := periodic_arrivals_valid_job_parameters ts ts_has_valid_parameters.
       have TSVALID := ts_has_valid_parameters.
@@ -150,18 +153,20 @@ Module ResponseTimeAnalysisFP.
                 (task_period := task_period) (task_deadline := task_deadline) (ts0 := ts)
                 (higher_eq_priority0 := RM task_period) (job_jitter0 := job_jitter)
                 (task_jitter := task_jitter); try (by done).
+      - by apply periodic_arrivals_are_consistent.
       - by apply periodic_arrivals_is_a_set.
       - by apply periodic_arrivals_all_jobs_from_taskset.
-      - by intros j; specialize (VALID j); des; repeat split.
+      - by intros j ARRj; specialize (VALID j ARRj); des; repeat split; try (apply JIT). 
       - by apply periodic_arrivals_are_sporadic.
       - by apply RM_is_reflexive.
       - by apply RM_is_transitive.
+      - by apply scheduler_jobs_come_from_arrival_sequence.
       - by apply scheduler_jobs_execute_after_jitter.
       - by apply scheduler_completed_jobs_dont_execute.
-      - by apply scheduler_work_conserving.
-      - apply scheduler_respects_policy.
+      - by apply scheduler_work_conserving, periodic_arrivals_are_consistent.
+      - apply scheduler_respects_policy; first by apply periodic_arrivals_are_consistent.
         -- by intros t; apply RM_is_transitive.
-        -- by intros _ j1 j2; apply leq_total.
+        -- intros j1 j2 t ARR1 ARR2; apply leq_total.
       - by apply schedulability_test_succeeds.
     Qed.
 

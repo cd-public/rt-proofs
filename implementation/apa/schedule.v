@@ -1,21 +1,22 @@
 Require Import rt.util.all.
-Require Import rt.model.arrival.basic.arrival_sequence rt.model.arrival.basic.job rt.model.arrival.basic.task rt.model.priority
-               rt.model.arrival.basic.task_arrival.
+Require Import rt.model.priority.
+Require Import rt.model.arrival.basic.arrival_sequence rt.model.arrival.basic.task.
 Require Import rt.model.schedule.global.basic.schedule.
 Require Import rt.model.schedule.apa.affinity rt.model.schedule.apa.platform.
+Require Import rt.model.schedule.global.transformation.construction.
 From mathcomp Require Import ssreflect ssrbool ssrfun eqtype ssrnat fintype bigop seq path.
 
 Module ConcreteScheduler.
 
-  Import Job SporadicTaskset ArrivalSequence Schedule Platform
-         Priority Affinity.
+  Import SporadicTaskset ArrivalSequence Schedule Platform Priority Affinity ScheduleConstruction.
 
   (* In this section, we implement a concrete weak APA scheduler. *)
   Section Implementation.
     
     Context {Job: eqType}.
     Context {sporadic_task: eqType}.
-    
+
+    Variable job_arrival: Job -> time.
     Variable job_cost: Job -> time.
     Variable job_task: Job -> sporadic_task.
 
@@ -29,79 +30,102 @@ Module ConcreteScheduler.
     Variable alpha: task_affinity sporadic_task num_cpus.
     
     (* Assume a JLDP policy is given. *)
-    Variable higher_eq_priority: JLDP_policy arr_seq.
+    Variable higher_eq_priority: JLDP_policy Job.
 
-    (* Consider the list of pending jobs at time t, ... *)
-    Definition jobs_pending_at (sched: schedule num_cpus arr_seq) (t: time) :=
-      [seq j <- jobs_arrived_up_to arr_seq t | pending job_cost sched j t].
+    (* Next, we show how to recursively construct the schedule. *)
+    Section ScheduleConstruction.
 
-    (* ... which we sort by decreasing priority. *)
-    Definition sorted_pending_jobs (sched: schedule num_cpus arr_seq) (t: time) :=
-      sort (higher_eq_priority t) (jobs_pending_at sched t).
+      (* For any time t, suppose that we have generated the schedule prefix in the
+         interval [0, t). Then, we must define what should be scheduled at time t. *)
+      Variable sched_prefix: schedule Job num_cpus.
+      Variable cpu: processor num_cpus.
+      Variable t: time.
 
-    (* Now we implement the algorithm that generates the APA schedule. *)
+      (* For simplicity, let's use some local names. *)
+      Let is_pending := pending job_arrival job_cost sched_prefix.
+      Let actual_arrivals := jobs_arrived_up_to arr_seq.
+      
+      (* Consider the list of pending jobs at time t, ... *)
+      Definition pending_jobs := [seq j <- actual_arrivals t | is_pending j t].
+
+      (* ...which we sort by priority. *)
+      Definition sorted_pending_jobs := sort (higher_eq_priority t) pending_jobs.
+
+      (* Now we implement the algorithm that generates the APA schedule. *)
+
+      (* Given a job j at time t, we first define a predicate that states
+         whether j should preempt a mapping (cpu, x), where x is either Some j'
+         that is currently mapped to cpu or None. *)
+        Definition should_be_scheduled (j: Job) p :=
+        let '(cpu, mapped_job) := p in
+          if mapped_job is Some j' then (* If there is a job j', check the priority and affinity. *)
+            (can_execute_on alpha (job_task j) cpu) &&
+            ~~ (higher_eq_priority t j' j)
+          else (* Else, if cpu is idle, check only the affinity. *)
+            (can_execute_on alpha (job_task j) cpu).
+
+      (* Next, using the "should_be_scheduled" predicate, we define a function
+         that tries to schedule job j by updating a list of mappings.
+         It does so by replacing the first pair (cpu, x) where j can be
+         scheduled (if it exists). *)
+      Definition update_available_cpu allocation j :=
+        replace_first (should_be_scheduled j) (* search for processors that j can preempt *)
+                      (set_pair_2nd (Some j)) (* replace the mapping in that processor with j *)
+                      allocation. (* list of mappings *)
+
+      (* Consider the empty mapping. *)
+      Let empty_mapping : seq (processor num_cpus * option Job) :=
+        (zip (enum (processor num_cpus)) (nseq num_cpus None)).
+      
+      (* Using the fuction "update_available_cpu", we now define an iteration
+         that iteratively maps each pending job to a processor.
+
+         Starting with an empty mapping,
+         <(cpu0, None), (cpu1, None), (cpu2, None), ...>,
+         it tries to schedule each job on some processor and yields an updated list: 
+         <(cpu0, None), (cpu1, Some j5), (cpu2, Some j9), ...>. *)
+      Definition schedule_jobs_from_list l :=
+        foldl update_available_cpu empty_mapping l.
+
+      (* To conclude, we take the list of pairs and convert to a function denoting
+         the actual schedule. *)
+      Definition apa_schedule :=
+        pairs_to_function None (schedule_jobs_from_list sorted_pending_jobs) cpu.
+      
+    End ScheduleConstruction.
+
+    (* Starting from the empty schedule, the final schedule is obtained by iteratively
+       picking the highest-priority job. *)
+    Let empty_schedule : schedule Job num_cpus := fun cpu t => None.
+    Definition scheduler :=
+      build_schedule_from_prefixes num_cpus apa_schedule empty_schedule.
+
+    (* Then, by showing that the construction function depends only on the prefix, ... *)
+    Lemma scheduler_depends_only_on_prefix:
+      forall sched1 sched2 cpu t,
+        (forall t0 cpu0, t0 < t -> sched1 cpu0 t0 = sched2 cpu0 t0) ->
+        apa_schedule sched1 cpu t = apa_schedule sched2 cpu t.
+    Proof.
+      intros sched1 sched2 cpu t ALL.
+      rewrite /apa_schedule /schedule_jobs_from_list; do 2 f_equal.
+      rewrite /sorted_pending_jobs; f_equal.
+      apply eq_in_filter.
+      intros j ARR.
+      rewrite /pending; do 2 f_equal.
+      rewrite /completed; f_equal.
+      apply eq_big_nat; move => i /= LTi.
+      rewrite /service_at /scheduled_on; apply eq_bigl; move => cpu'.
+      by rewrite ALL.
+    Qed.
+      
+    (* ...we infer that the generated schedule is indeed based on the construction function. *)
+    Corollary scheduler_uses_construction_function:
+      forall t cpu, scheduler cpu t = apa_schedule scheduler cpu t.
+    Proof.
+      by ins; apply prefix_dependent_schedule_construction,
+                    scheduler_depends_only_on_prefix.
+    Qed.
     
-    (* Given a job j at time t, we first define a predicate that states
-       whether j should preempt a mapping (cpu, x), where x is either Some j'
-       that is currently mapped to cpu or None. *)
-      Definition should_be_scheduled (j: JobIn arr_seq) (t: time) p :=
-      let '(cpu, mapped_job) := p in
-        if mapped_job is Some j' then (* If there is a job j', check the priority and affinity. *)
-          (can_execute_on alpha (job_task j) cpu) &&
-          ~~ (higher_eq_priority t j' j)
-        else (* Else, if cpu is idle, check only the affinity. *)
-          (can_execute_on alpha (job_task j) cpu).
-    
-    (* Next, using the "should_be_scheduled" predicate, we define a function
-       that tries to schedule job j by updating a list of mappings.
-       It does so by replacing the first pair (cpu, x) where j can be
-       scheduled (if it exists). *)
-    Definition update_available_cpu t allocation j :=
-      replace_first (should_be_scheduled j t) (* search for processors that j can preempt *)
-                    (set_pair_2nd (Some j)) (* replace the mapping in that processor with j *)
-                    allocation. (* list of mappings *)
-
-    (* Using the fuction "update_available_cpu", we now define an iteration
-       that tries to successively schedule each job in a list job_list.
-       Starting with an empty mapping,
-       <(cpu0, None), (cpu1, None), (cpu2, None), ...>,
-       it tries to schedule each job in job_list and yields some updated list: 
-       <(cpu0, None), (cpu1, Some j5), (cpu2, j9), ...>. *)
-    Definition try_to_schedule_every_job job_list t :=
-      foldl (update_available_cpu t)
-            (zip (enum (processor num_cpus)) (nseq num_cpus None)) (* empty mapping*)
-            job_list.
-
-    (* The iteration we just defined is then applied to the list of pending jobs
-       at any time t. *)
-    Definition schedule_every_pending_job prev_sched t :=
-      try_to_schedule_every_job (sorted_pending_jobs prev_sched t) t.
-
-    (* The schedule can now be constructed iteratively. Starting from the empty schedule, ... *)
-    Definition empty_schedule : schedule num_cpus arr_seq :=
-      fun cpu t => None.
-
-    (* ..., we update the schedule at time t by calling schedule_every_pending_job with
-       the list of pending jobs at time t, and then converting the result to a function. *)
-    Definition update_schedule (prev_sched: schedule num_cpus arr_seq)
-                               (t_next: time) : schedule num_cpus arr_seq :=
-      fun cpu t =>
-        if t == t_next then
-          pairs_to_function None (schedule_every_pending_job prev_sched t) cpu
-        else prev_sched cpu t.
-    
-    (* This allows us to iteratively construct the schedule up to some time t_max. *)
-    Fixpoint schedule_prefix (t_max: time) : schedule num_cpus arr_seq := 
-      if t_max is t_prev.+1 then
-        (* At time t_prev + 1, schedule jobs that have not completed by time t_prev. *)
-        update_schedule (schedule_prefix t_prev) t_prev.+1
-      else
-        (* At time 0, schedule any jobs that arrive. *)
-        update_schedule empty_schedule 0.
-
-    (* Finally, the prefixes are used to build the complete schedule. *)
-    Definition scheduler (cpu: processor num_cpus) (t: time) := (schedule_prefix t) cpu t.
-
   End Implementation.
 
   (* In this section, we prove several properties about the scheduling algorithm we
@@ -110,7 +134,8 @@ Module ConcreteScheduler.
 
     Context {Job: eqType}.
     Context {sporadic_task: eqType}.
-    
+
+    Variable job_arrival: Job -> time.
     Variable job_cost: Job -> time.
     Variable job_task: Job -> sporadic_task.
 
@@ -121,62 +146,34 @@ Module ConcreteScheduler.
     (* Let alpha be an affinity associated with each task. *)
     Variable alpha: task_affinity sporadic_task num_cpus.
     
-    (* Let arr_seq be any arrival sequence of jobs where ...*)
+    (* Let arr_seq be any job arrival sequence with consistent, non-duplicate arrivals. *)
     Variable arr_seq: arrival_sequence Job.
-    (* ...jobs have positive cost and...*)
-    Hypothesis H_job_cost_positive:
-      forall (j: JobIn arr_seq), job_cost_positive job_cost j.
-    (* ... at any time, there are no duplicates of the same job. *)
-    Hypothesis H_arrival_sequence_is_a_set :
-      arrival_sequence_is_a_set arr_seq.
+    Hypothesis H_arrival_times_are_consistent: arrival_times_are_consistent job_arrival arr_seq.
+    Hypothesis H_arrival_sequence_is_a_set: arrival_sequence_is_a_set arr_seq.
 
     (* Consider any JLDP policy higher_eq_priority that is transitive and total. *)
-    Variable higher_eq_priority: JLDP_policy arr_seq.
-    Hypothesis H_priority_transitive: forall t, transitive (higher_eq_priority t).
+    Variable higher_eq_priority: JLDP_policy Job.
+    Hypothesis H_priority_transitive: JLDP_is_transitive higher_eq_priority.
     Hypothesis H_priority_total: forall t, total (higher_eq_priority t).
     
     (* Let sched denote our concrete scheduler implementation. *)
-    Let sched := scheduler job_cost job_task num_cpus arr_seq alpha higher_eq_priority.
+    Let sched := scheduler job_arrival job_cost job_task num_cpus arr_seq alpha higher_eq_priority.
     
     (* Next, we provide some helper lemmas about the scheduler construction. *)
     Section HelperLemmas.
 
-      (* Let sched_prefix denote the prefix construction of our scheduler. *)
-      Let sched_prefix := schedule_prefix job_cost job_task num_cpus arr_seq alpha higher_eq_priority.
-
-      (* We begin by showing that the scheduler preserves its prefixes. *)
-      Lemma scheduler_same_prefix :
-        forall t t_max cpu,
-          t <= t_max ->
-          sched_prefix t_max cpu t = sched cpu t.
-      Proof.
-        intros t t_max cpu LEt.
-        induction t_max; first by rewrite leqn0 in LEt; move: LEt => /eqP EQ; subst.
-        {
-          rewrite leq_eqVlt in LEt.
-          move: LEt => /orP [/eqP EQ | LESS]; first by subst.
-          {
-            feed IHt_max; first by done.
-            unfold sched_prefix, schedule_prefix, update_schedule at 1.
-            assert (FALSE: t == t_max.+1 = false).
-            {
-              by apply negbTE; rewrite neq_ltn LESS orTb.
-            } rewrite FALSE.
-            by rewrite -IHt_max.
-          }
-        }
-      Qed.
-
       (* To avoid many parameters, let's also rename the scheduling function.
          We make a generic version (for any list of jobs l), ... *)
-      Let schedule_jobs t l := try_to_schedule_every_job job_task num_cpus arr_seq alpha higher_eq_priority t l.
+      Let schedule_jobs t l := schedule_jobs_from_list job_task num_cpus alpha higher_eq_priority t l.
       (* ... and a specific version (for the pending jobs in sched). *)
-      Let schedule_pending_jobs t := schedule_jobs (sorted_pending_jobs job_cost num_cpus arr_seq higher_eq_priority sched t) t.
+      Let schedule_pending_jobs t :=
+        schedule_jobs t (sorted_pending_jobs job_arrival job_cost num_cpus arr_seq
+                                             higher_eq_priority sched t).
 
       (* Next, we show that there are no duplicate cpus in the mapping. *)
       Lemma scheduler_uniq_cpus :
         forall t l,
-          uniq (unzip1 (schedule_jobs l t)).
+          uniq (unzip1 (schedule_jobs t l)).
       Proof.
         intros t l.
         induction l as [| l' j_last] using last_ind.
@@ -184,13 +181,13 @@ Module ConcreteScheduler.
           by rewrite unzip1_zip; [rewrite enum_uniq | rewrite size_enum_ord size_nseq].
         }
         {
-          rewrite /schedule_jobs /try_to_schedule_every_job -cats1 foldl_cat /=.
-          assert (EQ: forall l j, unzip1 (update_available_cpu job_task num_cpus arr_seq
-                                                alpha higher_eq_priority t l j) = unzip1 l).
+          rewrite /schedule_jobs /schedule_jobs_from_list -cats1 foldl_cat /=.
+          set up := update_available_cpu _ _ _ _ _.
+          assert (EQ: forall l j, unzip1 (up l j) = unzip1 l). 
           {
             intros l j; clear -l j.
             induction l; first by done.
-            unfold update_available_cpu; simpl.
+            rewrite /up /update_available_cpu /=.
             by case SHOULD: should_be_scheduled; simpl; f_equal.
           }
           by rewrite EQ.
@@ -201,17 +198,16 @@ Module ConcreteScheduler.
          of jobs l used in the construction. *)
       Lemma scheduler_job_in_mapping :
         forall l j t cpu,
-          (cpu, Some j) \in schedule_jobs l t -> j \in l.
+          (cpu, Some j) \in schedule_jobs t l -> j \in l.
       Proof.
         intros l j t cpu SOME; clear -SOME.
-        unfold schedule_every_pending_job in *.
         induction l as [| l' j'] using last_ind; simpl in *.
         {
           apply mem_zip in SOME; last by rewrite size_enum_ord size_nseq.
           by move: SOME => [_ /nseqP [SOME _]].
         }
         {
-          rewrite /schedule_jobs /try_to_schedule_every_job -cats1 foldl_cat /= in SOME.
+          rewrite /schedule_jobs /schedule_jobs_from_list -cats1 foldl_cat /= in SOME.
           unfold update_available_cpu in SOME.
           elim (replace_first_cases SOME) => [IN | [y [NEW IN]]].
           {
@@ -232,15 +228,15 @@ Module ConcreteScheduler.
           can_execute_on alpha (job_task j) cpu.
       Proof.
         intros j t cpu SOME.
-        unfold schedule_pending_jobs, schedule_every_pending_job in SOME.
-        set l := sorted_pending_jobs _ _ _ _ _ _ in SOME.
+        unfold schedule_pending_jobs in SOME.
+        set l := sorted_pending_jobs _ _ _ _ _ _ _ in SOME.
         induction l as [| l' j'] using last_ind; simpl in *.
         {
           apply mem_zip in SOME; last by rewrite size_enum_ord size_nseq.
           by move: SOME => [_ /nseqP [BUG _]].
         }
         {
-          unfold schedule_jobs, try_to_schedule_every_job in SOME.
+          unfold schedule_jobs, schedule_jobs_from_list in SOME.
           rewrite -cats1 foldl_cat /= in SOME.
           elim (replace_first_cases SOME) => [IN | [y [NEW [SHOULD _]]]];
             first by apply IHl.
@@ -258,10 +254,10 @@ Module ConcreteScheduler.
           cpu1 = cpu2.
       Proof.
         intros j t cpu1 cpu2 SOME1 SOME2.
-        unfold schedule_pending_jobs, schedule_every_pending_job in *.
-        set l := sorted_pending_jobs _ _ _ _ _ _ in SOME1 SOME2.
+        unfold schedule_pending_jobs in *.
+        set l := sorted_pending_jobs _ _ _ _ _ _ _ in SOME1 SOME2.
         assert (UNIQ: uniq l).
-          by rewrite sort_uniq; apply filter_uniq, JobIn_uniq.
+          by rewrite sort_uniq; eapply filter_uniq, arrivals_uniq; eauto 1.
           
         induction l as [| l' j'] using last_ind; simpl in *.
         {
@@ -270,7 +266,7 @@ Module ConcreteScheduler.
         }
         {
           rewrite rcons_uniq in UNIQ; move: UNIQ => /andP [NOTIN UNIQ].
-          rewrite /schedule_jobs /try_to_schedule_every_job -cats1 foldl_cat /= in SOME1 SOME2.
+          rewrite /schedule_jobs /schedule_jobs_from_list -cats1 foldl_cat /= in SOME1 SOME2.
           destruct (replace_first_cases SOME1) as [SAME1 | [[cpu1' p1] [EQ1 [SHOULD1 PREV1]]]];
           destruct (replace_first_cases SOME2) as [SAME2 | [[cpu2' p2] [EQ2 [SHOULD2 PREV2]]]].
           {
@@ -322,87 +318,18 @@ Module ConcreteScheduler.
       Proof.
         unfold schedule_pending_jobs, schedule_jobs in *.
         intros j cpu t.
-        induction t.
+        apply/idP/idP.
         {
-          apply/idP/idP.
-          {
-            intros SCHED.
-            unfold scheduled_on, sched, scheduler, schedule_prefix in SCHED.
-            rewrite /update_schedule eq_refl in SCHED; move: SCHED => /eqP SCHED.
-            apply pairs_to_function_neq_default in SCHED; last by done.
-            unfold schedule_every_pending_job in SCHED.
-            set l := sorted_pending_jobs _ _ _ _ _ _ in SCHED.
-            set l' := sorted_pending_jobs _ _ _ _ _ _.
-            assert (EQ: l' = l).
-            {
-              unfold l, l', sorted_pending_jobs; f_equal.
-              unfold jobs_pending_at; apply eq_filter.
-              unfold pending; red; intro j0; do 2 f_equal.
-              unfold completed; f_equal.
-              by unfold service; rewrite big_geq // big_geq //.
-            }
-            by rewrite EQ.
-          }
-          {
-            intros SCHED.
-            have MEM := pairs_to_function_mem None.
-            apply MEM in SCHED; clear MEM; last by apply (scheduler_uniq_cpus 0).
-            unfold scheduled_on, sched, scheduler, schedule_prefix.
-            rewrite /update_schedule eq_refl.
-            rewrite -SCHED; apply/eqP; f_equal.
-            unfold schedule_pending_jobs, schedule_jobs, schedule_every_pending_job; f_equal.
-            unfold sorted_pending_jobs, jobs_pending_at; f_equal.
-            apply eq_filter; intros j0.
-            unfold pending; do 2 f_equal.
-            unfold completed; f_equal.
-            by unfold service; rewrite big_geq // big_geq //.
-          }
+          move => /eqP SCHED.
+          rewrite /sched scheduler_uses_construction_function /apa_schedule in SCHED.
+          by apply pairs_to_function_neq_default in SCHED; last by done.
         }
         {
-          apply/idP/idP.
-          {
-            intros SCHED.
-            unfold scheduled_on, sched, scheduler, schedule_prefix in SCHED.
-            rewrite /update_schedule eq_refl in SCHED; move: SCHED => /eqP SCHED.
-            apply pairs_to_function_neq_default in SCHED; last by done.
-            unfold schedule_every_pending_job in SCHED.
-            set l := try_to_schedule_every_job _ _ _ _ _ _ _ in SCHED.
-            set l' := try_to_schedule_every_job _ _ _ _ _ _ _.
-            assert (EQ: l' = l).
-            {
-              unfold l', l, schedule_every_pending_job; f_equal.
-              unfold sorted_pending_jobs, jobs_pending_at; f_equal.
-              apply eq_filter; intros j0.
-              unfold pending; do 2 f_equal.
-              unfold completed; f_equal.
-              unfold service. rewrite big_nat_recr // big_nat_recr //=.
-              f_equal; apply eq_big_nat; intros t0 LE.
-              unfold service_at; apply eq_bigl; intros cpu0.
-              unfold scheduled_on; f_equal.
-              unfold sched; move: LE => /andP [_ LE].
-              by rewrite <- scheduler_same_prefix with (t_max := t); last by apply ltnW.
-            }
-            by rewrite EQ.
-          }
-          {
-            intros SCHED.
-            have MEM := pairs_to_function_mem None.
-            apply MEM in SCHED; clear MEM; last by apply (scheduler_uniq_cpus t.+1).
-            unfold scheduled_on, sched, scheduler, schedule_prefix.
-            rewrite /update_schedule eq_refl.
-            rewrite -SCHED; apply/eqP; f_equal.
-            unfold schedule_every_pending_job; f_equal.
-            unfold sorted_pending_jobs, jobs_pending_at; f_equal.
-            apply eq_filter; intros j0.
-            unfold pending; do 2 f_equal.
-            unfold completed; f_equal.
-            unfold service. rewrite big_nat_recr // big_nat_recr //=.
-            f_equal; apply eq_big_nat; intros t0 LE.
-            unfold service_at; apply eq_bigl; intros cpu0.
-            unfold scheduled_on; f_equal.
-            unfold sched; move: LE => /andP [_ LE].
-            by rewrite <- scheduler_same_prefix with (t_max := t); last by apply ltnW.
-          }  
+          intros SCHED.
+          have MEM := pairs_to_function_mem None.
+          apply MEM in SCHED; clear MEM; last by apply scheduler_uniq_cpus.
+          apply/eqP.
+          by rewrite /sched scheduler_uses_construction_function.
         }
       Qed.
 
@@ -410,7 +337,7 @@ Module ConcreteScheduler.
       Lemma scheduler_has_cpus :
         forall cpu t l,
           exists x,
-            (cpu, x) \in schedule_jobs l t. 
+            (cpu, x) \in schedule_jobs t l. 
       Proof.
         intros cpu t l.
         induction l as [| l' j_last] using last_ind; simpl in *.
@@ -419,7 +346,7 @@ Module ConcreteScheduler.
             [by rewrite mem_enum | by rewrite size_enum_ord].
         }
         {
-          rewrite /schedule_jobs /try_to_schedule_every_job -cats1 foldl_cat /=.
+          rewrite /schedule_jobs /schedule_jobs_from_list -cats1 foldl_cat /=.
           move: IHl => [x IN].
           eapply replace_first_previous in IN; des;
             first by exists x; apply IN.
@@ -437,27 +364,26 @@ Module ConcreteScheduler.
           j \in l ->
           sorted (higher_eq_priority t) l ->
           uniq l ->
-          (forall cpu, (cpu, Some j) \notin schedule_jobs l t) ->
+          (forall cpu, (cpu, Some j) \notin schedule_jobs t l) ->
           can_execute_on alpha (job_task j) cpu ->
           exists j_other,
-            (cpu, Some j_other) \in schedule_jobs l t.
+            (cpu, Some j_other) \in schedule_jobs t l.
       Proof.
-        intros j cpu t l IN SORT UNIQ NOTSCHED CAN.
-        
+        intros j cpu t l IN SORT UNIQ NOTSCHED CAN.        
         generalize dependent cpu.
         induction l as [| l' j_last] using last_ind; simpl in *;
           first by rewrite in_nil in IN.
         {
           intros cpu CAN.
           rewrite rcons_uniq in UNIQ; move: UNIQ => /andP [NOTIN UNIQ].
-          rewrite /schedule_jobs /try_to_schedule_every_job -cats1 foldl_cat /= in NOTSCHED *.
-          set prev := foldl (update_available_cpu  _ _ _ _ _ _) (zip _ _) l' in NOTSCHED *.
+          rewrite /schedule_jobs /schedule_jobs_from_list -cats1 foldl_cat /= in NOTSCHED *.
+          set prev := foldl _ _ _ in NOTSCHED *.
           rewrite mem_rcons in_cons in IN.
           move: IN => /orP [/eqP IN | LAST]; subst.
           {
             clear IHl.
-            assert (ALL: forall x, x \in prev -> ~~ (should_be_scheduled job_task num_cpus arr_seq
-                                                            alpha higher_eq_priority j_last t) x).
+            assert (ALL: forall x, x \in prev ->
+                  ~~ (should_be_scheduled job_task num_cpus alpha higher_eq_priority t j_last) x).
             {
               apply replace_first_failed with (f := set_pair_2nd (Some j_last)).
               by intros [cpu' j'] IN; apply NOTSCHED.
@@ -466,8 +392,7 @@ Module ConcreteScheduler.
             specialize (ALL (cpu, x) IN).
             simpl in ALL.
             destruct x as [j' |]; last by rewrite CAN in ALL.
-            eapply replace_first_previous in IN; des;
-              first by exists j'; apply IN.
+            eapply replace_first_previous in IN; des; first by exists j'; apply IN.
             by exists j_last; apply IN0.              
           }
           {
@@ -479,7 +404,7 @@ Module ConcreteScheduler.
               clear IHl; intros cpu'; specialize (NOTSCHED cpu').
               apply/negP; intro BUG.
               apply replace_first_previous with (f := set_pair_2nd (Some j_last))
-                (P := should_be_scheduled job_task num_cpus arr_seq alpha higher_eq_priority j_last t)
+                (P := should_be_scheduled job_task num_cpus alpha higher_eq_priority t j_last)
                 in BUG; des;
                 first by rewrite BUG in NOTSCHED.
               move: BUG => /andP [_ /negP HP].
@@ -495,13 +420,14 @@ Module ConcreteScheduler.
       (* Next, we prove that the mapping respects priority. *)
       Lemma scheduler_priority :
         forall j j_hp cpu t,
-          backlogged job_cost sched j t ->
+          arrives_in arr_seq j ->
+          backlogged job_arrival job_cost sched j t ->
           can_execute_on alpha (job_task j) cpu ->
           scheduled_on sched j_hp cpu t ->
           higher_eq_priority t j_hp j.
       Proof.
         have SCHED_ON := scheduler_scheduled_on.
-        intros j j_hp cpu t BACK CAN SCHED.
+        intros j j_hp cpu t ARRj BACK CAN SCHED.
         move: BACK => /andP [PENDING NOTSCHED'].
         assert (NOTSCHED: forall cpu, (cpu, Some j) \notin schedule_pending_jobs t). 
         {
@@ -511,24 +437,26 @@ Module ConcreteScheduler.
         rewrite SCHED_ON in SCHED.
         clear NOTSCHED' SCHED_ON.
 
-        unfold schedule_pending_jobs, schedule_jobs, schedule_every_pending_job in *.
-        set l := sorted_pending_jobs _ _ _ _ _ _ in SCHED NOTSCHED.
+        unfold schedule_pending_jobs, schedule_jobs, schedule_jobs_from_list in *.
+        set l := sorted_pending_jobs _ _ _ _ _ _ _ in SCHED NOTSCHED.
         
         have IN: j \in l.
         {
-          rewrite mem_sort mem_filter PENDING andTb JobIn_arrived.
-          by move: PENDING => /andP [H _].
+          rewrite mem_sort mem_filter PENDING andTb.
+          move: PENDING => /andP [ARR IN]; rewrite /has_arrived in ARR.
+          by apply arrived_between_implies_in_arrivals with (job_arrival0 := job_arrival).
         }
         have INhp: j_hp \in l by apply scheduler_job_in_mapping in SCHED.
-        have SORT : sorted (higher_eq_priority t) l by apply sort_sorted.
-        have UNIQ: uniq l by rewrite sort_uniq filter_uniq // JobIn_uniq //.
+        have SORT : sorted (higher_eq_priority t) l by apply sort_sorted, H_priority_total. 
+        have UNIQ: uniq l.
+          by rewrite sort_uniq filter_uniq // (arrivals_uniq job_arrival) //.
 
         induction l as [| l' j_last] using last_ind;
           first by rewrite in_nil in IN.
         {
-          rewrite /try_to_schedule_every_job -cats1 foldl_cat /= in SCHED.
-          rewrite /try_to_schedule_every_job -cats1 foldl_cat /= in NOTSCHED.
-          set prev := foldl (update_available_cpu job_task num_cpus arr_seq alpha higher_eq_priority t) (zip (enum (processor num_cpus)) (nseq num_cpus None)) l' in SCHED NOTSCHED.
+          rewrite /schedule_jobs_from_list -cats1 foldl_cat /= in SCHED.
+          rewrite /schedule_jobs_from_list -cats1 foldl_cat /= in NOTSCHED.
+          set prev := foldl _ _ _ in SCHED NOTSCHED.
           rewrite rcons_uniq in UNIQ; move: UNIQ => /andP [NOTIN UNIQ].
           rewrite 2!mem_rcons 2!in_cons in IN INhp.
           move: IN => /orP [/eqP EQ | IN];
@@ -564,7 +492,9 @@ Module ConcreteScheduler.
                 {
                   move: EX => /existsP [cpu' IN''].
                   unfold prev in IN''.
-                  apply replace_first_previous with (f := set_pair_2nd (Some j_hp)) (P := should_be_scheduled job_task num_cpus arr_seq alpha higher_eq_priority j_hp t) in IN''; des;
+                  apply replace_first_previous with (f := set_pair_2nd (Some j_hp))
+                    (P := should_be_scheduled job_task num_cpus alpha higher_eq_priority t j_hp)
+                      in IN''; des;
                     first by specialize (NOTSCHED cpu'); rewrite IN'' in NOTSCHED.
                   move: IN'' => /andP [_ /negP HP].
                   by exfalso; apply HP, order_sorted_rcons with (s := l').
@@ -591,7 +521,9 @@ Module ConcreteScheduler.
             {
               intros cpu0; apply/negP; intro BUG.
               unfold update_available_cpu in NOTSCHED.
-              apply replace_first_previous with (f := set_pair_2nd (Some j_last)) (P := should_be_scheduled job_task num_cpus arr_seq alpha higher_eq_priority j_last t) in BUG; des.
+              apply replace_first_previous with (f := set_pair_2nd (Some j_last))
+                (P := should_be_scheduled job_task num_cpus alpha higher_eq_priority t j_last)
+                  in BUG; des.
               {
                 by specialize (NOTSCHED cpu0); rewrite BUG in NOTSCHED.
               }
@@ -613,33 +545,27 @@ Module ConcreteScheduler.
 
     (* Now, we prove the important properties about the implementation. *)
     
+    (* First, we show that scheduled jobs come from the arrival sequence. *)
+    Lemma scheduler_jobs_come_from_arrival_sequence:
+      jobs_come_from_arrival_sequence sched arr_seq.
+    Proof.
+      move => j t /existsP [cpu SCHED].
+      rewrite scheduler_scheduled_on in SCHED.
+      apply scheduler_job_in_mapping in SCHED.
+      rewrite mem_sort mem_filter in SCHED.
+      move: SCHED => /andP [_ ARR].
+      by apply in_arrivals_implies_arrived in ARR.
+    Qed.
+      
     (* Jobs do not execute before they arrive, ...*)
     Theorem scheduler_jobs_must_arrive_to_execute:
-      jobs_must_arrive_to_execute sched.
+      jobs_must_arrive_to_execute job_arrival sched.
     Proof.
-      unfold jobs_must_arrive_to_execute.
-      intros j t SCHED.
-      move: SCHED => /existsP [cpu /eqP SCHED].
-      unfold sched, scheduler, schedule_prefix in SCHED.
-      destruct t.
-      {
-        rewrite /update_schedule eq_refl in SCHED.
-        apply pairs_to_function_neq_default in SCHED; last by done.
-        unfold schedule_every_pending_job in SCHED.
-        apply scheduler_job_in_mapping in SCHED.
-        rewrite mem_sort mem_filter in SCHED.
-        move: SCHED => /andP [_ ARR].
-        by apply JobIn_arrived in ARR.
-      }
-      {
-        unfold update_schedule at 1 in SCHED; rewrite eq_refl /= in SCHED.
-        apply pairs_to_function_neq_default in SCHED; last by done.
-        unfold schedule_every_pending_job in SCHED.
-        apply scheduler_job_in_mapping in SCHED.
-        rewrite mem_sort mem_filter in SCHED.
-        move: SCHED => /andP [_ ARR].
-        by apply JobIn_arrived in ARR.
-      }
+      move => j t /existsP [cpu SCHED].
+      rewrite scheduler_scheduled_on in SCHED.
+      apply scheduler_job_in_mapping in SCHED.
+      rewrite mem_sort mem_filter in SCHED.
+      by move: SCHED => /andP [/andP [ARR _] _].
     Qed.
 
     (* ..., jobs are sequential, ... *)
@@ -647,7 +573,7 @@ Module ConcreteScheduler.
     Proof.
       intros j t cpu1 cpu2 SCHED1 SCHED2.
       by apply scheduler_has_no_duplicate_jobs with (j := j) (t := t);
-        rewrite -scheduler_scheduled_on; apply/eqP.
+      rewrite -scheduler_scheduled_on; apply/eqP.
     Qed.
                
     (* ... and jobs do not execute after completion. *)
@@ -655,65 +581,54 @@ Module ConcreteScheduler.
       completed_jobs_dont_execute job_cost sched.
     Proof.
       have SEQ := scheduler_sequential_jobs.
-      rename H_job_cost_positive into GT0.
-      unfold completed_jobs_dont_execute, service.
       intros j t.
-      induction t; first by rewrite big_geq.
+      induction t;
+        first by rewrite /service /service_during big_geq //.
+      rewrite /service /service_during big_nat_recr //=.
+      rewrite leq_eqVlt in IHt; move: IHt => /orP [/eqP EQ | LT]; last first.
       {
-        rewrite big_nat_recr // /=.
-        rewrite leq_eqVlt in IHt; move: IHt => /orP [/eqP EQ | LESS]; last first.
+        apply: leq_trans LT; rewrite -addn1.
+        apply leq_add; first by done.
+        rewrite /service_at.
+        case (boolP ([exists cpu, scheduled_on sched j cpu t])) => [EX | ALL]; last first.
         {
-          destruct (job_cost j); first by rewrite ltn0 in LESS.
-          rewrite -addn1; rewrite ltnS in LESS.
-          by apply leq_add; last by apply service_at_most_one, SEQ. 
+          rewrite negb_exists in ALL; move: ALL => /forallP ALL.
+          rewrite big1 //; intros cpu SCHED.
+          by specialize (ALL cpu); rewrite SCHED in ALL.
         }
-        rewrite EQ -{2}[job_cost j]addn0; apply leq_add; first by done.
-        destruct t.
-        {
-          rewrite big_geq // in EQ.
-          specialize (GT0 j); unfold job_cost_positive in *.
-          by rewrite -EQ ltn0 in GT0.
-        }
-        {
-          unfold service_at; rewrite big_mkcond.
-          apply leq_trans with (n := \sum_(cpu < num_cpus) 0);
-            last by rewrite big_const_ord iter_addn mul0n addn0.
-          apply leq_sum; intros cpu _; desf.
-          move: Heq => /eqP SCHED.
-          unfold scheduler, schedule_prefix in SCHED.
-          unfold sched, scheduler, schedule_prefix, update_schedule at 1 in SCHED.
-          rewrite eq_refl in SCHED.
-          apply pairs_to_function_neq_default in SCHED; last by done.
-          unfold schedule_every_pending_job in SCHED.
-          apply scheduler_job_in_mapping in SCHED.
-          rewrite mem_sort mem_filter in SCHED.
-          move: SCHED => /andP [/andP [_ /negP NOTCOMP] _].
-          exfalso; apply NOTCOMP; clear NOTCOMP.
-          unfold completed; apply/eqP.
-          unfold service; rewrite -EQ.
-          rewrite big_nat_cond [\sum_(_ <= _ < _ | true)_]big_nat_cond.
-          apply eq_bigr; move => i /andP [/andP [_ LT] _].
-          apply eq_bigl; red; ins.
-          unfold scheduled_on; f_equal.
-          fold (schedule_prefix job_cost job_task num_cpus arr_seq alpha higher_eq_priority).
-          by rewrite scheduler_same_prefix.
-        }
+        move: EX => /existsP [cpu SCHED].
+        rewrite (bigD1 cpu) /=; last by done.
+        rewrite big1; first by rewrite addn0.
+        move => cpu' /andP [SCHED' NEQ].
+        move: SCHED SCHED' => /eqP SCHED /eqP SCHED'.
+        move: NEQ => /eqP NEQ; exfalso; apply: NEQ.
+        by apply SEQ with (j := j) (t := t).
       }
+      rewrite -[job_cost _]addn0; apply leq_add; first by rewrite -EQ.
+      rewrite leqn0 /service_at big1 //.
+      move => cpu SCHED.
+      rewrite scheduler_scheduled_on in SCHED.
+      apply scheduler_job_in_mapping in SCHED.
+      rewrite mem_sort mem_filter in SCHED.
+      move: SCHED => /andP [/andP [_ NOTCOMP] _].
+      by rewrite /completed EQ eq_refl in NOTCOMP.
     Qed.
 
     (* In addition, the scheduler is APA work conserving, ... *)
     Theorem scheduler_apa_work_conserving:
-      apa_work_conserving job_cost job_task sched alpha.
+      apa_work_conserving job_arrival job_cost job_task arr_seq sched alpha.
     Proof.
-      intros j t BACK cpu CAN.
-      set l := (sorted_pending_jobs job_cost num_cpus arr_seq higher_eq_priority sched t).
-      have SORT : sorted (higher_eq_priority t) l  by apply sort_sorted.
-      have UNIQ: uniq l by rewrite sort_uniq filter_uniq // JobIn_uniq //.
+      intros j t ARRj BACK cpu CAN.
+      set l := (sorted_pending_jobs job_arrival job_cost num_cpus arr_seq higher_eq_priority sched t).
+      have SORT : sorted (higher_eq_priority t) l by apply sort_sorted, H_priority_total. 
+      have UNIQ: uniq l.
+        by rewrite sort_uniq filter_uniq // (arrivals_uniq job_arrival) //.
       move: BACK => /andP [PENDING NOTSCHED].
       have IN: j \in l.
       {
-        rewrite mem_sort mem_filter PENDING andTb JobIn_arrived.
-        by move: PENDING => /andP [H _].
+        rewrite mem_sort mem_filter PENDING andTb.
+        move: PENDING => /andP [ARR _].
+        by apply arrived_between_implies_in_arrivals with (job_arrival0 := job_arrival).
       }
       have WORK := scheduler_mapping_is_work_conserving j cpu t l IN SORT UNIQ.
       exploit WORK; try by done.
@@ -735,10 +650,11 @@ Module ConcreteScheduler.
     
     (* ... and respects the JLDP policy under weak APA scheduling. *)
     Theorem scheduler_respects_policy :
-      respects_JLDP_policy_under_weak_APA job_cost job_task sched alpha higher_eq_priority.
+      respects_JLDP_policy_under_weak_APA job_arrival job_cost job_task arr_seq
+                                          sched alpha higher_eq_priority.
     Proof.
       unfold respects_JLDP_policy_under_weak_APA.
-      intros j j_hp cpu t BACK SCHED ALPHA.
+      intros j j_hp cpu t ARRj BACK SCHED ALPHA.
       rewrite scheduler_scheduled_on in SCHED.
       apply scheduler_priority with (cpu := cpu); try by done.
       by rewrite scheduler_scheduled_on.

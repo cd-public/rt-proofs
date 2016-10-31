@@ -17,10 +17,8 @@ Module WorkloadBoundFP.
     Variable task_cost: Task -> time.
     Variable task_period: Task -> time.
 
-    (* Consider any task tsk with response-time bound R_tsk, that is
-       scheduled in an interval of length delta. *)
+    (* Consider any task tsk that is to be scheduled in an interval of length delta. *)
     Variable tsk: Task.
-    Variable R_tsk: time.
     Variable delta: time.
     
     (* Based on the maximum number of jobs of tsk that can execute in the interval, ... *)
@@ -152,6 +150,7 @@ Module WorkloadBoundFP.
     Variable task_deadline: Task -> time.
     
     Context {Job: eqType}.
+    Variable job_arrival: Job -> time.
     Variable job_cost: Job -> time.
     Variable job_deadline: Job -> time.
     Variable job_task: Job -> Task.
@@ -161,22 +160,24 @@ Module WorkloadBoundFP.
     Hypothesis H_valid_task_parameters:
       valid_sporadic_taskset task_cost task_period task_deadline ts.
     
-    (* Consider any arrival sequence with no duplicate arrivals. *)
+    (* Consider any job arrival sequence with consistent, non-duplicate arrivals. *)
     Variable arr_seq: arrival_sequence Job.
+    Hypothesis H_arrival_times_are_consistent: arrival_times_are_consistent job_arrival arr_seq.
     Hypothesis H_arr_seq_is_a_set: arrival_sequence_is_a_set arr_seq.
 
     (* Assume that all jobs come from the task set ...*)
     Hypothesis H_all_jobs_from_taskset:
-      forall (j: JobIn arr_seq), job_task j \in ts.
+      forall j, arrives_in arr_seq j -> job_task j \in ts.
 
     (* ...and have valid parameters. *)
     Hypothesis H_valid_job_parameters:
-      forall (j: JobIn arr_seq),
+      forall j,
+        arrives_in arr_seq j ->
         valid_sporadic_job task_cost task_deadline job_cost job_deadline job_task j.
 
     (* Assume that jobs arrived sporadically. *)
     Hypothesis H_sporadic_arrivals:
-      sporadic_task_model task_period arr_seq job_task.
+      sporadic_task_model task_period job_arrival job_task arr_seq.
 
     (* Let tsk be any task in ts. *)
     Variable tsk: Task.
@@ -186,8 +187,10 @@ Module WorkloadBoundFP.
     Variable higher_eq_priority: FP_policy Task.
     
     (* First, let's define some local names for clarity. *)
-    Let hp_workload :=
-      workload_of_higher_or_equal_priority_tasks job_cost job_task arr_seq higher_eq_priority tsk.
+    Let arrivals_between := jobs_arrived_between arr_seq.
+    Let hp_workload t1 t2:=
+      workload_of_higher_or_equal_priority_tasks job_cost job_task (arrivals_between t1 t2)
+                                                 higher_eq_priority tsk.
     Let workload_bound :=
       total_workload_bound_fp task_cost task_period higher_eq_priority ts tsk.
 
@@ -201,8 +204,8 @@ Module WorkloadBoundFP.
       forall t,
         hp_workload t (t + R) <= R.
     Proof.
-      have BOUND := sporadic_task_arrival_bound task_period job_task arr_seq.
-      feed_n 2 BOUND; try (by done).
+      have BOUND := sporadic_task_arrival_bound task_period job_arrival job_task arr_seq.
+      feed_n 3 BOUND; try (by done).
       rename H_fixed_point into FIX, H_all_jobs_from_taskset into FROMTS,
              H_valid_job_parameters into JOBPARAMS,
              H_valid_task_parameters into PARAMS.
@@ -216,18 +219,23 @@ Module WorkloadBoundFP.
       apply leq_trans with (n := \sum_(tsk' <- ts | hep tsk' tsk)
                                   (\sum_(j0 <- l | job_task j0 == tsk') job_cost j0)).
       {
-        have EXCHANGE := exchange_big_dep (fun (x: JobIn arr_seq) => hep (job_task x) tsk).
+        have EXCHANGE := exchange_big_dep (fun x => hep (job_task x) tsk).
         rewrite EXCHANGE /=; last by move => tsk0 j0 HEP /eqP JOB0; rewrite JOB0.
-        apply leq_sum; intros j0 HP0.
-        rewrite big_mkcond (big_rem (job_task j0)) /=; last by rewrite FROMTS. 
-        by rewrite HP0 andTb eq_refl; apply leq_addr.
+        rewrite /workload_of_jobs -/l big_seq_cond [X in _ <= X]big_seq_cond.
+        apply leq_sum; move => j0 /andP [IN0 HP0].
+        rewrite big_mkcond (big_rem (job_task j0)) /=;
+          first by rewrite HP0 andTb eq_refl; apply leq_addr.
+        by apply in_arrivals_implies_arrived in IN0; apply FROMTS.
       }
-      apply leq_sum_seq; intros tsk0 IN0 HP0.
-      apply leq_trans with (n := num_arrivals_of_task job_task arr_seq tsk0 t (t + R) * task_cost tsk0).
+      apply leq_sum_seq; intros tsk0 INtsk0 HP0.
+      apply leq_trans with (n := num_arrivals_of_task job_task arr_seq
+                                                      tsk0 t (t + R) * task_cost tsk0).
       {
-        rewrite /num_arrivals_of_task -sum1_size big_distrl /=.
-        rewrite big_filter; apply leq_sum; move => j0 /eqP EQ; rewrite -EQ mul1n.
-        by specialize (JOBPARAMS j0); des.
+        rewrite /num_arrivals_of_task -sum1_size big_distrl /= big_filter.
+        apply leq_sum_seq; move => j0 IN0 /eqP EQ.
+        rewrite -EQ mul1n.
+        feed (JOBPARAMS j0); first by eapply in_arrivals_implies_arrived; eauto 1.
+        by move: JOBPARAMS => [_ [LE _]].
       }
       rewrite /task_workload_bound_FP leq_mul2r; apply/orP; right.
       feed (BOUND t (t + R) tsk0); first by feed (PARAMS tsk0); last by des.

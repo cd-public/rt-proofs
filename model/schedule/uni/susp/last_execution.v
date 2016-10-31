@@ -14,11 +14,11 @@ Module LastExecution.
   Section TimeAfterLastExecution.
 
     Context {Job: eqType}.
+    Variable job_arrival: Job -> time.
     Variable job_cost: Job -> time.
 
     (* Consider any uniprocessor schedule. *)
-    Context {arr_seq: arrival_sequence Job}.
-    Variable sched: schedule arr_seq.
+    Variable sched: schedule Job.
 
     (* For simplicity, let's define some local names. *)
     Let job_scheduled_at := scheduled_at sched.
@@ -27,7 +27,7 @@ Module LastExecution.
     Section Defs.
       
       (* Let j be any job in the arrival sequence. *)
-      Variable j: JobIn arr_seq.
+      Variable j: Job.
 
       (* Next, we will show how to find the time after the most recent
          execution of a given job j in the interval [job_arrival j, t).
@@ -58,10 +58,10 @@ Module LastExecution.
 
       (* Assume that jobs do not execute before they arrived. *)
       Hypothesis H_jobs_must_arrive_to_execute:
-        jobs_must_arrive_to_execute sched.
+        jobs_must_arrive_to_execute job_arrival sched.
         
-      (* Let j be any job in the arrival sequence. *)
-      Variable j: JobIn arr_seq.
+      (* Let j be any job. *)
+      Variable j: Job.
 
       (* In this section, we show that the time after the last execution occurs
            no earlier than the arrival of the job. *)
@@ -71,7 +71,7 @@ Module LastExecution.
              interval [0, t) occurs no earlier than the arrival of j. *)
         Lemma last_execution_after_arrival:
           forall t,
-            has_arrived j (time_after_last_execution j t).
+            has_arrived job_arrival j (time_after_last_execution j t).
         Proof.
           unfold time_after_last_execution, has_arrived; intros t.
           case EX: [exists _, _]; last by done.
@@ -89,7 +89,7 @@ Module LastExecution.
 
         (* Let t1 be any time no earlier than the arrival of job j. *)
         Variable t1: time.
-        Hypothesis H_after_arrival: has_arrived j t1.
+        Hypothesis H_after_arrival: has_arrived job_arrival j t1.
 
         (* Then, (time_after_last_execution j) grows monotonically
              after that point. *)
@@ -190,7 +190,7 @@ Module LastExecution.
         
         (* Let t be any time no earlier than the arrival of j. *)
         Variable t: time.
-        Hypothesis H_after_arrival: has_arrived j t.
+        Hypothesis H_after_arrival: has_arrived job_arrival j t.
 
         (* Then, the time following the last execution of job j in the interval [0, t)
            occurs no later than time t. *)
@@ -305,9 +305,9 @@ Module LastExecution.
             apply negbT in EX; rewrite negb_exists in EX.
             move: EX => /forallP ALL.
             rewrite /service /service_during.
-            rewrite ignore_service_before_arrival // big_geq //.
+            rewrite (ignore_service_before_arrival job_arrival) // big_geq //.
             rewrite big_nat_cond big1 //; move => i /andP [/= LTi _].
-              by apply/eqP; rewrite eqb0; apply (ALL (Ordinal LTi)).
+            by apply/eqP; rewrite eqb0; apply (ALL (Ordinal LTi)).
           }
         Qed.
 
@@ -349,10 +349,10 @@ Module LastExecution.
           {
             apply/andP; split; last by rewrite COMP.
             rewrite /service /service_during.
-              by rewrite ignore_service_before_arrival // big_geq.
+            by rewrite (ignore_service_before_arrival job_arrival) // big_geq.
           }
           move: EX => [x_mid [_ SERV]]; exists x_mid.
-            by rewrite -SERV SAME.
+          by rewrite -SERV SAME.
         Qed.
 
       End ExistsIntermediateExecution.

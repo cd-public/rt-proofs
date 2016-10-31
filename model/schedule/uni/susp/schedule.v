@@ -13,26 +13,26 @@ Module ScheduleWithSuspensions.
     
     Context {Task: eqType}.
     Context {Job: eqType}.
+    Variable job_arrival: Job -> time.
     Variable job_cost: Job -> time.
 
     (* Assume that job suspension times are given. *)
     Variable next_suspension: job_suspension Job.
 
     (* Consider any uniprocessor schedule. *)
-    Context {arr_seq: arrival_sequence Job}.
-    Variable sched: schedule arr_seq.
+    Variable sched: schedule Job.
 
     (* Recall the predicates that denote whether a job is scheduled
        and suspended. *)
-    Let job_pending_at := pending job_cost sched.
+    Let job_pending_at := pending job_arrival job_cost sched.
     Let job_scheduled_at := scheduled_at sched.
-    Let job_suspended_at := suspended_at job_cost next_suspension sched.
+    Let job_suspended_at := suspended_at job_arrival job_cost next_suspension sched.
 
     (* First, we redefine the notion of backlogged job to account for suspensions. *)
     Section BackloggedJob.
 
       (* We say that job j...*)
-      Variable j: JobIn arr_seq.
+      Variable j: Job.
 
       (* ...is backlogged at time t iff it is pending and neither
          scheduled nor suspended. *)

@@ -21,6 +21,7 @@ Module ResponseTimeIterationEDF.
     Let task_with_response_time := (sporadic_task * time)%type.
     
     Context {Job: eqType}.
+    Variable job_arrival: Job -> time.
     Variable job_cost: Job -> time.
     Variable job_deadline: Job -> time.
     Variable job_task: Job -> sporadic_task.
@@ -960,25 +961,28 @@ Module ResponseTimeIterationEDF.
 
      (* ...all jobs come from task set ts, ...*)
       Hypothesis H_all_jobs_from_taskset:
-        forall (j: JobIn arr_seq), job_task j \in ts.
+        forall j, arrives_in arr_seq j -> job_task j \in ts.
       
       (* ...they have valid parameters,...*)
       Hypothesis H_valid_job_parameters:
-        forall (j: JobIn arr_seq),
+        forall j,
+          arrives_in arr_seq j ->
           valid_sporadic_job_with_jitter task_cost task_deadline task_jitter job_cost
                                          job_deadline job_task job_jitter j.
       
       (* ... and satisfy the sporadic task model.*)
       Hypothesis H_sporadic_tasks:
-        sporadic_task_model task_period arr_seq job_task.
+        sporadic_task_model task_period job_arrival job_task arr_seq.
       
-      (* Then, consider any platform with at least one CPU such that...*)
-      Variable sched: schedule num_cpus arr_seq.
+      (* Then, consider any schedule of this arrival sequence such that... *)
+      Variable sched: schedule Job num_cpus.
       Hypothesis H_at_least_one_cpu: num_cpus > 0.
+      Hypothesis H_jobs_come_from_arrival_sequence:
+        jobs_come_from_arrival_sequence sched arr_seq.
 
       (* ...jobs only execute after jitter and no longer than their execution costs. *)
       Hypothesis H_jobs_execute_after_jitter:
-        jobs_execute_after_jitter job_jitter sched.
+        jobs_execute_after_jitter job_arrival job_jitter sched.
       Hypothesis H_completed_jobs_dont_execute:
         completed_jobs_dont_execute job_cost sched.
 
@@ -986,15 +990,16 @@ Module ResponseTimeIterationEDF.
       Hypothesis H_sequential_jobs: sequential_jobs sched.
 
       (* Assume that we have a work-conserving EDF scheduler. *)
-      Hypothesis H_work_conserving: work_conserving job_cost job_jitter sched.
-      Hypothesis H_edf_policy: respects_JLFP_policy job_cost job_jitter sched (EDF job_deadline).
+      Hypothesis H_work_conserving: work_conserving job_arrival job_cost job_jitter arr_seq sched.
+      Hypothesis H_edf_policy: respects_JLFP_policy job_arrival job_cost job_jitter arr_seq sched
+                                                    (EDF job_arrival job_deadline).
 
       Let no_deadline_missed_by_task (tsk: sporadic_task) :=
-        task_misses_no_deadline job_cost job_deadline job_task sched tsk.
+        task_misses_no_deadline job_arrival job_cost job_deadline job_task arr_seq sched tsk.
       Let no_deadline_missed_by_job :=
-        job_misses_no_deadline job_cost job_deadline sched.
+        job_misses_no_deadline job_arrival job_cost job_deadline sched.
       Let response_time_bounded_by (tsk: sporadic_task) :=
-        is_response_time_bound_of_task job_cost job_task tsk sched.
+        is_response_time_bound_of_task job_arrival job_cost job_task arr_seq sched tsk.
 
       (* In the following theorem, we prove that any response-time bound contained
          in edf_claimed_bounds is safe. The proof follows by direct application of
@@ -1015,7 +1020,7 @@ Module ResponseTimeIterationEDF.
         unfold response_time_bounded_by, is_response_time_bound_of_task in *.
         intros j JOBtsk.
         apply BOUND with (task_cost := task_cost) (task_period := task_period)
-           (task_deadline := task_deadline) (job_deadline := job_deadline) (job_jitter := job_jitter)
+           (arr_seq := arr_seq) (task_deadline := task_deadline) (job_deadline := job_deadline) (job_jitter := job_jitter)
            (job_task := job_task) (ts := ts) (tsk := tsk) (rt_bounds := rt_bounds); try (by ins).
           by unfold edf_claimed_bounds in SOME; desf; rewrite edf_claimed_bounds_unzip1_iteration.
           by ins; apply edf_claimed_bounds_finds_fixed_point_for_each_bound with (ts := ts).
@@ -1043,19 +1048,19 @@ Module ResponseTimeIterationEDF.
                H_jobs_execute_after_jitter into AFTER,
                H_all_jobs_from_taskset into ALLJOBS,
                H_test_succeeds into TEST.
-        move => tsk INtsk j JOBtsk.
+        move => tsk INtsk j ARRj JOBtsk.
         destruct (edf_claimed_bounds ts) as [rt_bounds |] eqn:SOME; last by ins.
         exploit (HAS rt_bounds tsk); [by ins | by ins | clear HAS; intro HAS; des].
-        have COMPLETED := RLIST tsk R HAS j JOBtsk.
+        have COMPLETED := RLIST tsk R HAS j ARRj JOBtsk.
         exploit (DL rt_bounds tsk R);
           [by ins | by ins | clear DL; intro DL].
-   
+ 
         rewrite eqn_leq; apply/andP; split; first by apply cumulative_service_le_job_cost.
         apply leq_trans with (n := service sched j (job_arrival j + task_jitter tsk + R)); last first.
         {
           unfold valid_sporadic_taskset, is_valid_sporadic_task in *.
           rewrite extend_sum // -addnA leq_add2l.
-          specialize (JOBPARAMS j); des; rewrite JOBPARAMS2.
+          specialize (JOBPARAMS j ARRj); des; rewrite JOBPARAMS2.
           by rewrite JOBtsk.
         }
         rewrite leq_eqVlt; apply/orP; left; rewrite eq_sym.
@@ -1066,12 +1071,12 @@ Module ResponseTimeIterationEDF.
          are spawned by the task set, we conclude that no job misses
          its deadline. *)
       Theorem jobs_schedulable_by_edf_rta :
-        forall (j: JobIn arr_seq), no_deadline_missed_by_job j.
+        forall j, arrives_in arr_seq j -> no_deadline_missed_by_job j.
       Proof.
-        intros j.
+        intros j ARRj.
         have SCHED := taskset_schedulable_by_edf_rta.
         unfold no_deadline_missed_by_task, task_misses_no_deadline in *.
-        apply SCHED with (tsk := job_task j); last by done.
+        apply SCHED with (tsk := job_task j); try (by done).
         by apply H_all_jobs_from_taskset.
       Qed.
       

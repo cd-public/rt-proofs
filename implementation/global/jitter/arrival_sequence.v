@@ -14,9 +14,9 @@ Module ConcreteArrivalSequence.
 
     (* At any time t, we release Some job of tsk if t is a multiple of the period,
        otherwise we release None. *)
-    Definition add_job (t: time) (tsk: concrete_task) :=
-      if task_period tsk %| t  then
-        Some (Build_concrete_job (t %/ task_period tsk) (task_cost tsk) (task_deadline tsk) (task_jitter tsk) tsk)
+    Definition add_job (arr: time) (tsk: concrete_task) :=
+      if task_period tsk %| arr  then
+        Some (Build_concrete_job (arr %/ task_period tsk) arr (task_cost tsk) (task_deadline tsk) (task_jitter tsk) tsk)
       else
         None.
 
@@ -35,14 +35,23 @@ Module ConcreteArrivalSequence.
     (* Regarding the periodic arrival sequence built from ts, we prove that...*)
     Let arr_seq := periodic_arrival_sequence ts.
 
+    (* ... arrival times are consistent, ... *)
+    Theorem periodic_arrivals_are_consistent:
+      arrival_times_are_consistent job_arrival arr_seq.
+    Proof.
+      move => j t ARRj.
+      rewrite /arrives_at mem_pmap in ARRj.
+      move: ARRj => /mapP ARRj; destruct ARRj as [tsk IN SOME].
+      by unfold add_job in *; desf.
+    Qed.
+
     (* ... every job comes from the task set, ... *)
     Theorem periodic_arrivals_all_jobs_from_taskset:
-      forall (j: JobIn arr_seq),
-        job_task (job_of_job_in j) \in ts. (* TODO: fix coercion *)
+      forall j,
+        arrives_in arr_seq j ->
+        job_task j \in ts.
     Proof.
-      intros j.
-      destruct j as [j arr ARRj]; simpl.
-      unfold arr_seq, arrives_at, periodic_arrival_sequence in *.
+      move => j [t ARRj].
       rewrite mem_pmap in ARRj.
       move: ARRj => /mapP ARRj; destruct ARRj as [tsk IN SOME].
       by unfold add_job in *; desf.
@@ -50,13 +59,13 @@ Module ConcreteArrivalSequence.
 
     (* ..., jobs have valid parameters, ... *)
     Theorem periodic_arrivals_valid_job_parameters:
-      forall (j: JobIn arr_seq),
+      forall j,
+        arrives_in arr_seq j ->
         valid_sporadic_job_with_jitter task_cost task_deadline task_jitter job_cost job_deadline job_task job_jitter j.
     Proof.
       rename H_valid_task_parameters into PARAMS.
       unfold valid_sporadic_taskset, is_valid_sporadic_task in *.
-      intros j; destruct j as [j arr ARRj]; simpl.
-      unfold arrives_at, arr_seq, periodic_arrival_sequence in ARRj.
+      move => j [t ARRj].
       rewrite mem_pmap in ARRj; move: ARRj => /mapP [tsk IN SOME].
       unfold add_job in SOME; desf.
       specialize (PARAMS tsk IN); des.
@@ -66,12 +75,10 @@ Module ConcreteArrivalSequence.
 
     (* ... job arrivals satisfy the sporadic task model, ... *)
     Theorem periodic_arrivals_are_sporadic:
-      sporadic_task_model task_period arr_seq job_task.
+      sporadic_task_model task_period job_arrival job_task arr_seq.
     Proof.
-      unfold sporadic_task_model; move => j j' /eqP DIFF SAMEtsk LE.
-      destruct j as [j arr ARR], j' as [j' arr' ARR']; simpl in *.
-      rewrite eqE /= /jobin_eqdef negb_and /= in DIFF.
-      unfold arrives_at, arr_seq, periodic_arrival_sequence in *.
+      move => j j' /eqP DIFF [arr ARR] [arr' ARR'] SAMEtsk LE.
+      rewrite eqE /= /job_eqdef negb_and /= SAMEtsk eq_refl orbF in DIFF.
       rewrite 2!mem_pmap in ARR ARR'.
       move: ARR ARR' => /mapP [tsk_j INj SOMEj] /mapP [tsk_j' INj' SOMEj'].
       unfold add_job in SOMEj, SOMEj'; desf; simpl in *;
@@ -81,17 +88,10 @@ Module ConcreteArrivalSequence.
         rewrite leq_eqVlt in LE; move: LE => /orP [/eqP EQ | LESS].
         { 
           exfalso; move: DIFF => /negP DIFF; apply DIFF.
-          by subst; rewrite EQ.
+          by subst; rewrite EQ !eq_refl.
         }
         subst; rewrite leq_mul2r; apply/orP; right.
         by rewrite ltn_mul2r in LESS; move: LESS => /andP [_ LT].
-      }
-      {
-        assert (LT: arr < arr'). by rewrite ltn_neqAle; apply/andP.
-        clear LE DIFF; subst tsk_j' arr arr'.
-        rewrite ltn_mul2r in LT; move: LT => /andP [_ LT].
-        by apply leq_trans with (n := k.+1 * task_period tsk_j);
-          [by rewrite mulSnr | by rewrite leq_mul2r; apply/orP; right].
       }
     Qed.
 

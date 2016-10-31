@@ -13,14 +13,15 @@ Module SuspensionIntervals.
   Section DefiningSuspensionIntervals.
 
     Context {Job: eqType}.
+    Variable job_arrival: Job -> time.
     Variable job_cost: Job -> time.
 
     (* Consider any job suspension times... *)
     Variable next_suspension: job_suspension Job.
 
     (* ...and any uniprocessor schedule. *)
-    Context {arr_seq: arrival_sequence Job}.
-    Variable sched: schedule arr_seq.
+    (*Context {arr_seq: arrival_sequence Job}.*)
+    Variable sched: schedule Job.
 
     (* For simplicity, let's define some local names. *)
     Let job_scheduled_at := scheduled_at sched.
@@ -30,8 +31,8 @@ Module SuspensionIntervals.
        whether a job is suspended. *)
     Section JobSuspension.
       
-      (* Let j be any job in the arrival sequence. *)
-      Variable j: JobIn arr_seq.
+      (* Let j be any job. *)
+      Variable j: Job.
 
       Section DefiningSuspension.
         
@@ -41,7 +42,7 @@ Module SuspensionIntervals.
         (* First, we define the beginning of the latest self suspension as the
            time following the last execution of job j in the interval [0, t).
            (Note that suspension_start can return time t itself.) *)
-        Let suspension_start := time_after_last_execution sched j t.
+        Let suspension_start := time_after_last_execution job_arrival sched j t.
 
         (* Next, using the service received by j in the interval [0, suspension_start), ... *)
         Let current_service := service sched j suspension_start.
@@ -90,7 +91,7 @@ Module SuspensionIntervals.
 
         (* Assume that jobs do not execute before they arrive... *)
         Hypothesis H_jobs_must_arrive_to_execute:
-          jobs_must_arrive_to_execute sched.
+          jobs_must_arrive_to_execute job_arrival sched.
 
         (* ...and nor after completion. *)
         Hypothesis H_completed_jobs_dont_execute:
@@ -99,15 +100,15 @@ Module SuspensionIntervals.
         (* Assume that the schedule respects self-suspensions. *)
         Hypothesis H_respects_self_suspensions: respects_self_suspensions.
       
-        (* Let j be any job in the arrival sequence. *)
-        Variable j: JobIn arr_seq.
+        (* Let j be any job. *)
+        Variable j: Job.
 
         (* Consider any time t after the arrival of j... *)
         Variable t: time.
-        Hypothesis H_has_arrived: has_arrived j t.
+        Hypothesis H_has_arrived: has_arrived job_arrival j t.
 
         (* ...and recall the latest suspension interval of job j relative to time t. *)
-        Let suspension_start := time_after_last_execution sched j t.
+        Let suspension_start := time_after_last_execution job_arrival sched j t.
         Let duration := suspension_duration j t.
 
         (* First, we analyze the service received during a suspension interval. *)
@@ -150,7 +151,7 @@ Module SuspensionIntervals.
             case: (boolP (completed_by _ _ _ _)) => [COMP | NOTCOMP];
               first by apply completed_implies_not_scheduled in COMP;
                 first by rewrite SCHED' in COMP.
-            rewrite andTb (same_service_implies_same_last_execution _ _ _ suspension_start) //.
+            rewrite andTb (same_service_implies_same_last_execution _ _ _ _ suspension_start) //.
             rewrite /suspension_start last_execution_idempotent //.
             apply/andP; split; first by apply leq_addr.
             by rewrite ltn_add2l.
@@ -178,19 +179,21 @@ Module SuspensionIntervals.
           Proof.
             rename H_within_suspension_interval into BETWEEN.
             move: BETWEEN => /andP [GE LT].
-            have ARR: has_arrived j t_in.
+            have ARR: has_arrived job_arrival j t_in.
             {
-              by apply leq_trans with (n := suspension_start);
-                first by apply last_execution_after_arrival.
+              apply leq_trans with (n := suspension_start); last by done.
+              rewrite -/(has_arrived job_arrival j suspension_start).
+              by apply last_execution_after_arrival.
             }
             apply/andP; split; first by done.
             apply/andP; split;
               first by apply last_execution_bounded_by_identity.
             apply (leq_trans LT).
-            have SAME: time_after_last_execution sched j t = time_after_last_execution sched j t_in.
+            have SAME: time_after_last_execution job_arrival sched j t =
+                       time_after_last_execution job_arrival sched j t_in.
             {
               set b := _ _ t.
-              rewrite [_ _ t_in](same_service_implies_same_last_execution _ _ _ b);
+              rewrite [_ _ t_in](same_service_implies_same_last_execution _ _ _ _ b);
                 first by rewrite last_execution_idempotent.
               apply same_service_in_suspension_interval.
               by apply/andP; split; last by apply ltnW.
@@ -208,17 +211,17 @@ Module SuspensionIntervals.
 
         (* Assume that jobs do not execute before they arrived. *)
         Hypothesis H_jobs_must_arrive_to_execute:
-          jobs_must_arrive_to_execute sched.
+          jobs_must_arrive_to_execute job_arrival sched.
         
-        (* Let j be any job in the arrival sequence. *)
-        Variable j: JobIn arr_seq.
+        (* Let j be any job. *)
+        Variable j: Job.
 
         (* Assume that j is suspended at time t. *)
         Variable t: time.
         Hypothesis H_j_is_suspended: suspended_at j t.
 
         (* First, we show that j must have arrived by time t. *)
-        Lemma suspended_implies_arrived: has_arrived j t. 
+        Lemma suspended_implies_arrived: has_arrived job_arrival j t. 
         Proof.
           rename H_j_is_suspended into SUSP.
           move: SUSP => /andP [_ SUSP].
@@ -238,7 +241,7 @@ Module SuspensionIntervals.
           have NOTSCHED: ~~ scheduled_at sched j t'.
           {
             rewrite -eqb0; apply/eqP.
-            by apply service_before_job_arrival_zero; first by done.
+            by eapply service_before_job_arrival_zero; first by eauto.
           }
           by rewrite EX in NOTSCHED.
         Qed.
@@ -258,7 +261,7 @@ Module SuspensionIntervals.
 
         (* Assume that jobs do not execute before they arrive... *)
         Hypothesis H_jobs_must_arrive_to_execute:
-          jobs_must_arrive_to_execute sched.
+          jobs_must_arrive_to_execute job_arrival sched.
 
         (* ...and nor after completion. *)
         Hypothesis H_completed_jobs_dont_execute:
@@ -267,8 +270,8 @@ Module SuspensionIntervals.
         (* Assume that the schedule respects self-suspensions. *)
         Hypothesis H_respects_self_suspensions: respects_self_suspensions.
 
-        (* Let j be any job in the arrival sequence. *)
-        Variable j: JobIn arr_seq.
+        (* Let j be any job. *)
+        Variable j: Job.
 
         (* Recall the total suspension of job j as given by the dynamic suspension model. *)
         Let cumulative_suspension_of_j :=
@@ -308,7 +311,7 @@ Module SuspensionIntervals.
             }
             move: EX => /existsP [t' /andP [GE' /eqP SERV]].
             unfold suspended_at, suspension_duration.
-            set b := time_after_last_execution sched j.
+            set b := time_after_last_execution job_arrival sched j.
             set n := next_suspension j s.
             apply leq_trans with (n := \sum_(t1 <= t < t2 | b t' <= t < b t' + n) 1).
             {
@@ -323,13 +326,13 @@ Module SuspensionIntervals.
               move: INT => /andP [GEt LTt].
               rewrite (same_service_in_suspension_interval _ _ _ _ t') //.
               {
-                rewrite -/b [b t'](same_service_implies_same_last_execution _ _ _ t);
+                rewrite -/b [b t'](same_service_implies_same_last_execution _ _ _ _ t);
                   last by rewrite SERV EQ.
                 by apply/andP; split.
               }
               {
                 rewrite /suspension_duration -/b.
-                rewrite [b t'](same_service_implies_same_last_execution _ _ _ t);
+                rewrite [b t'](same_service_implies_same_last_execution _ _ _ _ t);
                   last by rewrite SERV EQ.
                 by apply/andP; split; last by apply ltnW.
               }
@@ -348,7 +351,7 @@ Module SuspensionIntervals.
 
         (* Assume that jobs do not execute before they arrive... *)
         Hypothesis H_jobs_must_arrive_to_execute:
-          jobs_must_arrive_to_execute sched.
+          jobs_must_arrive_to_execute job_arrival sched.
 
         (* ...and nor after completion. *)
         Hypothesis H_completed_jobs_dont_execute:
@@ -357,8 +360,8 @@ Module SuspensionIntervals.
         (* Assume that the schedule respects self-suspensions. *)
         Hypothesis H_respects_self_suspensions: respects_self_suspensions.
 
-        (* Let j be any job in the arrival sequence. *)
-        Variable j: JobIn arr_seq.
+        (* Let j be any job. *)
+        Variable j: Job.
 
         (* Assume that j has completed by time t. *)
         Variable t: time.
@@ -370,7 +373,8 @@ Module SuspensionIntervals.
           cumulative_suspension j t = total_suspension job_cost next_suspension j.
         Proof.
           rename H_j_has_completed into COMP, H_jobs_must_arrive_to_execute into ARR.
-          have EARLIER := exists_last_execution_with_smaller_service job_cost sched ARR j t COMP.
+          have EARLIER := exists_last_execution_with_smaller_service job_arrival
+                                                                     job_cost sched ARR j t COMP.
           apply/eqP; rewrite eqn_leq; apply/andP; split;
             first by apply cumulative_suspension_le_total_suspension.
           rewrite /total_suspension /cumulative_suspension /cumulative_suspension_during.
@@ -400,7 +404,7 @@ Module SuspensionIntervals.
           {
             apply leq_sum_nat; move => s /andP [_ LTs] _.
             rewrite /suspended_at /suspension_duration.
-            set b := time_after_last_execution sched j.
+            set b := time_after_last_execution job_arrival sched j.
             set n := next_suspension j.
 
             move: (EARLIER s LTs) => [t' EQ'].

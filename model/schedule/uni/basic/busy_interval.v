@@ -16,30 +16,38 @@ Module BusyInterval.
 
     Context {Task: eqType}.   
     Context {Job: eqType}.
+    Variable job_arrival: Job -> time.
     Variable job_cost: Job -> time.
     Variable job_task: Job -> Task.
 
-    (* Consider any uniprocessor schedule, ... *)
-    Context {arr_seq: arrival_sequence Job}.
-    Variable sched: schedule arr_seq.
+    (* Consider any arrival sequence with consistent arrival times... *)
+    Variable arr_seq: arrival_sequence Job.
+    Hypothesis H_arrival_times_are_consistent: arrival_times_are_consistent job_arrival arr_seq.
+    
+    (* ...and any uniprocessor schedule of these jobs. *)
+    Variable sched: schedule Job.
+    Hypothesis H_jobs_come_from_arrival_sequence:
+      jobs_come_from_arrival_sequence sched arr_seq.
 
-    (* ...along with a JLFP policy. *)
-    Variable higher_eq_priority: JLFP_policy arr_seq.
+    (* Assume a given JLFP policy. *)
+    Variable higher_eq_priority: JLFP_policy Job.
     
     (* Let j be the job to be analyzed. *)
-    Variable j: JobIn arr_seq.
+    Variable j: Job.
+    Hypothesis H_from_arrival_sequence: arrives_in arr_seq j.
     
     (* For simplicity, let's define some local names. *)
-    Let job_pending_at := pending job_cost sched.
+    Let job_pending_at := pending job_arrival job_cost sched.
     Let job_scheduled_at := scheduled_at sched.
     Let job_completed_by := completed_by job_cost sched.
 
-    (* We say that t is a quiet time for j iff every higher-priority
-       job that arrived before t has completed by that time. *)
+    (* We say that t is a quiet time for j iff every higher-priority job from
+       the arrival sequence that arrived before t has completed by that time. *)
     Definition quiet_time (t: time) :=
-      forall (j_hp: JobIn arr_seq),
+      forall j_hp,
+        arrives_in arr_seq j_hp ->
         higher_eq_priority j_hp j ->
-        arrived_before j_hp t ->
+        arrived_before job_arrival j_hp t ->
         job_completed_by j_hp t.
 
     (* Based on the definition of quiet time, we say that interval
@@ -88,7 +96,7 @@ Module BusyInterval.
                    H_during_interval into INT, H_job_is_pending into PEND.
             move: BUSY => [_ QUIET].
             move: INT => /andP [_ LT2].
-            apply QUIET; first by apply REFL.
+            apply QUIET; [by done | by apply REFL |].
             apply leq_ltn_trans with (n := t); last by done.
             by move: PEND => /andP [ARR _].
           Qed.
@@ -115,7 +123,7 @@ Module BusyInterval.
             move: INT => /andP [LE _].
             exfalso; apply NOTCOMP.
             apply completion_monotonic with (t0 := t1); try (by done).
-            by apply QUIET; first by apply REFL.
+            by apply QUIET; [by done | by apply REFL |].
           Qed.
 
         End ArrivesDuringBusyInterval.
@@ -140,8 +148,9 @@ Module BusyInterval.
       (* Then, we prove that there exists a job pending at time t2
          that has higher or equal priority (with respect ot tsk). *)
         Lemma not_quiet_implies_exists_pending_job:
-          exists (j_hp: JobIn arr_seq),
-            arrived_between j_hp t1 t2 /\
+          exists j_hp,
+            arrives_in arr_seq j_hp /\
+            arrived_between job_arrival j_hp t1 t2 /\
             higher_eq_priority j_hp j /\
             ~ job_completed_by j_hp t2. 
         Proof.
@@ -150,18 +159,20 @@ Module BusyInterval.
                         (arrivals_between t1 t2)) eqn:COMP.
           {
             move: COMP => /hasP [j_hp ARR /andP [NOTCOMP HP]].
-            exists j_hp; repeat split; [ | by done | by apply/negP].
-            rewrite mem_filter in ARR; move: ARR => /andP [GE ARR].
-            by apply/andP; split; last by apply JobIn_arrived.
+            move: (ARR) => INarr.
+            apply in_arrivals_implies_arrived_between with (job_arrival0 := job_arrival) in ARR;
+              last by done.
+            apply in_arrivals_implies_arrived in INarr.
+            by exists j_hp; repeat split; last by apply/negP.
           }
           {
             apply negbT in COMP; rewrite -all_predC in COMP.
             move: COMP => /allP COMP.
-            exfalso; apply NOTQUIET; intros j_hp HP ARR.
+            exfalso; apply NOTQUIET; intros j_hp IN HP ARR.
             destruct (ltnP (job_arrival j_hp) t1) as [BEFORE | AFTER];
-              first by specialize (QUIET j_hp HP BEFORE); apply completion_monotonic with (t := t1).
-            feed (COMP j_hp);
-              first by rewrite mem_filter; apply/andP; split; last by apply JobIn_arrived.
+              first by specialize (QUIET j_hp IN HP BEFORE); apply completion_monotonic with (t := t1).
+            feed (COMP j_hp).
+              by eapply arrived_between_implies_in_arrivals; eauto 1; apply/andP; split.
             by rewrite /= HP andbT negbK in COMP.
           }
         Qed.
@@ -174,9 +185,9 @@ Module BusyInterval.
 
         (* Assume that the schedule is work-conserving and that jobs do
            not execute before their arrival or after completion. *)
-        Hypothesis H_work_conserving: work_conserving job_cost sched.
+        Hypothesis H_work_conserving: work_conserving job_arrival job_cost arr_seq sched.
         Hypothesis H_completed_jobs_dont_execute: completed_jobs_dont_execute job_cost sched.
-        Hypothesis H_jobs_must_arrive_to_execute: jobs_must_arrive_to_execute sched.
+        Hypothesis H_jobs_must_arrive_to_execute: jobs_must_arrive_to_execute job_arrival sched.
         
         (* Consider any interval [t1, t2] such that t1 < t2 and t1 is the only quiet time. *)
         Variable t1 t2: time.
@@ -198,13 +209,13 @@ Module BusyInterval.
             subst t.
             feed (NOTQUIET t1.+1); first by apply/andP; split.
             apply NOTQUIET.
-            intros j_hp HP ARR.
+            intros j_hp IN HP ARR.
             apply completion_monotonic with (t := t1); [by done | by done |].
             apply contraT; intro NOTCOMP.
             destruct (scheduled_at sched j_hp t1) eqn:SCHEDhp;
               first by move: SCHEDhp => /eqP SCHEDhp; rewrite IDLE in SCHEDhp.
             apply negbT in SCHEDhp.
-            feed (WORK j_hp t1);
+            feed (WORK j_hp t1 IN);
               first by rewrite /arrived_before ltnS in ARR; repeat (apply/andP; split).
             move: WORK => [j_other /eqP SCHEDother].
             by rewrite IDLE in SCHEDother.
@@ -212,12 +223,12 @@ Module BusyInterval.
           {
             feed (NOTQUIET t); first by apply/andP; split.
             apply NOTQUIET; clear NOTQUIET.
-            intros j_hp HP ARR.
+            intros j_hp IN HP ARR.
             apply contraT; intros NOTCOMP.
             destruct (scheduled_at sched j_hp t) eqn:SCHEDhp;
               first by move: SCHEDhp => /eqP SCHEDhp; rewrite IDLE in SCHEDhp.
             apply negbT in SCHEDhp.
-            feed (WORK j_hp t);
+            feed (WORK j_hp t IN);
               first by repeat (apply/andP; split); first by apply ltnW.
             move: WORK => [j_other /eqP SCHEDother].
             by rewrite IDLE in SCHEDother.
@@ -229,21 +240,23 @@ Module BusyInterval.
 
           (* If the JLFP policy is transitive and is respected by the schedule, ...*)
           Hypothesis H_priority_is_transitive: JLFP_is_transitive higher_eq_priority.
-          Hypothesis H_respects_policy: respects_JLFP_policy job_cost sched higher_eq_priority.
+          Hypothesis H_respects_policy:
+            respects_JLFP_policy job_arrival job_cost arr_seq sched higher_eq_priority.
 
           (* ... then the processor is always busy with a job of higher or equal priority. *)
           Lemma not_quiet_implies_exists_scheduled_hp_job:
             forall t,
               t1 <= t < t2 ->
               exists j_hp,
-                arrived_between j_hp t1 t2 /\ 
+                arrived_between job_arrival j_hp t1 t2 /\ 
                 higher_eq_priority j_hp j /\
                 job_scheduled_at j_hp t.
           Proof.
             have NOTIDLE := not_quiet_implies_not_idle.
             unfold is_idle, FP_is_transitive, transitive in *.
             rename H_not_quiet into NOTQUIET, H_quiet into QUIET, H_priority_is_transitive into TRANS,
-                   H_work_conserving into WORK, H_respects_policy into PRIO.
+                   H_work_conserving into WORK, H_respects_policy into PRIO,
+                   H_jobs_come_from_arrival_sequence into CONS.
             move => t /andP [GEt LEt].
             feed (NOTIDLE t); first by apply/andP; split; last by apply ltnW.
             destruct (sched t) as [j_hp|] eqn:SCHED; [clear NOTIDLE | by exfalso; apply NOTIDLE].
@@ -254,9 +267,9 @@ Module BusyInterval.
               apply contraT; move => /negP NOTHP; exfalso.
               feed (NOTQUIET t.+1); first by apply/andP; split.
               apply NOTQUIET.
-              unfold quiet_time in *; intros j_hp' HP ARR.
+              unfold quiet_time in *; intros j_hp' IN HP ARR.
               apply contraT; move => /negP NOTCOMP'; exfalso.
-              have BACK: backlogged job_cost sched j_hp' t.
+              have BACK: backlogged job_arrival job_cost sched j_hp' t.
               {
                 apply/andP; split; last first.
                 {
@@ -268,17 +281,19 @@ Module BusyInterval.
                 apply/negP; intro COMP; apply NOTCOMP'.
                 by apply completion_monotonic with (t0 := t).
               }
-              feed (PRIO j_hp' j_hp t BACK);  first by done.
+              feed (PRIO j_hp' j_hp t IN BACK);  first by done.
               by apply NOTHP, TRANS with (y := j_hp').
             }
             repeat split; [| by done | by done].
             {
               move: (SCHED) => PENDING.
-              apply scheduled_implies_pending with (job_cost0 := job_cost) in PENDING; try (by done).
+              eapply scheduled_implies_pending with (job_cost0 := job_cost) in PENDING;
+                [| by eauto | by done].
               apply/andP; split;
                 last by apply leq_ltn_trans with (n := t); first by move: PENDING => /andP [ARR _].
               apply contraT; rewrite -ltnNge; intro LT; exfalso.
-              specialize (QUIET j_hp HP LT).
+              feed (QUIET j_hp); first by eapply CONS, SCHED. 
+              specialize (QUIET HP LT).
               have COMP: job_completed_by j_hp t by apply completion_monotonic with (t0 := t1).
               apply completed_implies_not_scheduled in COMP; last by done.
               by move: COMP => /negP COMP; apply COMP.
@@ -299,23 +314,30 @@ Module BusyInterval.
           arrival_sequence_is_a_set arr_seq.
         
         (* ...and that jobs do not execute before their arrival or after completion. *)
+        Hypothesis H_jobs_must_arrive_to_execute: jobs_must_arrive_to_execute job_arrival sched.
         Hypothesis H_completed_jobs_dont_execute: completed_jobs_dont_execute job_cost sched.
-        Hypothesis H_jobs_must_arrive_to_execute: jobs_must_arrive_to_execute sched.
 
         (* Also assume a work-conserving FP schedule, ... *)
-        Hypothesis H_work_conserving: work_conserving job_cost sched.
-        Hypothesis H_respects_policy: respects_JLFP_policy job_cost sched higher_eq_priority.
+        Hypothesis H_work_conserving: work_conserving job_arrival job_cost arr_seq sched.
+        Hypothesis H_respects_policy:
+          respects_JLFP_policy job_arrival job_cost arr_seq sched higher_eq_priority.
 
         (* ...in which the priority relation is reflexive and transitive. *)
         Hypothesis H_priority_is_reflexive: JLFP_is_reflexive higher_eq_priority.
         Hypothesis H_priority_is_transitive: JLFP_is_transitive higher_eq_priority.
+
+        (* Next, we recall the notion of workload of all jobs released in a given interval
+           [t1, t2) that have higher-or-equal priority than the job j being analyzed. *)
+        Let hp_workload t1 t2 :=
+          workload_of_higher_or_equal_priority_jobs job_cost (arrivals_between t1 t2)
+                                                    higher_eq_priority j.
         
-        (* Let's recall the notions of service and workload of tasks with higher or equal
-           priority (with respect to tsk). *)
-        Let hp_service :=
-          service_of_higher_or_equal_priority_jobs sched higher_eq_priority j.
-        Let hp_workload :=
-          workload_of_higher_or_equal_priority_jobs job_cost arr_seq higher_eq_priority j.
+        (* With regard to the jobs with higher-or-equal priority that are released
+           in a given interval [t1, t2), we also recall the service received by these
+           jobs in the same interval [t1, t2). *)
+        Let hp_service t1 t2 :=
+          service_of_higher_or_equal_priority_jobs sched (arrivals_between t1 t2)
+                                                   higher_eq_priority j t1 t2.
 
         (* Now we begin the proof. First, we show that the busy interval is bounded. *)
         Section BoundingBusyInterval.
@@ -335,12 +357,12 @@ Module BusyInterval.
                 t1 <= job_arrival j <= t_busy.
             Proof.
               rename H_j_is_pending into PEND, H_respects_policy into PRIO,
-                     H_work_conserving into WORK, H_priority_is_reflexive into REFL.
+                     H_work_conserving into WORK, H_priority_is_reflexive into REFL,
+                     H_from_arrival_sequence into FROM.
               unfold busy_interval_prefix.
               set dec_quiet :=
-                fun t => all
-                           (fun (j_hp: JobIn arr_seq) =>
-                              higher_eq_priority j_hp j ==> (completed_by job_cost sched j_hp t))
+                fun t => all (fun j_hp =>
+                                higher_eq_priority j_hp j ==> (completed_by job_cost sched j_hp t))
                            (jobs_arrived_before arr_seq t).
               destruct ([exists t:'I_t_busy.+1, dec_quiet t]) eqn:EX.
               {
@@ -350,16 +372,17 @@ Module BusyInterval.
                 have QUIET: quiet_time last.
                 {
                   move: PRED => /allP PRED.
-                  intros j_hp HP ARR; apply JobIn_arrived in ARR.
-                  specialize (PRED j_hp ARR).
-                  by move: PRED => /implyP PRED; apply PRED.
+                  intros j_hp IN HP ARR.
+                  feed (PRED j_hp).
+                    by apply arrived_between_implies_in_arrivals with (job_arrival0 := job_arrival).
+                  by rewrite HP implyTb in PRED.
                 }
                 exists last.
                 split; last first.
                 {
                   apply/andP; split; last by move: PEND => /andP [ARR _].
                   apply contraT; rewrite -ltnNge; intros BEFORE.
-                  feed (QUIET j); first by apply REFL.
+                  feed (QUIET j FROM); first by apply REFL.
                   specialize (QUIET BEFORE).
                   move: PEND => /andP [_ NOTCOMP].
                   apply completion_monotonic with (t' := t_busy) in QUIET;
@@ -373,8 +396,9 @@ Module BusyInterval.
                   have PRED0: dec_quiet t0.
                   {
                     apply/allP; intros j_hp ARR; apply/implyP; intros HP.
-                    apply JobIn_arrived in ARR.
-                    by apply QUIET0.
+                    apply QUIET0; [| by done |].
+                    - by eapply in_arrivals_implies_arrived; eauto.
+                    - by eapply in_arrivals_implies_arrived_before; eauto.
                   }
                   have BUG: t0 <= last.
                   {
@@ -391,13 +415,14 @@ Module BusyInterval.
                 exists 0; split;
                   last by apply/andP; split; last by move: PEND => /andP [ARR _].
                 split; first by done.
-                split; first by intros j_hp _ ARR; rewrite /arrived_before ltn0 in ARR.
+                split; first by intros j_hp _ _ ARR; rewrite /arrived_before ltn0 in ARR.
                 move => t /andP [GE LT].
                 specialize (ALL (Ordinal LT)); move: ALL => /negP ALL.
                 intros QUIET; apply ALL; simpl.
                 apply/allP; intros j_hp ARR; apply/implyP; intros HP.
-                apply JobIn_arrived in ARR.
-                by apply QUIET.
+                apply QUIET; [| by done |].
+                - by eapply in_arrivals_implies_arrived; eauto.
+                - by eapply in_arrivals_implies_arrived_before; eauto.
               }
             Qed.
 
@@ -442,8 +467,8 @@ Module BusyInterval.
                 rewrite exchange_big /=.
                 apply eq_big_nat; move => t /andP [GEt LTt].
                 move: PREFIX => [_ [QUIET _]].
-                have EX: exists j_hp : JobIn arr_seq,
-                           arrived_between j_hp t1 (t1 + delta) /\
+                have EX: exists j_hp,
+                           arrived_between job_arrival j_hp t1 (t1 + delta) /\
                            higher_eq_priority j_hp j /\
                            scheduled_at sched j_hp t.
                 {
@@ -452,9 +477,11 @@ Module BusyInterval.
                   by rewrite -addn1; apply leq_add.
                 } clear EXISTS.
                 move: EX => [j_hp [/andP [GE LT] [HP SCHED]]].
+                have ARRhp: arrives_in arr_seq j_hp.
+                  by apply (H_jobs_come_from_arrival_sequence j_hp t).
                 rewrite big_mkcond (bigD1_seq j_hp) /=; first last.
-                - by rewrite filter_uniq //; apply JobIn_uniq.
-                - by rewrite mem_filter; apply/andP; split; last by apply JobIn_arrived.
+                - by eapply arrivals_uniq; eauto 1.
+                - by eapply arrived_between_implies_in_arrivals; eauto 1; apply/andP; split.
                 rewrite HP big1; first by rewrite /service_at SCHED addn0.
                 intros j' NEQ; destruct (higher_eq_priority j' j); last by done.
                 apply/eqP; rewrite eqb0; apply/negP; move => SCHED'.
@@ -483,10 +510,10 @@ Module BusyInterval.
                     first by rewrite -addn1; apply leq_add.
                 feed (PEND t1 (t1 + delta)); first by apply leq_addr.
                 specialize (PEND QUIET NOTQUIET').
-                move: PEND => [j0 [/andP [GE0 LT0] [HP0 NOTCOMP0]]].
+                move: PEND => [j0 [ARR0 [/andP [GE0 LT0] [HP0 NOTCOMP0]]]].
                 have IN0: j0 \in l.
-                  by rewrite mem_filter; apply/andP; split; last by apply JobIn_arrived.
-                have UNIQ: uniq l by rewrite filter_uniq //; apply JobIn_uniq.
+                  by eapply arrived_between_implies_in_arrivals; eauto 1; apply/andP; split.
+                have UNIQ: uniq l by eapply arrivals_uniq; eauto 1.
                 rewrite big_mkcond [\sum_(_ <- _ | hep _ _)_]big_mkcond.
                 rewrite (bigD1_seq j0); [simpl | by done | by done].
                 rewrite (bigD1_seq j0); [simpl | by done | by done].
@@ -500,7 +527,7 @@ Module BusyInterval.
                 }
                 rewrite ltn_neqAle; apply/andP; split; last by apply cumulative_service_le_job_cost.
                 unfold service_during.
-                rewrite ignore_service_before_arrival; rewrite //; [| by apply ltnW].
+                rewrite (ignore_service_before_arrival job_arrival); rewrite //; [| by apply ltnW].
                 rewrite <- ignore_service_before_arrival with (t2:=0); rewrite //; [|by apply ltnW].
                 by apply/negP.
               Qed.
@@ -528,10 +555,9 @@ Module BusyInterval.
               rename H_is_busy_prefix into PREFIX.
 
               set dec_quiet :=
-                fun t => all
-                           (fun (j_hp: JobIn arr_seq) =>
-                              higher_eq_priority j_hp j ==> (completed_by job_cost sched j_hp t))
-                           (jobs_arrived_before arr_seq t).
+                fun t =>
+                  all (fun j_hp => higher_eq_priority j_hp j ==> (completed_by job_cost sched j_hp t))
+                      (jobs_arrived_before arr_seq t).
 
               destruct ([exists t2:'I_(t1 + delta).+1, (t2 > t1) && dec_quiet t2]) eqn:EX.
               {
@@ -546,9 +572,10 @@ Module BusyInterval.
                 exists t2; split; first by done.
                 split; last first.
                 {
-                  intros j_hp HP ARR.
+                  intros j_hp IN HP ARR.
                   move: QUIET => /allP QUIET.
-                  feed (QUIET j_hp); first by rewrite JobIn_arrived.
+                  feed (QUIET j_hp);
+                    first by eapply arrived_between_implies_in_arrivals; last by apply ARR.
                   by move: QUIET => /implyP QUIET; apply QUIET.
                 }
                 split; first by done.
@@ -560,7 +587,9 @@ Module BusyInterval.
                     first by apply/andP; split;
                       last by apply leq_trans with (n := t2); [by apply ltnW |].
                   apply/allP; intros j_hp ARR; apply/implyP; intro HP.
-                  by apply BUG; last by rewrite -JobIn_arrived.
+                  apply BUG; [| by done |].
+                  - by eapply in_arrivals_implies_arrived, ARR. 
+                  - by eapply in_arrivals_implies_arrived_before, ARR.
                 }
                 by apply leq_ltn_trans with (p := t2) in MIN; first by rewrite ltnn in MIN.
               }
@@ -573,7 +602,9 @@ Module BusyInterval.
                   specialize (ALL' (Ordinal LEt)); rewrite negb_and /= GTt orFb in ALL'. 
                   move: ALL' => /negP ALL'; apply ALL'; clear ALL'.
                   apply/allP; intros j_hp ARR; apply/implyP; intro HP.
-                  by apply QUIET; last by rewrite -JobIn_arrived.
+                  apply QUIET; [| by done |].
+                  - by eapply in_arrivals_implies_arrived, ARR.
+                  - by eapply in_arrivals_implies_arrived_before, ARR.
                 } exfalso; clear ALL'.
                 specialize (TOOMUCH ALL).
                 by have BUG := leq_trans TOOMUCH BOUNDED; rewrite ltnn in BUG.
@@ -613,7 +644,7 @@ Module BusyInterval.
             {
               apply/andP; split; first by apply leqnn.
               rewrite /completed_by /service /service_during.
-              rewrite ignore_service_before_arrival //.
+              rewrite (ignore_service_before_arrival job_arrival) //.
               rewrite big_geq; last by apply leqnn.
               by rewrite eq_sym -lt0n H_positive_cost.
             }
@@ -668,7 +699,7 @@ Module BusyInterval.
               try (by done); first by apply/andP; split.
             apply/andP; split; first by apply leqnn.
             rewrite /completed_by /service /service_during.
-            rewrite ignore_service_before_arrival //.
+            rewrite (ignore_service_before_arrival job_arrival) //.
             rewrite big_geq; last by apply leqnn.
             by rewrite eq_sym -lt0n.
           Qed.

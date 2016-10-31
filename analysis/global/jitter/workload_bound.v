@@ -124,27 +124,33 @@ Module WorkloadBoundJitter.
     Variable task_jitter: sporadic_task -> time.
     
     Context {Job: eqType}.
+    Variable job_arrival: Job -> time.
     Variable job_cost: Job -> time.
     Variable job_task: Job -> sporadic_task.
     Variable job_deadline: Job -> time.
     Variable job_jitter: Job -> time.
 
+    (* Consider any job arrival sequence... *)
     Variable arr_seq: arrival_sequence Job.
 
-    (* Assume that all jobs have valid parameters *)
-    Hypothesis H_jobs_have_valid_parameters :
-      forall (j: JobIn arr_seq),
-        valid_sporadic_job_with_jitter task_cost task_deadline task_jitter job_cost job_deadline job_task job_jitter j.
+    (* ...where jobs have valid parameters. *)
+    Hypothesis H_jobs_have_valid_parameters:
+      forall j,
+        arrives_in arr_seq j ->
+        valid_sporadic_job_with_jitter task_cost task_deadline task_jitter job_cost
+                                       job_deadline job_task job_jitter j.
     
-    (* Consider any schedule. *)
+    (* Consider any schedule of this arrival sequence. *)
     Context {num_cpus: nat}.
-    Variable sched: schedule num_cpus arr_seq.
+    Variable sched: schedule Job num_cpus.
+    Hypothesis H_jobs_come_from_arrival_sequence:
+      jobs_come_from_arrival_sequence sched arr_seq.
 
     (* Assumption: jobs only execute after the jitter.
        This is used to discard the workload of jobs that arrive after
        the end of the interval t1 + delta. *)
     Hypothesis H_jobs_must_arrive_to_execute:
-      jobs_execute_after_jitter job_jitter sched.
+      jobs_execute_after_jitter job_arrival job_jitter sched.
 
     (* Assumption: jobs do not execute after they completed.
        This is used to eliminate jobs that complete before the start of the interval t1. *)
@@ -158,7 +164,8 @@ Module WorkloadBoundJitter.
     (* Assumption: sporadic task model.
        This is necessary to conclude that consecutive jobs ordered by arrival times
        are separated by at least 'period' times units. *)
-    Hypothesis H_sporadic_tasks: sporadic_task_model task_period arr_seq job_task.
+    Hypothesis H_sporadic_tasks:
+      sporadic_task_model task_period job_arrival job_task arr_seq.
 
     (* Before starting the proof, let's give simpler names to the definitions. *)
     Let job_has_completed_by := completed job_cost sched.
@@ -198,10 +205,11 @@ Module WorkloadBoundJitter.
     Hypothesis H_no_deadline_miss: task_jitter tsk + R_tsk <= task_deadline tsk.
 
     Hypothesis H_response_time_bound :    
-      forall (j: JobIn arr_seq),
-      job_task j = tsk ->
-      job_arrival j + task_jitter tsk + R_tsk < t1 + delta ->
-      job_has_completed_by j (job_arrival j + task_jitter tsk + R_tsk).
+      forall j,
+        arrives_in arr_seq j ->
+        job_task j = tsk ->
+        job_arrival j + task_jitter tsk + R_tsk < t1 + delta ->
+        job_has_completed_by j (job_arrival j + task_jitter tsk + R_tsk).
 
     Section MainProof.
 
@@ -219,7 +227,7 @@ Module WorkloadBoundJitter.
         jobs_of_task_scheduled_between job_task sched tsk t1 t2.
 
       (* Now, let's consider the list of interfering jobs sorted by arrival time. *)
-      Let earlier_arrival := fun (x y: JobIn arr_seq) => job_arrival x <= job_arrival y.
+      Let earlier_arrival := fun x y => job_arrival x <= job_arrival y.
       Let sorted_jobs := (sort earlier_arrival scheduled_jobs).
 
       (* The first step consists in simplifying the sum corresponding
@@ -250,16 +258,19 @@ Module WorkloadBoundJitter.
         Lemma workload_bound_all_jobs_from_tsk :
           forall j_i,
             j_i \in sorted_jobs ->
+            arrives_in arr_seq j_i /\
             job_task j_i = tsk /\
             service_during sched j_i t1 t2 != 0 /\
             j_i \in jobs_scheduled_between sched t1 t2.
         Proof.
+          rename H_jobs_come_from_arrival_sequence into FROMarr.
           intros j_i LTi.
           rewrite -workload_bound_job_in_same_sequence mem_filter in LTi; des.
-          repeat split; [by done | | by done].
-          unfold jobs_scheduled_between in *; rewrite mem_undup in LTi0.
-          apply mem_bigcat_nat_exists in LTi0; des.
-          rewrite mem_scheduled_jobs_eq_scheduled in LTi0.
+          have IN := LTi0.
+          unfold jobs_scheduled_between in *; rewrite mem_undup in IN.
+          apply mem_bigcat_nat_exists in IN; des.
+          rewrite mem_scheduled_jobs_eq_scheduled in IN.
+          repeat split; try (by done); first by apply (FROMarr j_i i).
           apply service_implies_cumulative_service with (t := i);
             first by apply/andP; split.
           by rewrite -not_scheduled_no_service negbK.
@@ -292,15 +303,13 @@ Module WorkloadBoundJitter.
         rewrite -[\sum_(_ <- _ | _) _]add0n leq_add //.
         apply leq_trans with (n := \sum_(x <- sorted_jobs) task_cost tsk);
           last by rewrite big_const_seq iter_addn addn0 mulnC leq_mul2r; apply/orP; right.
-        {
-          rewrite [\sum_(_ <- _) service_during _ _ _ _]big_seq_cond.
-          rewrite [\sum_(_ <- _) task_cost _]big_seq_cond.
-          apply leq_sum; intros j_i; move/andP => [INi _].
-          apply workload_bound_all_jobs_from_tsk in INi; des. 
-          eapply cumulative_service_le_task_cost;
-            [by apply H_completed_jobs_dont_execute | by apply INi |].
-          by apply H_jobs_have_valid_parameters.
-        }
+        rewrite [\sum_(_ <- _) service_during _ _ _ _]big_seq_cond.
+        rewrite [\sum_(_ <- _) task_cost _]big_seq_cond.
+        apply leq_sum; intros j_i; move/andP => [INi _].
+        apply workload_bound_all_jobs_from_tsk in INi; des. 
+        eapply cumulative_service_le_task_cost;
+          [by apply H_completed_jobs_dont_execute | by apply INi0 |].
+        by apply H_jobs_have_valid_parameters.
       Qed.
 
       End WorkloadNotManyJobs.
@@ -312,11 +321,12 @@ Module WorkloadBoundJitter.
         (* Assume that there's at least one job in the sorted list. *)
         Hypothesis H_at_least_one_job: size sorted_jobs > 0.
 
-        Variable elem: JobIn arr_seq.
+        Variable elem: Job.
         Let j_fst := nth elem sorted_jobs 0.
 
         (* The first job is an interfering job of task tsk. *)
         Lemma workload_bound_j_fst_is_job_of_tsk :
+          arrives_in arr_seq j_fst /\
           job_task j_fst = tsk /\
           service_during sched j_fst t1 t2 != 0 /\
           j_fst \in jobs_scheduled_between sched t1 t2.
@@ -338,21 +348,15 @@ Module WorkloadBoundJitter.
             rewrite -[service_during _ _ _ _]add0n [_* task_cost tsk]mulSnr.
             apply leq_add; first by done.
             by eapply cumulative_service_le_task_cost;
-              [| by apply INfst
-               | by apply H_jobs_have_valid_parameters].
+              [| by apply INfst0 | by apply H_jobs_have_valid_parameters].
           }
           {
-            rewrite 2!mul0n addn0 subn0 leq_min; apply/andP; split.
-            {
-              by eapply cumulative_service_le_task_cost;
-                 [| by apply INfst
-                | by apply H_jobs_have_valid_parameters].
-            }
-            {
-              rewrite -addnBA // -[service_during _ _ _ _]addn0.
-              rewrite -addnA; apply leq_add; last by done.
-              by apply cumulative_service_le_delta.
-            }
+            rewrite 2!mul0n addn0 subn0 leq_min; apply/andP; split;
+              first by eapply cumulative_service_le_task_cost;
+               [| by apply INfst0 | by apply H_jobs_have_valid_parameters].
+            rewrite -addnBA // -[service_during _ _ _ _]addn0.
+            rewrite -addnA; apply leq_add; last by done.
+            by apply cumulative_service_le_delta.
           }
         Qed.
 
@@ -366,12 +370,13 @@ Module WorkloadBoundJitter.
         Variable num_mid_jobs: nat.
         Hypothesis H_at_least_two_jobs : size sorted_jobs = num_mid_jobs.+2.
         
-        Variable elem: JobIn arr_seq.
+        Variable elem: Job.
         Let j_fst := nth elem sorted_jobs 0.
         Let j_lst := nth elem sorted_jobs num_mid_jobs.+1.
 
         (* The last job is an interfering job of task tsk. *)
         Lemma workload_bound_j_lst_is_job_of_tsk :
+          arrives_in arr_seq j_lst /\
           job_task j_lst = tsk /\
           service_during sched j_lst t1 t2 != 0 /\
           j_lst \in jobs_scheduled_between sched t1 t2.
@@ -392,11 +397,12 @@ Module WorkloadBoundJitter.
             apply mem_nth; instantiate (1 := 0).
             apply ltn_trans with (n := 1); [by done | by rewrite H_at_least_two_jobs].
           }
-          instantiate (1 := elem); move => [FSTtsk [/eqP FSTserv FSTin]].
+          instantiate (1 := elem); move => [FSTARR [FSTtsk [/eqP FSTserv FSTin]]].
           apply FSTserv.
-          apply cumulative_service_after_job_rt_zero with (job_cost0 := job_cost) (R := task_jitter tsk + R_tsk);
+          apply cumulative_service_after_job_rt_zero with (job_arrival0 := job_arrival)
+                  (job_cost0 := job_cost) (R := task_jitter tsk + R_tsk);
             [by done | | by rewrite addnA ltnW].
-          rewrite addnA; apply H_response_time_bound; first by done.
+          rewrite addnA; apply H_response_time_bound; try (by done).
           by apply leq_trans with (n := t1); last by apply leq_addr.
         Qed.
 
@@ -410,9 +416,9 @@ Module WorkloadBoundJitter.
             apply mem_nth; instantiate (1 := num_mid_jobs.+1).
             by rewrite -(ltn_add2r 1) addn1 H_at_least_two_jobs addn1.
           }  
-          instantiate (1 := elem); move => [LSTtsk [/eqP LSTserv LSTin]].
+          instantiate (1 := elem); move => [LSTarr [LSTtsk [/eqP LSTserv LSTin]]].
           apply LSTserv.
-          apply cumulative_service_before_job_arrival_zero; last by done.
+          apply (cumulative_service_before_job_arrival_zero job_arrival); last by done.
           by apply arrival_before_jitter with (job_jitter0 := job_jitter).
         Qed.
 
@@ -440,12 +446,14 @@ Module WorkloadBoundJitter.
                |by apply workload_bound_response_time_of_first_job_inside_interval
                | by apply ltnW].
               rewrite -addnA.
-              rewrite [\sum_(_ <= _ < t2)_](cumulative_service_after_job_rt_zero job_cost _ _ _ (task_jitter tsk + R_tsk)); rewrite ?leqnn //;                          first by rewrite addn0 leqnn.
+              rewrite [\sum_(_ <= _ < t2)_]
+                      (cumulative_service_after_job_rt_zero job_arrival job_cost _ _ _
+                       (task_jitter tsk + R_tsk)); rewrite ?leqnn //; first by rewrite addn0 leqnn.
               rewrite addnA.
-              apply H_response_time_bound; last by done.
-              exploit workload_bound_all_jobs_from_tsk.
-                by apply mem_nth; instantiate (1 := 0); rewrite H_at_least_two_jobs.
-              by instantiate (1 := elem); move => [FSTtsk _].
+              have ALL := workload_bound_all_jobs_from_tsk j_fst.
+              feed ALL; first by apply mem_nth; rewrite H_at_least_two_jobs.
+              move: ALL => [FSTarr [FSTtsk _]].
+              by apply H_response_time_bound.
             }
           }
           {
@@ -465,7 +473,7 @@ Module WorkloadBoundJitter.
                  | by apply ltnW, workload_bound_last_job_arrives_before_end_of_interval].
               rewrite /= -[\sum_(_ <= _ < _) 1]add0n; apply leq_add;
                 last by apply leq_sum; ins; apply service_at_most_one.
-              rewrite cumulative_service_before_job_arrival_zero;
+              rewrite (cumulative_service_before_job_arrival_zero job_arrival);
                 [by apply leqnn | | by apply leqnn].
               by apply arrival_before_jitter with (job_jitter0 := job_jitter).
             }
@@ -481,7 +489,6 @@ Module WorkloadBoundJitter.
           have lemma2 := workload_bound_response_time_of_first_job_inside_interval.
           rewrite addnBA; last by apply ltnW.
           rewrite subh1; last by done.
-          (*rewrite [_ + R_tsk]addnC.*)
           rewrite -addnBA; last by apply leq_addr.
           
           rewrite addnC; unfold t2.
@@ -509,15 +516,15 @@ Module WorkloadBoundJitter.
             last by rewrite big_const_nat iter_addn addn0 mulnC subn0.
           rewrite big_nat_cond [\sum_(0 <= i < num_mid_jobs) task_cost _]big_nat_cond.
           apply leq_sum; intros i; rewrite andbT; move => /andP LT; des.
-          eapply cumulative_service_le_task_cost;
-            [by apply H_completed_jobs_dont_execute | | by apply H_jobs_have_valid_parameters].
           exploit workload_bound_all_jobs_from_tsk.
           {
             instantiate (1 := nth elem sorted_jobs i.+1).
             apply mem_nth; rewrite H_at_least_two_jobs.
             by rewrite ltnS; apply leq_trans with (n := num_mid_jobs).
           }
-          by ins; des.
+          move => [ARRin [JOBtsk _]].
+          by eapply cumulative_service_le_task_cost;
+            [by apply H_completed_jobs_dont_execute | | by apply H_jobs_have_valid_parameters].
         Qed.
 
         (* Conclude that the distance between first and last is at least num_mid_jobs + 1 periods. *)
@@ -536,18 +543,19 @@ Module WorkloadBoundJitter.
           set cur := nth elem sorted_jobs i.
           set next := nth elem sorted_jobs i.+1.
 
+          have ALL := workload_bound_all_jobs_from_tsk.
+          
           (* Show that cur arrives earlier than next *)
           assert (ARRle: job_arrival cur <= job_arrival next).
             by unfold cur, next; apply workload_bound_jobs_ordered_by_arrival.
              
-          (* Show that both cur and next are in the arrival sequence *)
-          assert (INnth: cur \in scheduled_jobs /\ next \in scheduled_jobs).
-          {
-            rewrite 2!workload_bound_job_in_same_sequence; split.
-              by apply mem_nth, (ltn_trans LT0); destruct sorted_jobs; ins.
-              by apply mem_nth; destruct sorted_jobs; ins.
-          }
-          rewrite 2?mem_filter in INnth; des.
+          feed (workload_bound_all_jobs_from_tsk cur).
+            by apply mem_nth, (ltn_trans LT0); destruct sorted_jobs.
+          intros [CURarr [CURtsk [_ CURin]]].
+
+          feed (workload_bound_all_jobs_from_tsk next).
+            by apply mem_nth; destruct sorted_jobs.
+          intros [NEXTarr [NEXTtsk [_ NEXTin]]].
 
           (* Use the sporadic task model to conclude that cur and next are separated
              by at least (task_period tsk) units. Of course this only holds if cur != next.
@@ -555,15 +563,15 @@ Module WorkloadBoundJitter.
              also prove that it doesn't contain duplicates. *)
           assert (CUR_LE_NEXT: job_arrival cur + task_period (job_task cur) <= job_arrival next).
           {
-            apply H_sporadic_tasks; last by ins.
+            apply H_sporadic_tasks; try (by done).
             unfold cur, next, not; intro EQ; move: EQ => /eqP EQ.
             rewrite nth_uniq in EQ; first by move: EQ => /eqP EQ; intuition.
               by apply ltn_trans with (n := (size sorted_jobs).-1); destruct sorted_jobs; ins.
               by destruct sorted_jobs; ins.
               by rewrite sort_uniq -/scheduled_jobs filter_uniq // undup_uniq.
-              by rewrite INnth INnth0.  
+              by rewrite CURtsk NEXTtsk.
           }
-          by rewrite subh3 // addnC -INnth.
+          by rewrite subh3 // addnC -CURtsk.
         Qed.
 
         (* Prove that n_k is at least the number of the middle jobs *)
@@ -627,7 +635,8 @@ Module WorkloadBoundJitter.
           move => NK; rewrite -NK.
           apply leq_add;
             last by apply workload_bound_service_of_middle_jobs.
-          apply leq_trans with (n := delta + task_jitter tsk + R_tsk - (job_arrival j_lst - (job_arrival j_fst))).
+          apply leq_trans with (n := delta + task_jitter tsk + R_tsk -
+                                             (job_arrival j_lst - (job_arrival j_fst))).
           {
             rewrite addnC -workload_bound_simpl_expression_with_first_and_last.
             by apply workload_bound_service_of_first_and_last_jobs.
@@ -673,10 +682,11 @@ Module WorkloadBoundJitter.
               by rewrite H_at_least_two_jobs.
             have INfst := workload_bound_j_fst_is_job_of_tsk SIZE elem;
             have INlst := workload_bound_j_lst_is_job_of_tsk; des.
-            have PARAMSfst := JOBPARAMS j_fst; des.
-            have PARAMSlst := JOBPARAMS j_lst; des.
-            by apply leq_add; apply cumulative_service_le_task_cost with (task_deadline0 := task_deadline)
-                     (job_cost0 := job_cost) (job_deadline0 := job_deadline) (job_task0 := job_task). 
+            have PARAMSfst := JOBPARAMS j_fst INfst; des.
+            have PARAMSlst := JOBPARAMS j_lst INlst; des.
+            by apply leq_add; apply cumulative_service_le_task_cost with
+                      (task_deadline0 := task_deadline) (job_cost0 := job_cost)
+                      (job_deadline0 := job_deadline) (job_task0 := job_task).  
           }
           {
             rewrite subnAC subnK; last first.
@@ -721,8 +731,8 @@ Module WorkloadBoundJitter.
         apply negbT in NUM; rewrite -ltnNge in NUM.
 
         (* Find some dummy element to use in the nth function *)
-        assert (EX: exists elem: JobIn arr_seq, True).
-          destruct sorted_jobs; [ by rewrite ltn0 in NUM | by exists j].
+        assert (EX: exists elem: Job, True).
+          destruct sorted_jobs; [ by rewrite ltn0 in NUM | by exists s].
         destruct EX as [elem _].
 
         (* Now we index the sum to access the first and last elements. *)

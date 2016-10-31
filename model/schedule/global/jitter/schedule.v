@@ -14,48 +14,43 @@ Module ScheduleWithJitter.
   Section ArrivalDependentProperties.
 
     Context {Job: eqType}.
+    Variable job_arrival: Job -> time.
     Variable job_cost: Job -> time.
     Variable job_jitter: Job -> time.
 
-    (* Given an arrival sequence, ... *)
-    Context {arr_seq: arrival_sequence Job}.
+    (* Consider any job arrival sequence... *)
+    Variable arr_seq: arrival_sequence Job.
 
-    (* ... we define the following properties for job j in schedule sched. *)
+    (* ...and any schedule of these jobs. *)
     Context {num_cpus: nat}.
-    Variable sched: schedule num_cpus arr_seq.
+    Variable sched: schedule Job num_cpus.
 
+    (* In this section we define properties of a job in the schedule. *)
     Section JobProperties.
 
-      Variable j: JobIn arr_seq.
+      (* Let j be any job. *)
+      Variable j: Job.
 
-      (* The actual arrival of job j occurs after the jitter. *)
+      (* We define the actual arrival of job j as the time when the jitter ends. *)
       Definition actual_arrival := job_arrival j + job_jitter j.
 
-      (* Whether job j's jitter has passed by time t. *)
+      (* Next, we define whether job j's jitter has passed by time t... *)
       Definition jitter_has_passed (t: time) := actual_arrival <= t.
 
-      (* Whether job j actually arrived before time t. *)
+      (* ...and whether job j actually arrived before time t. *)
       Definition actual_arrival_before (t: time) := actual_arrival < t.
 
-      (* Job j is pending at time t iff the jitter has passed but j has not completed. *)
+      (* We say that job j is pending at time t iff the jitter has passed but j has not completed. *)
       Definition pending (t: time) := jitter_has_passed t && ~~ completed job_cost sched j t.
 
-      (* Job j is backlogged at time t iff it is pending and not scheduled. *)
+      (* We say that job j is backlogged at time t iff it is pending and not scheduled. *)
       Definition backlogged (t: time) := pending t && ~~ scheduled sched j t.
-
-      (* Job j is carry-in in interval [t1, t2) iff it arrives before t1 and is
-         not complete at time t1 *)
-      Definition carried_in (t1: time) := actual_arrival_before t1 && ~~ completed job_cost sched j t1.
-
-      (* Job j is carry-out in interval [t1, t2) iff it arrives after t1 and is
-         not complete at time t2 *)
-      Definition carried_out (t1 t2: time) := actual_arrival_before t2 && ~~ completed job_cost sched j t2.
 
     End JobProperties.
 
     Section ScheduleProperties.
 
-      (* A job can only be scheduled after the jitter has passed. *)
+      (* In a valid schedule, a job can only be scheduled after the jitter has passed. *)
       Definition jobs_execute_after_jitter :=
         forall j t,
           scheduled sched j t -> jitter_has_passed j t.
@@ -100,19 +95,19 @@ Module ScheduleWithJitter.
 
       Section Service.
       
-        (* If a job only executes after the jitter, it also only
-           executes after its arrival time. *)
+        (* First, we prove that if a job cannot execute before the jitter has passed,
+           then it cannot execute before its arrival time. *)
         Lemma arrival_before_jitter :
-          jobs_must_arrive_to_execute sched.
-          Proof.
-            unfold jobs_execute_after_jitter, jobs_must_arrive_to_execute.
-            intros j t SCHED; unfold ArrivalSequence.has_arrived.
+          jobs_must_arrive_to_execute job_arrival sched.
+        Proof.
+          unfold jobs_execute_after_jitter, jobs_must_arrive_to_execute.
+          intros j t SCHED; unfold ArrivalSequence.has_arrived.
+          rewrite -(leq_add2r (job_jitter j)).
+          by apply leq_trans with (n := t);
+            [by apply H_jobs_execute_after_jitter | by apply leq_addr].
+        Qed.
 
-            rewrite -(leq_add2r (job_jitter j)).
-            by apply leq_trans with (n := t);
-              [by apply H_jobs_execute_after_jitter | by apply leq_addr].
-          Qed.
-
+        (* Next, we show that the service received before the jitter is zero. *)
         Lemma service_before_jitter_zero :
           forall j t,
             t < job_arrival j + job_jitter j ->
@@ -123,6 +118,7 @@ Module ScheduleWithJitter.
           by apply AFTER, (leq_trans LT) in SCHED; rewrite ltnn in SCHED.
         Qed.
 
+        (* The same applies to the cumulative service. *)
         Lemma cumulative_service_before_jitter_zero :
           forall j t1 t2,
             t2 <= job_arrival j + job_jitter j ->
@@ -158,15 +154,14 @@ Module ScheduleOfSporadicTaskWithJitter.
     Context {Job: eqType}.
     Variable job_task: Job -> sporadic_task.
     
-    (* Consider any schedule. *)
-    Context {arr_seq: arrival_sequence Job}.
+    (* Consider any multiprocessor schedule. *)
     Context {num_cpus: nat}.
-    Variable sched: schedule num_cpus arr_seq.
+    Variable sched: schedule Job num_cpus.
 
     (* Given a task tsk, ...*)
     Variable tsk: sporadic_task.
 
-    (* ..., we we can state that tsk is scheduled on cpu at time t as follows. *)
+    (* ..., we can state that tsk is scheduled on cpu at time t as follows. *)
     Definition task_scheduled_on (cpu: processor num_cpus) (t: time) :=
       if (sched cpu t) is Some j then
         (job_task j == tsk)
@@ -178,7 +173,7 @@ Module ScheduleOfSporadicTaskWithJitter.
     
     (* We also define the list of jobs scheduled during [t1, t2). *)
     Definition jobs_of_task_scheduled_between (t1 t2: time) :=
-      filter (fun (j: JobIn arr_seq) => job_task j == tsk)
+      filter (fun j => job_task j == tsk)
              (jobs_scheduled_between sched t1 t2).
     
   End ScheduledJobs.
@@ -192,15 +187,16 @@ Module ScheduleOfSporadicTaskWithJitter.
     Variable job_task: Job -> sporadic_task.
 
     (* Consider any schedule. *)
-    Context {arr_seq: arrival_sequence Job}.
     Context {num_cpus: nat}.
-    Variable sched: schedule num_cpus arr_seq.
+    Variable sched: schedule Job num_cpus.
 
     (* Next we define intra-task parallelism. *)
     Definition jobs_of_same_task_dont_execute_in_parallel :=
-      forall (j j': JobIn arr_seq) t,
+      forall j j' t,
         job_task j = job_task j' ->
-        scheduled sched j t -> scheduled sched j' t -> j = j'.
+        scheduled sched j t ->
+        scheduled sched j' t ->
+        j = j'.
     
   End ScheduleProperties.
 
@@ -216,23 +212,29 @@ Module ScheduleOfSporadicTaskWithJitter.
     Variable job_deadline: Job -> time.
     Variable job_task: Job -> sporadic_task.
 
-    (* Then, in a valid schedule of sporadic tasks ...*)
-    Context {arr_seq: arrival_sequence Job}.
-    Context {num_cpus: nat}.
-    Variable sched: schedule num_cpus arr_seq.
+    (* Consider any job arrival sequence... *)
+    Variable arr_seq: arrival_sequence Job.
 
-    (* ...such that jobs do not execute after completion, ...*)
+    (* ...and any schedule of these jobs. *)
+    Context {num_cpus: nat}.
+    Variable sched: schedule Job num_cpus.
+
+    (* Assume that jobs do not execute after completion.*)
     Hypothesis jobs_dont_execute_after_completion :
        completed_jobs_dont_execute job_cost sched.
 
+    (* Let tsk be any task...*)
     Variable tsk: sporadic_task.
-    
-    Variable j: JobIn arr_seq.
+
+    (* ...and let j be any valid job of this task. *)
+    Variable j: Job.
+    Hypothesis H_j_arrives: arrives_in arr_seq j.
     Hypothesis H_job_of_task: job_task j = tsk.
     Hypothesis valid_job:
       valid_sporadic_job task_cost task_deadline job_cost job_deadline job_task j.
     
-    (* Remember that for any job of tsk, service <= task_cost tsk *)
+    (* Then, we can prove that the service received by j is no larger than the cost
+       of its task. *)
     Lemma cumulative_service_le_task_cost :
         forall t t',
           service_during sched j t t' <= task_cost tsk.

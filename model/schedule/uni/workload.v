@@ -12,25 +12,24 @@ Module Workload.
 
     Context {Task: eqType}.
     Context {Job: eqType}.
+    Variable job_arrival: Job -> time.
     Variable job_cost: Job -> time.
     Variable job_task: Job -> Task.
       
     (* Consider any job arrival sequence... *)
     Variable arr_seq: arrival_sequence Job.
 
-    (* ...and recall the job arrivals in any interval [t1, t2). *)
-    Let arrivals_between := jobs_arrived_between arr_seq.
+    (* ...and any (finite) set of jobs. *)
+    Variable jobs: seq Job.
 
     (* First, we define the workload for generic sets of jobs. *)
     Section WorkloadOfJobs.
 
       (* Given any predicate over Jobs, ... *)
-      Variable pred: JobIn arr_seq -> bool.
+      Variable P: Job -> bool.
 
-      (* ...we define the total workload of the jobs released during [t1, t2)
-         that satisfy such a predicate. *)
-      Definition workload_of_jobs (t1 t2: time) :=
-        \sum_(j <- arrivals_between t1 t2 | pred j) job_cost j.
+      (* ...we define the total workload of the jobs that satisfy such a predicate. *)
+      Definition workload_of_jobs := \sum_(j <- jobs | P j) job_cost j.
 
     End WorkloadOfJobs.
 
@@ -49,11 +48,10 @@ Module Workload.
       Let of_higher_or_equal_priority j :=
         higher_eq_priority (job_task j) tsk.
       
-      (* Then, we define the workload of higher or equal priority requested
-         in the interval [t1, t2) as the workload of all the jobs of
-         higher-or-equal-priority tasks released in that interval. *)
-      Definition workload_of_higher_or_equal_priority_tasks (t1 t2: time) :=
-        workload_of_jobs of_higher_or_equal_priority t1 t2.
+      (* Then, we define the workload of all jobs of tasks with
+         higher-or-equal priority than tsk. *)
+      Definition workload_of_higher_or_equal_priority_tasks :=
+        workload_of_jobs of_higher_or_equal_priority.
 
     End PerTaskPriority.
 
@@ -63,19 +61,18 @@ Module Workload.
 
       (* Consider any JLFP policy that indicates whether a job has
          higher or equal priority. *)
-      Variable higher_eq_priority: JLFP_policy arr_seq.
+      Variable higher_eq_priority: JLFP_policy Job.
 
       (* Let j be the job to be analyzed. *)
-      Variable j: JobIn arr_seq.
+      Variable j: Job.
 
       (* Recall the notion of a job of higher or equal priority. *)
       Let of_higher_or_equal_priority j_hp := higher_eq_priority j_hp j.
       
-      (* Then, we define the workload of higher or equal priority requested
-         in the interval [t1, t2) as the workload of all the jobs of
-         higher-or-equal priority released in that interval. *)
-      Definition workload_of_higher_or_equal_priority_jobs (t1 t2: time) :=
-        workload_of_jobs of_higher_or_equal_priority t1 t2.
+      (* Then, we define the workload of higher or equal priority of all jobs
+         with higher-or-equal priority than j. *)
+      Definition workload_of_higher_or_equal_priority_jobs :=
+        workload_of_jobs of_higher_or_equal_priority.
 
     End PerJobPriority.
     

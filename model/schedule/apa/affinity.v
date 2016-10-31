@@ -51,8 +51,7 @@ Module Affinity.
       Variable job_task: Job -> sporadic_task.
       
       (* Consider any schedule, ... *)
-      Context {arr_seq: arrival_sequence Job}.
-      Variable sched: schedule num_cpus arr_seq.
+      Variable sched: schedule Job num_cpus.
 
       (* ... and some affinity alpha. *)
       Variable alpha: affinity num_cpus.

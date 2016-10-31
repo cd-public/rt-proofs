@@ -6,174 +6,235 @@ Module ArrivalSequence.
 
   Export Time.
   
-  (* Next, we define a job arrival sequence (can be infinite). *)
+  (* We begin by defining a job arrival sequence. *)
   Section ArrivalSequenceDef.
 
     (* Given any job type with decidable equality, ... *)
     Variable Job: eqType.
 
-    (* ..., an arrival sequence is a mapping from time to a sequence of jobs. *)
+    (* ..., an arrival sequence is a mapping from any time to a (finite) sequence of jobs. *)
     Definition arrival_sequence := time -> seq Job.
 
   End ArrivalSequenceDef.
 
-  (* Note that Job denotes the universe of all possible jobs.
-     In order to distinguish jobs of different arrival sequences, next we
-     define a subtype of Job called JobIn. *)
-  Section JobInArrivalSequence.
+  (* Next, we define properties of jobs in a given arrival sequence. *)
+  Section JobProperties.
 
-    Context {Job: eqType}.
-
-    (* First we define whether a job arrives in a particular sequence at time t. *)
-    Definition arrives_at (j: Job) (arr_seq: arrival_sequence Job) (t: time) :=
-      j \in arr_seq t.
-
-    (* Next, we define the type (JobIn arr_seq) to represent a job that belongs to arr_seq.
-       (Note: The notation might seem complicated, but it just means that the type JobIn is
-              constructed using a Job j, a time t, and a proof of arrival. *)
-    Inductive JobIn (arr_seq: arrival_sequence Job) :=
-      Build_JobIn j t of (arrives_at j arr_seq t).
-
-    (* Next, we define a coercion that returns the Job contained in the type JobIn. *)
-    Coercion job_of_job_in {arr_seq} (j: JobIn arr_seq) : Job :=
-      let: Build_JobIn actual_job _ _ := j in actual_job.
-
-    (* Similarly, we define a function that returns the arrival time of the job. *)
-    Definition job_arrival {arr_seq: arrival_sequence Job} (j: JobIn arr_seq) :=
-      let: Build_JobIn _ arr _ := j in arr.
-
-    (* Finally, we define a decidable equality for JobIn, in order to make
-       it compatible with ssreflect (see jobin_eqdec.v). *)
-    Load jobin_eqdec.
-
-  End JobInArrivalSequence.
-
-  (* A valid arrival sequence must satisfy some properties. *)
-  Section ArrivalSequenceProperties.
-
+    (* Consider any job arrival sequence. *)
     Context {Job: eqType}.
     Variable arr_seq: arrival_sequence Job.
 
-    (* The same job j cannot arrive at two different times. *)
-    Definition no_multiple_arrivals :=
-      forall (j: Job) t1 t2,
-        arrives_at j arr_seq t1 -> arrives_at j arr_seq t2 -> t1 = t2.
+    (* First, we define the sequence of jobs arriving at time t. *)
+    Definition jobs_arriving_at (t: time) := arr_seq t.
 
-    (* The sequence of arrivals at a particular time has no duplicates. *)
-    Definition arrival_sequence_is_a_set := forall t, uniq (arr_seq t).
+    (* Next, we say that job j arrives at a given time t iff it belongs to the
+       corresponding sequence. *)
+    Definition arrives_at (j: Job) (t: time) := j \in jobs_arriving_at t.
+
+    (* Similarly, we define whether job j arrives at some (unknown) time t, i.e.,
+       whether it belongs to the arrival sequence. *)
+    Definition arrives_in (j: Job) := exists t, j \in jobs_arriving_at t.
+
+  End JobProperties.
+  
+  (* Next, we define properties of a valid arrival sequence. *)
+  Section ArrivalSequenceProperties.
+
+    (* Assume that job arrival times are known. *)
+    Context {Job: eqType}.
+    Variable job_arrival: Job -> time.
+
+    (* Consider any job arrival sequence. *)
+    Variable arr_seq: arrival_sequence Job.
+
+    (* We say that arrival times are consistent if any job that arrives in the sequence
+       has the corresponding arrival time. *)
+    Definition arrival_times_are_consistent :=
+      forall j t,
+        arrives_at arr_seq j t -> job_arrival j = t.
+    
+    (* We say that the arrival sequence is a set iff it doesn't contain duplicate jobs
+       at any given time. *)
+    Definition arrival_sequence_is_a_set := forall t, uniq (jobs_arriving_at arr_seq t).
 
   End ArrivalSequenceProperties.
 
-  (* Next, we define whether a job has arrived in an interval. *)
-  Section ArrivingJobs.
+  (* Next, we define properties of job arrival times. *)
+  Section PropertiesOfArrivalTime.
 
+    (* Assume that job arrival times are known. *)
     Context {Job: eqType}.
-    Context {arr_seq: arrival_sequence Job}.
-    Variable j: JobIn arr_seq.
+    Variable job_arrival: Job -> time.
 
-    (* A job has arrived at time t iff it arrives at some time t_0, with 0 <= t_0 <= t. *)
+    (* Let j be any job. *)
+    Variable j: Job.
+
+    (* We say that job j has arrived at time t iff it arrives at some time t_0 with t_0 <= t. *)
     Definition has_arrived (t: time) := job_arrival j <= t.
 
-    (* A job arrived before t iff it arrives at some time t_0, with 0 <= t_0 < t. *)
+    (* Next, we say that job j arrived before t iff it arrives at some time t_0 with t_0 < t. *)
     Definition arrived_before (t: time) := job_arrival j < t.
 
-    (* A job arrives between t1 and t2 iff it arrives at some time t with t1 <= t < t2. *)
+    (* Finally, we say that job j arrives between t1 and t2 iff it arrives at some time t with
+       t1 <= t < t2. *)
     Definition arrived_between (t1 t2: time) := t1 <= job_arrival j < t2.
 
-  End ArrivingJobs.
+  End PropertiesOfArrivalTime.
 
-  (* In this section, we define prefixes of arrival sequences based on JobIn.
-     This is not required in the main proofs, but important for instantiating
-     a concrete schedule. Feel free to skip this section. *)
+  (* In this section, we define arrival sequence prefixes, which are useful
+     to define (computable) properties over sets of jobs in the schedule. *)
   Section ArrivalSequencePrefix.
 
+    (* Assume that job arrival times are known. *)
     Context {Job: eqType}.
+    Variable job_arrival: Job -> time.
+
+    (* Consider any job arrival sequence. *)
     Variable arr_seq: arrival_sequence Job.
 
-    (* Let's define a function that takes a job j and converts it to
-       Some JobIn (if j arrives at time t), or None otherwise. *)
-    Program Definition is_JobIn (t: time) (j: Job) :=
-      if (j \in arr_seq t) is true then
-        Some (Build_JobIn arr_seq j t _)
-      else None.
-
-    (* Now we define the list of every JobIn that arrives at time t as the partial
-       map of is_JobIn.  *)
-    Definition jobs_arriving_at (t: time) := pmap (is_JobIn t) (arr_seq t).
-
-    (* By concatenation, we can construct the list of every JobIn that arrived before t2. *)
-    Definition jobs_arrived_before (t2: time) :=
-      \cat_(t < t2) jobs_arriving_at t.
-
-    (* Based on that, we define the list of every JobIn that has arrived up to time t2, ... *)
-    Definition jobs_arrived_up_to (t2: time) :=
-      jobs_arrived_before t2.+1.
-
-    (* ...and the list of every JobIn that arrived in the interval [t1, t2). *)
+    (* By concatenation, we construct the list of jobs that arrived in the interval [t1, t2). *)
     Definition jobs_arrived_between (t1 t2: time) :=
-      [seq j <- jobs_arrived_before t2 | job_arrival j >= t1].
+      \cat_(t1 <= t < t2) jobs_arriving_at arr_seq t.
 
+    (* Based on that, we define the list of jobs that arrived up to time t, ...*)
+    Definition jobs_arrived_up_to (t: time) := jobs_arrived_between 0 t.+1.
+
+    (* ...and the list of jobs that arrived strictly before time t. *)
+    Definition jobs_arrived_before (t: time) := jobs_arrived_between 0 t.
+
+    (* In this section, we prove some lemmas about arrival sequence prefixes. *)
     Section Lemmas.
-      
-      (* There's an inverse function for recovering the original Job from JobIn. *)
-      Lemma is_JobIn_inverse :
-        forall t,
-          ocancel (is_JobIn t) job_of_job_in.
-      Proof.
-        by intros t; red; intros x; unfold is_JobIn; des_eqrefl.
-      Qed.
 
-      (* Prove that a member of the list indeed satisfies the property. *)
-      Lemma JobIn_arrived:
-        forall j t,
-          j \in jobs_arrived_before t <-> arrived_before j t.
-      Proof.
-        intros j t; split.
-        {
-          intros IN; apply mem_bigcat_ord_exists in IN; destruct IN as [t0 IN].
-          unfold jobs_arriving_at in IN.
-          rewrite mem_pmap in IN.
-          move: IN => /mapP [j' IN SOME].
-          unfold is_JobIn in SOME.
-          des_eqrefl; last by done.
-          inversion SOME; subst.
-          unfold has_arrived; simpl.
-          by apply ltn_ord.
-        }
-        {
-          unfold has_arrived; intros ARRIVED.
-          apply mem_bigcat_ord with (j := Ordinal ARRIVED); first by done.
-          rewrite mem_pmap; apply/mapP; exists j;
-            first by destruct j as [j arr_j ARR].
-          destruct j as [j arr_j ARR].
-          unfold is_JobIn; des_eqrefl; first by repeat f_equal; apply bool_irrelevance.
-          by simpl in *; unfold arrives_at in *; rewrite ARR in EQ.
-        }
-      Qed.
+      (* We begin with basic lemmas for manipulating the sequences. *)
+      Section Basic.
 
-      (* If the arrival sequence doesn't allow duplicates,
-         the same applies for the list of JobIn that arrive. *)
-      Lemma JobIn_uniq :
-        arrival_sequence_is_a_set arr_seq ->
-        forall t, uniq (jobs_arrived_before t).
-      Proof.
-        unfold jobs_arrived_up_to; intros SET t.
-        apply bigcat_ord_uniq.
-        {
-          intros i; unfold jobs_arriving_at.
-          apply pmap_uniq with (g := job_of_job_in); first by apply is_JobIn_inverse.
-          by apply SET.
-        }
-        {
-          intros x t1 t2 IN1 IN2.
-          rewrite 2!mem_pmap in IN1 IN2.
-          move: IN1 IN2 => /mapP IN1 /mapP IN2.
-          destruct IN1 as [j1 IN1 SOME1], IN2 as [j2 IN2 SOME2].
-          unfold is_JobIn in SOME1; des_eqrefl; last by done.
-          unfold is_JobIn in SOME2; des_eqrefl; last by done.
-          by rewrite SOME1 in SOME2; inversion SOME2; apply ord_inj.
-        }
-      Qed.
+        (* First, we show that the set of arriving jobs can be split
+           into disjoint intervals. *)
+        Lemma jobs_arrived_between_mem_cat:
+          forall j t1 t t2,
+            t1 <= t ->
+            t <= t2 ->
+            j \in jobs_arrived_between t1 t2 =
+            (j \in jobs_arrived_between t1 t ++ jobs_arrived_between t t2).
+        Proof.
+          unfold jobs_arrived_between; intros j t1 t t2 GE LE.
+          apply/idP/idP.
+          {
+            intros IN.
+            apply mem_bigcat_nat_exists in IN; move: IN => [arr [IN /andP [GE1 LT2]]].
+            rewrite mem_cat; apply/orP.
+            by destruct (ltnP arr t); [left | right];
+              apply mem_bigcat_nat with (j := arr); try (by apply/andP; split).
+          }
+          {
+            rewrite mem_cat; move => /orP [LEFT | RIGHT].
+            {
+              apply mem_bigcat_nat_exists in LEFT; move: LEFT => [t0 [IN0 /andP [GE0 LT0]]].
+              apply mem_bigcat_nat with (j := t0); last by done.
+              by rewrite GE0 /=; apply: (leq_trans LT0).
+            }
+            {
+              apply mem_bigcat_nat_exists in RIGHT; move: RIGHT => [t0 [IN0 /andP [GE0 LT0]]].
+              apply mem_bigcat_nat with (j := t0); last by done.
+              by rewrite LT0 andbT; apply: (leq_trans _ GE0).
+            }
+          }  
+        Qed.
+
+        Lemma jobs_arrived_between_sub:
+          forall j t1 t1' t2 t2',
+            t1' <= t1 ->
+            t2 <= t2' ->
+            j \in jobs_arrived_between t1 t2 ->
+            j \in jobs_arrived_between t1' t2'.
+        Proof.
+          intros j t1 t1' t2 t2' GE1 LE2 IN.
+          move: (leq_total t1 t2) => /orP [BEFORE | AFTER];
+            last by rewrite /jobs_arrived_between big_geq // in IN.
+          rewrite /jobs_arrived_between.
+          rewrite -> big_cat_nat with (n := t1); [simpl | by done | by apply: (leq_trans BEFORE)].
+          rewrite mem_cat; apply/orP; right.
+          rewrite -> big_cat_nat with (n := t2); [simpl | by done | by done].
+          by rewrite mem_cat; apply/orP; left.
+        Qed.
+        
+      End Basic.
+
+      (* Next, we relate the arrival prefixes with job arrival times. *)
+      Section ArrivalTimes.
+        
+        (* Assume that job arrival times are consistent. *)
+        Hypothesis H_arrival_times_are_consistent:
+          arrival_times_are_consistent job_arrival arr_seq.
+
+        (* First, we prove that if a job belongs to the prefix (jobs_arrived_before t),
+         then it arrives in the arrival sequence. *)
+        Lemma in_arrivals_implies_arrived:
+          forall j t1 t2,
+            j \in jobs_arrived_between t1 t2 ->
+            arrives_in arr_seq j.
+        Proof.
+          rename H_arrival_times_are_consistent into CONS.
+          intros j t1 t2 IN.
+          apply mem_bigcat_nat_exists in IN.
+          move: IN => [arr [IN _]].
+          by exists arr.
+        Qed.
+
+        (* Next, we prove that if a job belongs to the prefix (jobs_arrived_between t1 t2),
+         then it indeed arrives between t1 and t2. *)
+        Lemma in_arrivals_implies_arrived_between:
+          forall j t1 t2,
+            j \in jobs_arrived_between t1 t2 ->
+            arrived_between job_arrival j t1 t2.
+        Proof.
+          rename H_arrival_times_are_consistent into CONS.
+          intros j t1 t2 IN.
+          apply mem_bigcat_nat_exists in IN.
+          move: IN => [t0 [IN /= LT]].
+          by apply CONS in IN; rewrite /arrived_between IN.
+        Qed.
+
+        (* Similarly, if a job belongs to the prefix (jobs_arrived_before t),
+           then it indeed arrives before time t. *)
+        Lemma in_arrivals_implies_arrived_before:
+          forall j t,
+            j \in jobs_arrived_before t ->
+            arrived_before job_arrival j t.
+        Proof.
+          intros j t IN.
+          suff: arrived_between job_arrival j 0 t by rewrite /arrived_between /=.
+          by apply in_arrivals_implies_arrived_between.
+        Qed.
+
+        (* Similarly, we prove that if a job from the arrival sequence arrives before t,
+         then it belongs to the sequence (jobs_arrived_before t). *)
+        Lemma arrived_between_implies_in_arrivals:
+          forall j t1 t2,
+            arrives_in arr_seq j ->
+            arrived_between job_arrival j t1 t2 ->
+            j \in jobs_arrived_between t1 t2.
+        Proof.
+          rename H_arrival_times_are_consistent into CONS.
+          move => j t1 t2 [a_j ARRj] BEFORE.
+          have SAME := ARRj; apply CONS in SAME; subst a_j.
+          by apply mem_bigcat_nat with (j := (job_arrival j)).
+        Qed.
+
+        (* Next, we prove that if the arrival sequence doesn't contain duplicate jobs,
+         the same applies for any of its prefixes. *)
+        Lemma arrivals_uniq :
+          arrival_sequence_is_a_set arr_seq ->
+          forall t1 t2, uniq (jobs_arrived_between t1 t2).
+        Proof.
+          rename H_arrival_times_are_consistent into CONS.
+          unfold jobs_arrived_up_to; intros SET t1 t2.
+          apply bigcat_nat_uniq; first by done.
+          intros x t t' IN1 IN2.
+          by apply CONS in IN1; apply CONS in IN2; subst.
+        Qed.
+
+      End ArrivalTimes.
       
     End Lemmas.
     

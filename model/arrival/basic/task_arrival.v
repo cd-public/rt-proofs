@@ -13,16 +13,20 @@ Module TaskArrival.
     Variable task_period: Task -> time.
     
     Context {Job: eqType}.
-    Variable arr_seq: arrival_sequence Job.
+    Variable job_arrival: Job -> time.
     Variable job_task: Job -> Task.
 
+    (* Consider any job arrival sequence. *)
+    Variable arr_seq: arrival_sequence Job.
+
     (* Then, we define the sporadic task model as follows.*)
-    
     Definition sporadic_task_model :=
-      forall (j j': JobIn arr_seq),
-             j <> j' -> (* Given two different jobs j and j' ... *)
-             job_task j = job_task j' -> (* ... of the same task, ... *)
-             job_arrival j <= job_arrival j' -> (* ... if the arrival of j precedes the arrival of j' ...,  *)
+      forall (j j': Job),
+        j <> j' -> (* Given two different jobs j and j' ... *)
+        arrives_in arr_seq j -> (* ...that belong to the arrival sequence... *)
+        arrives_in arr_seq j' ->
+        job_task j = job_task j' -> (* ... and that are spawned by the same task, ... *)
+        job_arrival j <= job_arrival j' -> (* ... if the arrival of j precedes the arrival of j' ...,  *)
         (* then the arrival of j and the arrival of j' are separated by at least one period. *)
         job_arrival j' >= job_arrival j + task_period (job_task j).
 
@@ -32,6 +36,7 @@ Module TaskArrival.
 
     Context {Task: eqType}.
     Context {Job: eqType}.
+    Variable job_arrival: Job -> time.
     Variable job_task: Job -> Task.
 
     (* Consider any job arrival sequence ...*)
@@ -44,7 +49,7 @@ Module TaskArrival.
     Variable tsk: Task.
 
     (* By checking the task that spawns each job, ...*)
-    Definition is_job_of_task (j: JobIn arr_seq) := job_task j == tsk.
+    Definition is_job_of_task (j: Job) := job_task j == tsk.
 
     (* ...we can identify the jobs of tsk that arrived in any interval [t1, t2) ... *)
     Definition arrivals_of_task_between (t1 t2: time) :=
@@ -62,21 +67,24 @@ Module TaskArrival.
 
     Context {Task: eqType}.
     Variable task_period: Task -> time.
+    
     Context {Job: eqType}.
+    Variable job_arrival: Job -> time.
     Variable job_task: Job -> Task.
 
-    (* Consider any arrival sequence with no duplicate arrivals, ... *)
+    (* Consider any arrival sequence with consistent, non-duplicate arrivals, ... *)
     Variable arr_seq: arrival_sequence Job.
+    Hypothesis H_consistent_arrivals: arrival_times_are_consistent job_arrival arr_seq.
     Hypothesis H_no_duplicate_arrivals: arrival_sequence_is_a_set arr_seq.
 
-    (* ...where jobs are sporadic. *)
+    (* ...where jobs follow the sporadic task model. *)
     Hypothesis H_sporadic_jobs:
-      sporadic_task_model task_period arr_seq job_task.
+      sporadic_task_model task_period job_arrival job_task arr_seq.
     
     (* Let tsk be any task to be scheduled. *)
     Variable tsk: Task.
 
-    (* Consider any time interval [t1, t2)... *)
+    (* Consider any time interval [t1, t2). *)
     Variable t1 t2: time.
 
     (* Recall the jobs of tsk during [t1, t2), along with the number of arrivals. *)
@@ -84,11 +92,11 @@ Module TaskArrival.
     Let num_arrivals := num_arrivals_of_task job_task arr_seq tsk t1 t2.
 
     (* Consider the sequence of jobs ordered by arrival times. *)
-    Let by_arrival_time (j j': JobIn arr_seq) := job_arrival j <= job_arrival j'. 
+    Let by_arrival_time (j j': Job) := job_arrival j <= job_arrival j'. 
     Let sorted_jobs := sort by_arrival_time arriving_jobs.
 
     (* Let (nth_job i) denote the i-th job in the sorted sequence. *)
-    Variable elem: JobIn arr_seq.
+    Variable elem: Job.
     Let nth_job := nth elem sorted_jobs.
 
     (* First, we recall some trivial properties about nth_job. *)
@@ -96,15 +104,17 @@ Module TaskArrival.
       forall idx,
         idx < num_arrivals ->
         t1 <= job_arrival (nth_job idx) < t2 /\
-        job_task (nth_job idx) = tsk.
+        job_task (nth_job idx) = tsk /\
+        arrives_in arr_seq (nth_job idx).
     Proof.
+      rename H_consistent_arrivals into CONS.
       intros idx LTidx.
       have IN: nth_job idx \in sorted_jobs by rewrite mem_nth // size_sort.
-      rewrite mem_sort in IN.
-      rewrite 2!mem_filter in IN.
-      move: IN => /andP [JOB /andP [GE LT]]; apply JobIn_arrived in LT.
-      split; last by apply/eqP.
-      by apply/andP; split.
+      rewrite mem_sort mem_filter in IN.
+      move: IN => /andP [JOB IN]; move: (IN) => LT.
+      apply in_arrivals_implies_arrived in IN.
+      eapply in_arrivals_implies_arrived_between in LT; last by eauto.
+      by repeat split; try (by done); apply/eqP.
     Qed.
 
     (* Next, we conclude that consecutive jobs are different. *)
@@ -119,16 +129,9 @@ Module TaskArrival.
       rewrite nth_uniq ?size_sort /arriving_jobs
               -/(num_arrivals_of_task _ _ _ _ _) -/num_arrivals;
         first by rewrite neq_ltn ltnSn orTb.
-      {
-        by apply leq_trans with (n := n.+1); last by rewrite EQ. 
-      }
-      {
-        by rewrite EQ ltnS.
-      }
-      {
-        rewrite sort_uniq filter_uniq // filter_uniq //.
-        by apply JobIn_uniq.
-      }
+      - by apply leq_trans with (n := n.+1); last by rewrite EQ. 
+      - by rewrite EQ ltnS.
+      - by rewrite sort_uniq filter_uniq //; eapply arrivals_uniq; eauto 1.
     Qed.
 
     (* Since the list is sorted, we prove that each job arrives at
@@ -147,9 +150,9 @@ Module TaskArrival.
       exploit (NTH idx);
         [by apply leq_trans with (n := n.+1) | intro NTH1].
       exploit (NTH idx.+1); [by rewrite ltnS | intro NTH2].
-      move: NTH1 NTH2 => [_ JOB1] [_ JOB2].
+      move: NTH1 NTH2 => [_ [JOB1 ARR1]] [_ [JOB2 ARR2]].
       rewrite -JOB1.
-      apply SPO; [by apply NEQ | by rewrite JOB1 JOB2 |].
+      apply SPO; try (by done); [by apply NEQ | by rewrite JOB1 JOB2 |].
       suff ORDERED: by_arrival_time (nth_job idx) (nth_job idx.+1) by done.
       apply sort_ordered;
         first by apply sort_sorted; intros x y; apply leq_total. 

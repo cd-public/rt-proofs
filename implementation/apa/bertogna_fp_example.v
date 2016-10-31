@@ -87,9 +87,9 @@ Module ResponseTimeAnalysisFP.
     (* Then, let arr_seq be the periodic arrival sequence from ts. *)
     Let arr_seq := periodic_arrival_sequence ts.
 
-    (* Assume rate-monotonic priorities. *)
-    Let higher_priority : JLDP_policy arr_seq :=
-      (FP_to_JLDP job_task arr_seq (RM task_period)).
+    (* Assume rate-monotonic priorities. *) 
+    Let higher_priority : JLDP_policy (@concrete_job_eqType num_cpus) :=
+      FP_to_JLDP job_task (RM task_period).
 
     Section FactsAboutPriorityOrder.
 
@@ -216,11 +216,12 @@ Module ResponseTimeAnalysisFP.
     Qed.
 
     (* Let sched be the work-conserving RM APA scheduler. *)
-    Let sched := scheduler job_cost job_task num_cpus arr_seq task_affinity higher_priority.
+    Let sched :=
+      scheduler job_arrival job_cost job_task num_cpus arr_seq task_affinity higher_priority.
 
     (* Recall the definition of deadline miss. *)
     Let no_deadline_missed_by :=
-      task_misses_no_deadline job_cost job_deadline job_task sched.
+      task_misses_no_deadline job_arrival job_cost job_deadline job_task arr_seq sched.
 
     (* Next, we prove that ts is schedulable with the result of the test. *)
     Corollary ts_is_schedulable:
@@ -244,26 +245,25 @@ Module ResponseTimeAnalysisFP.
       - by apply RM_is_transitive.
       - by apply periodic_arrivals_all_jobs_from_taskset.
       - by apply periodic_arrivals_are_sporadic.
+      - by apply scheduler_jobs_come_from_arrival_sequence.
       - by apply scheduler_jobs_must_arrive_to_execute.
-      - apply scheduler_completed_jobs_dont_execute; intro j'.
-        -- by specialize (VALID j'); des.
+      - apply scheduler_completed_jobs_dont_execute.
+        -- by apply periodic_arrivals_are_consistent.
         -- by apply periodic_arrivals_is_a_set.
-      - by apply scheduler_sequential_jobs, periodic_arrivals_is_a_set.
+      - apply scheduler_sequential_jobs.
+        -- by apply periodic_arrivals_are_consistent.
+        -- by apply periodic_arrivals_is_a_set. 
       - by apply scheduler_respects_affinity.
       - apply scheduler_apa_work_conserving.
+        -- by apply periodic_arrivals_are_consistent.
         -- by apply periodic_arrivals_is_a_set.
-        -- by ins; apply RM_is_transitive.
-        {
-          unfold FP_to_JLDP; intros t x y; apply/orP.
-          by apply priority_is_total; rewrite periodic_arrivals_all_jobs_from_taskset.
-        }
+        -- by intros t; apply RM_is_transitive.
+        -- by intros t x y; apply leq_total.
       - apply scheduler_respects_policy.
+        -- by apply periodic_arrivals_are_consistent.
         -- by apply periodic_arrivals_is_a_set.
-        -- by ins; apply RM_is_transitive.
-        {
-          unfold FP_to_JLDP; intros t x y; apply/orP.
-          by apply priority_is_total; rewrite periodic_arrivals_all_jobs_from_taskset.
-        }
+        -- by intros t; apply RM_is_transitive.
+        -- by intros t x y; apply leq_total.
       - by apply schedulability_test_succeeds.
     Qed.
 

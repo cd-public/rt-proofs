@@ -11,6 +11,7 @@ Module Schedulability.
   Section DeadlineMisses.
 
     Context {Job: eqType}.
+    Variable job_arrival: Job -> time.
     Variable job_cost: Job -> time.
     Variable job_deadline: Job -> time.    
 
@@ -18,14 +19,15 @@ Module Schedulability.
     Variable job_task: Job -> Task.
 
     (* Consider any job arrival sequence... *)
-    Context {arr_seq: arrival_sequence Job}.
+    Variable arr_seq: arrival_sequence Job.
 
     (* ...and any uniprocessor schedule of these jobs. *)
-    Variable sched: schedule arr_seq.
+    Variable sched: schedule Job.
 
     (* For simplicity, let's define some local names. *)
     Let job_completed_by := completed_by job_cost sched.
-    Let response_time_bounded_by := is_response_time_bound_of_task job_cost job_task sched.
+    Let response_time_bounded_by :=
+      is_response_time_bound_of_task job_arrival job_cost job_task arr_seq sched.
 
     Section Definitions.
 
@@ -33,7 +35,7 @@ Module Schedulability.
       Section JobLevel.
   
          (* We say that a job j...*)
-        Variable j: JobIn arr_seq.
+        Variable j: Job.
 
         (* ...misses no deadline if it completes by its absolute deadline.*)
         Definition job_misses_no_deadline :=
@@ -49,7 +51,8 @@ Module Schedulability.
 
         (* ...misses no deadline if all of its jobs complete by their absolute deadline. *)
         Definition task_misses_no_deadline :=
-          forall (j: JobIn arr_seq),
+          forall j,
+            arrives_in arr_seq j ->
             job_task j = tsk ->
             job_misses_no_deadline j.
         
@@ -79,13 +82,15 @@ Module Schedulability.
 
       (* First, we infer schedulability from the response-time bounds of a task. *)
       Section ResponseTimeIsBounded.
-    
-        (* Assume valid sporadic jobs... *)
-        Hypothesis H_valid_job_parameters:
-          forall (j: JobIn arr_seq),
-            valid_sporadic_job task_cost task_deadline job_cost job_deadline job_task j.
 
-        (* ...that do not execute after completion. *)
+        (* Assume that all jobs in the arrival sequence have the same deadline
+           as their tasks. *)
+        Hypothesis H_job_deadline_eq_task_deadline:
+          forall j,
+            arrives_in arr_seq j ->
+            job_deadline_eq_task_deadline task_deadline job_deadline job_task j.
+        
+        (* Also assume that jobs don't execute after completion. *)
         Hypothesis H_completed_jobs_dont_execute: completed_jobs_dont_execute job_cost sched.
 
         (* Let tsk be any task.*)
@@ -100,15 +105,13 @@ Module Schedulability.
         Lemma task_completes_before_deadline:
           task_misses_no_deadline tsk.
         Proof.
-          rename H_valid_job_parameters into JOBPARAMS.
           unfold valid_sporadic_job, valid_realtime_job in *.
-          intros j JOBtsk.
+          intros j ARRj JOBtsk.
           apply completion_monotonic with (t := job_arrival j + R);
             [by done | | by apply H_response_time_bounded].
           rewrite leq_add2l.
           apply: (leq_trans H_R_le_deadline).
-          apply eq_leq; symmetry; specialize (JOBPARAMS j); des.
-          by rewrite -JOBtsk JOBPARAMS1.
+          by rewrite H_job_deadline_eq_task_deadline // -JOBtsk leqnn.
        Qed.
 
      End ResponseTimeIsBounded.
