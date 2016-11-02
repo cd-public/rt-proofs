@@ -124,6 +124,32 @@ Section Iteration.
       }
     Qed. 
 
+    (* We also show that any inductive property P is propagated
+       through the fixed-point iteration. *)
+    Lemma iter_fixpoint_ind:
+      forall max_steps x0 x,
+        iter_fixpoint max_steps x0 = Some x ->
+        forall P,
+          P x0 ->
+          (forall x, P x -> P (f x)) ->
+          P x.
+    Proof.
+      induction max_steps; first by done.
+      intros x0 x SOME P P0 ALL.
+      move: SOME; simpl.
+      case EQ: (_ == _).
+      {
+        move: EQ => /eqP EQ.
+        case => SAME; subst.
+        by rewrite EQ; apply ALL.
+      }
+      {
+        intros SOME; clear EQ.
+        apply (IHmax_steps (f x0) x SOME P); first by apply ALL.
+        by apply ALL.
+      }
+    Qed.
+      
   End BasicLemmas.
 
   Section RelationLemmas.
