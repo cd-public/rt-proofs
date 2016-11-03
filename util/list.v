@@ -228,6 +228,60 @@ Section Zip.
     }
   Qed.
 
+  Lemma unzip1_pair:
+    forall {T1 T2: eqType} (l: seq T1) (f: T1 -> T2),
+      unzip1 [seq (x, f x) | x <- l] = l.
+  Proof.
+    intros T1 T2.
+    induction l; first by done.
+    by intros f; simpl; f_equal.
+  Qed.
+
+  Lemma unzip2_pair:
+    forall {T1 T2: eqType} (l: seq T1) (f: T1 -> T2),
+      unzip2 [seq (f x, x) | x <- l] = l.
+  Proof.
+    intros T1 T2.
+    induction l; first by done.
+    by intros f; simpl; f_equal.
+  Qed.
+
+  Lemma eq_unzip1:
+    forall {T1 T2: eqType} (l1 l2: seq (T1 * T2)) x0,
+      size l1 = size l2 ->
+      (forall i, i < size l1 -> (fst (nth x0 l1 i)) = (fst (nth x0 l2 i))) ->
+      unzip1 l1 = unzip1 l2.
+  Proof.
+    intros T1 T2.
+    induction l1; simpl; first by destruct l2.
+    intros l2 x0 SIZE ALL.
+    destruct l2; first by done.
+    simpl; f_equal; first by feed (ALL 0).
+    case: SIZE => SIZE.
+    apply IHl1 with (x0 := x0); first by done.
+    intros i LTi.
+    by feed (ALL i.+1);
+      first by rewrite -[X in X < _]addn1 -[X in _ < X]addn1 ltn_add2r.
+  Qed.
+
+  Lemma eq_unzip2:
+    forall {T1 T2: eqType} (l1 l2: seq (T1 * T2)) x0,
+      size l1 = size l2 ->
+      (forall i, i < size l1 -> (snd (nth x0 l1 i)) = (snd (nth x0 l2 i))) ->
+      unzip2 l1 = unzip2 l2.
+  Proof.
+    intros T1 T2.
+    induction l1; simpl; first by destruct l2.
+    intros l2 x0 SIZE ALL.
+    destruct l2; first by done.
+    simpl; f_equal; first by feed (ALL 0).
+    case: SIZE => SIZE.
+    apply IHl1 with (x0 := x0); first by done.
+    intros i LTi.
+    by feed (ALL i.+1);
+      first by rewrite -[X in X < _]addn1 -[X in _ < X]addn1 ltn_add2r.
+  Qed.
+
 End Zip.
 
 (* Restate nth_error function from Coq library. *)
