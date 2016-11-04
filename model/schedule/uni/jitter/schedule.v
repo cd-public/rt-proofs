@@ -71,7 +71,16 @@ Module UniprocessorScheduleWithJitter.
         (* Now, let j be any job in the arrival sequence. *)
         Variable j: JobIn arr_seq.
 
-        (* We prove that job j does not receive service at any time t before its actual arrival time. *)
+        (* Next, we show that if the jitter has passed, then the job must have arrived. *)
+        Lemma jitter_has_passed_implies_arrived:
+          forall t,
+            jitter_has_passed job_jitter j t -> has_arrived j t.
+        Proof.
+          by intros t PASS; apply: leq_trans PASS; apply leq_addr.
+        Qed.
+        
+        (* Now we prove that job j does not receive service at any time t before
+           its actual arrival time. *)
         Lemma service_before_jitter_is_zero :
           forall t,
             t < actual_arrival job_jitter j ->
