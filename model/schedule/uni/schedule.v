@@ -13,7 +13,6 @@ Module UniprocessorSchedule.
     Section ScheduleDef.
 
       Context {Job: eqType}.
-      Variable job_cost: Job -> time.
 
       (* Consider any job arrival sequence. *)
       Variable arr_seq: arrival_sequence Job.
