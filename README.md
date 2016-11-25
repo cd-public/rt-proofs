@@ -20,19 +20,24 @@ Currently, Prosa contains the following base directories:
 
 ### Internal Directories
 
-Within each base directory you can find the different classes of schedulers.
+The major concepts in Prosa are specified in the *model/* folder.
 
-- **model/uni:** Uniprocessor scheduling.
-- **model/global:** Global scheduling.
-- **model/partitioned:** Partitioned scheduling.
-- **model/apa:** APA scheduling.
+- **model/arrival:** Arrival sequences and arrival bounds
+- **model/schedule:** Definitions and properties of schedules
+
+Inside *model/schedule*, you can find the different classes of schedulers.
+
+- **model/schedule/uni:** Uniprocessor scheduling.
+- **model/schedule/global:** Global scheduling.
+- **model/schedule/partitioned:** Partitioned scheduling.
+- **model/schedule/apa:** APA scheduling.
 
 ### Extending Prosa
 
 When adding a new model or analysis to Prosa, please extend the corresponding directory.
 For example, the schedulability analysis for global scheduling with release jitter is organized as follows.
 
-- **model/global/jitter:** Definitions and lemmas for global scheduling with release jitter.
+- **model/schedule/global/jitter:** Definitions and lemmas for global scheduling with release jitter.
 - **analysis/global/jitter:** Analysis for global scheduling with release jitter.
 - **implementation/global/jitter:** Implementation of the concrete scheduler with release jitter. 
 
