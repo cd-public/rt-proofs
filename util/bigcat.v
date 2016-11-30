@@ -52,6 +52,29 @@ Section BigCatLemmas.
       [by apply/andP; split | by rewrite eq_fun_ord_to_nat].
   Qed.
 
+  Lemma bigcat_nat_uniq :
+    forall (T: eqType) n1 n2 (F: nat -> list T),
+      (forall i, uniq (F i)) ->
+      (forall x i1 i2,
+         x \in (F i1) -> x \in (F i2) -> i1 = i2) ->
+      uniq (\cat_(n1 <= i < n2) (F i)).
+  Proof.
+    intros T n1 n2 f SINGLE UNIQ.
+    case (leqP n1 n2) => [LE | GT]; last by rewrite big_geq // ltnW.
+    rewrite -[n2](addKn n1).
+    rewrite -addnBA //; set delta := n2 - n1.
+    induction delta; first by rewrite addn0 big_geq.
+    rewrite addnS big_nat_recr /=; last by apply leq_addr.
+    rewrite cat_uniq; apply/andP; split; first by apply IHdelta.
+    apply /andP; split; last by apply SINGLE.
+    rewrite -all_predC; apply/allP; intros x INx.
+    simpl; apply/negP; unfold not; intro BUG.
+    apply mem_bigcat_nat_exists in BUG.
+    move: BUG => [i [IN /andP [_ LTi]]].
+    apply UNIQ with (i1 := i) in INx; last by done.
+    by rewrite INx ltnn in LTi.
+  Qed.
+
   Lemma mem_bigcat_ord_exists :
     forall (T: eqType) x n (f: 'I_n -> list T),
       x \in \cat_(i < n) (f i) ->
