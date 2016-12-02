@@ -444,6 +444,17 @@ Section MinMaxSeq.
     Definition max_nat_cond P (a b: nat) :=
       seq_max_nat (filter P (values_between a b)).
 
+    Lemma min_nat_cond_exists:
+      forall (P: nat -> bool) (a b: nat) x,
+        a <= x < b ->
+        P x ->
+        min_nat_cond P a b != None.
+    Proof.
+      intros P a b x LE HOLDS.
+      apply seq_argmin_exists with (x0 := x).
+      by rewrite mem_filter mem_values_between HOLDS LE.
+    Qed.
+    
     Lemma min_nat_cond_in_seq:
       forall P a b x,
         min_nat_cond P a b = Some x ->
@@ -463,6 +474,17 @@ Section MinMaxSeq.
       intros P a b x SOME y LE Py.
       apply seq_min_nat_computes_min with (y := y) in SOME; first by done.
       by rewrite mem_filter Py andTb mem_values_between.
+    Qed.
+
+    Lemma max_nat_cond_exists:
+      forall (P: nat -> bool) (a b: nat) x,
+        a <= x < b ->
+        P x ->
+        max_nat_cond P a b != None.
+    Proof.
+      intros P a b x LE HOLDS.
+      apply seq_argmax_exists with (x0 := x).
+      by rewrite mem_filter mem_values_between HOLDS LE.
     Qed.
 
     Lemma max_nat_cond_in_seq:
