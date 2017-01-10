@@ -41,6 +41,14 @@ For example, the schedulability analysis for global scheduling with release jitt
 - **analysis/global/jitter:** Analysis for global scheduling with release jitter.
 - **implementation/global/jitter:** Implementation of the concrete scheduler with release jitter. 
 
+## Generating HTML Documentation
+
+The Coqdoc documentation (as shown on the [webpage](http://prosa.mpi-sws.org/documentation.html)) can be easily generated with `Make`:
+
+```$ make gallinahtml -j4```
+
+Since Coqdoc requires object files as input, please make sure that the code is compilable.
+
 ## Commit and Development Rules
 
 1. Always follow the project [coding and writing guidelines](doc/guidelines.md).
