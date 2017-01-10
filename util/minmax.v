@@ -571,3 +571,33 @@ Section ExtraLemmas.
   Qed.
     
 End ExtraLemmas.
+
+Section Kmin.
+
+    Context {T1 T2: eqType}.
+
+    Variable rel: T2 -> T2 -> bool.
+    Variable F: T1 -> T2.
+
+    Fixpoint seq_argmin_k (l: seq T1) (k: nat) :=
+      if k is S k' then
+        if (seq_argmin rel F l) is Some min_x then
+          let l_without_min := rem min_x l in
+            min_x :: seq_argmin_k l_without_min k'
+        else [::]
+      else [::].
+
+      Lemma seq_argmin_k_exists:
+        forall k l x,
+          k > 0 ->
+          x \in l ->
+          seq_argmin_k l k != [::].
+      Proof.
+        induction k; first by done.
+        move => l x _ IN /=.
+        destruct (seq_argmin rel F l) as [|] eqn:MIN; first by done.
+        suff NOTNONE: seq_argmin rel F l != None by rewrite MIN in NOTNONE.
+        by apply seq_argmin_exists with (x0 := x).
+      Qed.
+    
+End Kmin.
