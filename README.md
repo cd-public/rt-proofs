@@ -1,6 +1,8 @@
 # RT-PROOFS
 
-This repository contains the main Coq proof spec & proof development of the RT-PROOFS project.  This is Calvin's branch.
+This repository contains the main Coq proof spec & proof development of the RT-PROOFS project.  
+
+This is Calvin's branch with the main body of work directed toward proving EDF optimality found in analysis/uni/basic/edf.
 
 ## Directory Structure
 
