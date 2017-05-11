@@ -29,25 +29,21 @@ Module TotalService.
     (* Assume that jobs only execute after they arrived. *)
     Hypothesis H_jobs_must_arrive_to_execute:
       jobs_must_arrive_to_execute job_arrival sched.
+    Hypothesis H_arr_seq_gives_job_arrival:
+      forall j t, j \in arr_seq t <-> job_arrival j = t.
 
     (* added hypothesis. need to fix.*)
     Lemma busy_last_instant:
       forall t d,  ( \sum_(j <- jobs_arrived_before arr_seq (t + d).+1)
-      service_during sched j t (t + d).+1)
-            =   ((\sum_(j <- jobs_arrived_before arr_seq (t + d))
-                   service_during sched j t (t + d)) + (~~ is_idle sched (t + d))).
+                      service_during sched j t (t + d).+1)
+                   = ((\sum_(j <- jobs_arrived_before arr_seq (t + d))
+                        service_during sched j t (t + d)) + (~~ is_idle sched (t + d))).
     Proof.
-      unfold service_during.
-      unfold service_at.
-      unfold scheduled_at.
-      unfold jobs_arrived_before.
-      unfold arrived_between.
-      intros t d.
+      unfold service_during, service_at, scheduled_at, jobs_arrived_before, arrived_between; intros t d.
       replace (jobs_arrived_between arr_seq 0 (t + d).+1) with (jobs_arrived_between arr_seq 0 (t + d) ++ jobs_arriving_at arr_seq (t + d)).
       Focus 2.
       unfold jobs_arrived_between.
-      rewrite -> big_nat_recr.
-      auto. rewrite -> leq0n; auto.
+      rewrite big_nat_recr; auto.
       replace (jobs_arrived_between arr_seq 0 (t + d).+1) with (jobs_arrived_between arr_seq 0 (t + d) ++ jobs_arriving_at arr_seq (t + d)).
       rewrite -> big_cat.
       rewrite -> exchange_big.
@@ -55,14 +51,11 @@ Module TotalService.
       unfold is_idle.
       replace (\big[addn_comoid/0]_(t <= i < t + d) \big[addn_comoid/0]_(i0 <- jobs_arrived_between arr_seq 0 (t + d))(sched i == Some i0)) with (\sum_(j <- jobs_arrived_between arr_seq 0 (t + d)) \sum_(t <= t0 < t + d) (sched t0 == Some j)).
       Focus 2.
-      rewrite -> exchange_big.
-      auto.
+      rewrite -> exchange_big; auto.
       Focus 4.
       unfold jobs_arrived_between.
       symmetry.
-      rewrite -> big_nat_recr.
-      auto.
-      auto.
+      rewrite -> big_nat_recr; auto.
       Focus 2.
       apply leq_addr.
       Focus 2.
@@ -70,8 +63,7 @@ Module TotalService.
       replace (\big[addn_comoid/0]_(t + d <= i < (t + d).+1) \big[addn_comoid/0]_(i0 <- jobs_arrived_between arr_seq 0 (t + d)) (sched i == Some i0)) with (\big[addn_comoid/0]_(i0 <- jobs_arrived_between arr_seq 0 (t + d))(sched (t + d) == Some i0)).
       Focus 2.
       symmetry.
-      rewrite -> big_nat1.
-      auto.
+      rewrite -> big_nat1; auto.
       replace (\big[addn_monoid/0]_(i <- jobs_arriving_at arr_seq (t + d))(\sum_(t <= t0 < (t + d).+1) (sched t0 == Some i))) with (\big[addn_monoid/0]_(i <- jobs_arriving_at arr_seq (t + d))(sched (t + d) == Some i)).
       Focus 2.
       symmetry.
@@ -88,17 +80,10 @@ Module TotalService.
       apply leqnSn with (n := (t + d)).
       replace (\big[addn_comoid/0]_(t <= i < t + d) \big[addn_comoid/0]_(i0 <- jobs_arriving_at arr_seq (t + d)) (sched i == Some i0)) with 0.
       auto.
-      induction d.
-      symmetry.
-      rewrite -> big_geq.
-      auto.
-      rewrite -> addn0.
-      auto.
-      symmetry.
-      unfold jobs_must_arrive_to_execute in H_jobs_must_arrive_to_execute.
-      unfold scheduled_at in H_jobs_must_arrive_to_execute.
-      unfold has_arrived in H_jobs_must_arrive_to_execute.
+      unfold jobs_must_arrive_to_execute, scheduled_at, has_arrived in H_jobs_must_arrive_to_execute.
       unfold jobs_arriving_at.
+      symmetry.
+      
     Admitted.
 
     (* added hypothesis. need to fix.*)
