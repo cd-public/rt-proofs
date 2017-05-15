@@ -62,11 +62,6 @@ Module EDFDemandAnalysis.
       (* ...where jobs must arrive to execute. *)
       Hypothesis H_jobs_must_arrive_to_execute_sched_edf:
         jobs_must_arrive_to_execute job_arrival sched_edf.
-
-      (*added -- need to fix*)
-      Hypothesis H_no_service_before_arrival:
-        forall j,
-        \sum_(0 <= i < job_arrival j) service_at sched_edf j i = 0.
                                                                                
       (* ...and don't execute after they completed. *)
       Hypothesis H_completed_jobs_dont_execute_sched_edf:
@@ -75,10 +70,6 @@ Module EDFDemandAnalysis.
       (* If the demand during any interval is bounded by the length of the interval, ... *)
       Hypothesis H_demand_always_satisfied:
         forall t delta, demand_during t (t + delta) <= delta.
-
-      (* added hyp *)
-      Hypothesis H_no_time_means_no_cost:
-        forall j,  job_deadline j = 0 -> job_cost j = 0.
 
       (*...then no deadline is missed. *)
 
