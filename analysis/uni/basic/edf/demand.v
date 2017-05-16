@@ -140,14 +140,9 @@ Module Demand.
 	  (* Let j be any job from the arrival_sequence ... *)
 	  Variable j : Job.
 	  (* ...whose arrival and deadline is in the [t, t + delta). *)
-	  Hypothesis H_jobs_arrival_and_deadline_in_interval:
-	    j \in arrivals_and_deadline_between t (t + delta).
-
-          (*added *)
           Hypothesis H_jobs_arrival_at_or_after_t:
             t <= job_arrival j.
-          (*added*)
-          Hypothesis H_jobs_abs_deadline:
+          Hypothesis H_jobs_abs_deadline_eq:
             absolute_deadline j <= t + delta.
 
 	  (* If the job set is schedulable, ... *)
@@ -168,15 +163,32 @@ Module Demand.
 	  Corollary service_jobs_in_interval_eq_cost:
 	    service_during sched j t (t + delta) = job_cost j.
           Proof.
+            assert (service_during sched j 0 t = 0).
             unfold service_during.
-            assert (\sum_(0 <= t0 < t) service_at sched j t0 = 0).
             rewrite (cumulative_service_before_job_arrival_zero job_arrival); [auto | apply H_jobs_must_arrive_to_execute | apply H_jobs_arrival_at_or_after_t].
-            replace (\sum_(t <= t0 < t + delta) _) with (\sum_(0 <= t0 < t+ delta) service_at sched j t0).
-            Focus 2. rewrite -> big_cat_nat with (n := t); [> | auto | apply leq_addr].
-            replace ((\big[addn_monoid/0]_(0 <= i < t) service_at sched j i)) with 0. auto.
-            assert (completed_by job_cost sched j (t + delta)) by apply jobs_in_interval_completed_by_the_end. unfold completed_by, service, service_during in H0.
-            apply/eqP. apply H0.
-            Qed.
+            assert (service_during sched j 0 (t + delta) = service_during sched j t (t + delta)).
+            {
+              unfold service_during.
+              rewrite -> big_cat_nat with (n := t); [> | auto | apply leq_addr].
+              replace ((\big[addn_monoid/0]_(0 <= i < t) service_at sched j i)) with 0; rewrite [X in X = _]add0n.
+              assert (completed_by job_cost sched j (t + delta)) by apply jobs_in_interval_completed_by_the_end.
+              auto.
+            }
+            assert (service_during sched j t (absolute_deadline j) = service_during sched j t (t + delta)).
+            {
+              symmetry.
+              rewrite -> big_cat_nat with (n := (absolute_deadline j)).
+              
+            symmetry in H0; rewrite [X in X = _]H0.
+            unfold job_misses_no_deadline, completed_by, service in no_deadline_miss_in.
+            apply/eqP.
+            replace (t + delta) with (job_arrival j + job_deadline j).
+            apply no_deadline_miss_in.
+            auto.
+            rewrite -> big_cat_nat with (n := t); [> | auto | apply leq_addr].
+            rewrite [X in X + _ = _]H; rewrite [X in X = _]add0n; auto.
+          Qed.
+          
 	End ConcreteJob.
 
 	(* In this section we show properties that hold for

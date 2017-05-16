@@ -33,6 +33,10 @@ Module TotalService.
     Hypothesis H_jobs_must_arrive_to_execute:
       jobs_must_arrive_to_execute job_arrival sched.
 
+    (* A helpful definition of service to avoid summations. *)
+    Definition service_of_jobs_during t1 t2 t3 t4 :=
+            service_of_jobs (jobs_arrived_between t1 t2) (fun x => true) t3 t4.
+
     Section HelperLemmas.
 
       (* TEMPORARY: These should be moved to the correct files. *)

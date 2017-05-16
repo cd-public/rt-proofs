@@ -57,7 +57,9 @@ Module EDFDemandAnalysis.
 
       (* Let sched_edf be any EDF schedule ... *)
       Variable sched_edf: schedule Job.
-      Hypothesis H_edf_policy: respects_JLFP_policy job_arrival job_cost arr_seq sched_edf (EDF job_cost job_deadline).
+      Check respects_JLFP_policy.
+      Check EDF.
+      Hypothesis H_edf_policy: respects_JLFP_policy job_arrival job_deadline arr_seq sched_edf (EDF job_arrival job_deadline).
 
       (* ...where jobs must arrive to execute. *)
       Hypothesis H_jobs_must_arrive_to_execute_sched_edf:
@@ -79,14 +81,10 @@ Module EDFDemandAnalysis.
         unfold no_deadline_miss_in. intros j.
         unfold job_misses_no_deadline. unfold completed_by.
         unfold respects_JLFP_policy, backlogged, pending in H_edf_policy.
-        unfold EDF in H_edf_policy. unfold service, service_during.
-        
+        unfold EDF in H_edf_policy. unfold service, service_during.        
         rewrite -> big_cat_nat with (n := (job_arrival j)); [> | auto | apply leq_addr].
-        replace (\big[addn_monoid/0]_(0 <= i < job_arrival j)_) with 0;
-          [> | symmetry; apply H_no_service_before_arrival].
-        replace (0 + _ ) with
-           ((\big[addn_monoid/0]_(job_arrival j <= i < job_arrival j + job_deadline j)
-              service_at sched_edf j i)); auto.
+
+        
         Admitted.
     End DemandUnderEDF.
 
