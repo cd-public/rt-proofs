@@ -178,6 +178,8 @@ Module Demand.
             {
               symmetry.
               rewrite -> big_cat_nat with (n := (absolute_deadline j)).
+
+              (* should get some help here, then the rest has worked when this was skipped with hypothesis...
               
             symmetry in H0; rewrite [X in X = _]H0.
             unfold job_misses_no_deadline, completed_by, service in no_deadline_miss_in.
@@ -187,7 +189,8 @@ Module Demand.
             auto.
             rewrite -> big_cat_nat with (n := t); [> | auto | apply leq_addr].
             rewrite [X in X + _ = _]H; rewrite [X in X = _]add0n; auto.
-          Qed.
+          Qed.*)
+              Admitted.
           
 	End ConcreteJob.
 
