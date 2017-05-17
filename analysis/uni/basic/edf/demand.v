@@ -182,20 +182,24 @@ Module Demand.
               intros n; unfold service_during; move => H_in_range.
               rewrite -> big_cat_nat with (n := n); [> auto | auto | apply H_in_range].
             }
-            move: H_jobs_abs_deadline.
-            rewrite -> H1 with (n := (absolute_deadline j)); [> | apply H_jobs_abs_deadline].
-            move => H_jobs_abs_deadline_.
-            (* Now it just remains to show that:
-               1.  no_deadline_miss_in ensures service_during = cost,
-               2.  H_completed_jobs_dont_execute ensures service after abs = 0.*)
             assert (service_during sched j 0 (absolute_deadline j) = job_cost j).
             {
               unfold job_misses_no_deadline, completed_by, service in no_deadline_miss_in.
               replace (absolute_deadline j) with (job_arrival j + job_deadline j); [> apply/eqP; auto | auto].
+            }            
+            assert (service_during sched j 0 (t + delta) >= job_cost j).
+            {
+              rewrite -> H1 with (n := (absolute_deadline j)); [> | apply H_jobs_abs_deadline].
+              rewrite -> H2; apply leq_addr.
             }
-            rewrite -> H2.
+            assert (service_during sched j 0 (t + delta) <= job_cost j).
+            {
+              unfold completed_jobs_dont_execute, service in H_completed_jobs_dont_execute; auto.
+            }
+                     
             (* Now it just remains to show that:
-               2.  H_completed_jobs_dont_execute ensures service after abs = 0.*)
+               x <= y AND x >= y -> x = y *)
+            
               Admitted.
           
 	End ConcreteJob.
