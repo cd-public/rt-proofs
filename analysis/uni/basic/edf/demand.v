@@ -158,49 +158,61 @@ Module Demand.
             unfold no_deadline_miss_in, job_misses_no_deadline in *.
             unfold absolute_deadline in *.
             by apply completion_monotonic with (t0 := job_arrival j + job_deadline j).
-            Qed.
+          Qed.
 
+          Lemma split_service:
+            forall n m, n <= m -> service sched j m = service sched j n + service_during sched j n m.
+          Proof.
+            intros n m; unfold service, service_during; move => H_in_range.
+            rewrite -> big_cat_nat with (n := n); [> auto | auto | apply H_in_range].
+          Qed.
+
+          Lemma zero_service_prior_arrival:
+            service sched j (job_arrival j) = 0.
+          Proof.
+            unfold service, service_during.
+            rewrite (cumulative_service_before_job_arrival_zero job_arrival); [auto | apply H_jobs_must_arrive_to_execute | auto].
+          Qed.  
+          
+          Lemma zero_service_prior_to_interval:
+            service sched j t = 0.
+          Proof.
+            unfold service, service_during.
+            rewrite (cumulative_service_before_job_arrival_zero job_arrival); [auto | apply H_jobs_must_arrive_to_execute | apply H_jobs_arrival_at_or_after_t].
+          Qed.
+
+          Lemma service_during_interval_is_service:
+            service sched j (t + delta) = service_during sched j t (t + delta).
+          Proof.
+            rewrite -> split_service with (n := t); [> | apply leq_addr].
+            rewrite -> zero_service_prior_to_interval; auto.
+          Qed.
+          
+          Lemma service_at_deadline_is_cost:
+            service sched j (absolute_deadline j) = job_cost j.
+          Proof.
+            unfold job_misses_no_deadline, completed_by in no_deadline_miss_in.
+            replace (absolute_deadline j) with (job_arrival j + job_deadline j); [> apply/eqP; auto | auto].
+          Qed.
+
+          Lemma service_after_deadline_ge_cost:
+            forall n, n >= (absolute_deadline j) -> job_cost j <= service sched j n.
+          Proof.
+            intros n; move => H_after_deadline.
+            rewrite -> split_service with (n := absolute_deadline j); [> | auto].
+            rewrite -> service_at_deadline_is_cost; apply leq_addr.
+          Qed.
+          
 	  (* As a corollary, we can show that the service of j during
 	     [t, t + delta) is equal to its cost. *)
 	  Corollary service_jobs_in_interval_eq_cost:
 	    service_during sched j t (t + delta) = job_cost j.
           Proof.
-            assert (service_during sched j 0 t = 0).
+            assert (GE: job_cost j <= service sched j (t + delta)).
             {
-              (* May elevate this to a Lemma. *)
-              unfold service_during.
-              rewrite (cumulative_service_before_job_arrival_zero job_arrival); [auto | apply H_jobs_must_arrive_to_execute | apply H_jobs_arrival_at_or_after_t].
+              apply service_after_deadline_ge_cost; auto.
             }
-            assert (service_during sched j 0 (t + delta) = service_during sched j t (t + delta)).
-            {
-              unfold service_during.
-              rewrite -> big_cat_nat with (n := t); [> | auto | apply leq_addr].
-              replace ((\big[addn_monoid/0]_(0 <= i < t) service_at sched j i)) with 0; rewrite [X in X = _]add0n.
-              assert (completed_by job_cost sched j (t + delta)) by apply jobs_in_interval_completed_by_the_end.
-              auto.
-            }
-            symmetry in H0; rewrite -> H0.
-            assert (forall n, n <= (t + delta) -> service_during sched j 0 (t + delta) = service_during sched j 0 n + service_during sched j n (t + delta)).
-            {
-              (* May change variable names then elevate to Lemma. *)
-              intros n; unfold service_during; move => H_in_range.
-              rewrite -> big_cat_nat with (n := n); [> auto | auto | apply H_in_range].
-            }
-            assert (service_during sched j 0 (absolute_deadline j) = job_cost j).
-            {
-              unfold job_misses_no_deadline, completed_by, service in no_deadline_miss_in.
-              replace (absolute_deadline j) with (job_arrival j + job_deadline j); [> apply/eqP; auto | auto].
-            }            
-            assert (service_during sched j 0 (t + delta) >= job_cost j).
-            {
-              rewrite -> H1 with (n := (absolute_deadline j)); [> | apply H_jobs_abs_deadline].
-              rewrite -> H2; apply leq_addr.
-            }
-            assert (service_during sched j 0 (t + delta) <= job_cost j).
-            {
-              unfold completed_jobs_dont_execute, service in H_completed_jobs_dont_execute; auto.
-            }
-            apply/eqP; move: H3; move: H4; rewrite -> eqn_leq; auto.
+            rewrite <- service_during_interval_is_service; apply/eqP; rewrite -> eqn_leq; auto.
           Qed.
           
 	End ConcreteJob.
