@@ -57,8 +57,6 @@ Module EDFDemandAnalysis.
 
       (* Let sched_edf be any EDF schedule ... *)
       Variable sched_edf: schedule Job.
-      Check respects_JLFP_policy.
-      Check EDF.
       Hypothesis H_edf_policy: respects_JLFP_policy job_arrival job_deadline arr_seq sched_edf (EDF job_arrival job_deadline).
 
       (* ...where jobs must arrive to execute. *)
@@ -78,14 +76,28 @@ Module EDFDemandAnalysis.
       Lemma schedulable_if_demand_always_satisfied:
         no_deadline_miss_in sched_edf.
       Proof.
-        unfold no_deadline_miss_in. intros j.
-        unfold job_misses_no_deadline. unfold completed_by.
-        unfold respects_JLFP_policy, backlogged, pending in H_edf_policy.
-        unfold EDF in H_edf_policy. unfold service, service_during.        
-        rewrite -> big_cat_nat with (n := (job_arrival j)); [> | auto | apply leq_addr].
-
+        intros j.
+        assert (forall t n, n <= t -> service_during sched_edf j 0 t = service_during sched_edf j 0 n + service_during sched_edf j n t).
+        {
+          (* This should perhaps become a lemma. *)
+          intros t n; unfold service_during; move => H_in_range.
+          rewrite -> big_cat_nat with (n := n); [> auto | auto | apply H_in_range].
+        }
+        assert (service_during sched_edf j 0 (job_arrival j) = 0).
+        {
+          (* This should perhaps become a lemma. *)
+          unfold service_during.
+          rewrite (cumulative_service_before_job_arrival_zero job_arrival); [auto | apply H_jobs_must_arrive_to_execute_sched_edf | auto].
+        }
+        assert (job_arrival j <= job_arrival j + job_deadline j) by apply leq_addr.
+        unfold job_misses_no_deadline, completed_by, service.
+        move: H1; rewrite -> H with (n := job_arrival j); [> | apply leq_addr].
+        move => H1; rewrite -> H0; rewrite -> add0n.
+        unfold respects_JLFP_policy, arrives_in, backlogged, scheduled_at, EDF in H_edf_policy.
         
-        Admitted.
+        
+      Admitted.
+      
     End DemandUnderEDF.
 
     (* Using the optimality of EDF, we prove the correctness of the

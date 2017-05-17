@@ -20,6 +20,7 @@ Module Demand.
     Variable job_task: Job -> Task.
 
     (* Consider any job arrival sequence. *)
+    
     Variable arr_seq: arrival_sequence Job.
 
     (* For simplicity, let us define some local variables.*)
@@ -126,6 +127,7 @@ Module Demand.
 	(* For simplicity, let us define some local names about demand. *)
 	Let absolute_deadline (j: Job) :=
 	  job_arrival j + job_deadline j.
+        Check total_demand_during.
 	Let demand_during := total_demand_during job_arrival job_cost job_deadline arr_seq.
 	Let demand_before := total_demand_before job_arrival job_cost job_deadline arr_seq.
 	Let arrivals_and_deadline_between := jobs_with_arrival_and_deadline_between job_arrival job_deadline arr_seq.
@@ -165,6 +167,7 @@ Module Demand.
           Proof.
             assert (service_during sched j 0 t = 0).
             {
+              (* May elevate this to a Lemma. *)
               unfold service_during.
               rewrite (cumulative_service_before_job_arrival_zero job_arrival); [auto | apply H_jobs_must_arrive_to_execute | apply H_jobs_arrival_at_or_after_t].
             }
@@ -179,6 +182,7 @@ Module Demand.
             symmetry in H0; rewrite -> H0.
             assert (forall n, n <= (t + delta) -> service_during sched j 0 (t + delta) = service_during sched j 0 n + service_during sched j n (t + delta)).
             {
+              (* May change variable names then elevate to Lemma. *)
               intros n; unfold service_during; move => H_in_range.
               rewrite -> big_cat_nat with (n := n); [> auto | auto | apply H_in_range].
             }
@@ -210,47 +214,13 @@ Module Demand.
 	  Hypothesis H_no_deadline_miss:
 	    no_deadline_miss_in sched.
 
-          (*added -- rework as lemma?*)
-          Hypothesis H_arrival:
-            forall j t1 t2,  (j
-                \in jobs_with_arrival_and_deadline_between job_arrival
-                job_deadline arr_seq t1 t2) -> (t1 <= job_arrival j).
-          
-          (*added -- rework as lemma?*)
-          Hypothesis H_abs_deadline:
-            forall j t1 t2,  (j \in jobs_with_arrival_and_deadline_between job_arrival
-              job_deadline arr_seq t1 t2) -> 
-                             (absolute_deadline j <= t2).
-
-         (*added -- rework as lemma?*)
-          Hypothesis H_seq:
-            forall j t1 t2,  (j \in jobs_with_arrival_and_deadline_between job_arrival
-              job_deadline arr_seq t1 t2) ->
-                             (j \in jobs_arrived_before arr_seq t2).
-           
-           (*added -- rework as lemma? not just about jobs but about \sum in general *)
-           Hypothesis H_pos_sum_rule:
-            forall (r r' : seq Job) (f : Job -> nat) (t : time),
-                    (forall j : Job, j \in r' -> j \in r) -> (forall j : Job, j \in r -> f j >= 0)
-                    -> \sum_(i <- r') f i <= \sum_(k <- r) f k.
-
 	  (* Since no deadline is missed, the total demand during any
 		 interval is bounded by the total service in this interval. *)
 	  Lemma total_service_ge_total_demand_if_schedulable:
-	    forall t delta, demand_during t (t + delta) <= total_service_during sched t (t + delta).
+	    forall (t:time) (d:time), demand_during t (t + d) <= total_service_during sched t (t + d).
           Proof.
-            intros t delta.
-            unfold demand_during, total_demand_during.
-            replace (total_service_during sched t (t + delta)) with (\sum_(j <- (jobs_arrived_before arr_seq (t+delta))) service_during sched j t (t + delta)). Focus 2.
-            symmetry. (* by apply @sum_of_service_of_jobs_is_total_service with (Task := Task) (job_arrival := job_arrival).
-            rewrite -> eq_big_seq with (F2 := (fun j => (service_during sched j t (t + delta)))).
-            Focus 2. move => j. intros H. rewrite -> service_jobs_in_interval_eq_cost; auto.
-            apply H_arrival with (t2 := t + delta). apply H.
-            apply H_abs_deadline with (t1 := t). apply H.
-            apply H_pos_sum_rule. auto. move => j. apply H_seq.
-            move => j. intros H. auto.
-            Qed. *)
-            Admitted.
+            intros t d.
+          Admitted.
 
 	  (* It follows that, in any interval, the demand never exceeds the length of the interval. *)
 	  Corollary demand_never_exceeds_time_if_schedulable:
@@ -260,7 +230,7 @@ Module Demand.
             rewrite -> leq_trans with (n := (total_service_during sched t (t + delta))). auto.
             apply total_service_ge_total_demand_if_schedulable.
             apply total_service_bounded_by_interval_length.
-            Qed.
+          Qed.
 
 	End Schedulability.
 

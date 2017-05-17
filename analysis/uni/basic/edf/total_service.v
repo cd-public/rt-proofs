@@ -19,7 +19,8 @@ Module TotalService.
     Variable job_task: Job -> Task.
 
     (* Consider any job arrival sequence with consistent, duplicate-free arrivals... *)
-    Context {arr_seq: arrival_sequence Job}.
+    
+    Variable arr_seq: arrival_sequence Job.
     Hypothesis H_arrival_sequence_is_a_set:
       arrival_sequence_is_a_set arr_seq.
     Hypothesis H_arrival_sequence_is_consistent:
@@ -32,10 +33,6 @@ Module TotalService.
     (* ...where jobs must arrive to execute. *)
     Hypothesis H_jobs_must_arrive_to_execute:
       jobs_must_arrive_to_execute job_arrival sched.
-
-    (* A helpful definition of service to avoid summations. *)
-    Definition service_of_jobs_during t1 t2 t3 t4 :=
-            service_of_jobs (jobs_arrived_between t1 t2) (fun x => true) t3 t4.
 
     Section HelperLemmas.
 
