@@ -164,8 +164,10 @@ Module Demand.
 	    service_during sched j t (t + delta) = job_cost j.
           Proof.
             assert (service_during sched j 0 t = 0).
-            unfold service_during.
-            rewrite (cumulative_service_before_job_arrival_zero job_arrival); [auto | apply H_jobs_must_arrive_to_execute | apply H_jobs_arrival_at_or_after_t].
+            {
+              unfold service_during.
+              rewrite (cumulative_service_before_job_arrival_zero job_arrival); [auto | apply H_jobs_must_arrive_to_execute | apply H_jobs_arrival_at_or_after_t].
+            }  
             assert (service_during sched j 0 (t + delta) = service_during sched j t (t + delta)).
             {
               unfold service_during.
@@ -174,15 +176,19 @@ Module Demand.
               assert (completed_by job_cost sched j (t + delta)) by apply jobs_in_interval_completed_by_the_end.
               auto.
             }
-            assert (service_during sched j t (absolute_deadline j) = service_during sched j t (t + delta)).
+            symmetry in H0; rewrite -> H0.
+            assert (forall n, n < (t + delta) -> service_during sched j 0 (t + delta) = service_during sched j 0 n + service_during sched j n (t + delta)).
             {
-              symmetry.
-              rewrite -> big_cat_nat with (n := (absolute_deadline j)).
+              case (absolute_deadline j).
+              unfold service_during; rewrite [X in _ = X + _]big_geq; [> auto | auto].
+              unfold service_during; intros n; symmetry.
+              rewrite <- big_cat_nat; auto.
+              (*
 
-              (* should get some help here, then the rest has worked when this was skipped with hypothesis...
+              assert (service_during sched j 0 (t + delta) >= (job_cost j)).
+            {
+              unfold job_misses_no_deadline, completed_by, service in no_deadline_miss_in.
               
-            symmetry in H0; rewrite [X in X = _]H0.
-            unfold job_misses_no_deadline, completed_by, service in no_deadline_miss_in.
             apply/eqP.
             replace (t + delta) with (job_arrival j + job_deadline j).
             apply no_deadline_miss_in.
