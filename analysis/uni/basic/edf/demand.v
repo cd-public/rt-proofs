@@ -139,7 +139,7 @@ Module Demand.
 
 	  (* Let j be any job from the arrival_sequence ... *)
 	  Variable j : Job.
-	  (* ...whose arrival and deadline is in the [t, t + delta). *)
+	  (* ...whose arrival and deadline is in [t, t + delta). *)
           Hypothesis H_jobs_arrival_at_or_after_t:
             t <= job_arrival j.
           Hypothesis H_jobs_abs_deadline:
@@ -196,11 +196,8 @@ Module Demand.
             {
               unfold completed_jobs_dont_execute, service in H_completed_jobs_dont_execute; auto.
             }
-                     
-            (* Now it just remains to show that:
-               x <= y AND x >= y -> x = y *)
-            
-              Admitted.
+            apply/eqP; move: H3; move: H4; rewrite -> eqn_leq; auto.
+          Qed.
           
 	End ConcreteJob.
 
