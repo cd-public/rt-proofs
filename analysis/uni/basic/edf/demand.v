@@ -206,7 +206,7 @@ Module Demand.
 	  (* As a corollary, we can show that the service of j during
 	     [t, t + delta) is equal to its cost. *)
 	  Corollary service_jobs_in_interval_eq_cost:
-	    service_during sched j t (t + delta) = job_cost j.
+	    service_during sched j t (t  = job_cost j.
           Proof.
             assert (GE: job_cost j <= service sched j (t + delta)).
             {
