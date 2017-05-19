@@ -43,6 +43,7 @@ Module EDFDemandAnalysis.
     (* For simplicity, let us define some local names about demand. *)
     Let absolute_deadline (j: Job) := job_arrival j + job_deadline j.
     Let demand_at := total_demand_at job_arrival job_cost job_deadline arr_seq.
+    Let demand_during := total_demand_during job_arrival job_cost job_deadline arr_seq.
     Let deadline_le := jobs_with_deadline_le job_arrival job_deadline arr_seq.
     
     (* In this section, we prove that the demand gives a sufficient
@@ -53,7 +54,7 @@ Module EDFDemandAnalysis.
       Hypothesis H_edf_policy:
         respects_JLFP_policy job_arrival job_deadline arr_seq sched (EDF job_arrival job_deadline).
 
-      (* ... with a deadline miss at time t_f by job j_mis ... *)
+      (* ... with a deadline miss at non-zero time t_f by job j_mis ... *)
       
       Definition deadline_miss (j:Job) := service sched j (absolute_deadline j) < job_cost j.
       Definition deadline_miss_at (j:Job) (t:time) := (t = absolute_deadline j) /\ deadline_miss j.
@@ -62,6 +63,7 @@ Module EDFDemandAnalysis.
       Variable j_mis : Job.
       
       Hypothesis H_deadline_miss:  deadline_miss_at j_mis t_f.
+      Hypothesis H_t_f_nonzero: t_f > 0.
 
       (* ... WLOG, j_mis is the only job with deadline at t_f ... *)
 
@@ -73,6 +75,11 @@ Module EDFDemandAnalysis.
         forall (j:Job), (absolute_deadline j) < t_f ->
                         service sched j (absolute_deadline j) == job_cost j.
 
+      (* ... and demand not previously exceeding interval length ... *)
+
+      Hypothesis H_demand_le_interval_prior:
+        forall t, t < t_f -> demand_at t <= t.
+
       (* ... with busy interval taken WLOG to be the entire analyzed interval ... *)
       
       Definition fully_scheduled t := forall t1, t1 <= t -> ~~is_idle sched t1.
@@ -81,26 +88,58 @@ Module EDFDemandAnalysis.
       
       Hypothesis H_busy_interval: busy_interval t_f.
 
-      (* ... in which we only concern ourselves with jobs with arrival in the interval *)
-
-      Hypothesis H_arrival_in_interval: forall j, j \in jobs_arrived_up_to arr_seq t_f.
-
       (* ... demand must have exceeded the interval length. *)
+
+      Lemma arrival_lt_absolute_deadline:
+        forall j, job_arrival j < absolute_deadline j.
+      Proof.
+        intros j.
+        replace (absolute_deadline j) with (job_arrival j + job_deadline j); [> | auto].
+        assert (H_deadline_pos: (job_deadline j) > 0) by apply H_valid_job_parameters.
+        induction (job_arrival j).
+        apply H_deadline_pos.
+        apply IHt.
+      Qed.
+           
+      Lemma demand_demand_during_duality:
+        forall t, demand_at t = demand_during 0 t.
+      Proof.
+        unfold demand_at, demand_during, total_demand_at, total_demand_during, jobs_with_deadline_le, jobs_with_arrival_and_deadline_le, jobs_arrived_up_to, jobs_with_deadline_le, jobs_arrived_up_to, jobs_arrived_between, jobs_arriving_at.
+        intros t.
+        assert (H_conds_equiv: forall j, job_arrival j + job_deadline j <= t -> 
+                                         arrived_between job_arrival j 0 t).
+        {
+          intros j; unfold arrived_between; move => H_bounds.
+          replace (job_arrival j + job_deadline j) with (absolute_deadline j); [> | auto].
+          assert (H_deadline_pos: (job_deadline j) > 0) by apply H_valid_job_parameters.
+          assert (job_arrival j < t).
+          {          
+            assert (LOWER: 0 <= job_arrival j) by apply leq0n.
+            Admitted.
+      
+      Lemma split_demand:
+        demand_at t_f = demand_at (t_f - 1) + job_cost j_mis.
+      Proof.
+        unfold demand_at, total_demand_at, jobs_with_deadline_le, jobs_arrived_up_to, jobs_arrived_between, jobs_arriving_at.
+        rewrite -> big_cat_nat with (n:= t_f); [> | auto | auto].
+        replace ((t_f - 1).+1) with t_f; [> | rewrite -> subn1; rewrite -> prednK; auto; auto].
+        
+        
+      Admitted.
+
+      Lemma j_mis_demand_impact:
+        demand_at (t_f - 1) + job_cost j_mis > t_f -> demand_at t_f > t_f.
+      Proof.
+        rewrite <- split_demand; auto.
+      Qed.
+      
       Theorem deadline_miss_in_edf_implies_demand_gt_interval:
         demand_at t_f > t_f.
       Proof.
         unfold respects_JLFP_policy, arrives_in, backlogged, scheduled_at, EDF, pending, has_arrived, completed_by, service, service_during, service_at, scheduled_at, jobs_arriving_at in H_edf_policy.
-        unfold demand_at, total_demand_at, jobs_with_deadline_le.
         unfold deadline_miss_at, deadline_miss in H_deadline_miss.
         unfold busy_interval, fully_scheduled, work_relevant, is_idle in H_busy_interval.
-
-        (* should show that demand at t + 1 is demand at t plus sum of jobs costs of jobs with 
-           deadline at t + 1 *)
-
-        (* then show that demand at t_f - 1 is satisfied and probably some of j_mis is too *)
-
-        (* could show that edf satisfies in order of demand ? *)
-        
+        rewrite -> split_demand.
         
         Admitted.
       
