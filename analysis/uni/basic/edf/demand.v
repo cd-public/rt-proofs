@@ -30,12 +30,12 @@ Module Demand.
     (* In order to get all jobs which arrived and have to complete
        before t, we first define a function which filters
        the arrival sequence accordingly. *)
-    Definition jobs_with_deadline_before t :=
-      [seq j <- jobs_arrived_up_to arr_seq t | absolute_deadline j < t].
+    Definition jobs_with_deadline_le t :=
+      [seq j <- jobs_arrived_up_to arr_seq t | absolute_deadline j <= t].
    
     (* Then we filter out jobs that haven't arrived before the start of an interval *)
-    Definition jobs_with_arrival_and_deadline_between t1 t2 :=
-      [seq j <- jobs_with_deadline_before t2 | (arrived_between job_arrival j t1 t2)].
+    Definition jobs_with_arrival_and_deadline_le t1 t2 :=
+      [seq j <- jobs_with_deadline_le t2 | (arrived_between job_arrival j t1 t2)].
  
     (* In this section, we define the demand of a given set of jobs. *)
     Section TotalDemand.
@@ -43,11 +43,11 @@ Module Demand.
       (* Let us define the total demand in the interval [t1,t2) as the
          workload of jobs with arrival and deadline inside the interval.*)
       Definition total_demand_during t1 t2 :=
-        \sum_(j <- jobs_with_arrival_and_deadline_between t1 t2) job_cost j.
+        \sum_(j <- jobs_with_arrival_and_deadline_le t1 t2) job_cost j.
 
       (* Similarly, the total demand before t is the demand in the interval [0, t). *)
-      Definition total_demand_before t :=
-        \sum_(j <- jobs_with_deadline_before t) job_cost j.
+      Definition total_demand_at t :=
+        \sum_(j <- jobs_with_deadline_le t) job_cost j.
 
     End TotalDemand.
 
@@ -64,14 +64,14 @@ Module Demand.
       (* In order to get all jobs of tsk which arrived and
          have to complete during [t1, t2), we filter the list
          we defined above accordingly. *)
-      Definition jobs_of_task_with_arrival_and_deadline_between t1 t2 :=
-        [seq j <- jobs_with_arrival_and_deadline_between t1 t2 | job_of_tsk j].
+      Definition jobs_of_task_with_arrival_and_deadline_le t1 t2 :=
+        [seq j <- jobs_with_arrival_and_deadline_le t1 t2 | job_of_tsk j].
 
       (* Then let us define the processor demand of a task in the
          interval [t1,t2) as the workload of jobs of tsk with
          arrival and deadline inside this interval. *)
       Definition total_task_demand_during t1 t2 :=
-	    \sum_(j <- jobs_of_task_with_arrival_and_deadline_between t1 t2) job_cost j.
+	    \sum_(j <- jobs_of_task_with_arrival_and_deadline_le t1 t2) job_cost j.
 
 	  (* The total demand of a task up to time t can be defined
 		 as the total demand of tsk from 0 to t. *)
@@ -129,8 +129,8 @@ Module Demand.
 	  job_arrival j + job_deadline j.
         Check total_demand_during.
 	Let demand_during := total_demand_during job_arrival job_cost job_deadline arr_seq.
-	Let demand_before := total_demand_before job_arrival job_cost job_deadline arr_seq.
-	Let arrivals_and_deadline_between := jobs_with_arrival_and_deadline_between job_arrival job_deadline arr_seq.
+	Let demand_at := total_demand_at job_arrival job_cost job_deadline arr_seq.
+	Let arrivals_and_deadline_le := jobs_with_arrival_and_deadline_le job_arrival job_deadline arr_seq.
 
 	(* In this section, we prove properties for the demand
 	   for a specific job if the job set is schedulable. *)
@@ -206,7 +206,7 @@ Module Demand.
 	  (* As a corollary, we can show that the service of j during
 	     [t, t + delta) is equal to its cost. *)
 	  Corollary service_jobs_in_interval_eq_cost:
-	    service_during sched j t (t  = job_cost j.
+	    service_during sched j t (t + delta) = job_cost j.
           Proof.
             assert (GE: job_cost j <= service sched j (t + delta)).
             {
