@@ -39,91 +39,51 @@ Module EDFDemandAnalysis.
     Hypothesis H_completed_jobs_dont_execute:
       completed_jobs_dont_execute job_cost sched.
 
-    (* For simplicity, let's define a function to check whether all
-       deadlines have been met in a given schedule. *)
-    Let no_deadline_miss_in (sched: schedule Job) :=
-      forall j, job_misses_no_deadline job_arrival job_cost job_deadline sched j.
 
     (* For simplicity, let us define some local names about demand. *)
-    Let absolute_deadline (j: Job) :=
-      job_arrival j + job_deadline j.
-    Let demand_during := total_demand_during job_arrival job_cost job_deadline arr_seq.
+    Let absolute_deadline (j: Job) := job_arrival j + job_deadline j.
     Let demand_before := total_demand_before job_arrival job_cost job_deadline arr_seq.
-    Let arrivals_and_deadline_between := jobs_with_arrival_and_deadline_between job_arrival job_deadline arr_seq.
-
+    Let deadline_before := jobs_with_deadline_before job_arrival job_deadline arr_seq.
+    
     (* In this section, we prove that the demand gives a sufficient
        condition for schedulability under EDF. *)
     Section DemandUnderEDF.
 
-      (* Let sched_edf be any EDF schedule ... *)
-      Variable sched_edf: schedule Job.
-      Hypothesis H_edf_policy: respects_JLFP_policy job_arrival job_deadline arr_seq sched_edf (EDF job_arrival job_deadline).
+      (* Let sched be any EDF schedule ... *)
+      Hypothesis H_edf_policy:
+        respects_JLFP_policy job_arrival job_deadline arr_seq sched (EDF job_arrival job_deadline).
 
-      (* ...where jobs must arrive to execute. *)
-      Hypothesis H_jobs_must_arrive_to_execute_sched_edf:
-        jobs_must_arrive_to_execute job_arrival sched_edf.
-                                                                               
-      (* ...and don't execute after they completed. *)
-      Hypothesis H_completed_jobs_dont_execute_sched_edf:
-        completed_jobs_dont_execute job_cost sched_edf.
+      (* ... with a deadline miss at time t_f by job j_mis ... *)
+      
+      Definition deadline_miss (j:Job) := service sched j (absolute_deadline j) < job_cost j.
+      Definition deadline_miss_at (j:Job) (t:time) := (t = absolute_deadline j) /\ deadline_miss j.
+      
+      Variable t_f : time.
+      Variable j_mis : Job.
+      
+      Hypothesis H_deadline_miss:  deadline_miss_at j_mis t_f.
 
-      (* If the demand during any interval is bounded by the length of the interval, ... *)
-      Hypothesis H_demand_always_satisfied:
-        forall t delta, demand_during t (t + delta) <= delta.
+      (* ... and no prior misses ... *)
 
-      (*...then no deadline is missed. *)
+      Hypothesis H_no_prior_miss:
+        forall (j:Job), (absolute_deadline j) < t_f ->
+                        service sched j (absolute_deadline j) == job_cost j.
 
-      Lemma schedulable_if_demand_always_satisfied:
-        no_deadline_miss_in sched_edf.
+      (* ... with busy interval taken WLOG to be the entire analyzed interval ... *)
+      
+      Definition fully_scheduled t := forall t1, t1 <= t -> ~~is_idle sched t1.
+      Definition work_relevant t := forall j, (absolute_deadline j) <= t.
+      Definition busy_interval t := fully_scheduled t /\ work_relevant t.
+      
+      Hypothesis H_busy_interval: busy_interval t_f.
+
+      (* ... demand must have exceeded the interval length. *)
+      Theorem deadline_miss_in_edf_implies_demand_gt_interval:
+        demand_before t_f > t_f.
       Proof.
-        intros j.
-        assert (forall t n, n <= t -> service_during sched_edf j 0 t = service_during sched_edf j 0 n + service_during sched_edf j n t).
-        {
-          (* This should perhaps become a lemma. *)
-          intros t n; unfold service_during; move => H_in_range.
-          rewrite -> big_cat_nat with (n := n); [> auto | auto | apply H_in_range].
-        }
-        assert (service_during sched_edf j 0 (job_arrival j) = 0).
-        {
-          (* This should perhaps become a lemma. *)
-          unfold service_during.
-          rewrite (cumulative_service_before_job_arrival_zero job_arrival); [auto | apply H_jobs_must_arrive_to_execute_sched_edf | auto].
-        }
-        assert (job_arrival j <= job_arrival j + job_deadline j) by apply leq_addr.
-        unfold job_misses_no_deadline, completed_by, service.
-        move: H1; rewrite -> H with (n := job_arrival j); [> | apply leq_addr].
-        move => H1; rewrite -> H0; rewrite -> add0n.
-        unfold respects_JLFP_policy, arrives_in, backlogged, scheduled_at, EDF in H_edf_policy.
-        
-        
-      Admitted.
+        unfold respects_JLFP_policy, arrives_in, backlogged, scheduled_at, EDF in H_edf_policy. 
       
     End DemandUnderEDF.
-
-    (* Using the optimality of EDF, we prove the correctness of the
-       demand-based, exact feasibility test. *)
-    Section FeasibilityTest.
-
-      (* First, we define the concept of feasibility of a job set. *)
-      Let job_set_is_feasible :=
-        exists sched,
-          no_deadline_miss_in sched.
-
-      (* Then, by testing whether the demand is satisfied for every
-         interval, ... *)
-      Let demand_is_satisfied :=
-        forall t delta, demand_during t (t + delta) <= delta.
-
-      (* ... we establish the exact feasibility analysis for
-             uniprocessor scheduling. *)
-      (* TODO: for now only stated. *)
-      Theorem job_set_is_feasible_iff_demand_is_satisfied:
-        job_set_is_feasible <->
-        demand_is_satisfied.
-      Proof.
-        Admitted.
-		
-    End FeasibilityTest.
 
   End Lemmas.
 
