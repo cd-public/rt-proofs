@@ -81,7 +81,8 @@ Module EDFDemandAnalysis.
       Theorem deadline_miss_in_edf_implies_demand_gt_interval:
         demand_before t_f > t_f.
       Proof.
-        unfold respects_JLFP_policy, arrives_in, backlogged, scheduled_at, EDF in H_edf_policy. 
+        unfold respects_JLFP_policy, arrives_in, backlogged, scheduled_at, EDF in H_edf_policy.
+        Admitted.
       
     End DemandUnderEDF.
 
