@@ -93,6 +93,14 @@ Module EDFDemandAnalysis.
         unfold demand_at, total_demand_at, jobs_with_deadline_le.
         unfold deadline_miss_at, deadline_miss in H_deadline_miss.
         unfold busy_interval, fully_scheduled, work_relevant, is_idle in H_busy_interval.
+
+        (* should show that demand at t + 1 is demand at t plus sum of jobs costs of jobs with 
+           deadline at t + 1 *)
+
+        (* then show that demand at t_f - 1 is satisfied and probably some of j_mis is too *)
+
+        (* could show that edf satisfies in order of demand ? *)
+        
         
         Admitted.
       
