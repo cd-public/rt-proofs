@@ -42,8 +42,8 @@ Module EDFDemandAnalysis.
 
     (* For simplicity, let us define some local names about demand. *)
     Let absolute_deadline (j: Job) := job_arrival j + job_deadline j.
-    Let demand_before := total_demand_before job_arrival job_cost job_deadline arr_seq.
-    Let deadline_before := jobs_with_deadline_before job_arrival job_deadline arr_seq.
+    Let demand_at := total_demand_at job_arrival job_cost job_deadline arr_seq.
+    Let deadline_le := jobs_with_deadline_le job_arrival job_deadline arr_seq.
     
     (* In this section, we prove that the demand gives a sufficient
        condition for schedulability under EDF. *)
@@ -63,6 +63,10 @@ Module EDFDemandAnalysis.
       
       Hypothesis H_deadline_miss:  deadline_miss_at j_mis t_f.
 
+      (* ... WLOG, j_mis is the only job with deadline at t_f ... *)
+
+      Hypothesis H_j_mis_only: forall j, (absolute_deadline j) = t_f -> j = j_mis.
+
       (* ... and no prior misses ... *)
 
       Hypothesis H_no_prior_miss:
@@ -77,11 +81,19 @@ Module EDFDemandAnalysis.
       
       Hypothesis H_busy_interval: busy_interval t_f.
 
+      (* ... in which we only concern ourselves with jobs with arrival in the interval *)
+
+      Hypothesis H_arrival_in_interval: forall j, j \in jobs_arrived_up_to arr_seq t_f.
+
       (* ... demand must have exceeded the interval length. *)
       Theorem deadline_miss_in_edf_implies_demand_gt_interval:
-        demand_before t_f > t_f.
+        demand_at t_f > t_f.
       Proof.
-        unfold respects_JLFP_policy, arrives_in, backlogged, scheduled_at, EDF in H_edf_policy.
+        unfold respects_JLFP_policy, arrives_in, backlogged, scheduled_at, EDF, pending, has_arrived, completed_by, service, service_during, service_at, scheduled_at, jobs_arriving_at in H_edf_policy.
+        unfold demand_at, total_demand_at, jobs_with_deadline_le.
+        unfold deadline_miss_at, deadline_miss in H_deadline_miss.
+        unfold busy_interval, fully_scheduled, work_relevant, is_idle in H_busy_interval.
+        
         Admitted.
       
     End DemandUnderEDF.
