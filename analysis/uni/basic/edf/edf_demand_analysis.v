@@ -112,13 +112,13 @@ Module EDFDemandAnalysis.
         {
           intros j.
           rewrite -> ltn_neqAle.
-          move => H_not_j_mis.
+          move => H_not_j_mis.(*
           rewrite andP.
           elim.
           destruct (absolute_deadline j != t_f); simpl.
           apply H_busy_interval.
           contradict H_j_mis_only.
-          intros j0.
+          intros j0.*)
       Admitted.
 
       Lemma j_mis_demand_impact:
