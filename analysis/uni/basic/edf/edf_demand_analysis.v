@@ -100,31 +100,25 @@ Module EDFDemandAnalysis.
         apply H_deadline_pos.
         apply IHt.
       Qed.
-           
-      Lemma demand_demand_during_duality:
-        forall t, demand_at t = demand_during 0 t.
-      Proof.
-        unfold demand_at, demand_during, total_demand_at, total_demand_during, jobs_with_deadline_le, jobs_with_arrival_and_deadline_le, jobs_arrived_up_to, jobs_with_deadline_le, jobs_arrived_up_to, jobs_arrived_between, jobs_arriving_at.
-        intros t.
-        assert (H_conds_equiv: forall j, job_arrival j + job_deadline j <= t -> 
-                                         arrived_between job_arrival j 0 t).
-        {
-          intros j; unfold arrived_between; move => H_bounds.
-          replace (job_arrival j + job_deadline j) with (absolute_deadline j); [> | auto].
-          assert (H_deadline_pos: (job_deadline j) > 0) by apply H_valid_job_parameters.
-          assert (job_arrival j < t).
-          {          
-            assert (LOWER: 0 <= job_arrival j) by apply leq0n.
-            Admitted.
       
       Lemma split_demand:
         demand_at t_f = demand_at (t_f - 1) + job_cost j_mis.
       Proof.
-        unfold demand_at, total_demand_at, jobs_with_deadline_le, jobs_arrived_up_to, jobs_arrived_between, jobs_arriving_at.
+        unfold demand_at, total_demand_at, total_demand_during, jobs_with_arrival_and_deadline_le, jobs_with_deadline_le, jobs_arrived_up_to, jobs_arrived_between, jobs_arriving_at.
         rewrite -> big_cat_nat with (n:= t_f); [> | auto | auto].
-        replace ((t_f - 1).+1) with t_f; [> | rewrite -> subn1; rewrite -> prednK; auto; auto].
-        
-        
+        replace ((t_f - 1).+1) with t_f; [> | rewrite -> subn1; rewrite -> prednK; auto; auto]; simpl.
+        unfold busy_interval, work_relevant in H_busy_interval.
+        assert (H_j_mis_neg: forall j, j != j_mis -> absolute_deadline j < t_f).
+        {
+          intros j.
+          rewrite -> ltn_neqAle.
+          move => H_not_j_mis.
+          rewrite andP.
+          elim.
+          destruct (absolute_deadline j != t_f); simpl.
+          apply H_busy_interval.
+          contradict H_j_mis_only.
+          intros j0.
       Admitted.
 
       Lemma j_mis_demand_impact:
@@ -141,7 +135,7 @@ Module EDFDemandAnalysis.
         unfold busy_interval, fully_scheduled, work_relevant, is_idle in H_busy_interval.
         rewrite -> split_demand.
         
-        Admitted.
+      Admitted.
       
     End DemandUnderEDF.
 

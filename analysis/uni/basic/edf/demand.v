@@ -47,7 +47,7 @@ Module Demand.
 
       (* Similarly, the total demand before t is the demand in the interval [0, t). *)
       Definition total_demand_at t :=
-        \sum_(j <- jobs_with_deadline_le t) job_cost j.
+        total_demand_during 0 t.
 
     End TotalDemand.
 
