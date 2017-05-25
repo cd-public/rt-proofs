@@ -67,7 +67,8 @@ Module EDFDemandAnalysis.
 
       (* ... WLOG, j_mis is the only job with deadline at t_f ... *)
 
-      Hypothesis H_j_mis_only: forall j, (absolute_deadline j) = t_f -> j = j_mis.
+      Hypothesis H_not_j_mis: forall j, (absolute_deadline j) < t_f <-> j != j_mis.
+      Hypothesis H_j_mis_only: forall j, (absolute_deadline j) = t_f <-> j = j_mis.
 
       (* ... and no prior misses ... *)
 
@@ -108,11 +109,9 @@ Module EDFDemandAnalysis.
         rewrite -> big_cat_nat with (n:= t_f); [> | auto | auto].
         replace ((t_f - 1).+1) with t_f; [> | rewrite -> subn1; rewrite -> prednK; auto; auto]; simpl.
         unfold busy_interval, work_relevant in H_busy_interval.
-        assert (H_j_mis_neg: forall j, j != j_mis -> absolute_deadline j < t_f).
-        {
-          intros j.
-          rewrite -> ltn_neqAle.
-          move => H_not_j_mis.(*
+        assert (\big[cat/[::]]_(t+f <= i < t_f.+1) arr_seq i).
+        
+      (*
           rewrite andP.
           elim.
           destruct (absolute_deadline j != t_f); simpl.
