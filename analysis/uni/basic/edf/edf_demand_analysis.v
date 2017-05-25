@@ -1,6 +1,6 @@
 Require Import rt.util.all.
 Require Import rt.model.time rt.model.arrival.basic.job rt.model.arrival.basic.task rt.model.arrival.basic.arrival_sequence rt.model.priority.
-Require Import rt.model.schedule.uni.schedule rt.model.schedule.uni.schedulability rt.model.schedule.uni.basic.platform.
+Require Import rt.model.schedule.uni.schedule rt.model.schedule.uni.schedulability rt.model.schedule.uni.basic.platform rt.model.schedule.uni.basic.busy_interval.
 Require Import rt.analysis.uni.basic.edf.total_service rt.analysis.uni.basic.edf.demand.
 From mathcomp Require Import ssreflect ssrbool ssrfun eqtype ssrnat seq fintype bigop.
 
@@ -109,7 +109,6 @@ Module EDFDemandAnalysis.
         rewrite -> big_cat_nat with (n:= t_f); [> | auto | auto].
         replace ((t_f - 1).+1) with t_f; [> | rewrite -> subn1; rewrite -> prednK; auto; auto]; simpl.
         unfold busy_interval, work_relevant in H_busy_interval.
-        assert (\big[cat/[::]]_(t+f <= i < t_f.+1) arr_seq i).
         
       (*
           rewrite andP.
